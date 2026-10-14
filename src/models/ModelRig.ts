@@ -46,6 +46,14 @@ export function loadModel(id: string): Promise<GLTF | null> {
   return p;
 }
 
+/**
+ * Rotation about y that points a model at world direction (cos yaw, sin yaw). Every body in the game is a
+ * Meshy export whose front is local +z (after the registry `yaw` correction), so this is the one formula.
+ */
+export function yawToRotation(yaw: number): number {
+  return Math.PI / 2 - yaw;
+}
+
 /** `loadModel` that also logs a missing file once (the console is the Meshy to-do list). */
 export function loadModelOrWarn(id: string, label?: string): Promise<GLTF | null> {
   return loadModel(id).then((g) => { if (!g) warnMissing(id, label); return g; });
@@ -151,15 +159,18 @@ export class ModelRig {
     return null;
   }
 
-  /** Crossfades to a clip. `once` clips (attacks, hits) clamp on their last frame. */
-  play(key: ClipKey | string, once = false, speed = 1): boolean {
+  /**
+   * Crossfades to a clip. `once` clips (attacks, hits) clamp on their last frame. `fitTo` plays the whole clip
+   * in that many seconds, so a swing finishes exactly when the game's attack window does.
+   */
+  play(key: ClipKey | string, once = false, speed = 1, fitTo?: number): boolean {
     const action = this.find(key);
     if (!action) return false;
     if (this.current === action && !once) { action.timeScale = speed; return true; }
     action.reset();
     action.setLoop(once ? LoopOnce : LoopRepeat, Infinity);
     action.clampWhenFinished = once;
-    action.timeScale = speed;
+    action.timeScale = fitTo ? Math.max(0.3, action.getClip().duration / Math.max(0.05, fitTo)) : speed;
     action.enabled = true;
     if (this.current && this.current !== action) { action.crossFadeFrom(this.current, 0.18, true); }
     action.play();
@@ -170,6 +181,20 @@ export class ModelRig {
 
   get playing(): string {
     return this.currentKey;
+  }
+
+  /** Freezes the current clip once it reaches `fraction` of its length (a jump's apex, a charge's wind-up). */
+  holdAt(fraction: number): void {
+    const a = this.current;
+    if (a && !a.paused && a.time >= a.getClip().duration * fraction) a.paused = true;
+  }
+
+  /** Unfreezes the current clip and plays what is left of it in `seconds`. */
+  resumeFit(seconds: number): void {
+    const a = this.current;
+    if (!a) return;
+    a.paused = false;
+    a.timeScale = Math.max(0.3, (a.getClip().duration - a.time) / Math.max(0.05, seconds));
   }
 
   /** First node whose name matches (bone lookups: `bone(/right.?hand/i)`), or null. */

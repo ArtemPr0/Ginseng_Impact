@@ -5,7 +5,7 @@
 import { AdditiveBlending, CircleGeometry, DoubleSide, Group, Mesh, MeshBasicMaterial, Vector3 } from 'three';
 import { PALETTE } from '../render/palette';
 import { MODELS } from '../data/models';
-import { loadModelOrWarn, ModelRig } from '../models/ModelRig';
+import { loadModelOrWarn, ModelRig, yawToRotation } from '../models/ModelRig';
 import { MissingModelPlaceholder } from '../models/Placeholder';
 import type { Footprint } from './Colliders';
 import type { Landmark } from './Landmarks';
@@ -75,7 +75,7 @@ export function pathWalker(g: Group, path: Array<[number, number]>, speed: numbe
     pos.set(a[0] + (b[0] - a[0]) * t, 0, a[1] + (b[1] - a[1]) * t);
     pos.y = Math.max(heightAt(pos.x, pos.z), -20) + lift;
     g.position.lerp(pos, Math.min(1, dt * 3));
-    const yaw = Math.atan2(b[0] - g.position.x, b[1] - g.position.z) - Math.PI / 2;
+    const yaw = Math.atan2(b[0] - g.position.x, b[1] - g.position.z); // local +z (the model's front) toward the next waypoint
     g.rotation.y += Math.atan2(Math.sin(yaw - g.rotation.y), Math.cos(yaw - g.rotation.y)) * Math.min(1, dt * 1.5);
   };
 }
@@ -119,7 +119,7 @@ export function riverDrifter(id: string, startS: number, speed: number): ModelLa
     s += dt * speed;
     const p = riverPoint(-s);
     lm.root.position.set(p.x, RIVER_LEVEL + 0.05 + Math.sin(t * 1.4) * 0.06, p.z);
-    lm.root.rotation.y = -p.yaw;
+    lm.root.rotation.y = yawToRotation(p.yaw);
     lm.root.rotation.z = Math.sin(t * 1.1) * 0.03;
     base(dt, player);
   };

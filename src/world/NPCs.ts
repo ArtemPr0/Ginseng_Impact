@@ -1,4 +1,5 @@
 import { Group, Vector3 } from 'three';
+import { yawToRotation } from '../models/ModelRig';
 import { Rig, type RigPose } from '../characters/Rig';
 import type { CharacterDef } from '../characters/roster';
 import { MODELS } from '../data/models';
@@ -258,7 +259,7 @@ export class Npc {
     }
     if (moving) this.pos.y += (this.heightAt(this.pos.x, this.pos.z) - this.pos.y) * Math.min(1, dt * 8);
     this.object.position.copy(this.pos);
-    this.object.rotation.y = -this.yaw - Math.PI / 2;
+    this.object.rotation.y = yawToRotation(this.yaw);
     const pose = talking ? undefined : b.kind === 'stand' ? b.pose : b.kind === 'loop' ? b.pose : undefined;
     this.rig.animate({ mode: 'ground', speed: moving ? this.speed : 0, pose }, dt);
   }

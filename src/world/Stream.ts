@@ -8,6 +8,7 @@ import {
   PointsMaterial, ShaderMaterial,
 } from 'three';
 import { Rig } from '../characters/Rig';
+import { yawToRotation } from '../models/ModelRig';
 import { WITCH } from '../characters/roster';
 import { glowSprite, glowTexture } from '../render/Glow';
 import { PALETTE } from '../render/palette';
@@ -89,7 +90,7 @@ export function witchStream(streamX: number, zMin: number, zMax: number, bridgeZ
         const r = witches[i];
         r.root.position.set(streamX + Math.cos(a) * rad, deckY + 0.45 + Math.abs(Math.sin(t * 2.2 + i * 2)) * 0.12, bridgeZ + Math.sin(a) * rad * 0.7);
         const yaw = Math.atan2(Math.cos(a) * 0.7, -Math.sin(a));
-        r.root.rotation.y = -yaw - Math.PI / 2;
+        r.root.rotation.y = yawToRotation(yaw);
         r.animate({ mode: 'ground', speed: 1.6 + Math.sin(t * 1.1 + i) * 0.4, attack: i === Math.floor(t / 3) % 3 ? undefined : ((t * 0.5) % 1), attackKind: 'skill' }, dt);
       }
     },

@@ -1,4 +1,4 @@
-import { loadModelOrWarn, ModelRig } from '../models/ModelRig';
+import { loadModelOrWarn, ModelRig, yawToRotation } from '../models/ModelRig';
 import { MissingModelPlaceholder } from '../models/Placeholder';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { Group } from 'three';
@@ -245,7 +245,7 @@ export class Enemy {
       m?.update(dt);
       return;
     }
-    this.object.rotation.y = -this.yaw;
+    this.object.rotation.y = yawToRotation(this.yaw);
     if (!m) { this.placeholder?.update(dt); return; }
     if ((st === 'recover' || st === 'chase') && m.finished) { if (!m.play('walk')) m.play('idle'); }
     if (this.def.stomp && st === 'chase') {

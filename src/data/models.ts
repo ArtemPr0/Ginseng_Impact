@@ -15,7 +15,7 @@ export interface ModelDef {
   clipFiles?: Partial<Record<ClipName, string>>;
   /** Height the model should be scaled to, metres. */
   height: number;
-  /** Rotate so the model faces +x in the game's yaw convention (radians about y). */
+  /** Rotate so the model's front faces local +z (Meshy's usual export), radians about y. */
   yaw?: number;
   /** Lift so the feet sit on the ground. */
   yOffset?: number;
@@ -26,6 +26,8 @@ export interface ModelDef {
   robe?: boolean;
   /** Human-readable name for the missing-model warning and placeholder. */
   label?: string;
+  /** Hand-held props: offset (metres) and rotation (radians) from the hand bone to the grip. */
+  grip?: { x: number; y: number; z: number; rx: number; ry: number; rz: number };
 }
 
 const NPC_CLIPS = (pose: string): Partial<Record<ClipName, string>> => ({ idle: `${pose}|idle_02|idle|stance`, walk: 'walking|walk', run: 'running|run', attack: 'attack|slash|cast', hit: 'hit', death: 'dying|death', sit: 'sit|drink|read|idle', kneel: 'kneel|pray|idle' });
@@ -46,14 +48,17 @@ export const MODELS: Record<string, ModelDef> = {
   // Party (Meshy image-to-3D from docs/reference/frames, biped rig, preset clips)
   knight: { file: 'knight.glb', height: 1.95, clips: { idle: 'idle_02|idle|stance', walk: 'walking|walk', run: 'running|run', jump: 'basic_jump|jump', attack: 'right_hand_sword_slash|slash|attack', heavy: 'sword_judgment|judgment|slash', cast: 'sword_shout|shout|slash', hit: 'hit_reaction|hit', death: 'dying|death' } },
   archer: { file: 'archer.glb', height: 1.8, clips: { idle: 'idle_02|idle|stance', walk: 'walking|walk', run: 'running|run', jump: 'basic_jump|jump', attack: 'archery_shot|shot', heavy: 'archery_shot_1|shot', cast: 'archery_aim|aim|shot', hit: 'hit_reaction|hit', death: 'dying|death' } },
-  wizard: { file: 'wizard.glb', height: 1.85, robe: true, smoke: { x: 0.2, y: 1.12, z: 0.1 }, clips: { idle: 'idle_02|idle|stance', walk: 'walking|walk', run: 'running|run', jump: 'basic_jump|jump', attack: 'mage_soell_cast|spell|cast', heavy: 'charged_spell_cast|charged|cast', cast: 'charged_spell_cast|charged|cast', hit: 'hit_reaction|hit', death: 'dying|death' } },
+  wizard: { file: 'wizard.glb', height: 1.85, smoke: { x: 0.2, y: 1.12, z: 0.1 }, clips: { idle: 'idle_02|idle|stance', walk: 'walking|walk', run: 'running|run', jump: 'basic_jump|jump', attack: 'mage_soell_cast|spell|cast', heavy: 'charged_spell_cast|charged|cast', cast: 'charged_spell_cast|charged|cast', hit: 'hit_reaction|hit', death: 'dying|death' } },
+  // Weapons the heroes pull out while attacking (the models' own baked weapons stay where they are)
+  staff: { file: 'staff.glb', height: 1.9, label: "Orlan's staff: gnarled wood with a violet crystal", grip: { x: 0, y: -0.55, z: 0, rx: 0, ry: 0, rz: 0 } },
+  greatsword: { file: 'greatsword.glb', height: 1.6, label: "Sir Aldric's greatsword", grip: { x: 0, y: -0.25, z: 0, rx: 0, ry: 0, rz: 0 } },
   // Bosses and mobs
   // Meshy animate exports bundle every added preset into one GLB; clip names are the preset's English ids.
   yeti: { file: 'yeti.glb', height: 5.2, clips: BOSS_CLIPS },
   shade: { file: 'horned-shade.glb', height: 7, clips: BOSS_CLIPS },
   warden: { file: 'antlered-warden.glb', height: 15, clips: BOSS_CLIPS },
   wyrm: { file: 'moon-wyrm.glb', height: 3, yOffset: 0, clips: { idle: 'fly|idle|hover', fly: 'fly|idle', attack: 'bite|attack' } },
-  troll: { file: 'rock-troll.glb', height: 4.6, clips: BOSS_CLIPS },
+  troll: { file: 'rock-troll.glb', height: 4.6, yaw: Math.PI, clips: BOSS_CLIPS },
   lurker: { file: 'lake-lurker.glb', height: 4.2, yOffset: -0.4, clips: BOSS_CLIPS },
   marshdemon: { file: 'marsh-demon.glb', height: 12, yOffset: -1.5, clips: BOSS_CLIPS },
   hollowking: { file: 'hollow-king.glb', height: 42, clips: BOSS_CLIPS },

@@ -1,4 +1,5 @@
 import { Vector3 } from 'three';
+import { yawToRotation } from '../models/ModelRig';
 import { Rig } from '../characters/Rig';
 import type { NpcDef } from './NPCs';
 
@@ -73,7 +74,7 @@ export class Companion {
       if (this.swingTime >= dur) { this.attacking = false; this.swing = 1.1 + Math.random() * 0.4; }
     }
     this.rig.root.position.copy(this.pos);
-    this.rig.root.rotation.y = -this.yaw - Math.PI / 2;
+    this.rig.root.rotation.y = yawToRotation(this.yaw);
     this.rig.animate({ mode: 'ground', speed: moving ? speed : 0, attack: this.attacking ? Math.min(1, this.swingTime / 0.5) : undefined, attackKind: 0 }, dt);
     return strike;
   }

@@ -1,4 +1,5 @@
 import { DirectionalLight, FogExp2, HemisphereLight, PerspectiveCamera, Scene, Vector3 } from 'three';
+import { yawToRotation } from './models/ModelRig';
 import { Audio } from './audio/Audio';
 import { Rig } from './characters/Rig';
 import { ROSTER } from './characters/roster';
@@ -112,6 +113,7 @@ const combat = new CombatSystem({
   scene, world, sky, hud, camera, game, audio, inventory, controller, party, spawn: SPAWN,
   onForceSwitch: (i) => { party.update(Party.cooldown); switchTo(i); },
   onShake: (a) => tpc.shake(a),
+  muzzle: () => rigs[party.activeIndex].muzzle(new Vector3()),
   onDodge: () => {
     const axis = input.moveAxis();
     const dir = axis.x === 0 && axis.z === 0 ? { x: -Math.cos(controller.yaw), z: -Math.sin(controller.yaw) } : tpc.moveToWorld(axis);
@@ -267,7 +269,7 @@ game
     render(_alpha, dt) {
       const rig = rigs[party.activeIndex];
       rig.root.position.set(controller.pos.x, controller.pos.y, controller.pos.z);
-      rig.root.rotation.y = -controller.yaw - Math.PI / 2;
+      rig.root.rotation.y = yawToRotation(controller.yaw);
       const airborne = controller.mode === 'air' || controller.mode === 'glide';
       if (wasAirborne && !airborne) landedAt = performance.now() / 1000;
       wasAirborne = airborne;
@@ -276,6 +278,8 @@ game
         speed: Math.hypot(controller.vel.x, controller.vel.z),
         attack: combat.attackProgress,
         attackKind: combat.attackKind,
+        attackDuration: combat.attackDuration,
+        charging: combat.charging > 0,
         landed: performance.now() / 1000 - landedAt,
         grounded: controller.mode === 'ground',
       }, dt);

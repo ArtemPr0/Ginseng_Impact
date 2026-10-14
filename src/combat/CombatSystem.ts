@@ -1,4 +1,4 @@
-import { BoxGeometry, Group, Mesh, PerspectiveCamera, Scene, Vector3 } from 'three';
+import { BoxGeometry, Group, Mesh, PerspectiveCamera, Scene, Vector3, ConeGeometry, CylinderGeometry } from 'three';
 import type { Audio } from '../audio/Audio';
 import type { CharacterDef } from '../characters/roster';
 import type { Game } from '../core/Game';
@@ -23,6 +23,8 @@ interface Projectile {
   pos: Vector3; vel: Vector3; life: number; owner: 'player' | 'enemy';
   atk: number; mult: number; element: Element | null; radius: number; object: Group;
   chains: number; chainRange: number; hit: Set<number>; knockback: number; hitStop: number;
+  /** Arrows fly point-first; bolts tumble. */
+  kind: 'bolt' | 'arrow';
 }
 
 interface GroundZone { pos: Vector3; def: GroundEffectDef; left: number; tick: number; atk: number; remove: () => void }
@@ -38,9 +40,12 @@ export interface CombatDeps {
   onShake?: (amount: number) => void;
   /** Dodge roll accepted: the caller applies the dash. */
   onDodge?: () => void;
+  /** Where the active character's projectiles leave from (staff tip, bow hand); null → in front of the chest. */
+  muzzle?: (me: CharacterDef) => Vector3 | null;
 }
 
 const PLAYER_DEF = 30;
+const aim = new Vector3();
 const IFRAMES = 0.6;
 const BURST_MAX = 100;
 
@@ -129,6 +134,15 @@ export class CombatSystem {
     if (this.heavyCharge > 0) return Math.min(0.42, this.heavyCharge * 0.42);
     if (this.casting) return Math.min(1, this.casting.t / SKILLS[this.casting.def.id].castTime);
     return this.combo.swinging ? this.combo.progress : undefined;
+  }
+
+  /** Seconds the current swing or cast lasts, so the body's clip can be fitted to it. */
+  get attackDuration(): number | undefined {
+    if (this.burstCast) return 1.0;
+    if (this.heavy) return 0.8;
+    if (this.heavyCharge > 0) return undefined;
+    if (this.casting) return SKILLS[this.casting.def.id].castTime;
+    return this.combo.swinging ? this.combo.duration : undefined;
   }
 
   get attackKind(): number | 'skill' | 'heavy' | 'burst' | undefined {
@@ -333,7 +347,8 @@ export class CombatSystem {
       p.life -= dt;
       p.pos.addScaledVector(p.vel, dt);
       p.object.position.copy(p.pos);
-      p.object.rotation.y += dt * 12;
+      if (p.kind === 'arrow') p.object.lookAt(aim.copy(p.pos).add(p.vel));
+      else p.object.rotation.y += dt * 12;
       let dead = p.life <= 0 || p.pos.y < d.world.heightAt(p.pos.x, p.pos.z) - 1;
       if (p.owner === 'player') {
         for (const e of this.enemies) {
@@ -534,11 +549,12 @@ export class CombatSystem {
     const origin = { x: c.pos.x, z: c.pos.z };
     if (def.shape.kind === 'bolt') {
       const target = this.nearestEnemy(c.pos.x, c.pos.z, def.shape.range);
-      const from = new Vector3(c.pos.x + Math.cos(c.yaw) * 0.6, c.pos.y + 1.3, c.pos.z + Math.sin(c.yaw) * 0.6);
+      const from = this.d.muzzle?.(me) ?? new Vector3(c.pos.x + Math.cos(c.yaw) * 0.6, c.pos.y + 1.3, c.pos.z + Math.sin(c.yaw) * 0.6);
       const dir = target
         ? new Vector3(target.pos.x - from.x, target.pos.y + 0.5 - from.y, target.pos.z - from.z).normalize()
         : new Vector3(Math.cos(c.yaw), 0.05, Math.sin(c.yaw));
-      this.spawnProjectile(from, dir.multiplyScalar(22), 'player', atk, def.mult, element, 1.0, ELEMENT_COLOR[this.elementOf(me)], def.shape.chains, def.shape.chainRange, def.knockback, def.hitStop);
+      const arrow = me.weapon === 'bow';
+      this.spawnProjectile(from, dir.multiplyScalar(arrow ? 30 : 22), 'player', atk, def.mult, element, 1.0, ELEMENT_COLOR[this.elementOf(me)], def.shape.chains, def.shape.chainRange, def.knockback, def.hitStop, 0.24, arrow ? 'arrow' : 'bolt');
       return;
     }
     for (const e of this.enemies) {
@@ -620,14 +636,32 @@ export class CombatSystem {
     this.zones.push({ pos, def, left: def.duration, tick: 0.05, atk, remove });
   }
 
-  private spawnProjectile(from: Vector3, vel: Vector3, owner: 'player' | 'enemy', atk: number, mult: number, element: Element | null, radius: number, color: number, chains: number, chainRange: number, knockback: number, hitStop: number, size = 0.24): void {
+  private spawnProjectile(from: Vector3, vel: Vector3, owner: 'player' | 'enemy', atk: number, mult: number, element: Element | null, radius: number, color: number, chains: number, chainRange: number, knockback: number, hitStop: number, size = 0.24, kind: 'bolt' | 'arrow' = 'bolt'): void {
     const object = new Group();
-    const core = new Mesh(new BoxGeometry(size, size, size), surface({ color: PALETTE.void, emissive: color, emissiveIntensity: 3 }));
-    core.rotation.set(0.7, 0.7, 0);
-    object.add(core, glowSprite(color, 1.1 * (size / 0.24), 0.8, true));
-    object.position.copy(from);
+    if (kind === 'arrow') {
+      // A real arrow: shaft along +z (the direction lookAt points), glowing head, two fletching vanes.
+      const shaft = new Mesh(new CylinderGeometry(0.016, 0.016, 0.95, 5), surface({ color: PALETTE.bark, emissive: PALETTE.cloth, emissiveIntensity: 0.25 }));
+      shaft.rotation.x = Math.PI / 2;
+      const head = new Mesh(new ConeGeometry(0.05, 0.18, 5), surface({ color: PALETTE.stone, emissive: color, emissiveIntensity: 2.2 }));
+      head.rotation.x = Math.PI / 2;
+      head.position.z = 0.54;
+      const vane = new Mesh(new BoxGeometry(0.012, 0.14, 0.2), surface({ color: PALETTE.cloth, emissive: color, emissiveIntensity: 0.8 }));
+      vane.position.z = -0.4;
+      const vane2 = vane.clone();
+      vane2.rotation.z = Math.PI / 2;
+      const glow = glowSprite(color, 0.55, 0.6, true);
+      glow.position.z = 0.5;
+      object.add(shaft, head, vane, vane2, glow);
+      object.position.copy(from);
+      object.lookAt(aim.copy(from).add(vel));
+    } else {
+      const core = new Mesh(new BoxGeometry(size, size, size), surface({ color: PALETTE.void, emissive: color, emissiveIntensity: 3 }));
+      core.rotation.set(0.7, 0.7, 0);
+      object.add(core, glowSprite(color, 1.1 * (size / 0.24), 0.8, true));
+      object.position.copy(from);
+    }
     this.d.scene.add(object);
-    this.projectiles.push({ pos: from.clone(), vel, life: 2.5, owner, atk, mult, element, radius, object, chains, chainRange, hit: new Set(), knockback, hitStop });
+    this.projectiles.push({ pos: from.clone(), vel, life: 2.5, owner, atk, mult, element, radius, object, chains, chainRange, hit: new Set(), knockback, hitStop, kind });
   }
 
   private damagePlayer(atk: number, _element: Element | null): void {
