@@ -47,7 +47,7 @@ async function optimize(inPath, outPath, maxSize = 1024, targetTris = 0) {
   const steps = [dedup()];
   if (targetTris > 0 && tris > targetTris * 1.15) {
     await MeshoptSimplifier.ready;
-    steps.push(weld(), simplify({ simplifier: MeshoptSimplifier, ratio: targetTris / tris, error: 0.002 }));
+    steps.push(weld(), simplify({ simplifier: MeshoptSimplifier, ratio: targetTris / tris, error: Number(process.env.SIMPLIFY_ERROR ?? 0.002) }));
     console.log(`simplify ${Math.round(tris)} → ~${targetTris} triangles`);
   }
   steps.push(textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [maxSize, maxSize], quality: 82 }), prune());

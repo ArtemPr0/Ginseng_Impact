@@ -170,7 +170,7 @@ export const MODELS: Record<string, ModelDef> = {
   'gothic-pavilion': stat('gothic-pavilion.glb', 9, 'gothic pavilion with a ribbed dome and round arched windows (DeXn5rSPxR8)'),
   'purple-house': stat('purple-house.glb', 9, 'half-timbered house with a purple roof (DeaqHWJBBPw)'),
   'purple-mushroom': stat('purple-mushroom.glb', 2.2, 'glowing purple mushroom (DeaqHWJBBPw)'),
-  'galaxy-hall': stat('galaxy-hall.glb', 26, 'pillared hall with a river down its centre and crystal stalactites (Dd0wR9Jh2lH)'),
+  'galaxy-hall': stat('galaxy-hall.glb', 15, 'pillared hall with a river down its centre and crystal stalactites (Dd0wR9Jh2lH)'),
   'marble-throne': stat('marble-throne.glb', 4, 'cracked white marble throne (Dd0wR9Jh2lH)'),
   'ring-portal': stat('ring-portal.glb', 7, 'stone ring portal (DdyN2PNyIxb, DdnJDwBMUoj)'),
   brazier: stat('brazier.glb', 1.4, 'stone fire brazier (DdyN2PNyIxb)'),
