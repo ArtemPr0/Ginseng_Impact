@@ -17,7 +17,7 @@ export interface RigPose {
   /** Which combo hit (0..2), 'skill', 'heavy' (charged) or 'burst'. Drives the swing shape. */
   attackKind?: number | 'skill' | 'heavy' | 'burst';
   /** Static NPC poses. */
-  pose?: 'sit' | 'kneel' | 'row' | 'ride' | 'carry' | 'drink' | 'fish' | 'telescope' | 'read' | 'pray' | 'stir' | 'offer' | 'bow' | 'banner' | 'sitSword' | 'lantern' | 'throne' | 'watch';
+  pose?: 'sit' | 'kneel' | 'row' | 'ride' | 'carry' | 'drink' | 'fish' | 'telescope' | 'read' | 'pray' | 'stir' | 'offer' | 'bow' | 'banner' | 'sitSword' | 'lantern' | 'throne' | 'watch' | 'talk';
   /** Seconds since landing, for the landing crouch. */
   landed?: number;
   grounded?: boolean;

@@ -4,6 +4,7 @@ import { Rig, type RigPose } from '../characters/Rig';
 import type { CharacterDef } from '../characters/roster';
 import { MODELS } from '../data/models';
 import { PALETTE } from '../render/palette';
+import { SpeechBubble } from './SpeechBubble';
 
 export type NpcBehaviour =
   | { kind: 'stand'; pose?: RigPose['pose']; yaw: number }
@@ -27,6 +28,13 @@ export interface NpcDef {
   shop?: ShopEntry[];
   /** Hire as a companion for this many shards. */
   hire?: { cost: number; atk: number; maxHp: number; ranged: boolean };
+  /**
+   * A recorded line the NPC says by itself when the player is near (between sips for the cup gnome): the file
+   * under public/audio, the caption shown in a speech bubble, the pause between repeats and the hearing range.
+   */
+  voice?: { url: string; caption: string; every: number; range: number };
+  /** Slurp at this fraction of the drink clip (the moment the cup meets the mouth). */
+  sipAt?: number;
   /** Scale multiplier applied to the rig (ogres, trolls). */
   scale?: number;
 }
@@ -173,6 +181,15 @@ export const NPC_DEFS: NpcDef[] = [
     lines: ['...hic.'],
     behaviour: { kind: 'stand', pose: 'sit', yaw: Math.PI * 1.4 },
   },
+  // The user's own gnome (docs/reference/frames/cup-gnome.png): sips his cup and asks after Young Lean.
+  {
+    id: 'cup-gnome', name: 'Goldgrin', title: 'Gnome of the Purple Cup', weapon: 'staff',
+    model: 'cup-gnome', accent: PALETTE.dusk,
+    lines: ['Where is Young Lean?', 'Tall fella. Sad songs. Big coat. You seen him?', 'Two cups. One for me, one for when he shows up.'],
+    behaviour: { kind: 'stand', pose: 'drink', yaw: Math.atan2(59 - 64, 0 - 6.5) },
+    voice: { url: '/audio/where-is-young-lean.mp3', caption: 'Where is Young Lean?', every: 7, range: 16 },
+    sipAt: 0.34,
+  },
   // --- Fifth batch of reels ---
   {
     id: 'grumble', name: 'Grumble', title: 'Gnome of the Mushroom Tavern', weapon: 'staff',
@@ -272,6 +289,12 @@ export class Npc {
   private wanderTarget: { x: number; z: number } | null = null;
   private wanderWait = 0;
   private speed = 0;
+  /** Sound hooks, set once by main.ts (NPCs never import the audio engine). */
+  static sound: { voice(url: string, gain: number): Promise<number>; slurp(gain: number): void } | null = null;
+  private bubble: SpeechBubble | null = null;
+  private voiceWait = 4;
+  private speaking = 0;
+  private lastPhase = 0;
 
   constructor(readonly def: NpcDef, start: { x: number; z: number }, private readonly heightAt: (x: number, z: number) => number) {
     this.rig = new Rig({ id: def.id, name: def.name, title: def.title, element: 'fog', weapon: def.weapon, maxHp: 1, atk: 1, accent: def.accent }, def.model);
@@ -283,6 +306,37 @@ export class Npc {
       this.pos.set(def.behaviour.path[0][0], 0, def.behaviour.path[0][1]);
       this.pos.y = heightAt(this.pos.x, this.pos.z);
     }
+    if (def.voice) {
+      this.bubble = new SpeechBubble((MODELS[def.model]?.height ?? 1.8) + 0.55);
+      this.object.add(this.bubble.sprite);
+    }
+  }
+
+  /** Says the voice line now (also used when the player opens a conversation). */
+  speak(gain = 1): void {
+    const v = this.def.voice;
+    if (!v || this.speaking > 0) return;
+    this.speaking = 2.6;
+    this.voiceWait = v.every;
+    this.bubble?.say(v.caption, 2.4);
+    void Npc.sound?.voice(v.url, gain);
+  }
+
+  /** Voice lines and sips for NPCs that have them; `d` is the distance to the player. */
+  private sounds(dt: number, d: number): void {
+    const v = this.def.voice;
+    this.bubble?.update(dt);
+    if (this.speaking > 0) this.speaking -= dt;
+    if (v) {
+      this.voiceWait -= dt;
+      // Speak between sips: once the cup is back down (end of the drink loop) and the pause has passed.
+      if (this.voiceWait <= 0 && d < v.range && this.speaking <= 0 && (this.lastPhase > 0.8 || !this.rig.model)) this.speak(Math.max(0.15, 1 - d / v.range));
+    }
+    if (this.def.sipAt !== undefined && this.speaking <= 0 && this.rig.model) {
+      const phase = this.rig.model.clipPhase;
+      if (this.lastPhase < this.def.sipAt && phase >= this.def.sipAt && d < 16) Npc.sound?.slurp(Math.max(0.1, 1 - d / 16));
+      this.lastPhase = phase;
+    } else if (this.rig.model) this.lastPhase = this.rig.model.clipPhase;
   }
 
   /** Distance from the player at which the talk prompt appears. */
@@ -334,7 +388,8 @@ export class Npc {
     if (moving) this.pos.y += (this.heightAt(this.pos.x, this.pos.z) - this.pos.y) * Math.min(1, dt * 8);
     this.object.position.copy(this.pos);
     this.object.rotation.y = yawToRotation(this.yaw);
-    const pose = talking ? undefined : b.kind === 'stand' ? b.pose : b.kind === 'loop' ? b.pose : undefined;
+    this.sounds(dt, Math.hypot(player.x - this.pos.x, player.z - this.pos.z));
+    const pose = this.speaking > 0 ? 'talk' : talking ? (this.def.voice ? b.kind === 'stand' ? b.pose : undefined : undefined) : b.kind === 'stand' ? b.pose : b.kind === 'loop' ? b.pose : undefined;
     this.rig.animate({ mode: 'ground', speed: moving ? this.speed : 0, pose }, dt);
   }
 }

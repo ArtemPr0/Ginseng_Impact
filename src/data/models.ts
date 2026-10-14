@@ -4,7 +4,7 @@
  *
  * Clip names are matched case-insensitively and by substring, so "Idle", "idle_01" and "Armature|Idle" all work.
  */
-export type ClipName = 'idle' | 'walk' | 'run' | 'jump' | 'attack' | 'heavy' | 'cast' | 'hit' | 'death' | 'sit' | 'kneel' | 'roar' | 'fly' | 'drink' | 'bow' | 'lantern' | 'offer';
+export type ClipName = 'idle' | 'walk' | 'run' | 'jump' | 'attack' | 'heavy' | 'cast' | 'hit' | 'death' | 'sit' | 'kneel' | 'roar' | 'fly' | 'drink' | 'bow' | 'lantern' | 'offer' | 'talk';
 
 export interface ModelDef {
   file: string;
@@ -30,6 +30,8 @@ export interface ModelDef {
   robe?: boolean;
   /** Human-readable name for the missing-model warning and placeholder. */
   label?: string;
+  /** Base colour for a file that came without a texture (an untextured Meshy draft), until its texture pass. */
+  tint?: number;
   /**
    * Hand-held props: a pivot at (x, y, z) metres from the hand bone, rotated by (rx, ry, rz), with the prop slid
    * `slide` metres along its own up axis so the grip lands in the fist (props stand upright, point down).
@@ -159,6 +161,9 @@ export const MODELS: Record<string, ModelDef> = {
   reed: stat('reed.glb', 2.4, 'reed clump'), 'lily-pad': stat('lily-pad.glb', 0.9, 'lily pad'), lotus: stat('lotus.glb', 0.5, 'lotus flower'),
   'fallen-leaf': stat('fallen-leaf.glb', 0.28, 'fallen leaf'), 'fallen-fruit': stat('fallen-fruit.glb', 0.35, 'fallen fruit'),
   cobblestone: stat('cobblestone.glb', 0.14, 'cobblestone'), cypress: stat('cypress.glb', 9, 'cypress'), grave: stat('grave.glb', 1.2, 'gravestone'),
+
+  // The user's own frames (docs/reference/frames/cup-gnome.png): untextured Meshy 6 Lite draft, biped rig.
+  'cup-gnome': { file: 'cup-gnome.glb', height: 1.25, tint: 0xb9bfd6, label: 'gnome with a gold grill, gold chain and a purple cup (frames/cup-gnome.png)', clips: { idle: 'stand_and_drink|idle_02', drink: 'stand_and_drink', talk: 'talk_with_hands_open', walk: 'walking', run: 'running' } },
 
   // --- Fifth batch of reels (2026-10-14 evening). Every id names its reel. ---
   // The galaxy city beyond the portal (DeOemU1BOZF, DeaqHWJBBPw, DeXn5rSPxR8, DeQ-NnpvqF6, Dd0wR9Jh2lH, DdyN2PNyIxb, DdnJDwBMUoj)

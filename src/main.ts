@@ -24,7 +24,7 @@ import { Weather } from './render/Weather';
 import { Hud } from './ui/Hud';
 import { Minimap } from './ui/Minimap';
 import { Companion } from './world/Companion';
-import type { Npc } from './world/NPCs';
+import { Npc } from './world/NPCs';
 import { Terrain } from './world/Terrain';
 import { World } from './world/World';
 
@@ -74,7 +74,7 @@ const minimap = new Minimap(document.getElementById('hud')!, terrain);
 const area = new World(terrain);
 scene.add(area.group);
 const world = area.heights;
-if (debugAt) (window as unknown as { __dbg: unknown }).__dbg = { h: (x: number, z: number) => world.heightAt(x, z), river: (x: number, z: number) => riverAt(x, z), rigs: () => rigs, combat: () => combat };
+if (debugAt) (window as unknown as { __dbg: unknown }).__dbg = { h: (x: number, z: number) => world.heightAt(x, z), river: (x: number, z: number) => riverAt(x, z), rigs: () => rigs, combat: () => combat, npcs: () => area.npcs, audio };
 const atmosphere = new Atmosphere((x, z) => world.heightAt(x, z), new Vector3(LAYOUT.spawn.x, 0, LAYOUT.spawn.z));
 scene.add(atmosphere.group);
 const weather = new Weather(LAYOUT.rainZone, LAYOUT.snowZone);
@@ -116,6 +116,8 @@ function switchTo(i: number): boolean {
   audio.click();
   return true;
 }
+
+Npc.sound = { voice: (url, gain) => audio.voice(url, gain), slurp: (gain) => audio.slurp(gain) };
 
 const combat = new CombatSystem({
   scene, world, sky, hud, camera, game, audio, inventory, controller, party, spawn: SPAWN,
@@ -239,7 +241,7 @@ game
       if (input.locked && input.justPressed('KeyF')) {
         const t = interactTarget();
         if (t?.kind === 'loot') t.take();
-        else if (t?.kind === 'talk') { talking = t.npc; audio.talk(); openPanel(() => hud.talk(t.npc.def)); }
+        else if (t?.kind === 'talk') { talking = t.npc; audio.talk(); t.npc.speak(); openPanel(() => hud.talk(t.npc.def)); }
       }
       combat.update(dt, {
         attack: input.locked && input.mouseJustPressed(0),

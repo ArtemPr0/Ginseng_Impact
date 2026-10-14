@@ -119,6 +119,8 @@ export class ModelRig {
       const mats = Array.isArray(mesh.material) ? (mesh.material as MeshStandardMaterial[]) : [mesh.material as MeshStandardMaterial];
       for (const m of mats) {
         if (!m || !('emissive' in m)) continue;
+        // A file without a material gets glTF's default (fully metallic → near black at night): make it matte clay.
+        if (!m.map) { m.metalness = 0; if (def.tint !== undefined) m.color.setHex(def.tint); }
         if (m.emissive.getHex() === 0) { m.emissive.setHex(0x16224e); m.emissiveIntensity = 0.42; }
         m.roughness = Math.max(m.roughness ?? 1, 0.6);
         m.userData.baseEmissive = m.emissive.getHex();
@@ -210,6 +212,14 @@ export class ModelRig {
   /** False for static exports (no animation clips at all). */
   get hasClips(): boolean {
     return this.actions.size > 0;
+  }
+
+  /** 0..1 position in the current clip (sync sounds to a looping action). */
+  get clipPhase(): number {
+    const a = this.current;
+    if (!a) return 0;
+    const d = a.getClip().duration;
+    return d > 0 ? (a.time % d) / d : 0;
   }
 
   /** True when a one-shot clip has finished. */

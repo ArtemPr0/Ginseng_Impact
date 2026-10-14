@@ -1,5 +1,5 @@
 public/models/README.md regenerated
-140 registered models, 101 present, 39 files still to generate on Meshy (39 ids):
+141 registered models, 102 present, 39 files still to generate on Meshy (39 ids):
 
 - nave               ruined-nave.glb             26 m  ruined nave with columns, arches and a rose window
 - archgate           arch-gate.glb               14 m  frozen arch gate

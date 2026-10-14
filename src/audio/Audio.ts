@@ -1,11 +1,12 @@
 /**
- * Procedural sound engine: every effect is synthesised with Web Audio (no files).
- * Resumes on the first user gesture; all methods are safe to call before that.
+ * Procedural sound engine: every effect is synthesised with Web Audio, except recorded voice lines
+ * (`voice`, files under public/audio). Resumes on the first user gesture; all methods are safe to call before that.
  */
 export class Audio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private noiseBuf: AudioBuffer | null = null;
+  private readonly clips = new Map<string, Promise<AudioBuffer | null>>();
   volume = 0.6;
 
   /** Call from a user gesture (click / keydown). */
@@ -175,5 +176,37 @@ export class Audio {
 
   footstep(): void {
     this.noise(0.05, 'lowpass', 500, 120, 0.8, 0.12);
+  }
+
+  /** A short wet slurp through a straw (the cup gnome's sip), `gain` 0..1 for distance. */
+  slurp(gain = 1): void {
+    if (!this.ctx || gain <= 0.01) return;
+    for (let i = 0; i < 3; i++) {
+      const at = i * 0.11 + Math.random() * 0.03;
+      this.noise(0.09, 'bandpass', 900 + Math.random() * 300, 2200, 6, 0.22 * gain, at, 0.01);
+      this.tone('sine', 260 + i * 40, 520 + i * 60, 0.07, 0.05 * gain, at + 0.02);
+    }
+    this.tone('sine', 180, 120, 0.12, 0.06 * gain, 0.38);
+  }
+
+  /** Plays a recorded line from public/audio (loaded once); resolves to its length in seconds, 0 if unavailable. */
+  async voice(url: string, gain = 1, rate = 1): Promise<number> {
+    if (!this.ctx || gain <= 0.01) return 0;
+    let p = this.clips.get(url);
+    if (!p) {
+      const ctx = this.ctx;
+      p = fetch(url).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status))))).then((b) => ctx.decodeAudioData(b)).catch(() => null);
+      this.clips.set(url, p);
+    }
+    const buf = await p;
+    if (!buf || !this.ctx) return 0;
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = rate;
+    const g = this.ctx.createGain();
+    g.gain.value = Math.min(1.5, gain * 1.2);
+    src.connect(g).connect(this.master!);
+    src.start();
+    return buf.duration / rate;
   }
 }

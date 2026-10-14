@@ -18,7 +18,7 @@
  */
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
-import { dedup, prune, resample, simplify, textureCompress, weld } from '@gltf-transform/functions';
+import { dedup, normals, prune, resample, simplify, textureCompress, weld } from '@gltf-transform/functions';
 import { MeshoptSimplifier } from 'meshoptimizer';
 import sharp from 'sharp';
 import { statSync } from 'node:fs';
@@ -47,8 +47,17 @@ async function optimize(inPath, outPath, maxSize = 1024, targetTris = 0) {
   const steps = [dedup()];
   if (targetTris > 0 && tris > targetTris * 1.15) {
     await MeshoptSimplifier.ready;
+    // Untextured Meshy drafts arrive as triangle soup with per-face normals, which blocks welding: drop the
+    // normals first and recompute smooth ones after simplifying.
+    let soup = false;
+    for (const mesh of doc.getRoot().listMeshes()) for (const prim of mesh.listPrimitives()) {
+      const n = prim.getAttribute('POSITION').getCount();
+      const idx = prim.getIndices()?.getCount() ?? n;
+      if (n >= idx * 0.9 && !prim.getAttribute('TEXCOORD_0')) { prim.setAttribute('NORMAL', null); soup = true; }
+    }
     steps.push(weld(), simplify({ simplifier: MeshoptSimplifier, ratio: targetTris / tris, error: Number(process.env.SIMPLIFY_ERROR ?? 0.002) }));
-    console.log(`simplify ${Math.round(tris)} → ~${targetTris} triangles`);
+    if (soup) steps.push(normals({ overwrite: true }));
+    console.log(`simplify ${Math.round(tris)} → ~${targetTris} triangles${soup ? ' (welded triangle soup)' : ''}`);
   }
   steps.push(textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [maxSize, maxSize], quality: 82 }), prune());
   await doc.transform(...steps);

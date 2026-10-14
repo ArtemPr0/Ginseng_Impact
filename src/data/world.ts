@@ -64,6 +64,7 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   standard: { x: -54, z: -93 },
   'rose-knight': { x: 16, z: 34 }, maiden: { x: 18.2, z: 33 },
   'watcher-knight': { x: -18, z: -43 }, 'watcher-mage': { x: -15, z: -44 },
+  'cup-gnome': { x: 6.5, z: 64 },
   // Fifth batch of reels.
   grumble: { x: -40, z: -24, dy: 1.0 },
   priest: { x: -9, z: -96 },
