@@ -21,6 +21,12 @@ export interface CharacterDef {
     accent: number;
     hat?: boolean;
     cape?: boolean;
+    antlers?: boolean;
+    horns?: boolean;
+    beard?: boolean;
+    skeleton?: boolean;
+    /** Tall pointed wizard hat vs. the witch hat (both use `hat`). */
+    hatColor?: number;
     bulk: number; // 0.8 slim … 1.3 heavy
     height: number; // metres
   };

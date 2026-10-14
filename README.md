@@ -25,8 +25,13 @@ Deploy: the `dist/` folder is a static site. On Vercel, import the repo (framewo
 | Click | enter the fog (pointer lock); Esc pauses and releases the mouse |
 | W A S D | move · Shift sprint |
 | Space | jump · hold toward a wall or steep slope to climb · press in the air to deploy the glider |
-| Left mouse | basic attack (3-hit combo, third hit applies the character's element) |
+| Left mouse | light attack (3-hit combo, third hit applies the character's element) |
+| Right mouse (hold) | heavy attack: charge up to 1 s, release for a big elemental cut |
 | E | elemental skill (Moonfall / Crimson Cleave / Starfall) |
+| Q | burst when the meter is full (fills by landing hits) |
+| R | dodge roll with invulnerability frames |
+| F | talk to an NPC, or take an item drop (shards are collected automatically) |
+| I | satchel: equip weapons, use consumables, drop items |
 | 1 2 3 | switch character |
 
 ## Party and elements
@@ -40,15 +45,26 @@ Deploy: the `dist/` folder is a static site. On Vercel, import the repo (framewo
 Reactions: Lunar + Blood = **Eclipse** (burst), Lunar + Astral = **Conduit** (defence down),
 Blood + Astral = **Overload** (knockback splash).
 
+## Bosses, loot, trade and hiring
+
+Six bosses with their own attack patterns roam the island: the Yeti (slam, boulders, roar) in the frozen grove, the Horned Shade
+(volleys, summons, blink, sweep) in the dead forest, the Antlered Warden (root spikes, sweeps, slams) wading the great river, the
+Moon Wyrm (frost breath, dives) circling the castle, the River Shade rising from the coven stream and the Pass Beast below the peak.
+Each drops a mythic weapon plus a trophy and Moon Shards. Shards buy potions, charms, weapons and the Star Chart from Mirren,
+Brother Croak, Mother Marrow and the Antlered King, or hire companions (Sir Aldous, the Vigil, Sir Halvard, the skeleton Rattle)
+who follow and fight beside you. Every strike, loot pickup, coin, roar and spell is synthesised with Web Audio.
+
 ## Code map
 
 ```
 src/core      fixed-step loop (hit-stop, advance() for scripted checks), input
 src/render    composer pipeline (MSAA, bloom, grade), materials + wind, sky, atmosphere (mist, motes), palette
-src/world     terrain height field, height-field colliders, landmarks, flora, cloud sea, World assembler
+src/world     terrain, colliders, landmarks, biomes, settlements, water, creatures, NPCs, companions, World assembler
 src/player    kinematic controller (ground/air/climb/glide), spring-arm camera, party
 src/characters procedural low-poly rigs + roster
-src/combat    elements/reactions, damage, combos, skills, enemies, projectiles, VFX, CombatSystem
+src/combat    elements/reactions, damage, combos, skills, enemies, boss rigs and attacks, projectiles, loot, VFX, CombatSystem
+src/items     item definitions and the inventory
+src/audio     procedural sound engine
 src/ui        DOM HUD, minimap, element glyphs
 src/data      world layout, enemy spawns
 docs/superpowers/specs   design spec

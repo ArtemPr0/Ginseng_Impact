@@ -1,71 +1,126 @@
 import type { CharacterDef } from '../characters/roster';
 import { ELEMENT_COLOR } from '../characters/roster';
+import type { Element } from '../combat/Elements';
+import { ITEMS, RARITY_NAME } from '../items/Items';
+import type { Inventory } from '../items/Inventory';
+import type { NpcDef } from '../world/NPCs';
 import { glyph } from './glyphs';
 
 const hex = (n: number) => '#' + n.toString(16).padStart(6, '0');
 
-/** Minimal M1 HUD: active character card, stamina bar, pointer-lock prompt, controls card. */
+export interface HudActions {
+  onBuy(itemId: string, price: number): boolean;
+  onSell(uid: number, count: number): void;
+  onHire(npc: NpcDef): boolean;
+  onEquip(uid: number): boolean;
+  onUse(uid: number): boolean;
+  onDrop(uid: number): void;
+  onClose(): void;
+}
+
+export type Panel = 'none' | 'talk' | 'shop' | 'inventory';
+
+/** DOM HUD: Genshin layout, dark-fantasy skin. Panels (talk, shop, inventory) take the pointer. */
 export class Hud {
   private readonly root: HTMLElement;
-  private readonly name: HTMLElement;
-  private readonly title: HTMLElement;
-  private readonly stamina: HTMLElement;
-  private readonly staminaWrap: HTMLElement;
-  private readonly prompt: HTMLElement;
-  private readonly party: HTMLElement;
-  private readonly hp: HTMLElement;
-  private readonly hpText: HTMLElement;
-  private readonly skill: HTMLElement;
-  private readonly skillName: HTMLElement;
-  private readonly skillCd: HTMLElement;
+  private readonly q = <T extends HTMLElement>(sel: string): T => this.root.querySelector(sel) as T;
   private readonly bars = new Map<number, HTMLElement>();
-  private readonly numbers: HTMLElement;
-  private readonly banner: HTMLElement;
   private bannerTimer = 0;
+  panel: Panel = 'none';
+  private talkNpc: NpcDef | null = null;
+  private talkLine = 0;
+  private actions: HudActions | null = null;
+  private inventory: Inventory | null = null;
+  private activeChar: CharacterDef | null = null;
+  private companions: string[] = [];
 
   constructor(container: HTMLElement) {
     this.root = container;
     container.innerHTML = `
       <div class="hud-prompt" id="hud-prompt"><div class="hud-subtitle">A SILENT KINGDOM BEYOND THE FOG</div><div class="hud-wordmark">GINSENG IMPACT</div><div class="hud-press">CLICK TO ENTER THE FOG</div>
-        <div class="hud-controls">WASD move · SHIFT sprint · SPACE jump, climb, glide · LMB attack · E skill · 1 2 3 switch · ESC pause</div></div>
+        <div class="hud-controls">WASD move · SHIFT sprint · SPACE jump, climb, glide · LMB attack · hold RMB heavy · E skill · Q burst · R dodge · F talk / loot · I inventory · 1 2 3 switch · ESC pause</div></div>
+      <div class="hud-boss panel" id="hud-boss"><div class="hud-boss-name" id="hud-boss-name"></div><div class="hud-boss-title" id="hud-boss-title"></div><div class="hud-boss-bar"><div class="hud-boss-fill" id="hud-boss-fill"></div></div></div>
+      <div class="hud-shards panel" id="hud-shards"><span class="hud-shard-glyph">◆</span><span id="hud-shards-n">0</span><span class="hud-shards-pop" id="hud-shards-pop"></span></div>
       <div class="hud-active panel"><div class="hud-name" id="hud-name"></div><div class="hud-title" id="hud-title"></div>
         <div class="hud-hp-wrap"><div class="hud-hp" id="hud-hp"></div><div class="hud-hp-text" id="hud-hp-text"></div></div>
-        <div class="hud-stamina-wrap" id="hud-stamina-wrap"><div class="hud-stamina" id="hud-stamina"></div></div></div>
+        <div class="hud-stamina-wrap" id="hud-stamina-wrap"><div class="hud-stamina" id="hud-stamina"></div></div>
+        <div class="hud-frenzy" id="hud-frenzy"></div></div>
       <div class="hud-party" id="hud-party"></div>
+      <div class="hud-companions" id="hud-companions"></div>
       <div class="hud-skill panel" id="hud-skill"><div class="hud-skill-key">E</div><div class="hud-skill-cd" id="hud-skill-cd"></div><div class="hud-skill-name" id="hud-skill-name"></div></div>
+      <div class="hud-burst panel" id="hud-burst"><div class="hud-skill-key">Q</div><div class="hud-burst-fill" id="hud-burst-fill"></div><div class="hud-skill-name">Burst</div></div>
+      <div class="hud-charge" id="hud-charge"><div class="hud-charge-fill" id="hud-charge-fill"></div></div>
+      <div class="hud-interact" id="hud-interact"></div>
       <div class="hud-numbers" id="hud-numbers"></div>
       <div class="hud-banner" id="hud-banner"></div>
-      <div class="hud-hint">LMB attack · E skill</div>`;
-    this.name = container.querySelector('#hud-name')!;
-    this.title = container.querySelector('#hud-title')!;
-    this.stamina = container.querySelector('#hud-stamina')!;
-    this.staminaWrap = container.querySelector('#hud-stamina-wrap')!;
-    this.prompt = container.querySelector('#hud-prompt')!;
-    this.party = container.querySelector('#hud-party')!;
-    this.hp = container.querySelector('#hud-hp')!;
-    this.hpText = container.querySelector('#hud-hp-text')!;
-    this.skill = container.querySelector('#hud-skill')!;
-    this.skillName = container.querySelector('#hud-skill-name')!;
-    this.skillCd = container.querySelector('#hud-skill-cd')!;
-    this.numbers = container.querySelector('#hud-numbers')!;
-    this.banner = container.querySelector('#hud-banner')!;
+      <div class="hud-hint">LMB attack · RMB heavy · E skill · Q burst · R dodge · F interact · I bag</div>
+      <div class="hud-panel panel" id="hud-dialog"></div>`;
   }
 
+  bind(actions: HudActions, inventory: Inventory): void {
+    this.actions = actions;
+    this.inventory = inventory;
+  }
+
+  // ---------- combat readouts ----------
   setHp(value: number, max: number): void {
     const f = Math.max(0, value / max);
-    this.hp.style.width = `${Math.round(f * 100)}%`;
-    this.hpText.textContent = `${Math.round(value)} / ${max}`;
-    this.hp.classList.toggle('low', f < 0.3);
+    this.q('#hud-hp').style.width = `${Math.round(f * 100)}%`;
+    this.q('#hud-hp-text').textContent = `${Math.round(value)} / ${max}`;
+    this.q('#hud-hp').classList.toggle('low', f < 0.3);
   }
 
   setSkill(name: string, cooldownFraction: number, ready: boolean): void {
-    this.skillName.textContent = name;
-    this.skillCd.style.setProperty('--cd', `${Math.round(cooldownFraction * 360)}deg`);
-    this.skill.classList.toggle('ready', ready);
-    this.skillCd.textContent = cooldownFraction > 0 ? '' : '';
+    this.q('#hud-skill-name').textContent = name;
+    this.q('#hud-skill-cd').style.setProperty('--cd', `${Math.round(cooldownFraction * 360)}deg`);
+    this.q('#hud-skill').classList.toggle('ready', ready);
   }
 
-  enemyBar(id: number, name: string, x: number, y: number, fraction: number, auraColor: number | null, visible: boolean, auraElement: import('../combat/Elements').Element | null = null): void {
+  setBurst(fraction: number, ready: boolean): void {
+    this.q('#hud-burst-fill').style.height = `${Math.round(fraction * 100)}%`;
+    this.q('#hud-burst').classList.toggle('ready', ready);
+  }
+
+  setCharge(fraction: number): void {
+    const el = this.q('#hud-charge');
+    el.style.opacity = fraction > 0 ? '1' : '0';
+    this.q('#hud-charge-fill').style.width = `${Math.round(fraction * 100)}%`;
+    el.classList.toggle('full', fraction >= 1);
+  }
+
+  setFrenzy(seconds: number): void {
+    const el = this.q('#hud-frenzy');
+    el.textContent = seconds > 0 ? `LOTUS FRENZY ${Math.ceil(seconds)}s` : '';
+  }
+
+  setShards(n: number): void {
+    this.q('#hud-shards-n').textContent = String(n);
+  }
+
+  shardPop(n: number): void {
+    const el = this.q('#hud-shards-pop');
+    el.textContent = `+${n}`;
+    el.classList.remove('show');
+    void el.offsetWidth;
+    el.classList.add('show');
+  }
+
+  setBoss(name: string, title: string, fraction: number, visible: boolean): void {
+    const el = this.q('#hud-boss');
+    el.style.display = visible ? 'block' : 'none';
+    if (!visible) return;
+    this.q('#hud-boss-name').textContent = name;
+    this.q('#hud-boss-title').textContent = title;
+    this.q('#hud-boss-fill').style.width = `${Math.round(fraction * 100)}%`;
+  }
+
+  setInteract(text: string | null): void {
+    const el = this.q('#hud-interact');
+    el.style.display = text && this.panel === 'none' ? 'block' : 'none';
+    if (text) el.innerHTML = `<span class="key">F</span> ${text}`;
+  }
+
+  enemyBar(id: number, name: string, x: number, y: number, fraction: number, auraColor: number | null, visible: boolean, auraElement: Element | null = null): void {
     let el = this.bars.get(id);
     if (!el) {
       el = document.createElement('div');
@@ -99,7 +154,7 @@ export class Hud {
     el.style.color = hex(color);
     el.style.left = `${Math.round(x + (Math.random() - 0.5) * 24)}px`;
     el.style.top = `${Math.round(y)}px`;
-    this.numbers.appendChild(el);
+    this.q('#hud-numbers').appendChild(el);
     window.setTimeout(() => el.remove(), big ? 900 : 650);
   }
 
@@ -109,31 +164,147 @@ export class Hud {
   }
 
   announce(text: string): void {
-    this.banner.textContent = text;
-    this.banner.classList.add('show');
+    const banner = this.q('#hud-banner');
+    banner.textContent = text;
+    banner.classList.add('show');
     window.clearTimeout(this.bannerTimer);
-    this.bannerTimer = window.setTimeout(() => this.banner.classList.remove('show'), 2200);
+    this.bannerTimer = window.setTimeout(() => banner.classList.remove('show'), 2200);
   }
 
   setParty(defs: readonly CharacterDef[], activeIndex: number): void {
-    this.party.innerHTML = defs
+    this.q('#hud-party').innerHTML = defs
       .map((d, i) => `<div class="hud-portrait panel${i === activeIndex ? ' active' : ''}" style="--el:${hex(ELEMENT_COLOR[d.element])}">
         <div class="hud-portrait-key">${i + 1}</div><div class="hud-portrait-glyph">${glyph(d.element, hex(ELEMENT_COLOR[d.element]), 22)}</div><div class="hud-portrait-name">${d.name}</div></div>`)
       .join('');
     const d = defs[activeIndex];
-    this.name.innerHTML = `${glyph(d.element, hex(ELEMENT_COLOR[d.element]), 18)} ${d.name}`;
-    this.name.style.color = hex(ELEMENT_COLOR[d.element]);
-    this.title.textContent = d.title;
+    this.activeChar = d;
+    this.q('#hud-name').innerHTML = `${glyph(d.element, hex(ELEMENT_COLOR[d.element]), 18)} ${d.name}`;
+    this.q('#hud-name').style.color = hex(ELEMENT_COLOR[d.element]);
+    this.q('#hud-title').textContent = d.title;
+  }
+
+  setCompanions(names: string[]): void {
+    if (names.join('|') === this.companions.join('|')) return;
+    this.companions = names;
+    this.q('#hud-companions').innerHTML = names.map((n) => `<div class="hud-comp panel">⚔ ${n}</div>`).join('');
   }
 
   setStamina(value: number, max: number): void {
     const f = value / max;
-    this.stamina.style.width = `${Math.round(f * 100)}%`;
-    this.staminaWrap.style.opacity = f < 0.999 ? '1' : '0';
+    this.q('#hud-stamina').style.width = `${Math.round(f * 100)}%`;
+    this.q('#hud-stamina-wrap').style.opacity = f < 0.999 ? '1' : '0';
   }
 
   setLocked(locked: boolean): void {
-    this.prompt.style.display = locked ? 'none' : 'flex';
+    this.q('#hud-prompt').style.display = locked || this.panel !== 'none' ? 'none' : 'flex';
     this.root.classList.toggle('locked', locked);
+  }
+
+  // ---------- panels ----------
+  private open(panel: Panel): void {
+    this.panel = panel;
+    const el = this.q('#hud-dialog');
+    el.style.display = panel === 'none' ? 'none' : 'block';
+    this.root.classList.toggle('panel-open', panel !== 'none');
+  }
+
+  close(): void {
+    this.open('none');
+    this.talkNpc = null;
+  }
+
+  talk(npc: NpcDef): void {
+    this.talkNpc = npc;
+    this.talkLine = 0;
+    this.open('talk');
+    this.renderTalk();
+  }
+
+  private renderTalk(): void {
+    const npc = this.talkNpc!;
+    const el = this.q('#hud-dialog');
+    const buttons: string[] = [];
+    if (this.talkLine < npc.lines.length - 1) buttons.push(`<button data-act="next">Next</button>`);
+    if (npc.shop) buttons.push(`<button data-act="shop">Trade</button>`);
+    if (npc.hire) buttons.push(`<button data-act="hire">Hire · ◆ ${npc.hire.cost}</button>`);
+    buttons.push(`<button data-act="close">Leave</button>`);
+    el.innerHTML = `<div class="dlg-head"><div class="dlg-name">${npc.name}</div><div class="dlg-title">${npc.title}</div></div>
+      <div class="dlg-line">“${npc.lines[this.talkLine]}”</div>
+      <div class="dlg-buttons">${buttons.join('')}</div>`;
+    this.wire(el, (act) => {
+      if (act === 'next') { this.talkLine++; this.renderTalk(); }
+      else if (act === 'shop') this.renderShop();
+      else if (act === 'hire') { if (this.actions!.onHire(npc)) { this.renderTalkResult('“Lead on. I follow.”'); } else this.renderTalkResult('“Come back when your purse is heavier.”'); }
+      else this.actions!.onClose();
+    });
+  }
+
+  private renderTalkResult(line: string): void {
+    const npc = this.talkNpc!;
+    const el = this.q('#hud-dialog');
+    el.innerHTML = `<div class="dlg-head"><div class="dlg-name">${npc.name}</div><div class="dlg-title">${npc.title}</div></div>
+      <div class="dlg-line">${line}</div><div class="dlg-buttons"><button data-act="close">Leave</button></div>`;
+    this.wire(el, () => this.actions!.onClose());
+  }
+
+  private renderShop(): void {
+    const npc = this.talkNpc!;
+    const inv = this.inventory!;
+    this.open('shop');
+    const el = this.q('#hud-dialog');
+    const buy = (npc.shop ?? []).map((s) => {
+      const d = ITEMS[s.itemId];
+      return `<div class="row"><span class="item r${d.rarity}">${d.name}</span><span class="desc">${d.desc}</span><button data-act="buy" data-id="${s.itemId}" data-price="${s.price}" ${inv.shards < s.price ? 'disabled' : ''}>Buy ◆ ${s.price}</button></div>`;
+    }).join('');
+    const sell = inv.entries.filter((e) => !e.equippedBy).map((e) => {
+      const d = ITEMS[e.itemId];
+      return `<div class="row"><span class="item r${d.rarity}">${d.name}${e.count > 1 ? ` ×${e.count}` : ''}</span><span class="desc">${RARITY_NAME[d.rarity]}</span><button data-act="sell" data-uid="${e.uid}">Sell ◆ ${d.value}</button></div>`;
+    }).join('') || '<div class="empty">Nothing to sell.</div>';
+    el.innerHTML = `<div class="dlg-head"><div class="dlg-name">${npc.name}</div><div class="dlg-title">Trade · you have ◆ ${inv.shards}</div></div>
+      <div class="shop-cols"><div><div class="col-title">Buy</div>${buy}</div><div><div class="col-title">Sell</div>${sell}</div></div>
+      <div class="dlg-buttons"><button data-act="back">Back</button><button data-act="close">Leave</button></div>`;
+    this.wire(el, (act, b) => {
+      if (act === 'buy') { if (this.actions!.onBuy(b.dataset.id!, Number(b.dataset.price))) this.renderShop(); }
+      else if (act === 'sell') { this.actions!.onSell(Number(b.dataset.uid), 1); this.renderShop(); }
+      else if (act === 'back') { this.open('talk'); this.renderTalk(); }
+      else this.actions!.onClose();
+    });
+  }
+
+  inventoryPanel(): void {
+    this.open('inventory');
+    this.renderInventory();
+  }
+
+  private renderInventory(): void {
+    const inv = this.inventory!;
+    const me = this.activeChar!;
+    const el = this.q('#hud-dialog');
+    const groups: Record<string, string[]> = { weapon: [], consumable: [], charm: [], key: [], material: [] };
+    for (const e of inv.entries) {
+      const d = ITEMS[e.itemId];
+      const stats = d.atk ? `+${d.atk} ATK${d.element ? ` · ${d.element}` : ''} · ${d.weaponClass}` : d.heal ? `heals ${d.heal}` : d.dmgMult ? `+${Math.round((d.dmgMult - 1) * 100)}% damage` : RARITY_NAME[d.rarity];
+      let btn = '';
+      if (d.kind === 'weapon') btn = e.equippedBy ? `<span class="tag">equipped by ${e.equippedBy}</span>` : `<button data-act="equip" data-uid="${e.uid}" ${d.weaponClass === me.weapon ? '' : 'disabled'}>Equip on ${me.name}</button>`;
+      else if (d.kind === 'consumable') btn = `<button data-act="use" data-uid="${e.uid}">Use</button>`;
+      if (!e.equippedBy) btn += `<button class="ghost" data-act="drop" data-uid="${e.uid}">Drop</button>`;
+      groups[d.kind].push(`<div class="row"><span class="item r${d.rarity}">${d.name}${e.count > 1 ? ` ×${e.count}` : ''}</span><span class="desc">${stats}</span><span class="btns">${btn}</span></div>`);
+    }
+    const section = (title: string, rows: string[]) => rows.length ? `<div class="col-title">${title}</div>${rows.join('')}` : '';
+    el.innerHTML = `<div class="dlg-head"><div class="dlg-name">Satchel</div><div class="dlg-title">◆ ${inv.shards} Moon Shards · ${me.name} wields a ${me.weapon}</div></div>
+      <div class="inv-list">${section('Weapons', groups.weapon)}${section('Consumables', groups.consumable)}${section('Charms', groups.charm)}${section('Keys', groups.key)}${section('Materials', groups.material)}${inv.entries.length ? '' : '<div class="empty">Empty. The fog owes you nothing yet.</div>'}</div>
+      <div class="dlg-buttons"><button data-act="close">Close (I)</button></div>`;
+    this.wire(el, (act, b) => {
+      if (act === 'equip') { this.actions!.onEquip(Number(b.dataset.uid)); this.renderInventory(); }
+      else if (act === 'use') { this.actions!.onUse(Number(b.dataset.uid)); this.renderInventory(); }
+      else if (act === 'drop') { this.actions!.onDrop(Number(b.dataset.uid)); this.renderInventory(); }
+      else this.actions!.onClose();
+    });
+  }
+
+  private wire(el: HTMLElement, handler: (act: string, button: HTMLButtonElement) => void): void {
+    el.querySelectorAll<HTMLButtonElement>('button[data-act]').forEach((b) => {
+      b.addEventListener('click', (ev) => { ev.stopPropagation(); handler(b.dataset.act!, b); });
+    });
   }
 }

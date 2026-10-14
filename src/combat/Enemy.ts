@@ -1,3 +1,4 @@
+import type { MatFn } from './BossRigs';
 import { AdditiveBlending, BoxGeometry, BufferGeometry, CapsuleGeometry, ConeGeometry, Group, IcosahedronGeometry, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, Quaternion, SphereGeometry, Sprite, Vector3 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { rockify, tintRock } from '../world/geometry';
@@ -7,9 +8,11 @@ import { surface } from '../render/Materials';
 import type { WorldQuery } from '../player/CharacterController';
 import { glowSprite } from '../world/Landmarks';
 import { EnemyBrain, type EnemyState } from './EnemyBrain';
+import { antleredWarden, crocodile, hornedShade, moonWyrm, yeti, type BossRig } from './BossRigs';
+import type { BossAttack, BossAttackKind } from '../data/enemies';
 import { tickAura, type Aura } from './Elements';
 
-export type EnemyAction = { kind: 'melee' } | { kind: 'bolt' } | null;
+export type EnemyAction = { kind: 'melee' } | { kind: 'bolt' } | { kind: 'boss'; attack: BossAttackKind } | null;
 
 let nextId = 1;
 
@@ -34,12 +37,28 @@ export class Enemy {
   private stepPhase = 0;
   /** Set by the combat system: dust + shake on heavy footsteps and slams. */
   onStomp?: (x: number, y: number, z: number) => void;
+  private bossRig: BossRig | null = null;
+  /** The boss attack chosen for the current windup. */
+  currentAttack: BossAttack | null = null;
+  private orbitAngle = Math.random() * Math.PI * 2;
+  /** Set by the combat system when a bolt-summoned minion should vanish for good. */
+  noRespawn = false;
 
   constructor(readonly def: EnemyDef, readonly spawn: { x: number; z: number }, private readonly world: WorldQuery) {
-    this.brain = new EnemyBrain(def.brain);
+    this.brain = new EnemyBrain({ ...def.brain });
     this.hp = def.maxHp;
     this.pos = { x: spawn.x, y: world.heightAt(spawn.x, spawn.z) + def.hover, z: spawn.z };
-    this.parts = def.kind === 'wisp' ? this.buildWisp() : def.kind === 'beast' ? this.buildBeast() : this.buildSentinel();
+    const bossBuilders: Partial<Record<string, (root: Group, mat: MatFn) => BossRig>> = {
+      yeti: yeti, shade: hornedShade, rivershade: (r, m) => hornedShade(r, m, false, 0.75), warden: antleredWarden, wyrm: moonWyrm, croc: crocodile,
+    };
+    const builder = bossBuilders[def.kind];
+    if (builder) {
+      this.bossRig = builder(this.object, (c, e, i) => this.mat(c, e, i));
+      this.parts = { body: new Mesh() };
+    } else {
+      this.parts = def.kind === 'wisp' ? this.buildWisp() : def.kind === 'beast' || def.kind === 'passbeast' ? this.buildBeast() : this.buildSentinel();
+    }
+    if (def.scale) this.object.scale.setScalar(def.scale);
     this.object.position.set(this.pos.x, this.pos.y, this.pos.z);
   }
 
@@ -133,8 +152,8 @@ export class Enemy {
 
   /** Shaggy red-eyed quadruped that prowls the forest and lunges. */
   private buildBeast() {
-    const furColor = 0x0b0f2e;
-    const bodyMat = this.mat(0x121840);
+    const furColor = 0x1a2050;
+    const bodyMat = this.mat(0x222a60);
     const body = new Mesh(new CapsuleGeometry(0.55, 1.5, 4, 12).rotateZ(Math.PI / 2), bodyMat);
     body.position.y = 1.0;
     body.castShadow = true;
@@ -246,13 +265,36 @@ export class Enemy {
     const dx = player.x - this.pos.x;
     const dz = player.z - this.pos.z;
     const dist = Math.hypot(dx, dz);
+    // Bosses choose their next attack before the brain enters windup, so the windup length matches it.
+    if (this.def.attacks && this.brain.state === 'chase' && this.brain.cooldownLeft <= 0) {
+      const usable = this.def.attacks.filter((a) => a.range >= dist);
+      if (usable.length) {
+        let total = usable.reduce((t, a) => t + a.weight, 0);
+        let r = Math.random() * total;
+        let pick = usable[0];
+        for (const a of usable) { r -= a.weight; if (r <= 0) { pick = a; break; } }
+        this.currentAttack = pick;
+        this.brain.p.attackRange = pick.range;
+        this.brain.p.windup = pick.windup;
+        this.brain.p.recover = pick.recover;
+      }
+    }
     const state = this.brain.update(dt, dist);
     let action: EnemyAction = null;
     if (state === 'attack') {
-      action = this.def.kind === 'wisp' ? { kind: 'bolt' } : { kind: 'melee' };
-      if (this.def.kind === 'beast' && dist > 0.01) {
-        this.knock.x += (dx / dist) * 9;
-        this.knock.z += (dz / dist) * 9;
+      if (this.def.attacks && this.currentAttack) {
+        action = { kind: 'boss', attack: this.currentAttack.kind };
+        if ((this.currentAttack.kind === 'charge' || this.currentAttack.kind === 'bite') && dist > 0.01) {
+          const push = this.currentAttack.kind === 'charge' ? 18 : 8;
+          this.knock.x += (dx / dist) * push;
+          this.knock.z += (dz / dist) * push;
+        }
+      } else {
+        action = this.def.kind === 'wisp' ? { kind: 'bolt' } : { kind: 'melee' };
+        if ((this.def.kind === 'beast' || this.def.kind === 'croc') && dist > 0.01) {
+          this.knock.x += (dx / dist) * 9;
+          this.knock.z += (dz / dist) * 9;
+        }
       }
     }
 
@@ -273,11 +315,30 @@ export class Enemy {
         mz = uz;
       }
     }
-    const nx = this.pos.x + (mx * this.def.speed + this.knock.x) * dt;
-    const nz = this.pos.z + (mz * this.def.speed + this.knock.z) * dt;
+    if (this.def.flying && (state === 'chase' || state === 'recover')) {
+      // Circle the player at the preferred range, banking.
+      this.orbitAngle += dt * 0.55;
+      const pref = this.def.brain.preferredRange ?? 14;
+      const tx = player.x + Math.cos(this.orbitAngle) * pref;
+      const tz = player.z + Math.sin(this.orbitAngle) * pref;
+      const ddx = tx - this.pos.x;
+      const ddz = tz - this.pos.z;
+      const dd = Math.hypot(ddx, ddz) || 1;
+      mx = ddx / dd;
+      mz = ddz / dd;
+      this.yaw = Math.atan2(mz, mx);
+    }
+    let nx = this.pos.x + (mx * this.def.speed + this.knock.x) * dt;
+    let nz = this.pos.z + (mz * this.def.speed + this.knock.z) * dt;
+    if (this.def.leash) {
+      const lx = nx - this.spawn.x;
+      const lz = nz - this.spawn.z;
+      const ld = Math.hypot(lx, lz);
+      if (ld > this.def.leash) { nx = this.spawn.x + (lx / ld) * this.def.leash; nz = this.spawn.z + (lz / ld) * this.def.leash; }
+    }
     const gNow = this.world.heightAt(this.pos.x, this.pos.z);
     const gNext = this.world.heightAt(nx, nz);
-    if (Math.abs(gNext - gNow) < 2.5) {
+    if (this.def.flying || Math.abs(gNext - gNow) < 2.5 + (this.def.boss ? 4 : 0)) {
       this.pos.x = nx;
       this.pos.z = nz;
     }
@@ -285,7 +346,9 @@ export class Enemy {
     this.knock.x *= decay;
     this.knock.z *= decay;
     const bob = this.def.hover > 0 ? Math.sin(this.time * 2.4) * 0.25 : 0;
-    this.pos.y = this.world.heightAt(this.pos.x, this.pos.z) + this.def.hover + bob;
+    const groundY = this.world.heightAt(this.pos.x, this.pos.z);
+    const targetY = (this.def.flying ? Math.max(groundY, player.y) : groundY) + this.def.hover + bob;
+    this.pos.y += (targetY - this.pos.y) * Math.min(1, dt * (this.def.flying ? 2 : 12));
     return action;
   }
 
@@ -305,6 +368,7 @@ export class Enemy {
   }
 
   private respawn(): void {
+    if (this.noRespawn) return;
     this.hp = this.def.maxHp;
     this.aura = null;
     this.defDown = { amount: 0, left: 0 };
@@ -338,7 +402,19 @@ export class Enemy {
     }
     const st = this.brain.state;
     const k = 1 - Math.exp(-dt * 16);
-    if (this.def.kind === 'beast') {
+    if (this.bossRig) {
+      this.object.rotation.y = -this.yaw;
+      const moving = st === 'chase';
+      if (moving && this.def.kind !== 'wyrm') {
+        const prev = this.stepPhase;
+        this.stepPhase += dt * (this.def.kind === 'warden' ? 1.6 : 4.5);
+        if (Math.floor(prev / Math.PI) !== Math.floor(this.stepPhase / Math.PI) && (this.def.kind === 'warden' || this.def.kind === 'yeti')) this.onStomp?.(this.pos.x, this.pos.y, this.pos.z);
+      }
+      const windup = st === 'windup' && this.currentAttack ? Math.min(1, this.brain.stateTime / this.currentAttack.windup) : 0;
+      this.bossRig.animate({ state: st, stateTime: this.brain.stateTime, time: this.time, dt, moving, attack: this.currentAttack?.kind ?? null, windup });
+      return;
+    }
+    if (this.def.kind === 'beast' || this.def.kind === 'passbeast') {
       this.object.rotation.y = -this.yaw;
       const moving = st === 'chase';
       if (moving) this.stepPhase += dt * 11;

@@ -21,7 +21,50 @@ export const WORLD = {
   peak: { x: -90, z: -155, height: 88, radius: 58 },
   /** Frozen realm: north-east quadrant. */
   frozen: { xFrom: 40, xTo: 95, zFrom: -20, zTo: -70 },
+  desert: { x: 80, z: 100, r: 36 },
+  dead: { x: -28, z: -165, r: 30 },
+  pond: { x: -30, z: -30, r: 15 },
 } as const;
+
+/** The great river: polyline in world xz, flowing west. */
+export const RIVER: ReadonlyArray<readonly [number, number]> = [
+  [215, 6], [170, 22], [128, -4], [84, 6], [44, 17], [6, 27], [-30, 21], [-66, 7], [-96, 20], [-124, 34],
+];
+export const RIVER_LEVEL = 0.9;
+export const RIVER_FLOOR = -1.6;
+
+/** Distance from a point to the river centre line. */
+export function riverDistance(x: number, z: number): number {
+  let best = Infinity;
+  for (let i = 0; i < RIVER.length - 1; i++) {
+    const [ax, az] = RIVER[i];
+    const [bx, bz] = RIVER[i + 1];
+    const dx = bx - ax;
+    const dz = bz - az;
+    const l2 = dx * dx + dz * dz;
+    let t = ((x - ax) * dx + (z - az) * dz) / l2;
+    t = Math.max(0, Math.min(1, t));
+    const px = ax + dx * t;
+    const pz = az + dz * t;
+    best = Math.min(best, Math.hypot(x - px, z - pz));
+  }
+  return best;
+}
+
+/** 0..1 inside the water channel. */
+export function riverAt(x: number, z: number): number {
+  return 1 - smoothstep(4.8, 9.5, riverDistance(x, z));
+}
+
+/** 0..1 desert dunes (south-east). */
+export function sandAt(x: number, z: number): number {
+  return 1 - smoothstep(WORLD.desert.r - 14, WORLD.desert.r + 6, Math.hypot(x - WORLD.desert.x, z - WORLD.desert.z));
+}
+
+/** 0..1 the dead forest's red-purple floor (north-west). */
+export function deadAt(x: number, z: number): number {
+  return 1 - smoothstep(WORLD.dead.r - 12, WORLD.dead.r + 6, Math.hypot(x - WORLD.dead.x, z - WORLD.dead.z));
+}
 
 /** 0..1 how frozen a point is. */
 export function frozenAt(x: number, z: number): number {
@@ -57,6 +100,23 @@ export function terrainHeight(x: number, z: number, noise: Noise2D): number {
   }
   // Stream ravine.
   plateau -= 3.2 * streamAt(x, z, noise);
+  // The great river: raised banks, flat floor below the water line.
+  const rd = riverDistance(x, z);
+  if (rd < 18) {
+    const bank = Math.max(plateau, 2.6);
+    const bankMix = 1 - smoothstep(9.5, 18, rd);
+    plateau = lerp(plateau, bank, bankMix);
+    plateau = lerp(plateau, RIVER_FLOOR, 1 - smoothstep(4.8, 9.5, rd));
+  }
+  // Lily pond: a shallow bowl.
+  const pd0 = Math.hypot(x - WORLD.pond.x, z - WORLD.pond.z);
+  if (pd0 < WORLD.pond.r + 8) {
+    const bowl = 1 - smoothstep(WORLD.pond.r - 3, WORLD.pond.r + 8, pd0);
+    plateau = lerp(Math.max(plateau, 2.4), 0.2, bowl);
+  }
+  // Desert dunes.
+  const sand = sandAt(x, z);
+  if (sand > 0) plateau += sand * (2.2 * Math.abs(Math.sin(x * 0.08 + noise.noise(x * 0.01, z * 0.01) * 3 + z * 0.03)) + noise.fbm(x * 0.03 + 9, z * 0.03, 2) * 1.2);
   // The peak.
   const pd = Math.hypot(x - WORLD.peak.x, z - WORLD.peak.z);
   if (pd < WORLD.peak.radius) {
@@ -81,6 +141,10 @@ export class Terrain {
     const stone = new Color(0x3d4a80);
     const snow = new Color(0x9fb3e6);
     const streamBed = new Color(0x1a3a3a);
+    const riverBed = new Color(0x0c1a4a);
+    const sandColor = new Color(0xa9b2cf);
+    const deadA = new Color(0x4a1430);
+    const deadB = new Color(0x6a2a3c);
         const c = new Color();
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
@@ -93,6 +157,11 @@ export class Terrain {
       c.lerp(stone, smoothstep(0.3, 0.85, slope));
       c.lerp(snow, frozenAt(x, z) * (1 - smoothstep(0.5, 0.9, slope)) * 0.85);
       c.lerp(streamBed, streamAt(x, z, this.noise) * 0.8);
+      c.lerp(riverBed, riverAt(x, z) * 0.85);
+      c.lerp(sandColor, sandAt(x, z) * 0.9);
+      const dead = deadAt(x, z);
+      if (dead > 0) c.lerp(this.noise.noise(x * 0.09, z * 0.09) > 0 ? deadA : deadB, dead * 0.85);
+      if (Math.hypot(x - WORLD.pond.x, z - WORLD.pond.z) < WORLD.pond.r) c.lerp(riverBed, 0.7);
       const mottle = 1 + this.noise.noise(x * 0.2, z * 0.2) * 0.08;
       colors[i * 3] = c.r * mottle;
       colors[i * 3 + 1] = c.g * mottle;

@@ -43,7 +43,7 @@ export class Minimap {
     return c;
   }
 
-  draw(px: number, pz: number, cameraYaw: number, enemies: Iterable<{ x: number; z: number; alive: boolean; aggro: boolean }>): void {
+  draw(px: number, pz: number, cameraYaw: number, enemies: Iterable<{ x: number; z: number; alive: boolean; aggro: boolean; boss?: boolean }>, revealBosses = false, npcs: Iterable<{ x: number; z: number }> = []): void {
     const ctx = this.ctx;
     const r = SIZE / 2;
     ctx.clearRect(0, 0, SIZE, SIZE);
@@ -66,7 +66,12 @@ export class Minimap {
     };
     dot(LAYOUT.head.x, LAYOUT.head.z, '#ff2a2a', 6);
     dot(LAYOUT.cathedral.x, LAYOUT.cathedral.z, '#37f5ff', 5);
-    for (const e of enemies) if (e.alive) dot(e.x, e.z, e.aggro ? '#ff2a2a' : '#8d99d6', 3);
+    for (const n of npcs) dot(n.x, n.z, '#dfe6ff', 2);
+    for (const e of enemies) {
+      if (!e.alive) continue;
+      if (e.boss) { if (revealBosses || e.aggro) dot(e.x, e.z, '#ff2a2a', 7); }
+      else dot(e.x, e.z, e.aggro ? '#ff2a2a' : '#8d99d6', 3);
+    }
     ctx.restore();
     // Player chevron, always pointing up (camera-forward).
     ctx.save();

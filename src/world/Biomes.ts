@@ -225,7 +225,7 @@ export function castle(x: number, z: number, baseY: number): Landmark {
   gate.position.set(0, 4, half + 1.6);
   const gateGlow = glowSprite(PALETTE.rune, 16, 0.5, true);
   gateGlow.position.set(0, 4.5, half + 3);
-  const gateLight = new PointLight(PALETTE.rune, 80, 30, 1.8);
+  const gateLight = new PointLight(PALETTE.rune, 36, 22, 1.8);
   gateLight.position.set(0, 5, half + 5);
   g.add(gate, gateGlow, gateLight);
   // Banners.

@@ -94,3 +94,10 @@ Rework (M7): full-resolution MSAA + bloom + grade pipeline, PCF soft shadows, cl
 motes, grass and flower meadows, noise-displaced rock, jointed capsule rigs with cloaks and weapon trails,
 spirit wisp and rock golem mobs, title dolly, camera shake. Hard ceiling: procedural geometry cannot match
 AI-generated video photorealism; real animated glTF characters are the next step and need asset approval.
+
+## 11. Revision 2026-10-14 (night): full reel coverage and mechanics
+
+All twenty reels were watched frame by frame after the user logged into Instagram (notes in `docs/reference/reel-notes.md`).
+Built: every subject identified (see the notes' build-status section). Mechanics added at the user's request: NPC dialogue,
+shops (buy/sell), hiring companions, inventory with equipment and consumables, Moon Shard currency, loot drops, light/heavy/skill/
+burst/dodge combat on LMB/RMB/E/Q/R, six bosses with unique attack sets and drops, and a synthesised sound layer.

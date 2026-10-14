@@ -13,8 +13,10 @@ export interface RigPose {
   speed: number;
   /** 0..1 progress of an attack swing or cast, undefined when idle. */
   attack?: number;
-  /** Which combo hit (0..2) or 'skill'. Drives the swing shape. */
-  attackKind?: number | 'skill';
+  /** Which combo hit (0..2), 'skill', 'heavy' (charged) or 'burst'. Drives the swing shape. */
+  attackKind?: number | 'skill' | 'heavy' | 'burst';
+  /** Static NPC poses. */
+  pose?: 'sit' | 'kneel' | 'row' | 'ride' | 'carry' | 'drink' | 'fish' | 'telescope' | 'read' | 'pray' | 'stir' | 'offer' | 'bow' | 'banner' | 'sitSword' | 'lantern' | 'throne' | 'watch';
   /** Seconds since landing, for the landing crouch. */
   landed?: number;
   grounded?: boolean;
@@ -52,11 +54,14 @@ function lerpAngle(cur: number, target: number, k: number): number {
  */
 export class Rig {
   readonly root = new Group();
-  private readonly hips = new Group();
-  private readonly chest = new Group();
-  private readonly head = new Group();
+  readonly hips = new Group();
+  readonly chest = new Group();
+  readonly head = new Group();
   private readonly armL: Limb;
   private readonly armR: Limb;
+  /** End-of-arm attachment points for props. */
+  readonly handL = new Group();
+  readonly handR = new Group();
   private readonly legL: Limb;
   private readonly legR: Limb;
   private readonly weapon = new Group();
@@ -84,7 +89,7 @@ export class Rig {
     const torsoR = h * 0.1 * b;
 
     const clothMat = surface({ color: cloth, roughness: 0.85 });
-    const armourMat = surface({ color: armour, roughness: 0.5, metalness: 0.35 });
+    const armourMat = def.look.skeleton ? surface({ color: skin, roughness: 0.8 }) : surface({ color: armour, roughness: 0.5, metalness: 0.35 });
     const skinMat = surface({ color: skin, roughness: 0.7 });
     const runeMat = surface({ color: PALETTE.void, emissive: accent, emissiveIntensity: 1.1 });
 
@@ -131,11 +136,51 @@ export class Rig {
     const eyes = new Mesh(new BoxGeometry(headR * 1.0, headR * 0.14, 0.02), surface({ color: PALETTE.void, emissive: accent, emissiveIntensity: 1.0 }));
     eyes.position.set(0, headR * 1.1, headR * 0.92);
     this.head.add(eyes);
+    if (def.look.antlers) {
+      const antlerMat = surface({ color: 0x3a2e24, roughness: 0.9 });
+      for (const side of [-1, 1]) {
+        const beam = new Mesh(new CylinderGeometry(0.02, 0.035, headR * 3.2, 6), antlerMat);
+        beam.position.set(side * headR * 0.7, headR * 2.6, -headR * 0.2);
+        beam.rotation.z = -side * 0.55;
+        beam.rotation.x = -0.2;
+        this.head.add(beam);
+        for (let k = 0; k < 3; k++) {
+          const tine = new Mesh(new CylinderGeometry(0.012, 0.025, headR * 1.3, 5), antlerMat);
+          tine.position.set(side * headR * (1.0 + k * 0.35), headR * (2.3 + k * 0.7), -headR * 0.15);
+          tine.rotation.z = -side * (0.1 + k * 0.35);
+          this.head.add(tine);
+        }
+      }
+      const crown = new Mesh(new TorusGeometry(headR * 1.05, 0.02, 6, 16), surface({ color: 0x5a4a1a, roughness: 0.4, metalness: 0.7 }));
+      crown.rotation.x = Math.PI / 2;
+      crown.position.y = headR * 1.8;
+      this.head.add(crown);
+    }
+    if (def.look.horns) {
+      const hornMat = surface({ color: 0x0a0d2a, roughness: 0.5 });
+      for (const side of [-1, 1]) {
+        const horn = new Mesh(new ConeGeometry(headR * 0.3, headR * 3.6, 7), hornMat);
+        horn.position.set(side * headR * 0.9, headR * 2.9, -headR * 0.2);
+        horn.rotation.z = -side * 0.75;
+        horn.rotation.x = -0.35;
+        this.head.add(horn);
+        const curl = new Mesh(new ConeGeometry(headR * 0.18, headR * 1.6, 6), hornMat);
+        curl.position.set(side * headR * 2.2, headR * 3.9, -headR * 0.6);
+        curl.rotation.z = -side * 1.5;
+        this.head.add(curl);
+      }
+    }
+    if (def.look.beard) {
+      const beard = new Mesh(new ConeGeometry(headR * 0.55, headR * 2.4, 8), surface({ color: 0xd8dcf0, roughness: 0.9 }));
+      beard.position.set(0, headR * 0.1, headR * 0.5);
+      beard.rotation.x = Math.PI + 0.25;
+      this.head.add(beard);
+    }
     if (def.look.hat) {
-      const brim = new Mesh(new CylinderGeometry(headR * 2.4, headR * 2.6, 0.03, 18), clothMat);
+      const brim = new Mesh(new CylinderGeometry(headR * 2.4, headR * 2.6, 0.03, 18), surface({ color: def.look.hatColor ?? cloth, roughness: 0.85 }));
       brim.position.y = headR * 1.9;
       brim.castShadow = true;
-      const cone = new Mesh(new ConeGeometry(headR * 1.25, headR * 4.2, 14), clothMat);
+      const cone = new Mesh(new ConeGeometry(headR * 1.25, headR * 4.2, 14), surface({ color: def.look.hatColor ?? cloth, roughness: 0.85 }));
       cone.position.y = headR * 1.9 + headR * 2.1;
       cone.rotation.z = -0.18;
       cone.castShadow = true;
@@ -170,6 +215,10 @@ export class Rig {
     this.armL.pivot.position.set(-torsoR * 1.35, T * 0.68, 0);
     this.armR.pivot.position.set(torsoR * 1.35, T * 0.68, 0);
     this.chest.add(this.armL.pivot, this.armR.pivot);
+    this.handL.position.y = -armLower;
+    this.handR.position.y = -armLower;
+    this.armL.joint.add(this.handL);
+    this.armR.joint.add(this.handR);
 
     // Legs with boots.
     const legR = h * 0.05 * b;
@@ -331,6 +380,85 @@ export class Rig {
         break;
     }
 
+    // Static NPC poses.
+    switch (pose.pose) {
+      case 'sit':
+        thighL = thighR = 1.5; kneeL = kneeR = 1.55; crouch = this.legLen * 0.52;
+        upArmL = -0.5; upArmR = -0.5; elbowL = elbowR = 1.3; armOutL = 0.2; armOutR = -0.2; lean = 0.05;
+        break;
+      case 'drink': {
+        const sip = (Math.sin(this.time * 0.9) + 1) / 2;
+        thighL = thighR = 1.5; kneeL = kneeR = 1.55; crouch = this.legLen * 0.52;
+        upArmL = -0.6; elbowL = 1.3; armOutL = 0.25;
+        upArmR = -0.9 - sip * 0.9; elbowR = 1.6 + sip * 0.8; armOutR = -0.35; headPitch = -sip * 0.35; lean = 0.08;
+        break;
+      }
+      case 'kneel':
+        thighL = -0.1; kneeL = 1.65; thighR = 1.5; kneeR = 1.6; crouch = this.legLen * 0.42;
+        upArmL = -0.3; upArmR = -0.3; elbowL = elbowR = 1.1; armOutL = 0.15; armOutR = -0.15; lean = 0.35; headPitch = 0.55;
+        break;
+      case 'row': {
+        const r = Math.sin(this.time * 2.2);
+        thighL = thighR = 1.2; kneeL = kneeR = 1.4; crouch = this.legLen * 0.45;
+        upArmL = upArmR = -0.9 + r * 0.6; elbowL = elbowR = 0.9 - r * 0.5; armOutL = 0.3; armOutR = -0.3; lean = 0.15 + r * 0.18;
+        break;
+      }
+      case 'ride':
+        thighL = thighR = 0.9; kneeL = kneeR = 1.3; armOutL = 0.35; armOutR = -0.35;
+        upArmL = upArmR = -0.5; elbowL = elbowR = 0.9; lean = 0.12; bob = Math.abs(Math.sin(this.time * 4.2)) * 0.05;
+        break;
+      case 'carry':
+        upArmL = upArmR = -2.6; elbowL = elbowR = 0.6; armOutL = 0.45; armOutR = -0.45; lean = 0.5 + Math.sin(this.phase) * 0.03;
+        headPitch = -0.3;
+        break;
+      case 'fish':
+        thighL = thighR = 1.4; kneeL = kneeR = 1.5; crouch = this.legLen * 0.5;
+        upArmL = -0.8; elbowL = 0.4; armOutL = 0.1; upArmR = -1.2; elbowR = 0.2; armOutR = -0.1; lean = 0.3; headPitch = 0.3;
+        break;
+      case 'telescope':
+        upArmR = -1.9; elbowR = 1.4; armOutR = -0.15; upArmL = -0.4; elbowL = 0.6; headPitch = -0.7; lean = -0.15;
+        break;
+      case 'read':
+        thighL = thighR = 1.5; kneeL = kneeR = 1.55; crouch = this.legLen * 0.52;
+        upArmL = upArmR = -0.9; elbowL = elbowR = 1.7; armOutL = 0.35; armOutR = -0.35; headPitch = 0.45; lean = 0.15;
+        break;
+      case 'pray': {
+        const raise = (Math.sin(this.time * 0.5) + 1) / 2;
+        upArmL = upArmR = -0.6 - raise * 2.2; elbowL = elbowR = 0.2 + (1 - raise) * 0.6; armOutL = 0.25 + raise * 0.3; armOutR = -0.25 - raise * 0.3;
+        headPitch = -0.35 * raise; lean = -0.08 * raise;
+        break;
+      }
+      case 'stir': {
+        const st = this.time * 1.6;
+        upArmR = -1.3 + Math.sin(st) * 0.25; elbowR = 0.9 + Math.cos(st) * 0.3; armOutR = -0.5 + Math.cos(st) * 0.2;
+        upArmL = -0.3; elbowL = 1.0; armOutL = 0.6; lean = 0.25; headPitch = 0.35;
+        break;
+      }
+      case 'offer':
+        upArmR = -1.4; elbowR = 0.5; armOutR = -0.2; upArmL = -0.2; elbowL = 0.4; lean = 0.18; headPitch = 0.25;
+        break;
+      case 'bow':
+        upArmL = upArmR = 0.1; elbowL = elbowR = 1.2; armOutL = 0.2; armOutR = -0.2; lean = 0.32; headPitch = 0.55;
+        break;
+      case 'banner':
+        upArmL = -2.6; elbowL = 0.3; armOutL = 0.5; upArmR = -1.4; elbowR = 0.9; armOutR = -0.9; lean = -0.1; thighL = 0.4; kneeL = 0.5; thighR = -0.3;
+        break;
+      case 'sitSword':
+        thighL = thighR = 1.25; kneeL = kneeR = 0.6; crouch = this.legLen * 0.48;
+        upArmR = -0.6; elbowR = 0.9; armOutR = -0.3; upArmL = -0.4; elbowL = 1.1; armOutL = 0.3; lean = 0.2; headPitch = 0.1;
+        break;
+      case 'lantern':
+        upArmR = -1.1; elbowR = 0.4; armOutR = -0.15; upArmL = 0.1; elbowL = 0.3; lean = 0.08; headPitch = 0.05;
+        break;
+      case 'throne':
+        thighL = thighR = 1.45; kneeL = kneeR = 1.5; crouch = this.legLen * 0.5;
+        upArmL = -0.25 + breathe * 0.02; upArmR = -0.25; elbowL = elbowR = 1.35; armOutL = 0.45; armOutR = -0.45; lean = -0.1; headPitch = 0.08 + breathe * 0.02;
+        break;
+      case 'watch':
+        upArmL = 0.05; upArmR = 0.1; elbowL = elbowR = 0.35; headPitch = -0.45; lean = -0.12;
+        break;
+    }
+
     // Attacks override the arms and chest.
     if (pose.attack !== undefined) {
       const a = pose.attack;
@@ -345,13 +473,31 @@ export class Rig {
         twist = -0.35 * thrust;
         lean = 0.12 * thrust;
       } else {
-        // Wind-up over the shoulder, then a diagonal cut; alternate sides per hit; skill = overhead.
-        const side = kind === 'skill' ? 0 : kind % 2 === 0 ? 1 : -1;
+        // Wind-up over the shoulder, then a diagonal cut; alternate sides per hit; skill/heavy = overhead; burst = spin.
+        const side = typeof kind === 'number' ? (kind % 2 === 0 ? 1 : -1) : 0;
         const windup = Math.min(1, a / 0.3);
         const swing = Math.max(0, (a - 0.3) / 0.45);
         const settle = Math.max(0, (a - 0.75) / 0.25);
         const ease = swing < 1 ? 1 - Math.pow(1 - swing, 3) : 1;
-        if (kind === 'skill' || this.def.weapon === 'greatsword') {
+        if (kind === 'burst') {
+          const spin = a * Math.PI * 4;
+          twist = Math.sin(spin) * 1.2;
+          upArmR = -1.2; upArmL = -1.2; armOutR = -1.4; armOutL = 1.4; elbowR = elbowL = 0.2;
+          lean = 0.2 + Math.sin(a * Math.PI) * 0.2;
+          crouch = Math.sin(a * Math.PI) * 0.15;
+        } else if (kind === 'heavy') {
+          const w = Math.min(1, a / 0.45);
+          const sw = Math.max(0, (a - 0.45) / 0.3);
+          const e2 = sw < 1 ? 1 - Math.pow(1 - sw, 4) : 1;
+          const st = Math.max(0, (a - 0.75) / 0.25);
+          upArmR = -3.0 * w + e2 * 3.9 - st * 1.2;
+          upArmL = -2.8 * w + e2 * 3.6 - st * 1.1;
+          armOutR = -0.15; armOutL = 0.15;
+          elbowR = elbowL = 0.3 * w * (1 - e2) + 0.15;
+          lean = -0.35 * w + e2 * 0.7 - st * 0.3;
+          crouch = e2 * 0.18;
+          twist = 0;
+        } else if (kind === 'skill' || this.def.weapon === 'greatsword') {
           upArmR = -2.6 * windup + ease * 3.4 - settle * 1.0;
           upArmL = -2.3 * windup + ease * 3.0 - settle * 0.9;
           armOutR = -0.25;

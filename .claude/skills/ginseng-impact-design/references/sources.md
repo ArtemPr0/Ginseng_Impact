@@ -53,3 +53,12 @@ knight on cliff (PS1 look), witches on a bridge (PS1 look), blue sunflowers unde
 | Hairy beast with red eyes | Fog Beast enemy (shaggy quadruped, lunge) |
 | Moon with a grinning face | moon face event |
 | Waterfalls, rune portal | chasm waterfalls, cathedral portal, castle gate |
+
+## Second viewing (logged in, 2026-10-14 evening) — see `docs/reference/reel-notes.md` for frame-by-frame notes
+
+Every reel was watched at four timestamps. Subjects now in the game: six bosses (Yeti, Horned Shade, Antlered Warden, Moon Wyrm,
+River Shade, Pass Beast), crocodiles and the snake, 24 NPCs (tavern knight and wizard, goblins, kneeling Vigil, three skeletons at
+the kettle, the frog monk, the gnome astronomer, the ogre woodhauler, the troll fisher, two river pilgrims, the Antlered King, the
+cliff knight, the standard-bearer, the pale bride, the rose knight and maiden, the lanternbearer, the two sky-watchers, the cauldron
+witch), the river and lily pond, village/tavern/campfire/cloister/observatory/throne hall, wizard tower, demon church, palm island,
+tree-house, ruined nave, arch gate, rope bridge, burning castle, and the sky apparitions. Open items are listed at the end of the notes.

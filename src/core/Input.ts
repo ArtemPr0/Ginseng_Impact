@@ -4,6 +4,9 @@ export class Input {
   private readonly pressed = new Set<string>();
   private readonly mouseDownSet = new Set<number>();
   private readonly mousePressed = new Set<number>();
+  private readonly mouseReleased = new Set<number>();
+  /** When true, keys and mouse are swallowed by a UI panel. */
+  uiOpen = false;
   mouseDX = 0;
   mouseDY = 0;
   locked = false;
@@ -19,13 +22,13 @@ export class Input {
     window.addEventListener('blur', () => this.down.clear());
     canvas.addEventListener('mousedown', (e) => {
       if (!this.locked) {
-        void canvas.requestPointerLock();
+        if (!this.uiOpen) void canvas.requestPointerLock();
         return;
       }
       this.mouseDownSet.add(e.button);
       this.mousePressed.add(e.button);
     });
-    window.addEventListener('mouseup', (e) => this.mouseDownSet.delete(e.button));
+    window.addEventListener('mouseup', (e) => { if (this.mouseDownSet.has(e.button)) this.mouseReleased.add(e.button); this.mouseDownSet.delete(e.button); });
     window.addEventListener('mousemove', (e) => {
       if (!this.locked) return;
       this.mouseDX += e.movementX;
@@ -54,6 +57,15 @@ export class Input {
     return this.mousePressed.has(button);
   }
 
+  mouseJustReleased(button: number): boolean {
+    return this.mouseReleased.has(button);
+  }
+
+  /** Releases the pointer so a panel can be used. */
+  unlock(): void {
+    if (document.pointerLockElement === this.canvas) document.exitPointerLock();
+  }
+
   /** Raw WASD axis in input space: x = right, z = forward (positive = forward). */
   moveAxis(): { x: number; z: number } {
     const x = (this.isDown('KeyD') ? 1 : 0) - (this.isDown('KeyA') ? 1 : 0);
@@ -73,5 +85,6 @@ export class Input {
   endStep(): void {
     this.pressed.clear();
     this.mousePressed.clear();
+    this.mouseReleased.clear();
   }
 }

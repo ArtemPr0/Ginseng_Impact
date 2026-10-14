@@ -18,6 +18,10 @@ export class EnemyBrain {
 
   constructor(readonly p: BrainParams) {}
 
+  get cooldownLeft(): number {
+    return this.cooldown;
+  }
+
   private go(s: EnemyState): void {
     this.state = s;
     this.stateTime = 0;

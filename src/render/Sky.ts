@@ -11,7 +11,7 @@ varying vec3 vDir;
 void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 
 const SKY_FRAG = /* glsl */ `
-uniform vec3 uHorizon; uniform vec3 uMid; uniform vec3 uZenith; uniform vec3 uCloud; uniform vec3 uMoonDir; uniform vec3 uMoonGlow; uniform float uTime; uniform vec3 uNebulaA; uniform vec3 uNebulaB; uniform float uFlash;
+uniform vec3 uHorizon; uniform vec3 uMid; uniform vec3 uZenith; uniform vec3 uCloud; uniform vec3 uMoonDir; uniform vec3 uMoonGlow; uniform float uTime; uniform vec3 uNebulaA; uniform vec3 uNebulaB; uniform float uFlash; uniform vec3 uVortexDir; uniform float uVortexAmount;
 varying vec3 vDir;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vnoise(vec2 p) {
@@ -37,6 +37,24 @@ void main() {
   c += neb * band * smoothstep(0.42, 0.78, nn) * 0.55 * (1.0 - cloud);
   float m = max(dot(normalize(vDir), uMoonDir), 0.0);
   c += uMoonGlow * (pow(m, 20.0) * 0.35 + pow(m, 180.0) * 0.6);
+  // Spiral galaxy vortex around uVortexDir.
+  vec3 vd = normalize(vDir);
+  vec3 vx = normalize(cross(uVortexDir, vec3(0.0, 1.0, 0.0)));
+  vec3 vy = cross(vx, uVortexDir);
+  float along = dot(vd, uVortexDir);
+  if (along > 0.3) {
+    vec2 q = vec2(dot(vd, vx), dot(vd, vy)) / along;
+    float r = length(q);
+    float ang = atan(q.y, q.x);
+    float arms = sin(ang * 2.0 - r * 9.0 + uTime * 0.06) * 0.5 + 0.5;
+    float core = exp(-r * 6.0);
+    float disc = exp(-r * 1.6) * (1.0 - smoothstep(0.0, 0.9, r));
+    float sw = pow(arms, 2.0) * disc * 0.9 + core * 1.2;
+    float n2 = fbm(q * 6.0 + uTime * 0.01);
+    vec3 vc = mix(vec3(0.2, 0.3, 1.0), vec3(0.9, 0.3, 0.9), arms) ;
+    vc = mix(vc, vec3(0.3, 0.95, 1.0), smoothstep(0.5, 0.8, n2));
+    c += vc * sw * uVortexAmount * smoothstep(0.3, 0.6, along) * (0.6 + n2 * 0.6);
+  }
   c += vec3(0.5, 0.6, 1.0) * uFlash * (0.35 + cloud * 0.5);
   gl_FragColor = vec4(c, 1.0);
 }`;
@@ -63,6 +81,7 @@ export class Sky {
   private readonly glowMat: SpriteMaterial;
   private readonly glow: Sprite;
   private readonly faceMat: MeshBasicMaterial;
+  private readonly skyFace: Sprite;
   private readonly streak: Sprite;
   private readonly streakDir = new Vector3();
   private streakT = 99;
@@ -84,6 +103,8 @@ export class Sky {
         uNebulaA: { value: new Color(PALETTE.dusk).multiplyScalar(0.5) },
         uNebulaB: { value: new Color(PALETTE.electric).multiplyScalar(0.45) },
         uFlash: { value: 0 },
+        uVortexDir: { value: new Vector3(-0.6, 0.72, -0.35).normalize() },
+        uVortexAmount: { value: 0.55 },
       },
       vertexShader: SKY_VERT,
       fragmentShader: SKY_FRAG,
@@ -133,6 +154,13 @@ export class Sky {
     face.renderOrder = -7;
     this.group.add(face);
 
+    // A colossal face in the clouds behind the moon (Lost Horizons): fades in for ~40 s every 3 min.
+    this.skyFace = new Sprite(new SpriteMaterial({ map: skyFaceTexture(), color: 0x6f86ff, transparent: true, opacity: 0, fog: false, depthWrite: false, blending: AdditiveBlending }));
+    this.skyFace.position.copy(this.moonDir).multiplyScalar(SKY_RADIUS * 0.97).add(new Vector3(0, -18, 0));
+    this.skyFace.scale.set(moonRadius * 7.5, moonRadius * 9, 1);
+    this.skyFace.renderOrder = -9;
+    this.group.add(this.skyFace);
+
     this.streak = new Sprite(new SpriteMaterial({ map: streakTexture(), color: PALETTE.moon, blending: AdditiveBlending, transparent: true, opacity: 0, fog: false, depthWrite: false }));
     this.streak.scale.set(40, 3, 1);
     this.streak.renderOrder = -7;
@@ -158,6 +186,10 @@ export class Sky {
     this.starMat.uniforms.uTime.value = this.time;
     this.glowMat.opacity = 0.45 + Math.sin(this.time * 0.6) * 0.07;
     this.group.position.copy(cameraPosition);
+    // Sky face: period 180 s, visible ~40 s, starting at 100 s.
+    const fp = (this.time % 180) / 180;
+    const sf = fp > 0.55 && fp < 0.78 ? Math.sin(((fp - 0.55) / 0.23) * Math.PI) : 0;
+    this.skyFace.material.opacity = sf * 0.55;
     // Moon face: period 150 s, visible ~30 s.
     const phase = (this.time % 150) / 150;
     const face = phase > 0.6 && phase < 0.8 ? Math.sin(((phase - 0.6) / 0.2) * Math.PI) : 0;
@@ -270,5 +302,38 @@ function streakTexture(): CanvasTexture {
   g.addColorStop(1, 'rgba(255,255,255,1)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, w, h);
+  return new CanvasTexture(canvas);
+}
+
+/** Huge brooding face: shadowed brow, closed eyes, heavy mouth, drawn soft so it reads as cloud. */
+function skyFaceTexture(): CanvasTexture {
+  const w = 256;
+  const h = 320;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d')!;
+  ctx.clearRect(0, 0, w, h);
+  const soft = (x: number, y: number, rx: number, ry: number, a: number) => {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, Math.max(rx, ry));
+    g.addColorStop(0, `rgba(255,255,255,${a})`);
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(1, ry / rx);
+    ctx.translate(-x, -y);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, rx, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  };
+  soft(128, 150, 110, 150, 0.35); // head mass
+  soft(90, 120, 30, 14, 0.9); // brows
+  soft(166, 120, 30, 14, 0.9);
+  soft(128, 175, 16, 34, 0.7); // nose
+  soft(128, 235, 46, 12, 0.85); // mouth
+  soft(74, 165, 28, 40, 0.5); // cheeks
+  soft(182, 165, 28, 40, 0.5);
   return new CanvasTexture(canvas);
 }
