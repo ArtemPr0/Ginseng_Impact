@@ -9,6 +9,8 @@
  *   node scripts/model-tools.mjs strip-floaters <in.glb> <out.glb> [aboveFraction=0.45]
  *       Deletes mesh islands that float entirely above that fraction of the model's height (Meshy likes to add a
  *       moon sphere over buildings and stairs).
+ *   node scripts/model-tools.mjs strip-skin <in.glb> <out.glb>
+ *       Drops JOINTS_1+/WEIGHTS_1+ (Meshy rigs store 12 influences; three.js skins with the first 4 but uploads all).
  *   node scripts/model-tools.mjs clip <in.glb> <out.glb>
  *       Keeps only the node hierarchy and animations (drops meshes, skins, materials, textures), so one
  *       animation export becomes a ~100 KB file the game layers onto the base model (see models.ts clipFiles).
@@ -18,7 +20,7 @@
  */
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
-import { dedup, normals, prune, resample, simplify, textureCompress, weld } from '@gltf-transform/functions';
+import { compactPrimitive, dedup, prune, resample, simplify, textureCompress, weld } from '@gltf-transform/functions';
 import { MeshoptSimplifier } from 'meshoptimizer';
 import sharp from 'sharp';
 import { statSync } from 'node:fs';
@@ -48,7 +50,7 @@ async function optimize(inPath, outPath, maxSize = 1024, targetTris = 0) {
   if (targetTris > 0 && tris > targetTris * 1.15) {
     await MeshoptSimplifier.ready;
     // Untextured Meshy drafts arrive as triangle soup with per-face normals, which blocks welding: drop the
-    // normals first and recompute smooth ones after simplifying.
+    // normals first; the game recomputes smooth ones on load (ModelRig) for files without NORMAL.
     let soup = false;
     for (const mesh of doc.getRoot().listMeshes()) for (const prim of mesh.listPrimitives()) {
       const n = prim.getAttribute('POSITION').getCount();
@@ -56,11 +58,29 @@ async function optimize(inPath, outPath, maxSize = 1024, targetTris = 0) {
       if (n >= idx * 0.9 && !prim.getAttribute('TEXCOORD_0')) { prim.setAttribute('NORMAL', null); soup = true; }
     }
     steps.push(weld(), simplify({ simplifier: MeshoptSimplifier, ratio: targetTris / tris, error: Number(process.env.SIMPLIFY_ERROR ?? 0.002) }));
-    if (soup) steps.push(normals({ overwrite: true }));
     console.log(`simplify ${Math.round(tris)} → ~${targetTris} triangles${soup ? ' (welded triangle soup)' : ''}`);
   }
   steps.push(textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [maxSize, maxSize], quality: 82 }), prune());
   await doc.transform(...steps);
+  // Texture seams stop the normal simplifier well short of small targets (a pine stalls at ~7k). For instanced
+  // flora that is fine to fix with meshoptimizer's sloppy mode, which ignores topology.
+  if (targetTris > 0) {
+    const prims = doc.getRoot().listMeshes().flatMap((m) => m.listPrimitives()).filter((p) => p.getIndices());
+    const total = prims.reduce((n, p) => n + p.getIndices().getCount() / 3, 0);
+    if (total > targetTris * 1.3) {
+      await MeshoptSimplifier.ready;
+      for (const prim of prims) {
+        const idx = prim.getIndices();
+        const want = Math.max(12, Math.round((targetTris * (idx.getCount() / 3)) / total)) * 3;
+        const pos = Float32Array.from(prim.getAttribute('POSITION').getArray());
+        const [out, err] = MeshoptSimplifier.simplifySloppy(Uint32Array.from(idx.getArray()), pos, 3, null, want, Number(process.env.SLOPPY_ERROR ?? 0.05));
+        idx.setArray(out);
+        compactPrimitive(prim);
+        console.log(`sloppy ${idx.getCount() === out.length ? '' : ''}→ ${out.length / 3} triangles (error ${err.toFixed(4)})`);
+      }
+      await doc.transform(prune());
+    }
+  }
   await io.write(outPath, doc);
   console.log(`optimized ${inPath} (${mb(inPath)}) → ${outPath} (${mb(outPath)})`);
 }
@@ -95,6 +115,17 @@ async function stripFloaters(inPath, outPath, above = 0.45) {
   console.log(`strip-floaters ${inPath}: dropped ${dropped} floating triangles → ${outPath}`);
 }
 
+async function stripSkin(inPath, outPath) {
+  const doc = await io.read(inPath);
+  let dropped = 0;
+  for (const mesh of doc.getRoot().listMeshes()) for (const prim of mesh.listPrimitives()) {
+    for (const sem of prim.listSemantics()) if (/^(JOINTS|WEIGHTS)_[1-9]$/.test(sem)) { prim.setAttribute(sem, null); dropped++; }
+  }
+  await doc.transform(prune());
+  await io.write(outPath, doc);
+  console.log(`strip-skin ${inPath}: dropped ${dropped} extra influence attributes → ${outPath} (${mb(outPath)})`);
+}
+
 async function clip(inPath, outPath) {
   const doc = await io.read(inPath);
   const root = doc.getRoot();
@@ -113,6 +144,7 @@ async function main() {
   if (cmd === 'info') return info(a);
   if (cmd === 'optimize') return optimize(a, b, c ? Number(c) : 1024, d ? Number(d) : 0);
   if (cmd === 'strip-floaters') return stripFloaters(a, b, c ? Number(c) : 0.45);
+  if (cmd === 'strip-skin') return stripSkin(a, b);
   if (cmd === 'clip') return clip(a, b);
   if (cmd === 'import') {
     const name = b;

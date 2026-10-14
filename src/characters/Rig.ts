@@ -79,7 +79,7 @@ export class Rig {
     const alphas = new Float32Array(N * 2);
     for (let i = 0; i < N; i++) { alphas[i * 2] = alphas[i * 2 + 1] = 1 - i / N; }
     tg.setAttribute('alpha', new BufferAttribute(alphas, 1));
-    this.trail = new Mesh(tg, new MeshBasicMaterial({ color: def.accent, transparent: true, opacity: 0.0, blending: AdditiveBlending, side: DoubleSide, depthWrite: false, toneMapped: false }));
+    this.trail = new Mesh(tg, new MeshBasicMaterial({ color: def.accent, transparent: true, opacity: 0.0, blending: AdditiveBlending, side: DoubleSide, forceSinglePass: true, depthWrite: false, toneMapped: false }));
     this.trail.frustumCulled = false;
     this.trail.visible = false;
     for (let i = 0; i < N; i++) this.trailPoints.push(new Vector3(), new Vector3());

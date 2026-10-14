@@ -48,7 +48,7 @@ export class CloudSea {
         fragmentShader: FRAG,
         transparent: true,
         depthWrite: false,
-        side: DoubleSide,
+        side: DoubleSide, forceSinglePass: true,
       });
       const mesh = new Mesh(new PlaneGeometry(1600, 1600), mat);
       mesh.rotation.x = -Math.PI / 2;

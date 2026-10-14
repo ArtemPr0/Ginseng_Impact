@@ -53,7 +53,7 @@ export function portal(x: number, y: number, z: number, radius: number, opts: { 
   const [ca, cb] = opts.colors ?? [PALETTE.abyss, PALETTE.dusk];
   const mat = new ShaderMaterial({
     uniforms: { uTime: { value: 0 }, uA: { value: new Color(ca) }, uB: { value: new Color(cb).multiplyScalar(1.4) }, uSpin: { value: opts.spin ?? 1 } },
-    vertexShader: VORTEX_VERT, fragmentShader: VORTEX_FRAG, transparent: true, depthWrite: false, side: DoubleSide, toneMapped: false,
+    vertexShader: VORTEX_VERT, fragmentShader: VORTEX_FRAG, transparent: true, depthWrite: false, side: DoubleSide, forceSinglePass: true, toneMapped: false,
   });
   const disc = new Mesh(new CircleGeometry(radius, 48), mat);
   if (opts.vertical) disc.rotation.y = Math.PI / 2 - (opts.facing ?? 0);

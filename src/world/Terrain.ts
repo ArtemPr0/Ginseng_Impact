@@ -44,11 +44,12 @@ export function riverDistance(x: number, z: number): number {
     const l2 = dx * dx + dz * dz;
     let t = ((x - ax) * dx + (z - az) * dz) / l2;
     t = Math.max(0, Math.min(1, t));
-    const px = ax + dx * t;
-    const pz = az + dz * t;
-    best = Math.min(best, Math.hypot(x - px, z - pz));
+    const ex = x - (ax + dx * t);
+    const ez = z - (az + dz * t);
+    const d2 = ex * ex + ez * ez;
+    if (d2 < best) best = d2;
   }
-  return best;
+  return Math.sqrt(best);
 }
 
 /** 0..1 inside the water channel. */

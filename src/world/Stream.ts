@@ -35,7 +35,7 @@ export function witchStream(streamX: number, zMin: number, zMax: number, bridgeZ
   const length = zMax - zMin;
   const water = new Mesh(new PlaneGeometry(11, length, 1, 1), new ShaderMaterial({
     uniforms: { uTime: { value: 0 }, uColorA: { value: new Color(PALETTE.witch).multiplyScalar(0.6) }, uColorB: { value: new Color(PALETTE.rune).multiplyScalar(0.7) } },
-    vertexShader: STREAM_VERT, fragmentShader: STREAM_FRAG, transparent: true, depthWrite: false, side: DoubleSide,
+    vertexShader: STREAM_VERT, fragmentShader: STREAM_FRAG, transparent: true, depthWrite: false, side: DoubleSide, forceSinglePass: true,
   }));
   water.rotation.x = -Math.PI / 2;
   water.position.set(streamX, heightAt(streamX, (zMin + zMax) / 2) + 0.35, (zMin + zMax) / 2);

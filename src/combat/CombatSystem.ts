@@ -715,7 +715,7 @@ export class CombatSystem {
   render(dt: number): void {
     const cam = this.d.camera;
     for (const e of this.enemies) {
-      e.animate(dt);
+      e.animate(dt, !e.aggro && Math.hypot(e.pos.x - cam.position.x, e.pos.z - cam.position.z) > 110);
       if (!e.alive) continue;
       const sc = e.def.scale ?? 1;
       const dist = Math.hypot(e.pos.x - cam.position.x, e.pos.z - cam.position.z);

@@ -89,7 +89,7 @@ export function walkerLandmark(id: string, path: Array<[number, number]>, speed:
   const step = pathWalker(lm.root, path, speed, heightAt, opts.lift ?? 0);
   const base = lm.update!;
   const discs: Mesh[] = [];
-  const trailMat = new MeshBasicMaterial({ color: PALETTE.electric, transparent: true, opacity: 0.35, blending: AdditiveBlending, depthWrite: false, side: DoubleSide });
+  const trailMat = new MeshBasicMaterial({ color: PALETTE.electric, transparent: true, opacity: 0.35, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, forceSinglePass: true });
   let sinceDrop = 0;
   lm.update = (dt, player) => {
     step(dt);

@@ -1,4 +1,4 @@
-import { AnimationAction, AnimationClip, AnimationMixer, Box3, Group, LoopOnce, LoopRepeat, Mesh, type MeshStandardMaterial, Object3D, Vector3 } from 'three';
+import { AnimationAction, AnimationClip, AnimationMixer, Box3, Group, LoopOnce, LoopRepeat, Mesh, type MeshStandardMaterial, Object3D, type SkinnedMesh, Vector3 } from 'three';
 import { warnMissing } from './Placeholder';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
@@ -112,8 +112,18 @@ export class ModelRig {
       if (!(o as Mesh).isMesh) return;
       o.castShadow = true;
       o.receiveShadow = true;
-      o.frustumCulled = false;
       const mesh = o as Mesh;
+      // Welded drafts ship without normals (scripts/model-tools drops per-face ones): smooth them here, once per file.
+      if (!mesh.geometry.attributes.normal) mesh.geometry.computeVertexNormals();
+      if (!mesh.geometry.boundingSphere) mesh.geometry.computeBoundingSphere();
+      // Off-screen models are skipped. Animated bodies get a padded bind-pose sphere so a swinging arm or a crawl
+      // never pops out at the screen edge (computing a skinned sphere per frame would cost more than it saves).
+      if ((o as SkinnedMesh).isSkinnedMesh) {
+        const sphere = mesh.geometry.boundingSphere!.clone();
+        sphere.radius *= 1.6;
+        (o as SkinnedMesh).boundingSphere = sphere;
+      }
+      o.frustumCulled = true;
       if (opts.cloneMaterials) mesh.material = Array.isArray(mesh.material) ? mesh.material.map((m) => m.clone()) : mesh.material.clone();
       // Meshy textures are unlit and often near-black; a faint cobalt self-light keeps the silhouette readable at night.
       const mats = Array.isArray(mesh.material) ? (mesh.material as MeshStandardMaterial[]) : [mesh.material as MeshStandardMaterial];

@@ -344,7 +344,7 @@ export class Npc {
     return 4.2 * (this.def.scale ?? 1) * Math.max(1, (MODELS[this.def.model]?.height ?? 1.8) / 1.8);
   }
 
-  update(dt: number, player: Vector3, talking: boolean): void {
+  update(dt: number, player: Vector3, talking: boolean, animate = true): void {
     const b = this.def.behaviour;
     let moving = false;
     if (talking) {
@@ -390,6 +390,6 @@ export class Npc {
     this.object.rotation.y = yawToRotation(this.yaw);
     this.sounds(dt, Math.hypot(player.x - this.pos.x, player.z - this.pos.z));
     const pose = this.speaking > 0 ? 'talk' : talking ? (this.def.voice ? b.kind === 'stand' ? b.pose : undefined : undefined) : b.kind === 'stand' ? b.pose : b.kind === 'loop' ? b.pose : undefined;
-    this.rig.animate({ mode: 'ground', speed: moving ? this.speed : 0, pose }, dt);
+    if (animate) this.rig.animate({ mode: 'ground', speed: moving ? this.speed : 0, pose }, dt);
   }
 }

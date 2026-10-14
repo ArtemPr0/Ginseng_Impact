@@ -19,7 +19,7 @@ export class Vfx {
   /** Flat slash arc in front of the attacker. */
   slash(pos: Vector3, yaw: number, color: number, radius: number, halfAngle: number): void {
     const geo = new RingGeometry(radius * 0.45, radius, 10, 1, -halfAngle, halfAngle * 2);
-    const mat = new MeshBasicMaterial({ color, transparent: true, opacity: 0.85, blending: AdditiveBlending, side: DoubleSide, depthWrite: false });
+    const mat = new MeshBasicMaterial({ color, transparent: true, opacity: 0.85, blending: AdditiveBlending, side: DoubleSide, forceSinglePass: true, depthWrite: false });
     const mesh = new Mesh(geo, mat);
     mesh.position.set(pos.x, pos.y + 1.1, pos.z);
     // RingGeometry lies in XY; lay it flat and rotate so theta=0 points along +x then apply yaw.
@@ -69,7 +69,7 @@ export class Vfx {
   /** Expanding reaction ring on the ground. */
   shockwave(pos: Vector3, color: number, radius: number): void {
     const geo = new RingGeometry(0.6, 1, 20);
-    const mat = new MeshBasicMaterial({ color, transparent: true, opacity: 0.9, blending: AdditiveBlending, side: DoubleSide, depthWrite: false });
+    const mat = new MeshBasicMaterial({ color, transparent: true, opacity: 0.9, blending: AdditiveBlending, side: DoubleSide, forceSinglePass: true, depthWrite: false });
     const mesh = new Mesh(geo, mat);
     mesh.position.set(pos.x, pos.y + 0.15, pos.z);
     mesh.rotation.x = -Math.PI / 2;
@@ -79,11 +79,11 @@ export class Vfx {
   /** Persistent ground zone (frost ring, burning ground). Returns a remover. */
   zone(pos: Vector3, radius: number, color: number, duration: number): () => void {
     const geo = new RingGeometry(radius - 0.35, radius, 18);
-    const mat = new MeshBasicMaterial({ color, transparent: true, opacity: 0.5, blending: AdditiveBlending, side: DoubleSide, depthWrite: false });
+    const mat = new MeshBasicMaterial({ color, transparent: true, opacity: 0.5, blending: AdditiveBlending, side: DoubleSide, forceSinglePass: true, depthWrite: false });
     const ring = new Mesh(geo, mat);
     ring.position.set(pos.x, pos.y + 0.12, pos.z);
     ring.rotation.x = -Math.PI / 2;
-    const inner = new Mesh(new RingGeometry(0.01, radius - 0.4, 18), new MeshBasicMaterial({ color, transparent: true, opacity: 0.05, blending: AdditiveBlending, side: DoubleSide, depthWrite: false }));
+    const inner = new Mesh(new RingGeometry(0.01, radius - 0.4, 18), new MeshBasicMaterial({ color, transparent: true, opacity: 0.05, blending: AdditiveBlending, side: DoubleSide, forceSinglePass: true, depthWrite: false }));
     inner.position.copy(ring.position);
     inner.rotation.x = -Math.PI / 2;
     const g = new Group();

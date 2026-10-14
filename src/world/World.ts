@@ -1,5 +1,5 @@
 import { Group, Vector3 } from 'three';
-import { ANCHORS, ISLAND_PORTALS, LAYOUT, VILLAGE } from '../data/world';
+import { ANCHORS, ISLAND_PORTALS, LAYOUT, REALMS, VILLAGE } from '../data/world';
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
 import { PALETTE } from '../render/palette';
 import { glowSprite } from '../render/Glow';
@@ -45,21 +45,29 @@ export class World {
   /** Portals between the island and the realms (main.ts teleports the player through them). */
   readonly portals: PortalLink[] = [];
   private readonly landmarks: Landmark[] = [];
+  /** Build target and zone: the island (null) or a realm id; objects in a realm group are drawn and updated only there. */
+  private target!: Group;
+  private zone: string | null = null;
+  private readonly realmGroups = new Map<string, Group>();
+  private readonly zoneOf = new Map<object, string | null>();
+  private here: string | null | undefined = undefined;
   private readonly extras: Array<{ update: (dt: number) => void }> = [];
   private readonly clouds: CloudSea;
   private readonly noise = new Noise2D(1337);
 
   constructor(readonly terrain: Terrain) {
     this.heights = new HeightWorld(terrain);
+    this.target = this.group;
     const rnd = rng(4242);
     const h = (x: number, z: number) => terrain.heightAt(x, z);
     const hw = (x: number, z: number) => this.heights.heightAt(x, z);
     const flora = (id: string, placements: Placement[], opts?: Parameters<typeof floraSet>[2]) => {
       const set = floraSet(id, placements, opts);
-      this.group.add(set.group);
+      this.target.add(set.group);
       this.extras.push(set);
+      this.zoneOf.set(set, this.zone);
     };
-    const vfx = (f: { group: Group; update: (dt: number) => void }) => { this.group.add(f.group); this.extras.push(f); };
+    const vfx = (f: { group: Group; update: (dt: number) => void }) => { this.target.add(f.group); this.extras.push(f); this.zoneOf.set(f, this.zone); };
 
     // --- walkways (placeholder slabs until their models land) ---
     const causeway = causewayWalk(LAYOUT.causeway, h, MODELS['causeway-segment'].height);
@@ -292,7 +300,12 @@ export class World {
 
     // --- the fifth batch of reels: realms beyond the portals and the new island sites ---
     const rrnd = rng(5150);
-    this.portals.push(...buildRealms({ group: this.group, place: (l) => this.place(l), flora, vfx, h, rnd: rrnd }));
+    const world = this;
+    this.portals.push(...buildRealms({
+      get group() { return world.target; },
+      realm: (id) => this.enterZone(id),
+      place: (l) => this.place(l), flora, vfx, h, rnd: rrnd,
+    }));
 
     // --- NPCs ---
     for (const def of NPC_DEFS) {
@@ -300,15 +313,41 @@ export class World {
       const npc = new Npc(def, s, hw);
       if (s.y !== undefined) npc.pos.y = s.y;
       npc.pos.y += s.dy ?? 0;
-      this.group.add(npc.object);
+      const realm = REALMS.find((r) => Math.hypot(npc.pos.x - r.x, npc.pos.z - r.z) < r.radius);
+      this.enterZone(realm ? realm.id : null);
+      this.target.add(npc.object);
+      this.zoneOf.set(npc, this.zone);
       this.npcs.push(npc);
+    }
+    this.enterZone(null);
+  }
+
+  /** Switches the build target to a realm's group (created on first use) or back to the island. */
+  private enterZone(id: string | null): void {
+    this.zone = id;
+    if (id === null) { this.target = this.group; return; }
+    let g = this.realmGroups.get(id);
+    if (!g) { g = new Group(); g.name = 'realm:' + id; this.realmGroups.set(id, g); this.group.add(g); }
+    this.target = g;
+  }
+
+  /** Shows only the place the player is in: the island, or one realm. Runs when the player crosses a portal. */
+  private showZone(id: string | null): void {
+    this.here = id;
+    for (const child of this.group.children) {
+      // Point lights belong to the light budget, which keeps them hidden and reads them as sources.
+      if (child.userData.budgeted) continue;
+      const realm = child.name.startsWith('realm:') ? child.name.slice(6) : null;
+      if (realm !== null) child.visible = realm === id;
+      else if (child !== this.clouds.group) child.visible = id === null;
     }
   }
 
   private place(l: Landmark): void {
-    this.group.add(l.object);
+    this.target.add(l.object);
     this.heights.add(...l.footprints);
     this.landmarks.push(l);
+    this.zoneOf.set(l, this.zone);
   }
 
   /** True where flora may grow: on the island, off the road, not in water or chasm, on gentle ground, clear of buildings. */
@@ -377,11 +416,19 @@ export class World {
   }
 
   update(dt: number, cameraPos: Vector3, playerPos: Vector3, talkingNpc: Npc | null): void {
-    for (const l of this.landmarks) l.update?.(dt, playerPos);
-    for (const e of this.extras) e.update(dt);
+    const here = REALMS.find((r) => Math.hypot(playerPos.x - r.x, playerPos.z - r.z) < r.radius)?.id ?? null;
+    if (here !== this.here) this.showZone(here);
+    // Only the place you are in is updated; elsewhere nothing moves until you get there.
+    for (const l of this.landmarks) if ((this.zoneOf.get(l) ?? null) === here) l.update?.(dt, playerPos);
+    for (const e of this.extras) if ((this.zoneOf.get(e) ?? null) === here) e.update(dt);
     this.clouds.update(dt, cameraPos);
-    this.grass.update(playerPos.x, playerPos.z);
-    for (const n of this.npcs) n.update(dt, playerPos, n === talkingNpc);
+    if (here === null) this.grass.update(playerPos.x, playerPos.z);
+    for (const n of this.npcs) {
+      if ((this.zoneOf.get(n) ?? null) !== here) continue;
+      // Characters beyond 70 m keep their place but stop animating (they are fog-dimmed specks at that range).
+      const far = Math.hypot(n.pos.x - playerPos.x, n.pos.z - playerPos.z) > 70 && n !== talkingNpc;
+      n.update(dt, playerPos, n === talkingNpc, !far);
+    }
   }
 }
 

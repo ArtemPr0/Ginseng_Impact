@@ -1,6 +1,7 @@
 import { Color, DirectionalLight, FogExp2, HemisphereLight, PerspectiveCamera, Scene, Vector3 } from 'three';
 import { REALMS } from './data/world';
 import { Bubbles } from './world/Portal';
+import { LightBudget } from './render/LightBudget';
 import { yawToRotation } from './models/ModelRig';
 import { Audio } from './audio/Audio';
 import { Rig } from './characters/Rig';
@@ -74,7 +75,7 @@ const minimap = new Minimap(document.getElementById('hud')!, terrain);
 const area = new World(terrain);
 scene.add(area.group);
 const world = area.heights;
-if (debugAt) (window as unknown as { __dbg: unknown }).__dbg = { h: (x: number, z: number) => world.heightAt(x, z), river: (x: number, z: number) => riverAt(x, z), rigs: () => rigs, combat: () => combat, npcs: () => area.npcs, audio };
+if (debugAt) (window as unknown as { __dbg: unknown }).__dbg = { h: (x: number, z: number) => world.heightAt(x, z), river: (x: number, z: number) => riverAt(x, z), rigs: () => rigs, combat: () => combat, npcs: () => area.npcs, audio, gl: () => renderer.gl, renderer, world: () => area, camera, terrain, sky, atmosphere: () => atmosphere, weather: () => weather };
 const atmosphere = new Atmosphere((x, z) => world.heightAt(x, z), new Vector3(LAYOUT.spawn.x, 0, LAYOUT.spawn.z));
 scene.add(atmosphere.group);
 const weather = new Weather(LAYOUT.rainZone, LAYOUT.snowZone);
@@ -118,6 +119,8 @@ function switchTo(i: number): boolean {
 }
 
 Npc.sound = { voice: (url, gain) => audio.voice(url, gain), slurp: (gain) => audio.slurp(gain) };
+const lightBudget = new LightBudget(scene, 6);
+lightBudget.collect(scene);
 
 const combat = new CombatSystem({
   scene, world, sky, hud, camera, game, audio, inventory, controller, party, spawn: SPAWN,
@@ -311,8 +314,9 @@ game
         landed: performance.now() / 1000 - landedAt,
         grounded: controller.mode === 'ground',
       }, dt);
-      for (const r of rigs) if (r !== rig) r.animate({ mode: 'ground', speed: 0 }, dt);
+      // Benched party members are hidden: no need to animate them.
       combat.render(dt);
+      lightBudget.update(playerPos);
       focus.set(controller.pos.x, controller.pos.y + 1.4, controller.pos.z);
       if (!input.locked && hud.panel === 'none') {
         cinematicT += dt;

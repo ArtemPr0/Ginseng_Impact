@@ -43,7 +43,7 @@ export function waterMaterial(deep: number, shallow: number, foam: number, flow 
       uTime: { value: 0 }, uDeep: { value: new Color(deep) }, uShallow: { value: new Color(shallow) }, uFoam: { value: new Color(foam) },
       uCam: { value: new Vector3() }, uMoonDir: { value: new Vector3(0.15, 0.42, -1).normalize() }, uFlow: { value: flow },
     },
-    vertexShader: WATER_VERT, fragmentShader: WATER_FRAG, transparent: true, depthWrite: false, side: DoubleSide,
+    vertexShader: WATER_VERT, fragmentShader: WATER_FRAG, transparent: true, depthWrite: false, side: DoubleSide, forceSinglePass: true,
   });
 }
 
@@ -115,7 +115,7 @@ export function river(heightAt: (x: number, z: number) => number, rnd: () => num
   const glowGeo = geo.clone();
   const gp = glowGeo.attributes.position as BufferAttribute;
   for (let i = 0; i < gp.count; i++) gp.setY(i, RIVER_LEVEL - 0.35);
-  const glow = new Mesh(glowGeo, new MeshBasicMaterial({ color: new Color(PALETTE.electric).multiplyScalar(0.45), transparent: true, opacity: 0.6, toneMapped: false, depthWrite: false, side: DoubleSide }));
+  const glow = new Mesh(glowGeo, new MeshBasicMaterial({ color: new Color(PALETTE.electric).multiplyScalar(0.45), transparent: true, opacity: 0.6, toneMapped: false, depthWrite: false, side: DoubleSide, forceSinglePass: true }));
   glow.renderOrder = 1;
   g.add(glow);
   // Sparkles drifting downstream.
@@ -149,6 +149,7 @@ export function river(heightAt: (x: number, z: number) => number, rnd: () => num
     }
   }
   let t = 0;
+  let frame = 0;
   return {
     object: g,
     reedSpots,
@@ -157,12 +158,12 @@ export function river(heightAt: (x: number, z: number) => number, rnd: () => num
       t += dt;
       mat.uniforms.uTime.value = t;
       (mat.uniforms.uCam.value as Vector3).copy(player);
+      frame++;
       for (let i = 0; i < n; i++) {
         const x = sattr.getX(i);
         const z = sattr.getZ(i);
-        // Drift toward the next river sample (west): cheap approximation using the local tangent of the nearest segment.
-        const d = riverDistance(x, z);
-        if (d > 9) {
+        // Drift west; every 8th frame (per particle, staggered) check it is still over the water, else respawn it.
+        if ((i + frame) % 8 === 0 && riverDistance(x, z) > 9) {
           const s = samples[Math.floor(seeds[i] * samples.length)];
           sattr.setXYZ(i, s.x, RIVER_LEVEL + 0.1 + seeds[i] * 0.6, s.z);
         } else {

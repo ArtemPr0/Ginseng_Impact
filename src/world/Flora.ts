@@ -25,46 +25,71 @@ export interface FloraOptions {
 
 const dummy = new Object3D();
 const local = new Matrix4();
+const scaleM = new Matrix4();
 
-function writeMatrices(meshes: InstancedMesh[], placements: Placement[], scale: number, offset: { x: number; y: number; z: number }, yaw: number): void {
-  for (let i = 0; i < placements.length; i++) {
-    const p = placements[i];
+/** Instances are grouped into square cells this big, each its own InstancedMesh, so off-screen cells are skipped. */
+const CELL = 48;
+/** Models at least this tall cast shadows by default (trees, giant mushrooms); smaller flora does not. */
+const SHADOW_HEIGHT = 4;
+
+interface Chunk { meshes: InstancedMesh[]; items: Placement[] }
+
+function writeMatrices(chunk: Chunk, scale: number, offset: { x: number; y: number; z: number }, yaw: number): void {
+  local.makeTranslation(offset.x, offset.y, offset.z).multiply(scaleM.makeScale(scale, scale, scale));
+  for (let i = 0; i < chunk.items.length; i++) {
+    const p = chunk.items[i];
     dummy.position.set(p.x, p.y, p.z);
     dummy.rotation.set(0, p.yaw + yaw, 0);
     dummy.scale.setScalar(p.scale);
     dummy.updateMatrix();
-    local.makeTranslation(offset.x, offset.y, offset.z).multiply(new Matrix4().makeScale(scale, scale, scale));
     dummy.matrix.multiply(local);
-    for (const m of meshes) m.setMatrixAt(i, dummy.matrix);
+    for (const m of chunk.meshes) m.setMatrixAt(i, dummy.matrix);
   }
-  for (const m of meshes) m.instanceMatrix.needsUpdate = true;
+  for (const m of chunk.meshes) { m.instanceMatrix.needsUpdate = true; m.computeBoundingSphere(); }
 }
 
 /** Instances model `id` at every placement (placement scale multiplies the registry height). */
 export function floraSet(id: string, placements: Placement[], opts: FloraOptions = {}): FloraSet {
   const group = new Group();
-  let meshes: InstancedMesh[] = [];
+  const chunks: Chunk[] = [];
   let transform: ReturnType<typeof normaliseTransform> | null = null;
   const def = MODELS[id];
   if (placements.length > 0) {
     void loadModelOrWarn(id, def?.label).then((gltf) => {
       if (!gltf || !def) return;
       transform = normaliseTransform(gltf.scene, def);
-      for (const src of firstMeshes(gltf.scene)) {
+      const parts = firstMeshes(gltf.scene).map((src) => {
         const mat = (Array.isArray(src.material) ? src.material[0] : src.material) as MeshStandardMaterial;
         if (opts.wind && mat && 'emissive' in mat) patchWind(mat, opts.wind);
+        if (mat && 'metalness' in mat && !mat.map) mat.metalness = 0;
         const geo = src.geometry.clone();
         // Bake the mesh's own transform inside the file (Meshy exports usually have one node, but not always).
         src.updateWorldMatrix(true, false);
         geo.applyMatrix4(src.matrixWorld);
-        const inst = new InstancedMesh(geo, mat, placements.length);
-        inst.frustumCulled = false;
-        inst.castShadow = opts.shadows ?? true;
-        inst.receiveShadow = opts.shadows ?? true;
-        meshes.push(inst);
-        group.add(inst);
+        if (!geo.attributes.normal) geo.computeVertexNormals();
+        return { geo, mat };
+      });
+      // Moving sets (drifting leaves, jellyfish) stay one chunk; static ones are split into cells.
+      const cells = new Map<string, Placement[]>();
+      for (const p of placements) {
+        const key = opts.update ? 'all' : `${Math.floor(p.x / CELL)},${Math.floor(p.z / CELL)}`;
+        let list = cells.get(key);
+        if (!list) cells.set(key, (list = []));
+        list.push(p);
       }
-      writeMatrices(meshes, placements, transform.scale, transform.offset, transform.yaw);
+      const shadows = opts.shadows ?? def.height * Math.max(...placements.map((p) => p.scale)) >= SHADOW_HEIGHT;
+      for (const items of cells.values()) {
+        const chunk: Chunk = { items, meshes: [] };
+        for (const { geo, mat } of parts) {
+          const inst = new InstancedMesh(geo, mat, items.length);
+          inst.castShadow = shadows;
+          inst.receiveShadow = shadows;
+          chunk.meshes.push(inst);
+          group.add(inst);
+        }
+        writeMatrices(chunk, transform.scale, transform.offset, transform.yaw);
+        chunks.push(chunk);
+      }
     });
   }
   let t = 0;
@@ -73,7 +98,7 @@ export function floraSet(id: string, placements: Placement[], opts: FloraOptions
     update(dt) {
       if (!opts.update || !transform) return;
       t += dt;
-      if (opts.update(t, placements)) writeMatrices(meshes, placements, transform.scale, transform.offset, transform.yaw);
+      if (opts.update(t, placements)) for (const c of chunks) writeMatrices(c, transform.scale, transform.offset, transform.yaw);
     },
   };
 }

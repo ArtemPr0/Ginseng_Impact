@@ -215,7 +215,8 @@ export class Enemy {
   }
 
   /** Per-frame visuals. */
-  animate(dt: number): void {
+  /** `far`: beyond animation range, so the skeleton holds its pose (state, position and shrink still update). */
+  animate(dt: number, far = false): void {
     this.object.position.set(this.pos.x, this.pos.y, this.pos.z);
     this.flashLeft = Math.max(0, this.flashLeft - dt);
     if (this.model) {
@@ -242,7 +243,7 @@ export class Enemy {
       const s = hold ? (m ? 1 : this.def.scale ?? 1) : Math.max(0, 1 - (this.deadFor - DEATH_HOLD) * 2.2);
       this.object.scale.setScalar(m ? s : s * (this.def.scale ?? 1));
       this.object.visible = s > 0;
-      m?.update(dt);
+      if (!far) m?.update(dt);
       return;
     }
     this.object.rotation.y = yawToRotation(this.yaw);
@@ -253,7 +254,7 @@ export class Enemy {
       this.stepPhase += dt * (Math.PI * this.def.speed) / (this.def.height * 0.45);
       if (Math.floor(prev / Math.PI) !== Math.floor(this.stepPhase / Math.PI)) this.onStomp?.(this.pos.x, this.pos.y, this.pos.z);
     }
-    m.update(dt);
+    if (!far) m.update(dt);
     // Models that came without clips (the seated Hollow King) still breathe.
     if (!m.playing) { const b = 1 + Math.sin(this.time * 0.9) * 0.012; m.root.scale.set(1, b, 1); }
   }

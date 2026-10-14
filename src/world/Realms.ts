@@ -17,7 +17,10 @@ import { portal, type PortalLink } from './Portal';
 import { chasmBridge, floorSlab } from './Walkways';
 
 export interface RealmApi {
-  group: Group;
+  /** Where new objects go: the island, or the realm last selected with `realm()`. */
+  readonly group: Group;
+  /** Builds what follows into a realm's own group (shown only while the player is inside it); null = the island. */
+  realm(id: string | null): void;
   place(l: Landmark): void;
   flora(id: string, placements: Placement[], opts?: FloraOptions): void;
   vfx(f: { group: Group; update(dt: number): void }): void;
@@ -116,6 +119,7 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   api.place(modelLandmark('spire-city', -330, 20, -40, { yaw: face(0), color: PALETTE.electric }));
 
   // ===== The galaxy city =====
+  api.realm(G.id);
   const gy = G.y;
   api.place(floorSlab(G.x, G.z - 5, gy, 120, 160));
   // Checkered causeway with towers either side (DeOemU1BOZF).
@@ -198,6 +202,7 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   glowAt(api, PALETTE.dusk, 1.6, 1134.4, gy + 1.5, 9.6, 0.6);
 
   // ===== The sunken city =====
+  api.realm(S.id);
   const sy = S.y;
   api.place(floorSlab(S.x, S.z, sy, 110, 110));
   api.place(modelLandmark('sunken-tavern', S.x, S.z - 24, sy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'box', x: S.x, z: S.z - 28.5, hw: 10.5, hd: 1.8, top: sy + 11 }] }));
@@ -237,5 +242,6 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   for (let k = 0; k < 8; k++) glowAt(api, PALETTE.moon, 0.8, S.x + (api.rnd() - 0.5) * 2, sy + 1 + k * 1.6, S.z + 30 + (api.rnd() - 0.5) * 2, 0.4);
   links.push(link(new Vector3(S.x, sy + 0.5, S.z + 30), 2.2, 3, ISLAND_PORTALS.pond.shore.x, ISLAND_PORTALS.pond.shore.z, 0, 'The Lily Pond'));
 
+  api.realm(null);
   return links;
 }
