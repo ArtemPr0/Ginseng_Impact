@@ -157,8 +157,8 @@
   "cup-gnome": {
     "draft": "01a13c26-1967-7222-9bc6-44062aee4065",
     "rig": "01a13c27-9483-76f6-80d2-9f5b370ca750",
-    "source": "docs/reference/frames/cup-gnome.png (user image), Meshy 6 Lite image-to-3D, A-pose, untextured",
-    "presets": "Stand_and_Drink 342, Idle_02 11, Talk_with_Hands_Open 313",
-    "todo": "texture pass (10 credits) then re-rig; the A-pose dropped the cup from his hand (a lump at the belt) — a full Meshy 7.1 textured generation (35) may keep it"
+    "source": "docs/reference/frames/cup-gnome.png (user image), Meshy 6 Lite image-to-3D, A-pose; textured 2026-10-14 with Meshy 7 image input (the same picture, PBR, 2K, 10 credits), re-rigged as a humanoid in the UI",
+    "presets": "Stand_and_Drink, Idle_03, Talk_with_Hands_Open (+ Walking, Running); exported as Mixamo GLB, all animations, one file",
+    "note": "the draft and rig ids above are the untextured version; the textured task and its rig are the newest gnome cards in the Meshy workspace. The cup stays at his belt (now a purple cup); a full Meshy 7.1 generation (35 credits) may put it in his hand"
   }
 }

@@ -162,8 +162,8 @@ export const MODELS: Record<string, ModelDef> = {
   'fallen-leaf': stat('fallen-leaf.glb', 0.28, 'fallen leaf'), 'fallen-fruit': stat('fallen-fruit.glb', 0.35, 'fallen fruit'),
   cobblestone: stat('cobblestone.glb', 0.14, 'cobblestone'), cypress: stat('cypress.glb', 9, 'cypress'), grave: stat('grave.glb', 1.2, 'gravestone'),
 
-  // The user's own frames (docs/reference/frames/cup-gnome.png): untextured Meshy 6 Lite draft, biped rig.
-  'cup-gnome': { file: 'cup-gnome.glb', height: 1.25, tint: 0xb9bfd6, label: 'gnome with a gold grill, gold chain and a purple cup (frames/cup-gnome.png)', clips: { idle: 'stand_and_drink|idle_02', drink: 'stand_and_drink', talk: 'talk_with_hands_open', walk: 'walking', run: 'running' } },
+  // The user's own frames (docs/reference/frames/cup-gnome.png): Meshy 6 Lite draft, Meshy 7 image-guided texture, biped rig.
+  'cup-gnome': { file: 'cup-gnome.glb', height: 1.25, label: 'gnome with a gold grill, gold chain and a purple cup (frames/cup-gnome.png)', clips: { idle: 'stand_and_drink|idle_03|idle_02', drink: 'stand_and_drink', talk: 'talk_with_hands_open', walk: 'walking', run: 'running' } },
 
   // --- Fifth batch of reels (2026-10-14 evening). Every id names its reel. ---
   // The galaxy city beyond the portal (DeOemU1BOZF, DeaqHWJBBPw, DeXn5rSPxR8, DeQ-NnpvqF6, Dd0wR9Jh2lH, DdyN2PNyIxb, DdnJDwBMUoj)

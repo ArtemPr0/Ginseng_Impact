@@ -17,12 +17,12 @@ const BUDGET = {
   'purple-house.glb': 12000, 'barrel.glb': 3000, 'flying-koi.glb': 3000, 'snake.glb': 6000, 'stone-throne.glb': 5000,
   'crystal-ball.glb': 2000, 'market-stall.glb': 10000, 'causeway-stairs.glb': 12000,
   // single but far too dense
-  'marsh-demon.glb': 40000, 'lake-lurker.glb': 40000, 'cathedral.glb': 50000,
+  'marsh-demon.glb': 40000, 'lake-lurker.glb': 40000, 'cathedral.glb': 50000, 'cup-gnome.glb': 30000,
 };
 /** Seen big and close: heroes, bosses, landmarks. Everything else gets 512 px textures. */
 const KEEP_1024 = new Set(['knight.glb', 'archer.glb', 'wizard.glb', 'cathedral.glb', 'castle.glb', 'giant-head.glb', 'wizard-tower.glb',
   'yeti.glb', 'rock-troll.glb', 'antlered-warden.glb', 'horned-shade.glb', 'lake-lurker.glb', 'marsh-demon.glb', 'hollow-king.glb',
-  'frog-king.glb', 'spider-chapel.glb', 'log-giant.glb', 'demon-church.glb', 'tree-house.glb', 'world-tree.glb', 'galaxy-hall.glb']);
+  'frog-king.glb', 'spider-chapel.glb', 'log-giant.glb', 'demon-church.glb', 'tree-house.glb', 'world-tree.glb', 'galaxy-hall.glb', 'cup-gnome.glb']);
 
 const only = process.argv.slice(2);
 const files = (only.length ? only : readdirSync('public/models').filter((f) => f.endsWith('.glb'))).map((f) => f.replace(/^.*\//, ''));
