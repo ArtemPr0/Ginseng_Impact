@@ -109,7 +109,7 @@ function switchTo(i: number): boolean {
 }
 
 const combat = new CombatSystem({
-  scene, world, sky, hud, camera, game, audio, inventory, controller, party, rigs, spawn: SPAWN,
+  scene, world, sky, hud, camera, game, audio, inventory, controller, party, spawn: SPAWN,
   onForceSwitch: (i) => { party.update(Party.cooldown); switchTo(i); },
   onShake: (a) => tpc.shake(a),
   onDodge: () => {
