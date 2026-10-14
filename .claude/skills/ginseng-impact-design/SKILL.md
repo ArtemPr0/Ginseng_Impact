@@ -35,7 +35,7 @@ Elements: Lunar=`moon`, Blood=`blood`, Astral=`dusk`, Fog=`fog`, Stone=`ultramar
 
 | Task | Read | Key numbers |
 |---|---|---|
-| Lights, fog, materials, shader, post | `references/rendering.md` | moon dir light 1.4 · hemi 0.9 · `FogExp2(fog, 0.014)` · RT 480×270 · 32 levels |
+| Lights, fog, materials, shader, post | `references/rendering.md` | moon dir light 1.4 · hemi 1.0 · `FogExp2(fog, 0.0085)` · RT 480×270 · 32 levels |
 | Landmark, creature, flora, character | `references/motifs.md` | head 45–60 m · spires ≤ 120 m · causeway 6 × 300 m · moon 8° at 25° |
 | HUD, menu, title, icons, fonts | `references/ui.md` | Cinzel/Inter · panel rgba(10,15,46,.72) · radius 2 px · ≤ 120 ms steps |
 | Colour decision of any kind | `references/palette.md` | 70 / 20 / 10 proportions |

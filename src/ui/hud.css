@@ -1,0 +1,17 @@
+:root {
+  --void: #05060f; --abyss: #0a0f2e; --cobalt: #1a2cff; --ultramarine: #2b3fd9;
+  --electric: #4f7cff; --moon: #dfe6ff; --blood: #ff2a2a; --rune: #37f5ff;
+  --witch: #5dff3a; --dusk: #8b3dff; --fog: #1b2a6b;
+  --stone: #46538c; --bark: #2a2f55; --cloth: #8d99d6;
+  --panel: rgba(10, 15, 46, 0.72);
+  --panel-border: rgba(223, 230, 255, 0.25);
+  --font-title: 'Cinzel', 'Times New Roman', serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+}
+html, body { margin: 0; height: 100%; background: var(--void); overflow: hidden; }
+body { font-family: var(--font-body); color: var(--moon); }
+#game {
+  position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
+  image-rendering: pixelated; image-rendering: crisp-edges;
+}
+#hud { position: fixed; inset: 0; pointer-events: none; }

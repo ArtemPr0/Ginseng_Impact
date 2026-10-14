@@ -17,7 +17,9 @@ resolution, wobbling vertices, ordered dither, and fog so thick it is a colour. 
 
 - One `DirectionalLight` = the moon. Colour `moon` `#dfe6ff`, intensity 1.4, direction from
   above and *behind* the hero view so landmarks are rim-lit and faces fall into `abyss`.
-- `HemisphereLight` sky `cobalt` `#1a2cff`, ground `abyss` `#0a0f2e`, intensity 0.9.
+- `HemisphereLight` sky `cobalt` `#1a2cff`, ground `abyss` `#0a0f2e`, intensity 1.0.
+- Albedo must be mid-bright for the result to read as blue: lit ground vertex colour ≈ `#2a3775`, lit stone ≈ `#5a6aa8`. Dark albedo (`#0e1538`) renders black.
+- The final blit shader must `#include <colorspace_fragment>` before dithering; a ShaderMaterial does not convert linear→sRGB on its own and the frame comes out crushed.
 - No other lights except emissive materials and, sparingly, `PointLight`s in `rune`/`blood`
   with distance ≤ 12 for portal fire and eyes.
 - **No shadow maps.** They break at 480×270. Use a dark blob mesh under characters and bake
@@ -27,7 +29,7 @@ resolution, wobbling vertices, ordered dither, and fog so thick it is a colour. 
 
 ## Fog
 
-- `scene.fog = new FogExp2(PALETTE.fog, 0.014)` with world units in metres.
+- `scene.fog = new FogExp2(PALETTE.fog, 0.0085)` with world units in metres (0.014 hid everything past 100 m; 0.0085 keeps three distance bands).
 - `renderer.setClearColor(PALETTE.fog)` and the sky dome's horizon band is also `fog`, so
   terrain dissolves seamlessly into sky.
 - Add a second, denser fog band below cliff edges with the cloud-sea planes; do not fake it with
