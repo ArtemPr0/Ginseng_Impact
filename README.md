@@ -68,6 +68,13 @@ The island was scaled to 60 % of its first layout (every placement, spawn, biome
 loop past every Meshy creature and landmark takes a couple of minutes: giant head and Hollow King to the north, troll gorge
 north-west, Yeti grove and arch gate north-east, flooded nave and wizard tower east, village and log giant south-west.
 
+## Meshy-only art
+
+Since the fourth pass the game draws no procedural models at all. Terrain, water, cloud sea, grass, sky,
+weather and combat effects are shaders and sprites; everything else is a Meshy GLB placed by id. Where a
+file is still missing you see a glowing marker (and the console says which file). `npm run todo:models`
+lists what is left to generate; `npm run audit:procedural` guards the rule.
+
 ## Real models (Meshy)
 
 `public/models/*.glb` are Meshy exports (image-to-3D from the reel frames in `docs/reference/frames/`, or text-to-3D), remeshed to

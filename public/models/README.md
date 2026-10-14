@@ -1,44 +1,110 @@
-# Real 3D models
+# Real 3D models (Meshy only)
 
-Drop Meshy (or any glTF 2.0 binary) exports here. The game checks for each file at startup and uses it in place
-of the procedural version when present; missing files simply keep the procedural fallback.
+Every structure, creature, NPC and plant in Ginseng Impact is a Meshy export placed by its registry id
+(`src/data/models.ts`). Nothing is built procedurally any more: a missing file shows a small glowing marker
+(structures, characters, enemies) or nothing at all (instanced flora), and the browser console warns once
+per missing id at startup. `npm run todo:models` prints the same list; `npm run audit:procedural` (part of
+`npm run build`) fails if procedural geometry comes back.
 
-File names and target heights are defined in `src/data/models.ts`. Expected files:
+Pipeline (Meshy Pro): image-to-3D from `docs/reference/frames/` (texture on, A-pose for humanoids) or
+text-to-3D + image-guided texture → remesh at 30K → Humanoid rig with presets (free) or static → Download
+glb ("All added", "One file") → `node scripts/model-tools.mjs optimize <download.glb> public/models/<file>`.
+Models should face +X; set `yaw` in the registry if a file faces another way. Clip names match by substring
+with alternatives (`"slam|attack|punch"`).
 
-| File | Replaces | Height (m) | Needs rig/clips |
-|---|---|---|---|
-| knight.glb | Sir Aldric (party) | 1.95 | yes (Idle_02, Walking, Running, Basic_Jump, Right_Hand_Sword_Slash, Sword_Judgment, Sword_Shout, Hit_Reaction, Stand_Dodge, dying_backwards) |
-| archer.glb | Wren (party) | 1.8 | yes (Idle_02, Walking, Running, Basic_Jump, Archery_Shot, Archery_Shot_1, Archery_Aim_with_Lateral_Scan, Hit_Reaction_with_Bow, Stand_Dodge, dying_backwards) |
-| wizard.glb | Orlan (party): the closed-robe image-to-3D model the user chose; `robe: true` makes the rig hover, sway, lean into casts and flutter the hem (patchRobeWind), `smoke` puts pipe smoke at his mouth | 1.85 | no clips (boneless); procedural |
-| yeti.glb | the Yeti boss | 5.2 | yes (Meshy presets: Combat_Stance, Walking, Running, Charged_Ground_Slam, Attack, Shouting_Angrily, Hit_Reaction, dying_backwards) |
-| horned-shade.glb | the Horned Shade | 7 | yes (Combat_Stance, Walking, Charged_Spell_Cast, mage cast, Shouting_Angrily, Hit_Reaction, dying_backwards) |
-| antlered-warden.glb | the Antlered Warden | 15 | yes (same preset set as the Yeti) |
-| moon-wyrm.glb | the Moon Wyrm | 3 (body) | static smart rig (Meshy cannot animate smart rigs yet); the game banks and bobs it |
-| rock-troll.glb | the Gorge Troll | 4.6 | yes (Yeti set + Slow_Orc_Walk) |
-| lake-lurker.glb | the Lake Lurker | 4.2 | static smart rig (half body; breathes in-game) |
-| marsh-demon.glb | the Marsh Sovereign | 12 | static smart rig (half body; breathes in-game) |
-| hollow-king.glb | the Hollow King (seated, castle in the ribs) | 42 | static (no rig possible); breathes in-game |
-| log-giant.glb | the log-hauling stone giant on the village loop | 7.5 | yes (Carry_Heavy_Object_Walk, Walking, Combat_Stance, Hit_Reaction) |
-| spider-chapel.glb | the spider that carries a chapel | 34 | static smart rig; walks its loop in-game |
-| river-shade.glb | the River Shade | 5 | yes: idle, walk, cast |
-| fog-beast.glb | fog beasts and the Pass Beast | 1.5 / 3.8 | yes: idle, run, bite |
-| stone-sentinel.glb | stone sentinels | 2.6 | yes: idle, walk, punch |
-| fog-wisp.glb | fog wisps | 1.4 | idle only |
-| crocodile.glb | mire crocodiles | 1.0 | yes: idle, walk, bite |
-| frog-king.glb | the Frog King | 6 | idle (breathing) |
-| moon-shell-colossus.glb | the Moon-Shell Colossus | 18 | crawl |
-| antlered-king.glb | the Antlered King | 1.95 | sit |
-| witch.glb | the coven witches | 1.85 | idle, walk, cast |
-| giant-head.glb, cathedral.glb, castle.glb, demon-church.glb, wizard-tower.glb, tree-house.glb | landmarks | 52 / 118 / 44 / 36 / 100 / 48 | static |
+92 registered, 16 present, 76 to generate.
 
-Clip names are matched by substring, case-insensitive, and an entry may list alternatives ("slam|attack|punch"),
-so Meshy's preset ids ("Combat_Stance", "Walking", "Charged_Ground_Slam") work without renaming.
-Models should face +X in their own space; set `yaw` in `src/data/models.ts` if a file faces another way.
-
-## Pipeline (Meshy Pro)
-
-1. Image-to-3D from a frame in `docs/reference/frames/` (texture on) or Text-to-3D + Texture.
-2. Models over 300k triangles: Animate sidebar → "установка" remesh at 30K (free).
-3. Rig: Humanoid for bipeds (check the markers; horns and logs confuse the auto-placement), Smart rig for everything else.
-4. Add presets from the library (free), then Download → glb → "All added" + "One file".
-5. `node scripts/model-tools.mjs optimize <download.glb> public/models/<name>.glb` (WebP textures, ~20 MB → 2–4 MB).
+| id | file | height (m) | what | status |
+|---|---|---|---|---|
+| `knight` | knight.glb | 1.95 |  | present |
+| `archer` | archer.glb | 1.8 |  | present |
+| `wizard` | wizard.glb | 1.85 |  | present |
+| `yeti` | yeti.glb | 5.2 |  | present |
+| `shade` | horned-shade.glb | 7 |  | present |
+| `warden` | antlered-warden.glb | 15 |  | present |
+| `wyrm` | moon-wyrm.glb | 3 |  | present |
+| `troll` | rock-troll.glb | 4.6 |  | present |
+| `lurker` | lake-lurker.glb | 4.2 |  | present |
+| `marshdemon` | marsh-demon.glb | 12 |  | present |
+| `hollowking` | hollow-king.glb | 42 |  | present |
+| `rivershade` | river-shade.glb | 5 |  | to generate |
+| `passbeast` | fog-beast.glb | 3.8 |  | to generate |
+| `beast` | fog-beast.glb | 1.5 |  | to generate |
+| `sentinel` | stone-sentinel.glb | 2.6 |  | to generate |
+| `wisp` | fog-wisp.glb | 1.4 |  | to generate |
+| `croc` | crocodile.glb | 1.0 |  | to generate |
+| `frogking` | frog-king.glb | 6 |  | present |
+| `loggiant` | log-giant.glb | 7.5 |  | present |
+| `spiderchapel` | spider-chapel.glb | 34 |  | present |
+| `colossus` | moon-shell-colossus.glb | 18 |  | to generate |
+| `king` | antlered-king.glb | 1.95 |  | to generate |
+| `witch` | witch.glb | 1.85 |  | to generate |
+| `head` | giant-head.glb | 52 | giant stone head with red eyes | to generate |
+| `cathedral` | cathedral.glb | 118 |  | to generate |
+| `castle` | castle.glb | 44 |  | to generate |
+| `church` | demon-church.glb | 36 |  | to generate |
+| `tower` | wizard-tower.glb | 100 |  | present |
+| `treehouse` | tree-house.glb | 48 |  | to generate |
+| `causeway-segment` | causeway-segment.glb | 8 | causeway deck segment with balustrade posts | to generate |
+| `causeway-stairs` | causeway-stairs.glb | 6 | causeway stairs at the south end | to generate |
+| `chasm-bridge` | chasm-bridge.glb | 4 | wooden rope bridge span across the chasm | to generate |
+| `witch-bridge` | witch-bridge.glb | 3 | stone bridge over the witch stream | to generate |
+| `nave` | ruined-nave.glb | 26 | ruined nave with columns, arches and a rose window | to generate |
+| `archgate` | arch-gate.glb | 14 | frozen arch gate | to generate |
+| `palmisland` | palm-island.glb | 28 | floating palm island on an inverted rock | to generate |
+| `colossus-statue` | kneeling-colossus.glb | 15.5 | kneeling horned colossus statue | to generate |
+| `burning-castle` | burning-castle.glb | 68 | burning castle on the far shore | to generate |
+| `village-house` | village-house.glb | 5.8 | thatched village house | to generate |
+| `tavern` | tavern.glb | 7.6 | tavern with its sign, table and stools | to generate |
+| `well` | well.glb | 1.2 | village well | to generate |
+| `barrel` | barrel.glb | 1.1 | wooden barrel | to generate |
+| `torch-post` | torch-post.glb | 2.6 | torch on a post | to generate |
+| `campfire` | campfire.glb | 2.8 | campfire ring with tripod, kettle and three log seats | to generate |
+| `cloister` | cloister.glb | 8.6 | cloister: three stone arches on a cobbled floor | to generate |
+| `observatory` | observatory.glb | 12 | mushroom observatory hut with balcony and telescope | to generate |
+| `throne` | throne.glb | 7.8 | antler-and-bone throne on a dais with candles | to generate |
+| `cauldron` | cauldron.glb | 1.4 | iron cauldron over coals | to generate |
+| `lantern-post` | lantern-post.glb | 2.5 | red paper lantern on a pole | to generate |
+| `candle` | candle.glb | 0.3 | candle | to generate |
+| `ruin-arch` | ruin-arch.glb | 6.6 | ruined stone arch | to generate |
+| `ruin-column` | ruin-column.glb | 4.5 | broken stone column | to generate |
+| `flooded-ruin` | flooded-ruin.glb | 9 | flooded ruin: ring of columns, wall and arch | to generate |
+| `monolith` | monolith.glb | 12 | standing stone | to generate |
+| `troll-gorge` | troll-gorge.glb | 15 | rock walls of the troll gorge | to generate |
+| `floating-rock` | floating-rock.glb | 3 | floating boulder | to generate |
+| `pinnacle` | pinnacle.glb | 30 | sea pinnacle rising from the cloud sea | to generate |
+| `mountain` | mountain.glb | 180 | backdrop mountain | to generate |
+| `orchard` | orchard.glb | 6 | orchard of gnarled trees (one block) | to generate |
+| `boat` | boat.glb | 1.9 | rowing boat with two rowers | to generate |
+| `horse-rider` | horse-rider.glb | 2.6 | knight on horseback with a lantern | to generate |
+| `koi` | flying-koi.glb | 1.2 | flying koi | to generate |
+| `snake` | snake.glb | 0.6 | coiled snake | to generate |
+| `knight-npc` | knight-npc.glb | 1.9 | sword-and-shield knight (Aldous, the Vigil, Dunmar) | to generate |
+| `knight-seated` | knight-seated.glb | 1.95 | caped greatsword knight sitting on the cliff (Sir Halvard) | to generate |
+| `knight-rose` | knight-rose.glb | 1.95 | black knight offering a rose (Sir Corvin) | to generate |
+| `skeleton` | skeleton.glb | 1.75 | skeleton (Rattle, Bone, Marrow) | to generate |
+| `skeleton-banner` | skeleton-banner.glb | 1.85 | skeleton standard-bearer with banner and trident (Hollow Jack) | to generate |
+| `witch-cook` | witch-cook.glb | 1.8 | skeleton cook in a chef hat with a spoon (Mother Marrow) | to generate |
+| `bride` | bride.glb | 1.8 | the Pale Bride | to generate |
+| `maiden` | maiden.glb | 1.68 | Elowen of the flower garden | to generate |
+| `wanderer` | wanderer.glb | 1.85 | hooded wanderer with a lantern (the Lanternbearer) | to generate |
+| `wizard-npc` | wizard-npc.glb | 1.8 | wizard NPC (Mirren, Sel) | to generate |
+| `gnome` | gnome.glb | 1.15 | gnome astronomer with a telescope (Pim) | to generate |
+| `frog-monk` | frog-monk.glb | 1.75 | frog monk reading a book (Brother Croak) | to generate |
+| `troll-fisher` | troll-fisher.glb | 2.6 | troll fisher with a rod (Old Moss) | to generate |
+| `goblin` | goblin.glb | 1.15 | tavern goblin (Snik, Vrak) | to generate |
+| `pilgrim` | pilgrim.glb | 1.8 | river pilgrim | to generate |
+| `ogre` | log-giant.glb | 3.1 | ogre woodhauler (Grub) — reuses the log giant | present |
+| `pine` | pine.glb | 13 | pine tree | to generate |
+| `birch` | birch.glb | 11 | birch | to generate |
+| `gnarled-tree` | gnarled-tree.glb | 6 | gnarled orchard tree | to generate |
+| `dead-forest-tree` | dead-forest-tree.glb | 8 | dead forest tree | to generate |
+| `floating-island` | floating-island.glb | 6 | small floating rock island | to generate |
+| `giant-mushroom` | giant-mushroom.glb | 8 | giant mushroom | to generate |
+| `sunflower` | sunflower.glb | 1.5 | blue sunflower | to generate |
+| `giant-flower` | giant-flower.glb | 3 | giant cosmos flower | to generate |
+| `boulder` | boulder.glb | 1.2 | boulder | to generate |
+| `pod-tree` | pod-tree.glb | 22 | tree with hanging glowing pods | to generate |
+| `reed` | reed.glb | 2.4 | reed clump | to generate |
+| `fallen-leaf` | fallen-leaf.glb | 0.28 | fallen leaf | to generate |
+| `cobblestone` | cobblestone.glb | 0.14 | cobblestone | to generate |

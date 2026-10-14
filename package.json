@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && node scripts/procedural-audit.mjs && vite build",
+    "audit:procedural": "node scripts/procedural-audit.mjs",
+    "todo:models": "node scripts/model-todo.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"

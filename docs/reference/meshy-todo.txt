@@ -1,0 +1,78 @@
+92 registered models, 16 present, 76 still to generate on Meshy:
+
+- rivershade         river-shade.glb              5 m  
+- passbeast          fog-beast.glb              3.8 m  
+- beast              fog-beast.glb              1.5 m  
+- sentinel           stone-sentinel.glb         2.6 m  
+- wisp               fog-wisp.glb               1.4 m  
+- croc               crocodile.glb              1.0 m  
+- colossus           moon-shell-colossus.glb     18 m  
+- king               antlered-king.glb         1.95 m  
+- witch              witch.glb                 1.85 m  
+- head               giant-head.glb              52 m  giant stone head with red eyes
+- cathedral          cathedral.glb              118 m  
+- castle             castle.glb                  44 m  
+- church             demon-church.glb            36 m  
+- treehouse          tree-house.glb              48 m  
+- causeway-segment   causeway-segment.glb         8 m  causeway deck segment with balustrade posts
+- causeway-stairs    causeway-stairs.glb          6 m  causeway stairs at the south end
+- chasm-bridge       chasm-bridge.glb             4 m  wooden rope bridge span across the chasm
+- witch-bridge       witch-bridge.glb             3 m  stone bridge over the witch stream
+- nave               ruined-nave.glb             26 m  ruined nave with columns, arches and a rose window
+- archgate           arch-gate.glb               14 m  frozen arch gate
+- palmisland         palm-island.glb             28 m  floating palm island on an inverted rock
+- colossus-statue    kneeling-colossus.glb     15.5 m  kneeling horned colossus statue
+- burning-castle     burning-castle.glb          68 m  burning castle on the far shore
+- village-house      village-house.glb          5.8 m  thatched village house
+- tavern             tavern.glb                 7.6 m  tavern with its sign, table and stools
+- well               well.glb                   1.2 m  village well
+- barrel             barrel.glb                 1.1 m  wooden barrel
+- torch-post         torch-post.glb             2.6 m  torch on a post
+- campfire           campfire.glb               2.8 m  campfire ring with tripod, kettle and three log seats
+- cloister           cloister.glb               8.6 m  cloister: three stone arches on a cobbled floor
+- observatory        observatory.glb             12 m  mushroom observatory hut with balcony and telescope
+- throne             throne.glb                 7.8 m  antler-and-bone throne on a dais with candles
+- cauldron           cauldron.glb               1.4 m  iron cauldron over coals
+- lantern-post       lantern-post.glb           2.5 m  red paper lantern on a pole
+- candle             candle.glb                 0.3 m  candle
+- ruin-arch          ruin-arch.glb              6.6 m  ruined stone arch
+- ruin-column        ruin-column.glb            4.5 m  broken stone column
+- flooded-ruin       flooded-ruin.glb             9 m  flooded ruin: ring of columns, wall and arch
+- monolith           monolith.glb                12 m  standing stone
+- troll-gorge        troll-gorge.glb             15 m  rock walls of the troll gorge
+- floating-rock      floating-rock.glb            3 m  floating boulder
+- pinnacle           pinnacle.glb                30 m  sea pinnacle rising from the cloud sea
+- mountain           mountain.glb               180 m  backdrop mountain
+- orchard            orchard.glb                  6 m  orchard of gnarled trees (one block)
+- boat               boat.glb                   1.9 m  rowing boat with two rowers
+- horse-rider        horse-rider.glb            2.6 m  knight on horseback with a lantern
+- koi                flying-koi.glb             1.2 m  flying koi
+- snake              snake.glb                  0.6 m  coiled snake
+- knight-npc         knight-npc.glb             1.9 m  sword-and-shield knight (Aldous, the Vigil, Dunmar)
+- knight-seated      knight-seated.glb         1.95 m  caped greatsword knight sitting on the cliff (Sir Halvard)
+- knight-rose        knight-rose.glb           1.95 m  black knight offering a rose (Sir Corvin)
+- skeleton           skeleton.glb              1.75 m  skeleton (Rattle, Bone, Marrow)
+- skeleton-banner    skeleton-banner.glb       1.85 m  skeleton standard-bearer with banner and trident (Hollow Jack)
+- witch-cook         witch-cook.glb             1.8 m  skeleton cook in a chef hat with a spoon (Mother Marrow)
+- bride              bride.glb                  1.8 m  the Pale Bride
+- maiden             maiden.glb                1.68 m  Elowen of the flower garden
+- wanderer           wanderer.glb              1.85 m  hooded wanderer with a lantern (the Lanternbearer)
+- wizard-npc         wizard-npc.glb             1.8 m  wizard NPC (Mirren, Sel)
+- gnome              gnome.glb                 1.15 m  gnome astronomer with a telescope (Pim)
+- frog-monk          frog-monk.glb             1.75 m  frog monk reading a book (Brother Croak)
+- troll-fisher       troll-fisher.glb           2.6 m  troll fisher with a rod (Old Moss)
+- goblin             goblin.glb                1.15 m  tavern goblin (Snik, Vrak)
+- pilgrim            pilgrim.glb                1.8 m  river pilgrim
+- pine               pine.glb                    13 m  pine tree
+- birch              birch.glb                   11 m  birch
+- gnarled-tree       gnarled-tree.glb             6 m  gnarled orchard tree
+- dead-forest-tree   dead-forest-tree.glb         8 m  dead forest tree
+- floating-island    floating-island.glb          6 m  small floating rock island
+- giant-mushroom     giant-mushroom.glb           8 m  giant mushroom
+- sunflower          sunflower.glb              1.5 m  blue sunflower
+- giant-flower       giant-flower.glb             3 m  giant cosmos flower
+- boulder            boulder.glb                1.2 m  boulder
+- pod-tree           pod-tree.glb                22 m  tree with hanging glowing pods
+- reed               reed.glb                   2.4 m  reed clump
+- fallen-leaf        fallen-leaf.glb           0.28 m  fallen leaf
+- cobblestone        cobblestone.glb           0.14 m  cobblestone
