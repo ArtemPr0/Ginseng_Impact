@@ -4,31 +4,31 @@ import { Noise2D, lerp, smoothstep } from './noise';
 
 /** World layout constants (metres). The island is centred at ISLAND_CENTRE; the causeway runs along x = 0. */
 export const WORLD = {
-  size: 560,
-  segments: 280,
-  islandCentre: { x: 0, z: -60 },
-  islandRadius: 205,
-  cliffWidth: 25,
+  size: 360,
+  segments: 200,
+  islandCentre: { x: 0, z: -36 },
+  islandRadius: 124,
+  cliffWidth: 18,
   abyssY: -90,
   cloudSeaY: -26,
-  chasmCentreZ: -95,
-  chasmHalfWidth: 22,
-  corridorZ: { min: -205, max: 115 },
+  chasmCentreZ: -57,
+  chasmHalfWidth: 15,
+  corridorZ: { min: -123, max: 69 },
   /** Glowing green stream ravine (witch bridge) along x ≈ streamX. */
-  streamX: -112,
-  streamZ: { min: -70, max: 80 },
+  streamX: -67,
+  streamZ: { min: -42, max: 48 },
   /** Climbable peak for the lone-knight vantage. */
-  peak: { x: -90, z: -155, height: 88, radius: 58 },
+  peak: { x: -54, z: -93, height: 58, radius: 36 },
   /** Frozen realm: north-east quadrant. */
-  frozen: { xFrom: 40, xTo: 95, zFrom: -20, zTo: -70 },
-  desert: { x: 80, z: 100, r: 36 },
-  dead: { x: -28, z: -165, r: 30 },
-  pond: { x: -30, z: -30, r: 15 },
+  frozen: { xFrom: 24, xTo: 57, zFrom: -12, zTo: -42 },
+  desert: { x: 48, z: 60, r: 24 },
+  dead: { x: -17, z: -99, r: 20 },
+  pond: { x: -18, z: -18, r: 12 },
 } as const;
 
 /** The great river: polyline in world xz, flowing west. */
 export const RIVER: ReadonlyArray<readonly [number, number]> = [
-  [215, 6], [170, 22], [128, -4], [84, 6], [44, 17], [6, 27], [-30, 21], [-66, 7], [-96, 20], [-124, 34],
+  [129, 4], [102, 13], [77, -2], [50, 4], [26, 10], [4, 16], [-18, 13], [-40, 4], [-58, 12], [-74, 20],
 ];
 export const RIVER_LEVEL = 0.9;
 export const RIVER_FLOOR = -1.6;
@@ -80,22 +80,22 @@ export function streamAt(x: number, z: number, noise: Noise2D): number {
 
 /** Pure height function. Plateau island with a wobbly cliff edge and a chasm band across it. */
 export function terrainHeight(x: number, z: number, noise: Noise2D): number {
-  const nx = x * 0.004;
-  const nz = z * 0.004;
+  const nx = x * 0.0067;
+  const nz = z * 0.0067;
   const rolling = noise.fbm(nx, nz, 4) * 7;
   const detail = noise.noise(x * 0.03, z * 0.03) * 0.8;
   const dx = x - WORLD.islandCentre.x;
   const dz = z - WORLD.islandCentre.z;
-  const wobble = noise.fbm(nx * 2 + 9, nz * 2 + 9, 3) * 30;
+  const wobble = noise.fbm(nx * 2 + 9, nz * 2 + 9, 3) * 18;
   const r = Math.hypot(dx, dz) + wobble;
   const island = smoothstep(WORLD.islandRadius + WORLD.cliffWidth, WORLD.islandRadius, r);
-  const chasmCentre = WORLD.chasmCentreZ + noise.noise(x * 0.01, 3) * 10;
+  const chasmCentre = WORLD.chasmCentreZ + noise.noise(x * 0.017, 3) * 6;
   const chasm = 1 - smoothstep(WORLD.chasmHalfWidth - 6, WORLD.chasmHalfWidth + 8, Math.abs(z - chasmCentre));
   const land = island * (1 - chasm);
   let plateau = 3 + rolling + detail;
   // Flatten a corridor under the causeway so the raised road always sits above the ground.
   if (z > WORLD.corridorZ.min && z < WORLD.corridorZ.max) {
-    const corridor = 1 - smoothstep(6, 16, Math.abs(x));
+    const corridor = 1 - smoothstep(6, 14, Math.abs(x));
     plateau = lerp(plateau, 3.2, corridor);
   }
   // Stream ravine.

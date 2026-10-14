@@ -152,3 +152,10 @@ Saved in `docs/reference/frames/`. Each became a Meshy image-to-3D model (`publi
 
 Rigging notes: Meshy's biped rig needs legs — the half-body demon and lurker, the seated king, the spider, frog and wyrm got the
 "smart" rig instead, which Meshy cannot animate yet; those play no clips and the game breathes/sways them procedurally.
+
+# Fourth pass — playable heroes and the smaller map (2026-10-14, late)
+
+The party is now built from the user's three references: `knight.png` (seated knight, image-to-3D with A-pose), `archer.png`
+(hooded archer, image-to-3D with A-pose) and `wizard.png` (blue wizard with pipe; the image-to-3D result was a closed cone of
+robe that Meshy's rig refused, so the mesh is text-to-3D in A-pose with boots showing, textured from the photo). Clip sets are
+listed in `public/models/README.md`. The map was scaled to 60 % so every Meshy subject is a short sprint apart.

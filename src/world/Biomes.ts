@@ -66,11 +66,11 @@ export function mountains(centre: { x: number; z: number }): Group {
   };
   for (let i = 0; i < 20; i++) {
     const angle = (i / 20) * Math.PI * 2 + (rnd() - 0.5) * 0.25;
-    add(440 + rnd() * 90, angle, 80 + rnd() * 70, 170 + rnd() * 120, i * 3.7);
+    add(270 + rnd() * 60, angle, 55 + rnd() * 45, 130 + rnd() * 90, i * 3.7);
   }
   for (let i = 0; i < 8; i++) {
     const angle = (i / 8) * Math.PI * 2 + 0.3 + (rnd() - 0.5) * 0.4;
-    add(300 + rnd() * 50, angle, 55 + rnd() * 35, 75 + rnd() * 50, 100 + i * 2.1);
+    add(190 + rnd() * 35, angle, 40 + rnd() * 25, 60 + rnd() * 40, 100 + i * 2.1);
   }
   return g;
 }

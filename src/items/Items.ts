@@ -1,7 +1,7 @@
 import type { Element } from '../combat/Elements';
 
 export type ItemKind = 'weapon' | 'consumable' | 'material' | 'charm' | 'key';
-export type WeaponClass = 'sword' | 'greatsword' | 'staff';
+export type WeaponClass = 'sword' | 'greatsword' | 'staff' | 'bow';
 
 export interface ItemDef {
   id: string;
@@ -49,6 +49,8 @@ export const ITEMS: Record<string, ItemDef> = {
   'king-rib': { id: 'king-rib', name: 'Hollow Rib', kind: 'material', desc: 'A bone the size of a bridge. Something glows inside it.', value: 300, rarity: 4 },
   // Weapons
   'travelers-blade': { id: 'travelers-blade', name: "Traveler's Blade", kind: 'weapon', weaponClass: 'sword', desc: 'A plain, honest sword. +12 attack.', value: 80, rarity: 1, atk: 12, color: 0xaab3dc },
+  'hunters-bow': { id: 'hunters-bow', name: "Hunter's Bow", kind: 'weapon', weaponClass: 'bow', desc: 'Yew and gut string, fog-cured. +14 attack.', value: 90, rarity: 1, atk: 14, color: 0xaab3dc },
+  'moonstring-bow': { id: 'moonstring-bow', name: 'Moonstring Bow', kind: 'weapon', weaponClass: 'bow', desc: 'Strung with a hair of the Lurker. +42 attack, Lunar element.', value: 560, rarity: 3, atk: 42, element: 'lunar', color: 0xdfe6ff },
   'witch-staff': { id: 'witch-staff', name: 'Coven Staff', kind: 'weapon', weaponClass: 'staff', desc: 'Stirs more than pots. +18 attack, Rot element.', value: 120, rarity: 2, atk: 18, element: 'rot', color: 0x5dff3a },
   'crown-blade': { id: 'crown-blade', name: 'Antler Crown Blade', kind: 'weapon', weaponClass: 'sword', desc: 'Forged from a king\'s first crown. +34 attack.', value: 400, rarity: 3, atk: 34, color: 0xd8c070 },
   'fang-cleaver': { id: 'fang-cleaver', name: 'Fang Cleaver', kind: 'weapon', weaponClass: 'greatsword', desc: 'The Pass Beast\'s jaw, hafted. +40 attack, Rot element.', value: 480, rarity: 3, atk: 40, element: 'rot', color: 0x5dff3a },

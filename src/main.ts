@@ -36,6 +36,7 @@ const hud = new Hud(document.getElementById('hud')!);
 const inventory = new Inventory();
 inventory.shards = 40;
 inventory.add('moon-dew', 2);
+inventory.equip(inventory.add('hunters-bow'), 'archer', 'bow');
 const scene = new Scene();
 scene.fog = new FogExp2(PALETTE.fog, 0.0062);
 
@@ -293,12 +294,12 @@ game
         if (!wasLocked) { tpc.snapTo(focus); wasLocked = true; }
         tpc.update(focus, dt);
         // `?cam=x,y,z` (debug) pins the camera at a world position looking at the `face` point.
-        if (camParam) { camera.position.set(camParam[0], camParam[1], camParam[2]); camera.lookAt(faceParam ? faceParam[0] : SPAWN.x, camParam[1] - 6, faceParam ? faceParam[1] : SPAWN.z); }
+        if (camParam) { camera.position.set(camParam[0], camParam[1], camParam[2]); const fx = faceParam ? faceParam[0] : SPAWN.x; const fz = faceParam ? faceParam[1] : SPAWN.z; camera.lookAt(fx, world.heightAt(fx, fz) + 1.2, fz); }
       }
       playerPos.set(controller.pos.x, controller.pos.y, controller.pos.z);
       sky.update(dt, camera.position);
       const auroraNear = Math.max(0, 1 - Math.hypot(playerPos.x - area.auroraCentre.x, playerPos.z - area.auroraCentre.z) / 90);
-      const kingNear = Math.max(0, Math.min(1, 1 - (Math.hypot(playerPos.x - 95, playerPos.z + 215) - 70) / 90));
+      const kingNear = Math.max(0, Math.min(1, 1 - (Math.hypot(playerPos.x - 57, playerPos.z + 129) - 50) / 70));
       skyEvents.update(dt, camera.position, auroraNear, kingNear);
       area.update(dt, camera.position, playerPos, talking);
       atmosphere.update(dt, playerPos, camera.position);

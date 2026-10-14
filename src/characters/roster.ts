@@ -3,7 +3,7 @@ import type { Element } from '../combat/Elements';
 
 export { ELEMENT_COLOR, type Element } from '../combat/Elements';
 
-export type WeaponKind = 'sword' | 'greatsword' | 'staff';
+export type WeaponKind = 'sword' | 'greatsword' | 'staff' | 'bow';
 
 export interface CharacterDef {
   id: string;
@@ -34,19 +34,19 @@ export interface CharacterDef {
 
 export const ROSTER: readonly CharacterDef[] = [
   {
-    id: 'vesper', name: 'Vesper', title: 'Blade of the Silver Moon', element: 'lunar', weapon: 'sword',
-    maxHp: 1100, atk: 62,
-    look: { cloth: 0x202a60, armour: 0x4a5a9c, skin: 0xb9c0e0, accent: PALETTE.moon, cape: true, bulk: 0.85, height: 1.8 },
+    id: 'knight', name: 'Sir Aldric', title: 'The Weary Sentinel', element: 'blood', weapon: 'greatsword',
+    maxHp: 1700, atk: 82,
+    look: { cloth: 0x1a1d3c, armour: 0x4a5270, skin: 0x8c93b8, accent: PALETTE.blood, cape: true, bulk: 1.25, height: 1.95 },
   },
   {
-    id: 'morrow', name: 'Morrow', title: 'Knight of the Lonely Cliff', element: 'blood', weapon: 'greatsword',
-    maxHp: 1600, atk: 80,
-    look: { cloth: 0x1a1d3c, armour: 0x23284f, skin: 0x8c93b8, accent: PALETTE.blood, bulk: 1.25, height: 1.95 },
+    id: 'archer', name: 'Wren', title: 'Hooded Archer of the Fog', element: 'lunar', weapon: 'bow',
+    maxHp: 1050, atk: 64,
+    look: { cloth: 0x2a3050, armour: 0x5a6388, skin: 0xb9c0e0, accent: PALETTE.moon, bulk: 0.85, height: 1.8 },
   },
   {
-    id: 'ashka', name: 'Ashka', title: 'Witch of the Astral Bridge', element: 'astral', weapon: 'staff',
-    maxHp: 900, atk: 70,
-    look: { cloth: 0x3c1f7a, armour: PALETTE.dusk, skin: 0xa7b0d8, accent: PALETTE.witch, hat: true, bulk: 0.8, height: 1.75 },
+    id: 'wizard', name: 'Orlan', title: 'Wizard of the Blue Mountain', element: 'astral', weapon: 'staff',
+    maxHp: 900, atk: 72,
+    look: { cloth: 0x1c2cc8, armour: 0x2b3fd9, skin: 0xd8c8b8, accent: PALETTE.dusk, hat: true, beard: true, bulk: 0.9, height: 1.85 },
   },
 ];
 

@@ -7,7 +7,9 @@ File names and target heights are defined in `src/data/models.ts`. Expected file
 
 | File | Replaces | Height (m) | Needs rig/clips |
 |---|---|---|---|
-| vesper.glb, morrow.glb, ashka.glb | party members | 1.8 / 1.95 / 1.75 | yes: idle, walk, run, jump, slash/cast, heavy, hit, death |
+| knight.glb | Sir Aldric (party) | 1.95 | yes (Idle_02, Walking, Running, Basic_Jump, Right_Hand_Sword_Slash, Sword_Judgment, Sword_Shout, Hit_Reaction, Stand_Dodge, dying_backwards) |
+| archer.glb | Wren (party) | 1.8 | yes (Idle_02, Walking, Running, Basic_Jump, Archery_Shot, Archery_Shot_1, Archery_Aim_with_Lateral_Scan, Hit_Reaction_with_Bow, Stand_Dodge, dying_backwards) |
+| wizard.glb | Orlan (party); `smoke` anchor in models.ts puts pipe smoke at his mouth | 1.85 | yes (Idle_02, Walking, Running, Basic_Jump, mage cast, Charged_Spell_Cast, Hit_Reaction, Stand_Dodge, dying_backwards) |
 | yeti.glb | the Yeti boss | 5.2 | yes (Meshy presets: Combat_Stance, Walking, Running, Charged_Ground_Slam, Attack, Shouting_Angrily, Hit_Reaction, dying_backwards) |
 | horned-shade.glb | the Horned Shade | 7 | yes (Combat_Stance, Walking, Charged_Spell_Cast, mage cast, Shouting_Angrily, Hit_Reaction, dying_backwards) |
 | antlered-warden.glb | the Antlered Warden | 15 | yes (same preset set as the Yeti) |

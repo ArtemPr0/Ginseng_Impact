@@ -36,6 +36,10 @@ Deploy: the `dist/` folder is a static site. On Vercel, import the repo (framewo
 
 ## Party and elements
 
+The party is **Sir Aldric** the knight (greatsword, Blood), **Wren** the hooded archer (bow, Lunar: LMB fires arrows, hold RMB
+for a charged shot, E is a three-target Moon Volley) and **Orlan** the wizard of the Blue Mountain (staff, Astral) who smokes a
+pipe while he walks. All three are Meshy image-to-3D models from `docs/reference/frames/` with preset animations.
+
 | Character | Element (Genshin) | Weapon | Skill |
 |---|---|---|---|
 | Vesper | Lunar (Cryo) | sword | Moonfall: cone slash + frost ring |
@@ -57,6 +61,12 @@ Moon Wyrm (frost breath, dives) circling the castle, the River Shade rising from
 Each drops a mythic weapon plus a trophy and Moon Shards. Shards buy potions, charms, weapons and the Star Chart from Mirren,
 Brother Croak, Mother Marrow and the Antlered King, or hire companions (Sir Aldous, the Vigil, Sir Halvard, the skeleton Rattle)
 who follow and fight beside you. Every strike, loot pickup, coin, roar and spell is synthesised with Web Audio.
+
+## Map size
+
+The island was scaled to 60 % of its first layout (every placement, spawn, biome zone and the terrain itself) so a sprint
+loop past every Meshy creature and landmark takes a couple of minutes: giant head and Hollow King to the north, troll gorge
+north-west, Yeti grove and arch gate north-east, flooded nave and wizard tower east, village and log giant south-west.
 
 ## Real models (Meshy)
 

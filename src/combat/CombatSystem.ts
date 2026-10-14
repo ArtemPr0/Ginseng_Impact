@@ -228,8 +228,9 @@ export class CombatSystem {
       this.heavy = { t: 0, fired: false, charge: this.heavyCharge };
       this.heavyCharge = 0;
       d.audio.swing(true);
-      const range = me.weapon === 'staff' ? 12 : 4.2;
-      if (me.weapon !== 'staff') this.vfx.slash(this.playerPos(), c.yaw, ELEMENT_COLOR[this.elementOf(me)], range, 1.25);
+      const ranged = me.weapon === 'staff' || me.weapon === 'bow';
+      const range = ranged ? 12 : 4.2;
+      if (!ranged) this.vfx.slash(this.playerPos(), c.yaw, ELEMENT_COLOR[this.elementOf(me)], range, 1.25);
     }
     if (this.heavy) {
       this.heavy.t += dt;
@@ -238,6 +239,8 @@ export class CombatSystem {
         const ch = this.heavy.charge;
         const def: AttackDef = me.weapon === 'staff'
           ? { mult: 1.8 + ch * 1.8, element: 'own', shape: { kind: 'bolt', range: 16, chains: 2, chainRange: 7 }, knockback: 1 + ch * 2, hitStop: 0.06 + ch * 0.08 }
+          : me.weapon === 'bow'
+          ? { mult: 2.0 + ch * 2.2, element: 'own', shape: { kind: 'bolt', range: 34, chains: 0, chainRange: 0 }, knockback: 2 + ch * 3, hitStop: 0.07 + ch * 0.08 }
           : { mult: 1.7 + ch * 1.9, element: ch > 0.5 ? 'own' : null, shape: { kind: 'cone', range: 4.2, halfAngle: 1.25 }, knockback: 3 + ch * 5, hitStop: 0.09 + ch * 0.1 };
         this.resolveAttack(me, def);
         if (ch > 0.5) this.vfx.shockwave(this.playerPos(), ELEMENT_COLOR[this.elementOf(me)], 4 + ch * 3);

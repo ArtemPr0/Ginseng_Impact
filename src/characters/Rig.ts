@@ -4,6 +4,8 @@ import {
 } from 'three';
 import { surface } from '../render/Materials';
 import { ModelRig } from '../models/ModelRig';
+import { PipeSmoke } from '../render/Smoke';
+import { MODELS } from '../data/models';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PALETTE } from '../render/palette';
 import type { Mode } from '../player/CharacterController';
@@ -67,6 +69,8 @@ export class Rig {
   private readonly legL: Limb;
   private readonly legR: Limb;
   private readonly weapon = new Group();
+  /** Orlan's pipe. */
+  private smoke: PipeSmoke | null = null;
   private readonly cloak?: Mesh;
   private readonly cloakRest: Float32Array = new Float32Array(0);
   private readonly orbit?: Group;
@@ -274,6 +278,12 @@ export class Rig {
     this.model = new ModelRig(id, gltf);
     this.hips.visible = false;
     this.root.add(this.model.root);
+    const anchor = MODELS[id]?.smoke;
+    if (anchor) {
+      this.smoke = new PipeSmoke();
+      this.smoke.group.position.set(anchor.x, anchor.y, anchor.z);
+      this.model.root.add(this.smoke.group);
+    }
   }
 
   /** Maps a pose to a model clip. One-shot clips (attacks, hits) restart only when a new swing begins. */
@@ -303,6 +313,7 @@ export class Rig {
     else m.play('idle');
     void once;
     m.update(dt);
+    this.smoke?.update(dt, v > 0.3);
     this.lastAttack = pose.attack;
   }
 
@@ -338,6 +349,14 @@ export class Rig {
       grip.position.y = -0.12;
       w.add(...blade(1.45, 0.12, 0.026), guard, grip);
       w.userData.tipLen = 1.6;
+    } else if (def.weapon === 'bow') {
+      const limb = new Mesh(new TorusGeometry(0.62, 0.016, 6, 18, Math.PI * 1.1), surface({ color: PALETTE.bark, roughness: 0.8 }));
+      limb.rotation.z = -Math.PI * 0.55;
+      limb.position.y = 0.1;
+      const string = new Mesh(new CylinderGeometry(0.004, 0.004, 1.18, 4), surface({ color: 0xdfe6ff, emissive: accent, emissiveIntensity: 0.6 }));
+      string.position.set(-0.52, 0.1, 0);
+      w.add(limb, string);
+      w.userData.tipLen = 0.7;
     } else {
       const shaft = new Mesh(new CylinderGeometry(0.02, 0.028, 1.75, 10), surface({ color: PALETTE.bark, roughness: 0.8 }));
       shaft.position.y = 0.45;
@@ -506,7 +525,7 @@ export class Rig {
     if (pose.attack !== undefined) {
       const a = pose.attack;
       const kind = pose.attackKind ?? 0;
-      if (this.def.weapon === 'staff') {
+      if (this.def.weapon === 'staff' || this.def.weapon === 'bow') {
         const thrust = a < 0.35 ? a / 0.35 : 1 - ((a - 0.35) / 0.65) * 0.6;
         upArmR = -1.4 * thrust - 0.2;
         elbowR = 0.25 + (1 - thrust) * 0.8;
@@ -616,7 +635,7 @@ export class Rig {
   }
 
   private animateTrail(pose: RigPose, dt: number): void {
-    const active = pose.attack !== undefined && this.def.weapon !== 'staff';
+    const active = pose.attack !== undefined && this.def.weapon !== 'staff' && this.def.weapon !== 'bow';
     const mat = this.trail.material as MeshBasicMaterial;
     if (active) {
       this.weapon.updateWorldMatrix(true, false);

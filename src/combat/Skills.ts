@@ -55,6 +55,14 @@ export const COMBO: Record<WeaponKind, ComboDef> = {
       { mult: 2.1, element: 'own', shape: cone(3.8, 90), knockback: 3, hitStop: 0.1 },
     ],
   },
+  bow: {
+    durations: [0.42, 0.42, 0.6], hitFraction: 0.55,
+    hits: [
+      { mult: 0.95, element: null, shape: { kind: 'bolt', range: 26, chains: 0, chainRange: 0 }, knockback: 0.5, hitStop: 0.02 },
+      { mult: 0.95, element: null, shape: { kind: 'bolt', range: 26, chains: 0, chainRange: 0 }, knockback: 0.5, hitStop: 0.02 },
+      { mult: 1.5, element: 'own', shape: { kind: 'bolt', range: 28, chains: 0, chainRange: 0 }, knockback: 1.6, hitStop: 0.05 },
+    ],
+  },
   staff: {
     durations: [0.4, 0.4, 0.5], hitFraction: 0.4,
     hits: [
@@ -66,17 +74,16 @@ export const COMBO: Record<WeaponKind, ComboDef> = {
 };
 
 export const SKILLS: Record<string, SkillDef> = {
-  vesper: {
-    id: 'moonfall', name: 'Moonfall', cooldown: 6, castTime: 0.55, hitFraction: 0.5,
-    attack: { mult: 2.4, element: 'own', shape: cone(4.5, 60), knockback: 2, hitStop: 0.08 },
-    ground: { radius: 3, duration: 4, tickMult: 0.35, tickEvery: 1, element: 'lunar' },
-  },
-  morrow: {
+  knight: {
     id: 'crimson-cleave', name: 'Crimson Cleave', cooldown: 8, castTime: 0.7, hitFraction: 0.55,
     attack: { mult: 3.0, element: 'own', shape: cone(5, 70), knockback: 4, hitStop: 0.1 },
     ground: { radius: 3.5, duration: 5, tickMult: 0.4, tickEvery: 1, element: 'blood' },
   },
-  ashka: {
+  archer: {
+    id: 'moon-volley', name: 'Moon Volley', cooldown: 6, castTime: 0.5, hitFraction: 0.5,
+    attack: { mult: 2.6, element: 'own', shape: { kind: 'bolt', range: 30, chains: 2, chainRange: 8 }, knockback: 1.5, hitStop: 0.06 },
+  },
+  wizard: {
     id: 'starfall', name: 'Starfall', cooldown: 5, castTime: 0.45, hitFraction: 0.4,
     attack: { mult: 2.0, element: 'own', shape: { kind: 'bolt', range: 16, chains: 2, chainRange: 7 }, knockback: 1, hitStop: 0.05 },
   },

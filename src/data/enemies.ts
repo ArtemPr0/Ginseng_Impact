@@ -92,7 +92,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     kind: 'lurker', name: 'The Lake Lurker', title: 'What Watches from the Shallows', maxHp: 5200, def: 55, atk: 125, speed: 2.2, element: 'tide', hover: 0, bodyRadius: 1.6, height: 4.2, boss: true, leash: 13,
     brain: { aggroRange: 28, attackRange: 16, windup: 0.8, recover: 1.0, attackCooldown: 0.8, preferredRange: 8 }, respawn: 220, shards: [130, 200],
     attacks: [{ kind: 'volley', range: 20, windup: 0.8, recover: 1.0, weight: 3 }, { kind: 'sweep', range: 5, windup: 0.6, recover: 0.9, weight: 2 }, { kind: 'summon', range: 28, windup: 1.2, recover: 1.5, weight: 1 }],
-    drops: [{ itemId: 'tide-hook', chance: 1 }, { itemId: 'lurker-eye', chance: 1 }, { itemId: 'river-pearl', chance: 0.5 }],
+    drops: [{ itemId: 'tide-hook', chance: 1 }, { itemId: 'moonstring-bow', chance: 1 }, { itemId: 'lurker-eye', chance: 1 }],
   },
   marshdemon: {
     kind: 'marshdemon', name: 'The Marsh Sovereign', title: 'Four Horns of the Flooded Nave', maxHp: 8600, def: 90, atk: 165, speed: 2.0, element: 'astral', hover: 0, bodyRadius: 2.6, height: 12, boss: true, leash: 18,
@@ -113,13 +113,13 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
 };
 
 export const ENEMY_SPAWNS: ReadonlyArray<{ kind: EnemyKind; x: number; z: number }> = [
-  { kind: 'yeti', x: 118, z: -150 }, { kind: 'shade', x: -34, z: -152 }, { kind: 'warden', x: 60, z: 12 }, { kind: 'wyrm', x: -165, z: -40 },
-  { kind: 'rivershade', x: -100, z: 24 }, { kind: 'passbeast', x: -40, z: -200 },
-  { kind: 'troll', x: -110, z: -215 }, { kind: 'lurker', x: -30, z: -30 }, { kind: 'marshdemon', x: 165, z: -18 }, { kind: 'hollowking', x: 40, z: -226 },
-  { kind: 'croc', x: 150, z: 20 }, { kind: 'croc', x: 160, z: 28 }, { kind: 'croc', x: 130, z: 6 },
-  { kind: 'wisp', x: -14, z: 60 }, { kind: 'wisp', x: 16, z: 52 }, { kind: 'sentinel', x: -11, z: 40 }, { kind: 'sentinel', x: 14, z: 28 },
-  { kind: 'wisp', x: -60, z: 52 }, { kind: 'wisp', x: -80, z: 36 }, { kind: 'wisp', x: -66, z: 28 },
-  { kind: 'sentinel', x: -13, z: -50 }, { kind: 'wisp', x: 15, z: -56 }, { kind: 'wisp', x: 30, z: -44 },
-  { kind: 'sentinel', x: -12, z: -188 }, { kind: 'sentinel', x: 14, z: -184 },
-  { kind: 'beast', x: -108, z: 88 }, { kind: 'beast', x: 92, z: 98 }, { kind: 'beast', x: -40, z: -168 },
+  { kind: 'yeti', x: 71, z: -90 }, { kind: 'shade', x: -20, z: -91 }, { kind: 'warden', x: 36, z: 7 }, { kind: 'wyrm', x: -99, z: -24 },
+  { kind: 'rivershade', x: -60, z: 14 }, { kind: 'passbeast', x: -24, z: -120 },
+  { kind: 'troll', x: -66, z: -129 }, { kind: 'lurker', x: -18, z: -18 }, { kind: 'marshdemon', x: 99, z: -11 }, { kind: 'hollowking', x: 24, z: -136 },
+  { kind: 'croc', x: 90, z: 12 }, { kind: 'croc', x: 96, z: 17 }, { kind: 'croc', x: 78, z: 4 },
+  { kind: 'wisp', x: -8, z: 36 }, { kind: 'wisp', x: 10, z: 31 }, { kind: 'sentinel', x: -7, z: 24 }, { kind: 'sentinel', x: 8, z: 17 },
+  { kind: 'wisp', x: -36, z: 31 }, { kind: 'wisp', x: -48, z: 22 }, { kind: 'wisp', x: -40, z: 17 },
+  { kind: 'sentinel', x: -8, z: -30 }, { kind: 'wisp', x: 9, z: -34 }, { kind: 'wisp', x: 18, z: -26 },
+  { kind: 'sentinel', x: -7, z: -113 }, { kind: 'sentinel', x: 8, z: -110 },
+  { kind: 'beast', x: -65, z: 53 }, { kind: 'beast', x: 55, z: 59 }, { kind: 'beast', x: -24, z: -101 },
 ];

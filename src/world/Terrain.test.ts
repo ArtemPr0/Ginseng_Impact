@@ -33,7 +33,7 @@ describe('terrainHeight', () => {
   const noise = new Noise2D(1337);
 
   it('is a walkable plateau near the spawn and the far end of the causeway line', () => {
-    for (const z of [120, 60, 0, -40, -150, -200]) {
+    for (const z of [70, 40, 0, -30, -90, -120]) {
       const h = terrainHeight(0, z, noise);
       expect(h).toBeGreaterThan(-6);
       expect(h).toBeLessThan(14);
@@ -41,13 +41,13 @@ describe('terrainHeight', () => {
   });
 
   it('drops into the abyss well outside the island', () => {
-    for (const [x, z] of [[270, 0], [-270, -60], [0, 230], [0, -330]] as const) {
+    for (const [x, z] of [[170, 0], [-170, -36], [0, 150], [0, -200]] as const) {
       expect(terrainHeight(x, z, noise)).toBeLessThan(WORLD.cloudSeaY - 20);
     }
   });
 
   it('has a chasm across the island on the causeway line', () => {
     expect(terrainHeight(0, WORLD.chasmCentreZ, noise)).toBeLessThan(WORLD.cloudSeaY - 20);
-    expect(terrainHeight(40, WORLD.chasmCentreZ, noise)).toBeLessThan(WORLD.cloudSeaY - 20);
+    expect(terrainHeight(24, WORLD.chasmCentreZ, noise)).toBeLessThan(WORLD.cloudSeaY - 20);
   });
 });

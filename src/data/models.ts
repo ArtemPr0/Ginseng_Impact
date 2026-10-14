@@ -20,6 +20,8 @@ export interface ModelDef {
   /** Lift so the feet sit on the ground. */
   yOffset?: number;
   clips?: Partial<Record<ClipName, string>>;
+  /** Where a pipe-smoke emitter sits, in metres relative to the feet (x forward, z to the model's left). */
+  smoke?: { x: number; y: number; z: number };
 }
 
 /**
@@ -34,9 +36,10 @@ const BOSS_CLIPS: Partial<Record<ClipName, string>> = {
 
 export const MODELS: Record<string, ModelDef> = {
   // Party
-  vesper: { file: 'vesper.glb', height: 1.8, clips: { idle: 'idle', walk: 'walk', run: 'run', jump: 'jump', attack: 'slash', heavy: 'heavy', cast: 'cast', hit: 'hit', death: 'death' } },
-  morrow: { file: 'morrow.glb', height: 1.95, clips: { idle: 'idle', walk: 'walk', run: 'run', jump: 'jump', attack: 'slash', heavy: 'heavy', cast: 'cast', hit: 'hit', death: 'death' } },
-  ashka: { file: 'ashka.glb', height: 1.75, clips: { idle: 'idle', walk: 'walk', run: 'run', jump: 'jump', attack: 'cast', heavy: 'cast', cast: 'cast', hit: 'hit', death: 'death' } },
+  // Party (Meshy image-to-3D from docs/reference/frames, biped rig, preset clips)
+  knight: { file: 'knight.glb', height: 1.95, clips: { idle: 'idle_02|idle|stance', walk: 'walking|walk', run: 'running|run', jump: 'basic_jump|jump', attack: 'right_hand_sword_slash|slash|attack', heavy: 'sword_judgment|judgment|slash', cast: 'sword_shout|shout|slash', hit: 'hit_reaction|hit', death: 'dying|death' } },
+  archer: { file: 'archer.glb', height: 1.8, clips: { idle: 'idle_02|idle|stance', walk: 'walking|walk', run: 'running|run', jump: 'basic_jump|jump', attack: 'archery_shot|shot', heavy: 'archery_shot_1|shot', cast: 'archery_aim|aim|shot', hit: 'hit_reaction|hit', death: 'dying|death' } },
+  wizard: { file: 'wizard.glb', height: 1.85, smoke: { x: 0.22, y: 1.36, z: 0.08 }, clips: { idle: 'idle_02|idle|stance', walk: 'walking|walk', run: 'running|run', jump: 'basic_jump|jump', attack: 'mage_soell_cast|spell|cast', heavy: 'charged_spell_cast|charged|cast', cast: 'charged_spell_cast|charged|cast', hit: 'hit_reaction|hit', death: 'dying|death' } },
   // Bosses and mobs
   // Meshy animate exports bundle every added preset into one GLB; clip names are the preset's English ids.
   yeti: { file: 'yeti.glb', height: 5.2, clips: BOSS_CLIPS },
