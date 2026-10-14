@@ -1,12 +1,12 @@
 import {
   AdditiveBlending, BufferAttribute, BufferGeometry, CircleGeometry, Color, DoubleSide, Float32BufferAttribute, Group,
-  InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, Object3D, PlaneGeometry, Points, PointsMaterial, ShaderMaterial, Vector3,
+  Mesh, MeshBasicMaterial, Points, PointsMaterial, ShaderMaterial, Vector3,
 } from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { patchWind, surface } from '../render/Materials';
+import { surface } from '../render/Materials';
 import { PALETTE } from '../render/palette';
 import type { Placement } from './Flora';
-import { glowTexture, type Landmark } from './Landmarks';
+import { glowTexture } from '../render/Glow';
+import type { Landmark } from './Landmarks';
 import { RIVER, RIVER_LEVEL, riverDistance } from './Terrain';
 
 const WATER_VERT = /* glsl */ `
@@ -84,7 +84,7 @@ export function riverPoint(s: number): { x: number; z: number; yaw: number } {
 }
 
 /** The great glowing river: a ribbon mesh along the polyline, sparkles, and reed banks. */
-export function river(heightAt: (x: number, z: number) => number, rnd: () => number): Landmark {
+export function river(heightAt: (x: number, z: number) => number, rnd: () => number): Landmark & { reedSpots: Placement[] } {
   const g = new Group();
   const samples = riverSamples(3);
   const half = 11.5;
@@ -148,10 +148,10 @@ export function river(heightAt: (x: number, z: number) => number, rnd: () => num
       }
     }
   }
-  g.add(reeds(reedSpots));
   let t = 0;
   return {
     object: g,
+    reedSpots,
     footprints: [],
     update(dt, player) {
       t += dt;
@@ -175,46 +175,8 @@ export function river(heightAt: (x: number, z: number) => number, rnd: () => num
   };
 }
 
-/** Tall reeds: crossed thin quads, dark base to pale tips, sway. */
-export function reeds(spots: Placement[]): InstancedMesh {
-  const blade = (rot: number) => {
-    const g = new PlaneGeometry(0.12, 2.4, 1, 4).translate(0, 1.2, 0);
-    const p = g.attributes.position as BufferAttribute;
-    const col = new Float32Array(p.count * 3);
-    const base = new Color(0x0f2a3a);
-    const tip = new Color(0x9fb3e6);
-    const c = new Color();
-    for (let i = 0; i < p.count; i++) {
-      const tt = p.getY(i) / 2.4;
-      p.setX(i, p.getX(i) * (1 - tt * 0.6));
-      c.copy(base).lerp(tip, tt * tt);
-      col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
-    }
-    g.setAttribute('color', new BufferAttribute(col, 3));
-    g.rotateY(rot);
-    return g;
-  };
-  const geo = mergeGeometries([blade(0), blade(1.1), blade(2.2)], false)!;
-  const mat = surface({ vertexColors: true, side: DoubleSide, roughness: 0.9 });
-  patchWind(mat, 0.22);
-  const mesh = new InstancedMesh(geo, mat, spots.length);
-  const dummy = new Object3D();
-  const m = new Matrix4();
-  spots.forEach((s, i) => {
-    dummy.position.set(s.x, s.y, s.z);
-    dummy.rotation.set(0, s.yaw, 0);
-    dummy.scale.set(s.scale, s.scale * (0.8 + (i % 5) * 0.08), s.scale);
-    dummy.updateMatrix();
-    m.copy(dummy.matrix);
-    mesh.setMatrixAt(i, m);
-  });
-  mesh.instanceMatrix.needsUpdate = true;
-  mesh.frustumCulled = false;
-  return mesh;
-}
-
 /** Lily pond: still water disc, floating lily pads, glowing pink lotus flowers, sparkles. */
-export function lilyPond(cx: number, cz: number, radius: number, rnd: () => number): Landmark {
+export function lilyPond(cx: number, cz: number, radius: number, rnd: () => number): Landmark & { padSpots: Placement[]; lotusSpots: Placement[] } {
   const g = new Group();
   const level = 1.0;
   const mat = waterMaterial(0x0a1a66, 0x2a55e8, 0x9fc4ff, 4);
@@ -223,40 +185,15 @@ export function lilyPond(cx: number, cz: number, radius: number, rnd: () => numb
   water.position.set(cx, level, cz);
   water.renderOrder = 2;
   g.add(water);
-  const padGeo = new CircleGeometry(0.9, 14, 0.35, Math.PI * 2 - 0.5);
-  const padMat = surface({ color: 0x163a2e, roughness: 0.6, side: DoubleSide });
-  const pads: Mesh[] = [];
+  const padSpots: Placement[] = [];
   for (let i = 0; i < 70; i++) {
     const a = rnd() * Math.PI * 2;
     const r = Math.sqrt(rnd()) * (radius - 1);
-    const pad = new Mesh(padGeo, padMat);
-    pad.rotation.x = -Math.PI / 2;
-    pad.rotation.z = rnd() * Math.PI * 2;
-    pad.position.set(cx + Math.cos(a) * r, level + 0.03, cz + Math.sin(a) * r);
-    pad.scale.setScalar(0.6 + rnd() * 0.8);
-    g.add(pad);
-    pads.push(pad);
+    const yaw = rnd() * Math.PI * 2;
+    padSpots.push({ x: cx + Math.cos(a) * r, y: level + 0.03, z: cz + Math.sin(a) * r, yaw, scale: 0.6 + rnd() * 0.8 });
   }
-  const lotusMat = new MeshBasicMaterial({ color: new Color(0xff5aa8).multiplyScalar(1.15), toneMapped: false, side: DoubleSide });
-  const petal = new CircleGeometry(0.22, 6).translate(0, 0.2, 0);
-  const lotuses: Group[] = [];
-  for (let i = 0; i < 26; i++) {
-    const pad = pads[i * 2];
-    const flower = new Group();
-    for (let k = 0; k < 8; k++) {
-      const p = new Mesh(petal, lotusMat);
-      p.rotation.y = (k / 8) * Math.PI * 2;
-      p.rotation.x = -0.5;
-      flower.add(p);
-    }
-    const heart = new Mesh(new CircleGeometry(0.08, 8), new MeshBasicMaterial({ color: 0xfff1a8, toneMapped: false }));
-    heart.rotation.x = -Math.PI / 2;
-    heart.position.y = 0.1;
-    flower.add(heart);
-    flower.position.set(pad.position.x, level + 0.08, pad.position.z);
-    g.add(flower);
-    lotuses.push(flower);
-  }
+  const lotusSpots: Placement[] = [];
+  for (let i = 0; i < 26; i++) { const pad = padSpots[i * 2]; lotusSpots.push({ x: pad.x, y: level + 0.06, z: pad.z, yaw: pad.yaw, scale: 1 }); }
   const n = 220;
   const sp: number[] = [];
   for (let i = 0; i < n; i++) {
@@ -273,15 +210,25 @@ export function lilyPond(cx: number, cz: number, radius: number, rnd: () => numb
   let t = 0;
   return {
     object: g,
+    padSpots,
+    lotusSpots,
     footprints: [],
     update(dt, player) {
       t += dt;
       mat.uniforms.uTime.value = t;
       (mat.uniforms.uCam.value as Vector3).copy(player);
-      pads.forEach((p, i) => { p.position.y = level + 0.03 + Math.sin(t * 1.3 + i) * 0.015; });
-      lotuses.forEach((l, i) => { l.position.y = level + 0.08 + Math.sin(t * 1.3 + i * 2) * 0.015; l.rotation.y = Math.sin(t * 0.4 + i) * 0.1; });
       for (let i = 0; i < n; i++) sattr.setY(i, level + 0.3 + ((t * 0.25 + i * 0.37) % 1.4) );
       sattr.needsUpdate = true;
     },
   };
+}
+
+/** Still, dark water in a ruin or a hollow. */
+export function stillWaterDisc(x: number, z: number, y: number, radius: number): Landmark {
+  const water = new Mesh(new CircleGeometry(radius, 40), surface({ color: 0x0a1240, emissive: 0x1b2a6b, emissiveIntensity: 0.55, roughness: 0.15, transparent: true, opacity: 0.8 }));
+  water.rotation.x = -Math.PI / 2;
+  water.position.set(x, y, z);
+  const g = new Group();
+  g.add(water);
+  return { object: g, footprints: [] };
 }

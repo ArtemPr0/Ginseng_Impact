@@ -1,36 +1,35 @@
-import { BoxGeometry, CircleGeometry, Color, CylinderGeometry, Group, Mesh, MeshBasicMaterial, Vector3 } from 'three';
-import { LAYOUT } from '../data/world';
+import { Group, Vector3 } from 'three';
+import { ANCHORS, LAYOUT, VILLAGE } from '../data/world';
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
-import { surface } from '../render/Materials';
 import { PALETTE } from '../render/palette';
-import { castle, frozenDecor, mountains, mushrooms, orchard, ruins } from './Biomes';
-import {
-  archGate, birches, causewayLights, coral, demonChurch, fallenLeaves, flyingKoi, giantFlowers, hangingPods, kneelingColossus, palmIsland,
-  pinnacles, roseGarden, ruinedNave, snake, treeHouse, willows, wizardTower, woodenBridge,
-} from './Biomes2';
+import { glowSprite } from '../render/Glow';
+import { PointLight } from 'three';
 import { CloudSea } from './CloudSea';
 import { HeightWorld } from './Colliders';
-import { frogKing, moonShellColossus, witchBridge } from './Creatures';
-import { floatingRocks, floodedRuin, logGiant, spiderChapel, trollGorge } from './Reels2';
-import { boulders, flowers, pines, sunflowers, type Placement } from './Flora';
+import { tealFalls, waterfall } from './Falls';
+import { fire } from './Fire';
+import { cobbleSpots, floraSet, ringSpots, type Placement } from './Flora';
+import { archGateFootprints, castleFootprints, cathedralFootprints, floodedRuinFootprints, naveFootprints, orchardFootprints, trollGorgeFootprints, villageHouseFootprint } from './Footprints';
 import { Grass } from './Grass';
-import { cathedral, causeway, giantHead, monolith, waterfall, type Landmark } from './Landmarks';
+import type { Landmark } from './Landmarks';
+import { modelLandmark, riverDrifter, walkerLandmark } from './ModelLandmark';
 import { Npc, NPC_DEFS } from './NPCs';
 import { Noise2D } from './noise';
-import {
-  boat, campfire, cloister, deadForest, fallenFruit, fire, flowerTrees, giantMushrooms, gnarledTrees, observatory, palms, rider, snowPines,
-  tavern, tealFalls, throneHall, village,
-} from './Settlements';
+import { witchStream } from './Stream';
 import { deadAt, frozenAt, riverAt, riverDistance, sandAt, streamAt, Terrain, WORLD } from './Terrain';
-import { lilyPond, river } from './Water';
-import { loadModel, ModelRig } from '../models/ModelRig';
+import { causewayPostPoints, causewaySlabs, chasmBridgeSlab, witchBridgeDeck } from './Walkways';
+import { lilyPond, river, stillWaterDisc } from './Water';
 
 function rng(seed: number): () => number {
   let s = seed >>> 0;
   return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
 }
 
-/** Assembles the whole island: every landmark, biome, creature and NPC from the reels, plus the collision height field. */
+/**
+ * Assembles the island. Every structure, creature and plant is a Meshy model placed by id (a glowing
+ * marker stands in for a file that has not been generated yet); terrain, water, sky, fire and glow
+ * effects are the only procedural visuals.
+ */
 export class World {
   readonly group = new Group();
   readonly heights: HeightWorld;
@@ -48,100 +47,159 @@ export class World {
     const rnd = rng(4242);
     const h = (x: number, z: number) => terrain.heightAt(x, z);
     const hw = (x: number, z: number) => this.heights.heightAt(x, z);
+    const flora = (id: string, placements: Placement[], opts?: Parameters<typeof floraSet>[2]) => {
+      const set = floraSet(id, placements, opts);
+      this.group.add(set.group);
+      this.extras.push(set);
+    };
+    const vfx = (f: { group: Group; update: (dt: number) => void }) => { this.group.add(f.group); this.extras.push(f); };
 
-    // --- the original landmarks ---
-    this.place(causeway(LAYOUT.causeway, h, rnd));
-    this.place(giantHead(LAYOUT.head.x, LAYOUT.head.z, Math.max(-12, h(LAYOUT.head.x, LAYOUT.head.z) - 8), LAYOUT.head.height), 'head');
-    this.place(cathedral(LAYOUT.cathedral.x, LAYOUT.cathedral.z, Math.max(0, h(LAYOUT.cathedral.x, LAYOUT.cathedral.z) - 1)), 'cathedral');
-    for (const [x, z, w, mh, d, rot] of LAYOUT.monoliths) this.place(monolith(x, z, h(x, z) - 0.6, w, mh, d, rot));
-    for (const w of LAYOUT.waterfalls) this.place(waterfall(w.x, w.z, h(w.x, w.z + (w.z > -95 ? 4 : -4)) - 0.5, w.width, w.height));
-    this.place(frogKing(LAYOUT.frog.x, LAYOUT.frog.z, h(LAYOUT.frog.x, LAYOUT.frog.z) - 0.3), 'frogking');
-    this.place(witchBridge(LAYOUT.coven.streamX, LAYOUT.coven.zMin, LAYOUT.coven.zMax, LAYOUT.coven.bridgeZ, h));
-    this.place(castle(LAYOUT.castle.x, LAYOUT.castle.z, Math.max(0, h(LAYOUT.castle.x, LAYOUT.castle.z) - 1)), 'castle');
-    this.place(orchard(LAYOUT.orchard.x, LAYOUT.orchard.z, h));
-    this.place(moonShellColossus(LAYOUT.colossusPath, hw), 'colossus');
-    this.group.add(mountains(WORLD.islandCentre));
-    this.group.add(ruins(LAYOUT.ruins.map((r) => ({ ...r, y: h(r.x, r.z) }))));
+    // --- walkways (placeholder slabs until their models land) ---
+    this.place(causewaySlabs(LAYOUT.causeway, h));
+    this.place(chasmBridgeSlab(42, -30, 43, -84, Math.max(h(42, -30), h(43, -84)) + 0.6));
+    const deck = witchBridgeDeck(LAYOUT.coven.streamX, LAYOUT.coven.bridgeZ, h);
+    this.place(deck);
+
+    // --- the skyline ---
+    const headY = Math.max(-12, h(LAYOUT.head.x, LAYOUT.head.z) - 8);
+    this.place(modelLandmark('head', LAYOUT.head.x, LAYOUT.head.z, headY, { color: PALETTE.blood, footprints: [{ kind: 'box', x: LAYOUT.head.x, z: LAYOUT.head.z, hw: 0.36 * LAYOUT.head.height, hd: 0.375 * LAYOUT.head.height, top: headY + 1.02 * LAYOUT.head.height }] }));
+    const cathY = Math.max(0, h(LAYOUT.cathedral.x, LAYOUT.cathedral.z) - 1);
+    this.place(modelLandmark('cathedral', LAYOUT.cathedral.x, LAYOUT.cathedral.z, cathY, { footprints: cathedralFootprints(LAYOUT.cathedral.x, LAYOUT.cathedral.z, cathY) }));
+    for (const w of LAYOUT.waterfalls) this.place(waterfall(w.x, w.z, h(w.x, w.z + (w.z > -57 ? 4 : -4)) - 0.5, w.width, w.height));
+    const castleY = Math.max(0, h(LAYOUT.castle.x, LAYOUT.castle.z) - 1);
+    this.place(modelLandmark('castle', LAYOUT.castle.x, LAYOUT.castle.z, castleY, { footprints: castleFootprints(LAYOUT.castle.x, LAYOUT.castle.z, castleY) }));
+    this.place(modelLandmark('throne', LAYOUT.castle.x, LAYOUT.castle.z + 11, castleY, { footprints: [{ kind: 'box', x: LAYOUT.castle.x, z: LAYOUT.castle.z + 11, hw: 4.5, hd: 3.5, top: castleY + 1.2 }] }));
+    for (const side of [-1, 1]) vfx(fire(LAYOUT.castle.x + side * 4.2, castleY + 2.0, LAYOUT.castle.z + 11 + 1.8, 0.7, 16));
+    this.place(modelLandmark('church', -66, 57, h(-66, 57) - 0.5, { yaw: Math.PI, footprints: [{ kind: 'box', x: -66, z: 57, hw: 10, hd: 15.5, top: h(-66, 57) + 21.5, rotY: Math.PI }], update: churchGlow(this.group, -66, h(-66, 57) - 0.5, 57) }));
+    this.auroraCentre.set(-66, 0, 57);
+    const towerY = Math.max(-8, h(93, 42) - 6);
+    this.place(modelLandmark('tower', 93, 42, towerY, { footprints: [{ kind: 'cyl', x: 93, z: 42, r: 6.2, top: towerY + 70 }, { kind: 'cyl', x: 93, z: 42, r: 4.6, top: towerY + 94 }] }));
+    for (let i = 0; i < 14; i++) {
+      const radius = 16 + ((i * 41) % 30);
+      const height = towerY + 8 + ((i * 23) % 62);
+      const speed = 0.03 + ((i * 13) % 5) * 0.012;
+      let angle = (i / 14) * Math.PI * 2;
+      this.place(modelLandmark('floating-rock', 93 + Math.cos(angle) * radius, 42 + Math.sin(angle) * radius, height, {
+        update: (dt, root) => { angle += dt * speed; root.position.set(93 + Math.cos(angle) * radius, height + Math.sin(angle * 9 + i) * 1.2, 42 + Math.sin(angle) * radius); root.rotation.y += dt * 0.08; },
+      }));
+    }
+    this.place(modelLandmark('treehouse', -90, 30, h(-90, 30) - 1, { footprints: [{ kind: 'cyl', x: -90, z: 30, r: 6.5, top: h(-90, 30) + 41 }] }));
+    this.place(modelLandmark('nave', 66, -17, h(66, -17) - 0.4, { yaw: 0.3, footprints: naveFootprints(66, -17, h(66, -17) - 0.4, 0.3) }));
+    this.place(modelLandmark('archgate', 58, -90, h(58, -90) - 0.3, { yaw: 0.5, footprints: archGateFootprints(58, -90, h(58, -90) - 0.3, 0.5) }));
+    this.place(modelLandmark('palmisland', 72, 89, 34, { footprints: [{ kind: 'cyl', x: 72, z: 89, r: 21, top: 36.4 }], update: (dt, root) => { root.position.y = 34 + Math.sin(performance.now() * 0.0004) * 0.6; void dt; } }));
+    for (const [dx, dz] of [[20, 0], [-20, 0], [0, 20], [0, -20]] as const) this.place(waterfall(72 + dx, 89 + dz, 36, 5, 46));
+    this.place(modelLandmark('colossus-statue', WORLD.dead.x - 14, WORLD.dead.z + 6, h(WORLD.dead.x - 14, WORLD.dead.z + 6) - 0.5, { yaw: 0.9, footprints: [{ kind: 'cyl', x: WORLD.dead.x - 14, z: WORLD.dead.z + 6, r: 6, top: h(WORLD.dead.x - 14, WORLD.dead.z + 6) + 7.5 }] }));
+    this.place(modelLandmark('burning-castle', 0, 180, -32, { color: PALETTE.blood }));
+    vfx(fire(0, 12, 180, 14, 0));
+    for (const r of LAYOUT.ruins) this.place(modelLandmark(r.arch ? 'ruin-arch' : 'ruin-column', r.x, r.z, h(r.x, r.z) - 0.3, { yaw: r.yaw }));
+    this.place(modelLandmark('orchard', LAYOUT.orchard.x, LAYOUT.orchard.z, h(LAYOUT.orchard.x, LAYOUT.orchard.z), { footprints: orchardFootprints(LAYOUT.orchard.x, LAYOUT.orchard.z, h) }));
+    this.place(modelLandmark('flooded-ruin', 99, -11, h(99, -11) - 0.6, { footprints: floodedRuinFootprints(99, -11, h(99, -11) - 0.6, 18) }));
+    this.place(stillWaterDisc(99, -11, h(99, -11) - 0.3, 18));
+    this.place(modelLandmark('troll-gorge', -66, -129, h(-66, -129) - 0.5, { footprints: trollGorgeFootprints(-66, -129, h(-66, -129) - 0.5, 36) }));
+    // Backdrop mountain ring (scale encodes the old cone sizes).
+    const mountains: Placement[] = [];
+    const mr = rng(77);
+    for (let i = 0; i < 20; i++) { const a = (i / 20) * Math.PI * 2 + (mr() - 0.5) * 0.25; const r = 270 + mr() * 60; mr(); const hgt = 130 + mr() * 90; mountains.push({ x: Math.cos(a) * r, y: -90, z: -36 + Math.sin(a) * r, yaw: mr() * Math.PI, scale: hgt / 180 }); }
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2 + 0.3 + (mr() - 0.5) * 0.4; const r = 190 + mr() * 35; mr(); const hgt = 60 + mr() * 40; mountains.push({ x: Math.cos(a) * r, y: -90, z: -36 + Math.sin(a) * r, yaw: mr() * Math.PI, scale: hgt / 180 }); }
+    flora('mountain', mountains, { shadows: false });
+    const pinSpots: Placement[] = [];
+    for (let i = 0; i < 26; i++) pinSpots.push({ x: (rnd() - 0.5) * 190, y: LAYOUT.cloudSea.y - 6, z: 141 + rnd() * 66, yaw: rnd() * 6, scale: 0.6 + rnd() * 0.9 });
+    flora('pinnacle', pinSpots, { shadows: false });
+
+    // --- creatures that wander ---
+    this.place(modelLandmark('frogking', LAYOUT.frog.x, LAYOUT.frog.z, h(LAYOUT.frog.x, LAYOUT.frog.z) - 0.3, { clip: 'idle', footprints: [{ kind: 'cyl', x: LAYOUT.frog.x, z: LAYOUT.frog.z, r: 3.6, top: h(LAYOUT.frog.x, LAYOUT.frog.z) + 3.3 }] }));
+    this.place(walkerLandmark('colossus', LAYOUT.colossusPath, 0.9, hw, { lift: -0.5, clip: 'idle', trail: true }));
+    this.place(walkerLandmark('loggiant', [[-50, 76], [-33, 88], [-16, 76], [-33, 64]], 1.5, hw));
+    this.place(walkerLandmark('spiderchapel', [[-84, 42], [-66, 36], [-57, 51], [-75, 65], [-90, 57]], 2.4, hw, { lift: -0.5 }));
+    const rider = walkerLandmark('horse-rider', [[-12, 72], [6, 67], [18, 60], [30, 62], [36, 75], [18, 84], [0, 80]], 3.6, hw);
+    const lantern = fire(2.3, 1.2, 0, 0.3, 8);
+    rider.root.add(lantern.group);
+    this.extras.push(lantern);
+    this.place(rider);
+    for (let i = 0; i < 7; i++) {
+      const phase = (i / 7) * Math.PI * 2;
+      const r = 14 + (i % 4) * 5;
+      const hgt = 28 + (i % 3) * 4;
+      const speed = 0.25 + (i % 3) * 0.06;
+      this.place(modelLandmark('koi', WORLD.pond.x, WORLD.pond.z, hgt, { clip: 'idle', update: (dt, root) => { void dt; const t = performance.now() * 0.001; const a = t * speed + phase; root.position.set(WORLD.pond.x + Math.cos(a) * r, hgt + Math.sin(t * 0.9 + phase * 3) * 2.5, WORLD.pond.z + Math.sin(a) * r); root.rotation.y = -a; root.rotation.z = Math.cos(t * 0.9 + phase * 3) * 0.3; } }));
+    }
+    this.place(modelLandmark('snake', -11, -13, h(-11, -13) + 0.05, { clip: 'idle' }));
 
     // --- water ---
-    this.place(river(h, rnd));
-    this.place(lilyPond(WORLD.pond.x, WORLD.pond.z, WORLD.pond.r, rnd));
-    this.place(boat(0, 2.4));
-    this.place(boat(108, 2.0));
+    const theRiver = river(h, rnd);
+    this.place(theRiver);
+    flora('reed', theRiver.reedSpots, { wind: 0.22, shadows: false });
+    const pond = lilyPond(WORLD.pond.x, WORLD.pond.z, WORLD.pond.r, rnd);
+    this.place(pond);
+    flora('lily-pad', pond.padSpots, { shadows: false });
+    flora('lotus', pond.lotusSpots, { shadows: false });
+    this.place(riverDrifter('boat', 0, 2.4));
+    this.place(riverDrifter('boat', 108, 2.0));
+    this.place(witchStream(LAYOUT.coven.streamX, LAYOUT.coven.zMin, LAYOUT.coven.zMax, LAYOUT.coven.bridgeZ, deck.deckY, h));
+    this.place(modelLandmark('cauldron', LAYOUT.coven.streamX, LAYOUT.coven.bridgeZ, deck.deckY + 0.45, { color: PALETTE.witch, footprints: [{ kind: 'cyl', x: LAYOUT.coven.streamX, z: LAYOUT.coven.bridgeZ, r: 0.8, top: deck.deckY + 1.4 }] }));
 
     // --- settlements ---
-    this.place(village(-33, 76, h));
-    const inn = tavern(20, 66, h);
-    this.place(inn);
-    const camp = campfire(-24, 52, h);
-    this.place(camp);
-    const clo = cloister(32, 68, h);
-    this.place(clo);
-    const obs = observatory(-44, 60, h);
-    this.place(obs);
-    const throne = throneHall(LAYOUT.castle.x, LAYOUT.castle.z + 11, Math.max(0, h(LAYOUT.castle.x, LAYOUT.castle.z) - 1), 0);
-    this.place(throne);
-    this.place(rider([[-12, 72], [6, 67], [18, 60], [30, 62], [36, 75], [18, 84], [0, 80]], 3.6, hw));
-
-    // --- structures from the second viewing ---
-    this.place(wizardTower(93, 42, Math.max(-8, h(93, 42) - 6)), 'tower');
-    this.place(floatingRocks(93, 42, Math.max(-8, h(93, 42) - 6)));
-    // Second reel batch: the Sovereign's flooded nave by the chasm, the troll's gorge, and two wandering giants.
-    this.place(floodedRuin(99, -11, h(99, -11) - 0.6, 18));
-    this.place(trollGorge(-66, -129, h(-66, -129) - 0.5, 36));
-    this.place(logGiant([[-50, 76], [-33, 88], [-16, 76], [-33, 64]], hw), 'loggiant');
-    this.place(spiderChapel([[-84, 42], [-66, 36], [-57, 51], [-75, 65], [-90, 57]], hw), 'spiderchapel');
-    this.place(demonChurch(-66, 57, h(-66, 57) - 0.5, Math.PI), 'church');
-    this.auroraCentre.set(-66, 0, 57);
-    this.place(palmIsland(72, 34, 89));
-    this.place(treeHouse(-90, 30, h(-90, 30) - 1), 'treehouse');
-    this.place(ruinedNave(66, -17, h(66, -17) - 0.4, 0.3));
-    this.place(archGate(58, -90, h(58, -90) - 0.3, 0.5));
-    this.place(woodenBridge(42, -30, 43, -84, Math.max(h(42, -30), h(43, -84)) + 0.6));
-    this.place(kneelingColossus(WORLD.dead.x - 14, WORLD.dead.z + 6, h(WORLD.dead.x - 14, WORLD.dead.z + 6) - 0.5, 0.9));
-    this.place(flyingKoi(WORLD.pond.x, 28, WORLD.pond.z, 7));
-    this.place(snake(-11, -13, h(-11, -13) + 0.05));
-    const posts: Array<{ x: number; z: number; y: number }> = [];
-    const cw = LAYOUT.causeway;
-    for (let z = cw.zStart - 2; z > cw.zEnd + 2; z -= 4) {
-      const t = (cw.zStart - z) / (cw.zStart - cw.zEnd);
-      const top = cw.yStart + (cw.yEnd - cw.yStart) * t;
-      for (const side of [-1, 1]) posts.push({ x: cw.x + side * (cw.width / 2 - 0.4), z, y: top });
+    const vrnd = rng(909);
+    for (const [dx, dz, w, d, rot] of VILLAGE.houses) {
+      const x = VILLAGE.x + dx;
+      const z = VILLAGE.z + dz;
+      this.place(modelLandmark('village-house', x, z, h(x, z) - 0.2, { yaw: rot, footprints: [villageHouseFootprint(x, z, h(x, z) - 0.2, w, d, rot)] }));
     }
-    this.place(causewayLights(posts, 6));
-    // Cauldron witch's pot on the south shore.
-    const pot = new Group();
+    const torchSpots: Placement[] = [];
+    for (let dx = -28; dx <= 28; dx += 14) {
+      for (const dz of [-5.5, 7.5]) {
+        const x = VILLAGE.x + dx;
+        const z = VILLAGE.z + dz;
+        torchSpots.push({ x, y: h(x, z), z, yaw: 0, scale: 1 });
+        vfx(fire(x, h(x, z) + 2.1, z, 0.45, 9));
+      }
+    }
+    flora('torch-post', torchSpots);
+    flora('cobblestone', cobbleSpots([[VILLAGE.x - 34, VILLAGE.z + 1], [VILLAGE.x + 34, VILLAGE.z + 1]], 5, h, vrnd), { shadows: false });
+    const wellY = h(VILLAGE.x + 4, VILLAGE.z + 1);
+    this.place(modelLandmark('well', VILLAGE.x + 4, VILLAGE.z + 1, wellY, { footprints: [{ kind: 'cyl', x: VILLAGE.x + 4, z: VILLAGE.z + 1, r: 1.4, top: wellY + 0.9 }] }));
+    const barrels: Placement[] = [];
+    for (let i = 0; i < 7; i++) { const bx = VILLAGE.x + (vrnd() - 0.5) * 56; const bz = VILLAGE.z + (vrnd() < 0.5 ? -6.5 : 8.5); barrels.push({ x: bx, y: h(bx, bz), z: bz, yaw: vrnd() * 6, scale: 1 }); }
+    flora('barrel', barrels);
+    const tavernY = h(20, 66) - 0.2;
+    this.place(modelLandmark('tavern', 20, 63, tavernY, { footprints: [{ kind: 'box', x: 20, z: 60, hw: 6, hd: 4.5, top: tavernY + 5.4 }, { kind: 'cyl', x: 20, z: 68, r: 1.2, top: tavernY + 1.0 }] }));
+    for (const side of [-1, 1]) vfx(fire(20 + side * 6.4, tavernY + 2.6, 55.6, 0.4, 8));
+    const campY = h(-24, 52);
+    this.place(modelLandmark('campfire', -24, 52, campY, { footprints: [{ kind: 'cyl', x: -24, z: 52, r: 1.2, top: campY + 0.4 }] }));
+    vfx(fire(-24, campY + 0.25, 52, 1.5, 34));
+    const steam = glowSprite(0x8fa2ff, 1.6, 0.18, true);
+    steam.position.set(-24, campY + 2.5, 52);
+    this.group.add(steam);
+    this.extras.push({ update: (dt) => { steamT += dt; steam.position.y = campY + 2.4 + Math.sin(steamT) * 0.2; steam.scale.setScalar(1.6 + Math.sin(steamT * 0.7) * 0.4); } });
+    let steamT = 0;
+    const cloY = h(32, 68);
+    this.place(modelLandmark('cloister', 32, 64.5, cloY, { footprints: [{ kind: 'box', x: 32, z: 64.5, hw: 8.5, hd: 0.7, top: cloY + 8.6 }] }));
+    flora('cobblestone', cobbleSpots([[23, 68], [41, 68]], 7, h, rng(55)), { shadows: false });
+    const obsY = h(-44, 60);
+    this.place(modelLandmark('observatory', -44, 60, obsY, { footprints: [{ kind: 'cyl', x: -44, z: 60, r: 3.2, top: obsY + 10.4 }] }));
     const potY = h(24, 77);
-    const cauldron = new Mesh(new CylinderGeometry(0.9, 0.65, 1.1, 14), surface({ color: 0x0b0d22, roughness: 0.4, metalness: 0.6 }));
-    cauldron.position.set(24, potY + 0.55, 77);
-    const brew = new Mesh(new CircleGeometry(0.82, 16), new MeshBasicMaterial({ color: new Color(PALETTE.witch).multiplyScalar(1.3), toneMapped: false }));
-    brew.rotation.x = -Math.PI / 2;
-    brew.position.set(24, potY + 1.12, 77);
-    const coals = fire(24, potY - 0.1, 77, 0.7, 14);
-    pot.add(cauldron, brew, coals.group);
-    this.group.add(pot);
-    this.extras.push(coals);
-    this.heights.add({ kind: 'cyl', x: 24, z: 77, r: 1, top: potY + 1.1 });
-    // Burning castle on the far shore (south, out in the cloud sea).
-    const burning = new Group();
-    for (const [bx, bz, bw, bh] of [[-18, 180, 26, 40], [-5, 184, 14, 62], [7, 179, 20, 48], [18, 182, 10, 34]] as const) {
-      const tower = new Mesh(new BoxGeometry(bw, bh, bw), surface({ color: 0x0a0d2a, emissive: 0xff3a10, emissiveIntensity: 0.25 }));
-      tower.position.set(bx, -26 + bh / 2 - 6, bz);
-      burning.add(tower);
-    }
-    const blaze = fire(0, 12, 180, 14, 0);
-    burning.add(blaze.group);
-    this.extras.push(blaze);
-    this.group.add(burning);
+    this.place(modelLandmark('cauldron', 24, 77, potY, { color: PALETTE.witch, footprints: [{ kind: 'cyl', x: 24, z: 77, r: 1, top: potY + 1.1 }] }));
+    vfx(fire(24, potY - 0.1, 77, 0.7, 14));
+    // Lanterns and candles along the causeway.
+    const posts = causewayPostPoints(LAYOUT.causeway);
+    const lanternSpots: Placement[] = [];
+    const candleSpots: Placement[] = [];
+    posts.forEach((p, i) => {
+      if (i % 6 === 0) lanternSpots.push({ x: p.x, y: p.y, z: p.z, yaw: 0, scale: 1 });
+      else if (i % 2 === 0) { candleSpots.push({ x: p.x, y: p.y, z: p.z, yaw: 0, scale: 1 }); vfx(fire(p.x, p.y + 0.3, p.z, 0.1, 1.2)); }
+    });
+    flora('lantern-post', lanternSpots);
+    flora('candle', candleSpots, { shadows: false });
+    for (const p of lanternSpots) { const halo = glowSprite(PALETTE.blood, 2.4, 0.45, true); halo.position.set(p.x, p.y + 2.1, p.z); this.group.add(halo); }
 
     // --- flora and biomes ---
-    this.group.add(pines(this.scatterRing(rnd, LAYOUT.forest.innerRadius, LAYOUT.forest.outerRadius, LAYOUT.forest.count)));
-    for (const f of LAYOUT.sunflowerFields) this.group.add(sunflowers(this.scatterDisc(rnd, f.x, f.z, f.r, f.count, 0.8, 1.2)));
+    flora('pine', this.scatterRing(rnd, LAYOUT.forest.innerRadius, LAYOUT.forest.outerRadius, LAYOUT.forest.count));
+    for (const f of LAYOUT.sunflowerFields) flora('sunflower', this.scatterDisc(rnd, f.x, f.z, f.r, f.count, 0.8, 1.2), { wind: 0.18 });
     const meadow: Placement[] = [];
     for (const f of LAYOUT.flowerMeadows) meadow.push(...this.scatterDisc(rnd, f.x, f.z, f.r, f.count, 0.7, 1.3));
     meadow.push(...this.scatterRing(rnd, 12, 90, 380, 0.6, 1.1));
-    this.group.add(flowers(meadow));
-    this.group.add(boulders(this.scatterRing(rnd, 18, 114, 60, 0.8, 2.6)));
+    flora('flower', meadow, { wind: 0.5, shadows: false });
+    flora('boulder', this.scatterRing(rnd, 18, 114, 60, 0.8, 2.6));
     this.grass = new Grass((x, z) => this.heights.heightAt(x, z), (x, z) => this.plantable(x, z) && frozenAt(x, z) < 0.6 && sandAt(x, z) < 0.3 && deadAt(x, z) < 0.3);
     this.group.add(this.grass.mesh);
     const fr = LAYOUT.frozenRect;
@@ -156,85 +214,60 @@ export class World {
       }
       return out;
     };
-    this.group.add(frozenDecor(frozenPick(260, 0.6, 1.8, -0.1), frozenPick(70, 0.9, 1.6, -0.3)));
-    this.group.add(snowPines(frozenPick(90, 0.7, 1.3, -0.3)));
-    this.group.add(hangingPods(frozenPick(14, 0.9, 1.4, -0.3).filter((p) => p.x > 72 && p.z < -72)));
-    this.group.add(mushrooms([...this.scatterDisc(rnd, LAYOUT.frog.x, LAYOUT.frog.z, 22, 70, 0.7, 1.3), ...this.scatterRing(rnd, 66, 114, 80, 0.6, 1.2)]));
+    flora('ice-crystal', frozenPick(260, 0.6, 1.8, -0.1), { shadows: false });
+    flora('dead-tree', frozenPick(70, 0.9, 1.6, -0.3));
+    flora('snow-pine', frozenPick(90, 0.7, 1.3, -0.3));
+    flora('pod-tree', frozenPick(14, 0.9, 1.4, -0.3).filter((p) => p.x > 72 && p.z < -72));
+    flora('mushroom', [...this.scatterDisc(rnd, LAYOUT.frog.x, LAYOUT.frog.z, 22, 70, 0.7, 1.3), ...this.scatterRing(rnd, 66, 114, 80, 0.6, 1.2)], { shadows: false });
     const shroomRing = this.scatterDisc(rnd, LAYOUT.frog.x, LAYOUT.frog.z, 34, 14, 0.8, 1.5).filter((p) => Math.hypot(p.x - LAYOUT.frog.x, p.z - LAYOUT.frog.z) > 12);
-    this.group.add(giantMushrooms(shroomRing));
+    flora('giant-mushroom', shroomRing);
     this.place(tealFalls(shroomRing.slice(0, 4).map((p) => ({ x: p.x + 2.5 * p.scale, z: p.z, top: p.y + 5.6 * p.scale, height: 5.6 * p.scale + 1, width: 1.6 * p.scale }))));
-    const ft = flowerTrees(this.scatterDisc(rnd, WORLD.pond.x, WORLD.pond.z, 30, 16, 0.8, 1.3).filter((p) => Math.hypot(p.x - WORLD.pond.x, p.z - WORLD.pond.z) > WORLD.pond.r + 3), [
-      { x: WORLD.pond.x - 18, y: 26, z: WORLD.pond.z - 10, yaw: 0, scale: 1.2 }, { x: WORLD.pond.x + 14, y: 31, z: WORLD.pond.z + 12, yaw: 0, scale: 0.9 }, { x: WORLD.pond.x + 2, y: 36, z: WORLD.pond.z - 22, yaw: 0, scale: 1.0 },
-    ]);
-    this.group.add(ft.group);
-    this.extras.push(ft);
-    this.group.add(willows(this.ringAround(WORLD.pond.x, WORLD.pond.z, 18, 6, rnd)));
-    this.group.add(palms([...this.scatterDisc(rnd, WORLD.desert.x, WORLD.desert.z, WORLD.desert.r, 18, 0.8, 1.3), ...(this.landmarks.find((l) => 'palms' in l) as unknown as { palms: Placement[] } | undefined)?.palms ?? []]));
-    this.group.add(deadForest(this.scatterDisc(rnd, WORLD.dead.x, WORLD.dead.z, WORLD.dead.r, 60, 0.8, 1.4).filter((p) => Math.hypot(p.x - WORLD.dead.x, p.z - WORLD.dead.z) > 9)));
-    this.group.add(gnarledTrees(this.ringAround(LAYOUT.orchard.x, LAYOUT.orchard.z, 32, 14, rnd)));
-    this.group.add(fallenFruit(this.scatterDisc(rnd, LAYOUT.orchard.x, LAYOUT.orchard.z, 26, 90, 0.8, 1.2)));
-    this.group.add(giantFlowers(this.scatterDisc(rnd, -18, 33, 14, 80, 0.8, 1.3)));
-    this.group.add(roseGarden(17, 34, 12, h, rnd));
-    const birchSpots = this.riverBank(rnd, 14, 30, 110, 24, 96);
-    this.group.add(birches(birchSpots));
-    const leaves = fallenLeaves(this.riverBank(rnd, 8, 26, 600, 24, 96).map((p) => ({ ...p, scale: 0.8 + rnd() * 0.6 })), false);
-    this.group.add(leaves.mesh);
+    flora('flower-tree', this.scatterDisc(rnd, WORLD.pond.x, WORLD.pond.z, 30, 16, 0.8, 1.3).filter((p) => Math.hypot(p.x - WORLD.pond.x, p.z - WORLD.pond.z) > WORLD.pond.r + 3));
+    for (const [dx, y, dz, sc] of [[-18, 26, -10, 1.2], [14, 31, 12, 0.9], [2, 36, -22, 1.0]] as const) {
+      const base = y;
+      this.place(modelLandmark('floating-island', WORLD.pond.x + dx, WORLD.pond.z + dz, base, { update: (dt, root) => { void dt; root.position.y = base + Math.sin(performance.now() * 0.0005 + dx) * 0.8; root.scale.setScalar(sc); } }));
+    }
+    flora('willow', ringSpots(WORLD.pond.x, WORLD.pond.z, 18, 6, h, rnd));
+    const islandPalms: Placement[] = [];
+    for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2; islandPalms.push({ x: 72 + Math.cos(a) * 14, y: 36.4, z: 89 + Math.sin(a) * 14, yaw: rnd() * 6, scale: 0.9 + rnd() * 0.3 }); }
+    flora('palm', [...this.scatterDisc(rnd, WORLD.desert.x, WORLD.desert.z, WORLD.desert.r, 18, 0.8, 1.3), ...islandPalms]);
+    flora('dead-forest-tree', this.scatterDisc(rnd, WORLD.dead.x, WORLD.dead.z, WORLD.dead.r, 60, 0.8, 1.4).filter((p) => Math.hypot(p.x - WORLD.dead.x, p.z - WORLD.dead.z) > 9));
+    flora('gnarled-tree', ringSpots(LAYOUT.orchard.x, LAYOUT.orchard.z, 32, 14, h, rnd));
+    flora('fallen-fruit', this.scatterDisc(rnd, LAYOUT.orchard.x, LAYOUT.orchard.z, 26, 90, 0.8, 1.2), { shadows: false });
+    flora('giant-flower', this.scatterDisc(rnd, -18, 33, 14, 80, 0.8, 1.3), { wind: 0.3 });
+    const roses: Placement[] = [];
+    const rr = rng(2100);
+    for (let i = 0; i < 700; i++) { const a = rr() * Math.PI * 2; const r = Math.sqrt(rr()) * 12; const x = 17 + Math.cos(a) * r; const z = 34 + Math.sin(a) * r; roses.push({ x, y: h(x, z) - 0.05, z, yaw: rr() * 6, scale: 0.7 + rr() * 0.6 }); }
+    flora('rose-bush', roses, { shadows: false });
+    flora('birch', this.riverBank(rnd, 14, 30, 110, 24, 96));
+    flora('fallen-leaf', this.riverBank(rnd, 8, 26, 600, 24, 96).map((p) => ({ ...p, scale: 0.8 + rnd() * 0.6 })), { shadows: false });
     const driftSpots: Placement[] = [];
     for (let i = 0; i < 160; i++) { const x = 24 + rnd() * 72; const z = 4 + rnd() * 12; if (riverAt(x, z) > 0.5) driftSpots.push({ x, y: 1.0, z, yaw: rnd() * 6, scale: 1 }); }
-    const drifting = fallenLeaves(driftSpots, true);
-    this.group.add(drifting.mesh);
-    this.extras.push(drifting);
-    this.group.add(coral(this.riverBank(rnd, 10, 16, 30, 36, 90)));
-    const pinSpots: Placement[] = [];
-    for (let i = 0; i < 26; i++) pinSpots.push({ x: (rnd() - 0.5) * 190, y: 0, z: 141 + rnd() * 66, yaw: rnd() * 6, scale: 1 });
-    this.group.add(pinnacles(pinSpots, LAYOUT.cloudSea.y));
-
+    flora('fallen-leaf', driftSpots, { shadows: false, update: (t, ps) => { for (const p of ps) { p.x -= 0.6 * 0.016; if (p.x < 24) p.x = 96; p.yaw = Math.sin(t + p.z) * 0.4; } return true; } });
+    flora('coral', this.riverBank(rnd, 10, 16, 30, 36, 90), { shadows: false });
+    const crnd = rng(31);
+    flora('cypress', ringSpots(-66, 57, 20, 10, h, crnd));
+    const graves: Placement[] = [];
+    for (let i = 0; i < 26; i++) { const x = -66 + (crnd() - 0.5) * 24; const z = 57 + 20 + crnd() * 16; graves.push({ x, y: h(x, z), z, yaw: (crnd() - 0.5) * 0.4, scale: 0.8 + crnd() * 0.5 }); }
+    flora('grave', graves);
     this.clouds = new CloudSea(LAYOUT.cloudSea.y);
     this.group.add(this.clouds.group);
 
     // --- NPCs ---
-    const spots: Record<string, { x: number; z: number; y?: number }> = {
-      aldous: { x: inn.seats[0].x, z: inn.seats[0].z }, mirren: { x: inn.seats[1].x, z: inn.seats[1].z },
-      'gob-a': { x: inn.seats[0].x + 2.8, z: inn.seats[0].z - 1.4 }, 'gob-b': { x: inn.seats[1].x + 1.4, z: inn.seats[1].z - 2.2 },
-      vigil: { x: clo.kneel.x, z: clo.kneel.z },
-      rattle: { x: camp.seats[0].x, z: camp.seats[0].z }, bone: { x: camp.seats[1].x, z: camp.seats[1].z }, marrow: { x: camp.seats[2].x, z: camp.seats[2].z },
-      croak: { x: WORLD.pond.x + 16, z: WORLD.pond.z - 4 },
-      pim: { x: obs.perch.x, z: obs.perch.z, y: obs.perch.y },
-      moss: { x: -58, z: 19 },
-      king: { x: throne.seat.x, z: throne.seat.z },
-      sentry: { x: -40, z: -90 }, standard: { x: WORLD.peak.x, z: WORLD.peak.z },
-      'rose-knight': { x: 16, z: 34 }, maiden: { x: 18.2, z: 33 },
-      'watcher-knight': { x: -18, z: -43 }, 'watcher-mage': { x: -15, z: -44 },
-      cook: { x: 25.6, z: 77 },
-    };
     for (const def of NPC_DEFS) {
-      const s = spots[def.id] ?? { x: 0, z: 0 };
+      const s = ANCHORS[def.id] ?? { x: 0, z: 0 };
       const npc = new Npc(def, s, hw);
       if (s.y !== undefined) npc.pos.y = s.y;
-      const modelId = def.id === 'king' ? 'king' : def.id.startsWith('witch') ? 'witch' : null;
-      if (modelId) void loadModel(modelId).then((g) => { if (g) npc.rig.useModel(modelId, g); });
-      if (def.behaviour.kind === 'stand' && (def.behaviour.pose === 'sit' || def.behaviour.pose === 'drink' || def.behaviour.pose === 'read' || def.behaviour.pose === 'throne' || def.behaviour.pose === 'sitSword' || def.behaviour.pose === 'fish')) npc.pos.y += def.behaviour.pose === 'throne' ? 1.2 : 0.5;
+      npc.pos.y += s.dy ?? 0;
       this.group.add(npc.object);
       this.npcs.push(npc);
     }
   }
 
-  private place(l: Landmark, modelId?: string): void {
+  private place(l: Landmark): void {
     this.group.add(l.object);
     this.heights.add(...l.footprints);
     this.landmarks.push(l);
-    if (modelId) {
-      void loadModel(modelId).then((g) => {
-        if (!g) return;
-        const m = new ModelRig(modelId, g);
-        l.object.children.forEach((c) => { c.visible = false; });
-        l.object.add(m.root);
-        if (l.clip) m.play(l.clip);
-        // Static exports (smart-rigged creatures have no clips yet) still breathe and sway a little.
-        let t = Math.random() * 10;
-        this.extras.push({ update: (dt) => { m.update(dt); if (!m.playing) { t += dt; m.root.scale.y = 1 + Math.sin(t * 0.8) * 0.015; m.root.rotation.z = Math.sin(t * 0.5) * 0.01; } } });
-      });
-    }
   }
 
   /** True where flora may grow: on the island, off the road, not in water or chasm, on gentle ground, clear of buildings. */
@@ -247,8 +280,7 @@ export class World {
     if (Math.abs(x) < 7 && z < LAYOUT.causeway.zStart + 8 && z > LAYOUT.causeway.zEnd - 8) return false;
     if (Math.abs(z - WORLD.chasmCentreZ) < WORLD.chasmHalfWidth + 14) return false;
     if (this.terrain.slopeAt(x, z) > 0.55) return false;
-    if (Math.abs(x + 33) < 24 && Math.abs(z - 76) < 10) return false;
-    if (Math.abs(x - 28) < 12 && Math.abs(z - 112) < 12) return false;
+    if (Math.abs(x - VILLAGE.x) < 24 && Math.abs(z - VILLAGE.z) < 10) return false;
     for (const f of this.heights.footprints) {
       const dx = x - f.x;
       const dz = z - f.z;
@@ -287,17 +319,6 @@ export class World {
     return out;
   }
 
-  private ringAround(cx: number, cz: number, radius: number, count: number, rnd: () => number): Placement[] {
-    const out: Placement[] = [];
-    for (let i = 0; i < count; i++) {
-      const a = (i / count) * Math.PI * 2 + rnd() * 0.3;
-      const x = cx + Math.cos(a) * radius * (0.9 + rnd() * 0.2);
-      const z = cz + Math.sin(a) * radius * (0.9 + rnd() * 0.2);
-      out.push({ x, y: this.terrain.heightAt(x, z) - 0.3, z, yaw: rnd() * Math.PI * 2, scale: 0.9 + rnd() * 0.5 });
-    }
-    return out;
-  }
-
   /** Points on the river banks between `minD` and `maxD` from the water, for x in [xFrom, xTo]. */
   private riverBank(rnd: () => number, minD: number, maxD: number, count: number, xFrom: number, xTo: number): Placement[] {
     const out: Placement[] = [];
@@ -321,4 +342,15 @@ export class World {
     this.grass.update(playerPos.x, playerPos.z);
     for (const n of this.npcs) n.update(dt, playerPos, n === talkingNpc);
   }
+}
+
+/** The demon church's doorway glow and light, flickering. */
+function churchGlow(scene: Group, x: number, y: number, z: number): (dt: number) => void {
+  const glow = glowSprite(PALETTE.witch, 18, 0.55, true);
+  glow.position.set(x, y + 5, z - 18);
+  const light = new PointLight(PALETTE.witch, 120, 40, 1.6);
+  light.position.set(x, y + 6, z - 18);
+  scene.add(glow, light);
+  let t = 0;
+  return (dt) => { t += dt; glow.material.opacity = 0.45 + Math.sin(t * 3) * 0.1; light.intensity = 110 + Math.sin(t * 5) * 20; };
 }

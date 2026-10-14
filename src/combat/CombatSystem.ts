@@ -12,7 +12,7 @@ import { PALETTE } from '../render/palette';
 import { surface } from '../render/Materials';
 import type { Sky } from '../render/Sky';
 import type { Hud } from '../ui/Hud';
-import { glowSprite } from '../world/Landmarks';
+import { glowSprite } from '../render/Glow';
 import { ComboTracker, Cooldown, computeDamage, inCone, inRadius } from './Combat';
 import { ELEMENT_COLOR, REACTIONS, applyElement, type Element, type ReactionId } from './Elements';
 import { Enemy } from './Enemy';

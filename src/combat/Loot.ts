@@ -2,7 +2,7 @@ import { AdditiveBlending, BoxGeometry, Color, Group, Mesh, MeshBasicMaterial, O
 import { ITEMS, RARITY_COLOR } from '../items/Items';
 import { PALETTE } from '../render/palette';
 import { surface } from '../render/Materials';
-import { glowSprite } from '../world/Landmarks';
+import { glowSprite } from '../render/Glow';
 import type { DropEntry } from '../data/enemies';
 
 export type Drop = { kind: 'item'; itemId: string; count: number } | { kind: 'shards'; amount: number };

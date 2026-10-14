@@ -4,11 +4,6 @@ export const LAYOUT = {
   causeway: { x: 0, zStart: 62, zEnd: -115, width: 6, yStart: 6, yEnd: 11, postSpacing: 8, segmentLength: 24.7 },
   head: { x: 0, z: -139, height: 52 },
   cathedral: { x: 76, z: -28 },
-  monoliths: [
-    [-9, 65, 2.2, 6, 2.2, 0.2], [9, 62, 2.6, 9, 2.4, -0.3], [-16, 55, 3, 13, 3, 0.5],
-    [20, 24, 3.5, 16, 3.2, 0.9], [-26, 11, 2.8, 11, 2.8, 0.1], [31, -13, 4, 22, 3.6, -0.6],
-    [-36, -90, 3, 14, 3, 0.4], [42, -96, 2.5, 9, 2.5, 1.1], [-60, 36, 3.4, 17, 3, -0.2],
-  ] as const,
   forest: { innerRadius: 72, outerRadius: 119, count: 420 },
   flowerMeadows: [
     { x: 24, z: 42, r: 20, count: 220 },

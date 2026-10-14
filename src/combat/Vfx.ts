@@ -2,7 +2,7 @@ import {
   AdditiveBlending, BufferGeometry, DoubleSide, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, Points,
   PointsMaterial, RingGeometry, Sprite, Vector3,
 } from 'three';
-import { glowSprite, glowTexture } from '../world/Landmarks';
+import { glowSprite, glowTexture } from '../render/Glow';
 
 interface Item { obj: Group | Mesh | Points | Sprite; life: number; max: number; tick: (t: number, dt: number) => void; done?: () => void }
 

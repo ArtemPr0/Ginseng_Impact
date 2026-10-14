@@ -1,5 +1,5 @@
 import { AdditiveBlending, Group, Sprite, SpriteMaterial, Vector3 } from 'three';
-import { glowTexture } from '../world/Landmarks';
+import { glowTexture } from '../render/Glow';
 
 /** A lazy curl of pipe smoke: a few soft sprites that rise, drift and fade. */
 export class PipeSmoke {
