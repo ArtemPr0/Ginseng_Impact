@@ -9,6 +9,11 @@ export interface CompanionTarget { id: number; pos: { x: number; y: number; z: n
 export class Companion {
   readonly rig: Rig;
   readonly pos = new Vector3();
+
+  /** Follows the player through a portal. */
+  teleport(x: number, z: number, y: number): void {
+    this.pos.set(x + 1.5, y, z + 1.5);
+  }
   yaw = 0;
   hp: number;
   private swing = 0;

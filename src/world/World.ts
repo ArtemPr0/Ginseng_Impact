@@ -1,5 +1,5 @@
 import { Group, Vector3 } from 'three';
-import { ANCHORS, LAYOUT, VILLAGE } from '../data/world';
+import { ANCHORS, ISLAND_PORTALS, LAYOUT, VILLAGE } from '../data/world';
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
 import { PALETTE } from '../render/palette';
 import { glowSprite } from '../render/Glow';
@@ -17,6 +17,8 @@ import { modelLandmark, riverDrifter, walkerLandmark } from './ModelLandmark';
 import { Npc, NPC_DEFS } from './NPCs';
 import { Noise2D } from './noise';
 import { witchStream } from './Stream';
+import { buildRealms } from './Realms';
+import type { PortalLink } from './Portal';
 import { deadAt, frozenAt, riverAt, riverDistance, sandAt, streamAt, Terrain, WORLD } from './Terrain';
 import { causewayPostPoints, causewayWalk, chasmBridge, witchBridgeDeck } from './Walkways';
 import { lilyPond, river, stillWaterDisc } from './Water';
@@ -38,6 +40,8 @@ export class World {
   readonly grass: Grass;
   /** Church position, used to brighten the aurora nearby. */
   readonly auroraCentre = new Vector3();
+  /** Portals between the island and the realms (main.ts teleports the player through them). */
+  readonly portals: PortalLink[] = [];
   private readonly landmarks: Landmark[] = [];
   private readonly extras: Array<{ update: (dt: number) => void }> = [];
   private readonly clouds: CloudSea;
@@ -228,7 +232,9 @@ export class World {
     flora('boulder', frozenPick(70, 0.8, 2.4, -0.2));
     flora('pod-tree', frozenPick(14, 0.9, 1.4, -0.3).filter((p) => p.x > 72 && p.z < -72));
     flora('mushroom', [...this.scatterDisc(rnd, LAYOUT.frog.x, LAYOUT.frog.z, 22, 70, 0.7, 1.3), ...this.scatterRing(rnd, 66, 114, 80, 0.6, 1.2)], { shadows: false });
-    const shroomRing = this.scatterDisc(rnd, LAYOUT.frog.x, LAYOUT.frog.z, 34, 14, 0.8, 1.5).filter((p) => Math.hypot(p.x - LAYOUT.frog.x, p.z - LAYOUT.frog.z) > 12);
+    // Keep the portal clearing (DeQ-NnpvqF6) and the mushroom tavern (DaIqFavJWbd) open under the sky.
+    const clear = (p: Placement) => Math.hypot(p.x - ISLAND_PORTALS.galaxy.x, p.z - ISLAND_PORTALS.galaxy.z) > 11 && Math.hypot(p.x + 40, p.z + 24) > 10;
+    const shroomRing = this.scatterDisc(rnd, LAYOUT.frog.x, LAYOUT.frog.z, 34, 14, 0.8, 1.5).filter((p) => Math.hypot(p.x - LAYOUT.frog.x, p.z - LAYOUT.frog.z) > 12 && clear(p));
     flora('giant-mushroom', shroomRing);
     this.place(tealFalls(shroomRing.slice(0, 4).map((p) => ({ x: p.x + 2.5 * p.scale, z: p.z, top: p.y + 5.6 * p.scale, height: 5.6 * p.scale + 1, width: 1.6 * p.scale }))));
     flora('flower-tree', this.scatterDisc(rnd, WORLD.pond.x, WORLD.pond.z, 30, 16, 0.8, 1.3).filter((p) => Math.hypot(p.x - WORLD.pond.x, p.z - WORLD.pond.z) > WORLD.pond.r + 3));
@@ -261,6 +267,10 @@ export class World {
     flora('grave', graves);
     this.clouds = new CloudSea(LAYOUT.cloudSea.y);
     this.group.add(this.clouds.group);
+
+    // --- the fifth batch of reels: realms beyond the portals and the new island sites ---
+    const rrnd = rng(5150);
+    this.portals.push(...buildRealms({ group: this.group, place: (l) => this.place(l), flora, vfx, h, rnd: rrnd }));
 
     // --- NPCs ---
     for (const def of NPC_DEFS) {

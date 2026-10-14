@@ -1,5 +1,5 @@
 public/models/README.md regenerated
-100 registered models, 37 present, 63 files still to generate on Meshy (63 ids):
+139 registered models, 37 present, 102 files still to generate on Meshy (102 ids):
 
 - king               antlered-king.glb         1.95 m  
 - witch              witch.glb                 1.85 m  
@@ -64,3 +64,42 @@ public/models/README.md regenerated
 - cobblestone        cobblestone.glb           0.14 m  cobblestone
 - cypress            cypress.glb                  9 m  cypress
 - grave              grave.glb                  1.2 m  gravestone
+- round-tower        round-tower.glb             22 m  round medieval tower with lit windows and a conical roof (DeOemU1BOZF)
+- stone-throne       stone-throne.glb           3.2 m  grey stone throne of the skeleton king (DeOemU1BOZF)
+- coin-block         coin-block.glb             1.2 m  cracked stone block heaped with gold coins (DeOemU1BOZF)
+- purple-crystal     purple-crystal.glb         1.0 m  purple crystal (DeOemU1BOZF, DeaqHWJBBPw)
+- gothic-pavilion    gothic-pavilion.glb          9 m  gothic pavilion with a ribbed dome and round arched windows (DeXn5rSPxR8)
+- purple-house       purple-house.glb             9 m  half-timbered house with a purple roof (DeaqHWJBBPw)
+- purple-mushroom    purple-mushroom.glb        2.2 m  glowing purple mushroom (DeaqHWJBBPw)
+- galaxy-hall        galaxy-hall.glb             26 m  pillared hall with a river down its centre and crystal stalactites (Dd0wR9Jh2lH)
+- marble-throne      marble-throne.glb            4 m  cracked white marble throne (Dd0wR9Jh2lH)
+- ring-portal        ring-portal.glb              7 m  stone ring portal (DdyN2PNyIxb, DdnJDwBMUoj)
+- brazier            brazier.glb                1.4 m  stone fire brazier (DdyN2PNyIxb)
+- market-stall       market-stall.glb           3.5 m  thatched goblin market stall with lanterns (DdnJDwBMUoj)
+- crystal-ball       crystal-ball.glb           0.5 m  purple crystal ball on a stand (DdnJDwBMUoj)
+- dragon-riders      dragon-riders.glb            6 m  black dragon with gold horns carrying the skeleton lord and the blue knight (DeYtKbMh76x)
+- skeleton-lord      skeleton-lord.glb          1.9 m  skeleton lord in a black fur cloak and gold chains (DeXn5rSPxR8)
+- blue-knight        blue-knight.glb           1.95 m  blue plate knight with a goblet (DeXn5rSPxR8)
+- skeleton-king      skeleton-king.glb          2.0 m  crowned skeleton king with gold chains and a galaxy cloak (DeOemU1BOZF)
+- skeleton-wizard    skeleton-wizard.glb        1.9 m  skeleton wizard with a gold crystal staff (DeaqHWJBBPw)
+- galaxy-wizard      galaxy-wizard.glb          1.9 m  galaxy-robed wizard pouring a glowing potion (DeQ-NnpvqF6)
+- galaxy-king        galaxy-king.glb            2.6 m  crowned galaxy king with glowing eyes (Dd0wR9Jh2lH)
+- void-monk          void-monk.glb             1.85 m  hooded monk whose face is a galaxy (DdyN2PNyIxb)
+- bucket             bucket-mimic.glb           1.3 m  tooth-grinning bucket mimic on skeletal legs (DeaqHWJBBPw)
+- sunken-tavern      sunken-tavern.glb           12 m  underwater tavern with jellyfish windows and bottle shelves (DeVj-Z8POjl)
+- coral-throne       coral-throne.glb             3 m  coral throne (DeVj-Z8POjl)
+- jellyfish          jellyfish.glb              1.4 m  glowing jellyfish (DeVj-Z8POjl)
+- barrel             barrel.glb                 1.1 m  wooden barrel (DeVj-Z8POjl)
+- giant-crown        giant-crown.glb              3 m  giant golden crown hanging over the hearth (DeVj-Z8POjl)
+- fish-king          fish-king.glb              2.1 m  crowned fish king with a lantern and a chalice (DeVj-Z8POjl)
+- face-tree          face-tree.glb               12 m  tree with a carved stone face and a round door (DeQ-NnpvqF6)
+- stepping-stone     stepping-stone.glb         0.4 m  flat round stepping stone (DeQ-NnpvqF6)
+- hanging-lantern    hanging-lantern.glb        1.2 m  hanging lantern (DeQ-NnpvqF6)
+- mushroom-lamp      mushroom-lamp.glb          1.2 m  hanging glowing mushroom lamp (DaIqFavJWbd)
+- tavern-table       tavern-table.glb           1.0 m  long wooden tavern table with a pewter mug (DaIqFavJWbd)
+- world-tree         world-tree.glb              28 m  giant tree veined with glowing blue light (Ddn0A49tnW7)
+- rune-grave         rune-grave.glb             1.6 m  runic gravestone (Ddn0A49tnW7)
+- robed-priest       robed-priest.glb           1.9 m  robed figure raising its arms to the world tree (Ddn0A49tnW7)
+- spire-city         spire-city.glb              90 m  city of spires and aqueduct bridges beyond the cliffs (DdwXCyeSsXn)
+- crystalgolem       crystal-golem.glb          3.2 m  golem of blue crystal shards (Dd0wR9Jh2lH)
+- emberrider         ember-rider.glb            3.0 m  red-eyed rider on a black horse with a burning mane (Ddn0A49tnW7)

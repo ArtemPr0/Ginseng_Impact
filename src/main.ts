@@ -1,4 +1,6 @@
-import { DirectionalLight, FogExp2, HemisphereLight, PerspectiveCamera, Scene, Vector3 } from 'three';
+import { Color, DirectionalLight, FogExp2, HemisphereLight, PerspectiveCamera, Scene, Vector3 } from 'three';
+import { REALMS } from './data/world';
+import { Bubbles } from './world/Portal';
 import { yawToRotation } from './models/ModelRig';
 import { Audio } from './audio/Audio';
 import { Rig } from './characters/Rig';
@@ -38,7 +40,13 @@ inventory.shards = 40;
 inventory.add('moon-dew', 2);
 inventory.equip(inventory.add('hunters-bow'), 'archer', 'bow');
 const scene = new Scene();
-scene.fog = new FogExp2(PALETTE.fog, 0.0062);
+const islandFog = { color: new Color(PALETTE.fog), density: 0.0062 };
+const fog = new FogExp2(PALETTE.fog, islandFog.density);
+scene.fog = fog;
+const bubbles = new Bubbles();
+scene.add(bubbles.group);
+const fogTarget = new Color();
+let portalCooldown = 0;
 
 const camera = new PerspectiveCamera(65, renderer.aspect, 0.3, 600);
 const moon = new DirectionalLight(PALETTE.moon, 1.5);
@@ -250,6 +258,24 @@ game
         glide: input.locked && input.justPressed('Space'),
         climbHeld: false,
       }, world, dt);
+      // Portals: step into one to cross between the island and the realms.
+      portalCooldown -= dt;
+      if (portalCooldown <= 0) {
+        for (const l of area.portals) {
+          if (Math.hypot(controller.pos.x - l.at.x, controller.pos.z - l.at.z) > l.radius || Math.abs(controller.pos.y - l.at.y) > l.height) continue;
+          controller.pos = { x: l.to.x, y: world.heightAt(l.to.x, l.to.z) + 0.05, z: l.to.z };
+          controller.vel = { x: 0, y: 0, z: 0 };
+          controller.mode = 'ground';
+          controller.yaw = l.to.yaw;
+          tpc.yaw = l.to.cameraYaw;
+          wasLocked = false;
+          for (const c of companions) c.teleport(controller.pos.x, controller.pos.z, world.heightAt(controller.pos.x, controller.pos.z));
+          hud.announce(l.name);
+          audio.cast();
+          portalCooldown = 1.5;
+          break;
+        }
+      }
       if (controller.pos.y < -70) {
         controller.pos = { x: SPAWN.x, y: SPAWN.y, z: SPAWN.z };
         controller.vel = { x: 0, y: 0, z: 0 };
@@ -305,6 +331,13 @@ game
       skyEvents.update(dt, camera.position, auroraNear, kingNear);
       area.update(dt, camera.position, playerPos, talking);
       atmosphere.update(dt, playerPos, camera.position);
+      // Realm fog and the sunken city's bubbles.
+      const realm = REALMS.find((r) => Math.hypot(playerPos.x - r.x, playerPos.z - r.z) < r.radius);
+      fogTarget.set(realm ? realm.fog.color : islandFog.color);
+      fog.color.lerp(fogTarget, Math.min(1, dt * 3));
+      fog.density += ((realm ? realm.fog.density : islandFog.density) - fog.density) * Math.min(1, dt * 3);
+      bubbles.group.visible = !!realm?.underwater;
+      bubbles.update(dt, camera.position);
       if (weather.update(dt, playerPos) > 0) sky.flash = 1;
       hemi.intensity = 0.7 + sky.flash * 2.2;
       moon.intensity = 1.5 + sky.flash * 1.5;

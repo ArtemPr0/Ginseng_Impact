@@ -60,6 +60,9 @@ export class CloudSea {
   }
 
   update(dt: number, cam: { x: number; y: number; z: number }): void {
+    // The noise lives in world space, so the planes can follow the camera to the realms beyond the island.
+    this.group.position.x = cam.x;
+    this.group.position.z = cam.z;
     for (const m of this.mats) {
       m.uniforms.uTime.value += dt;
       m.uniforms.uCam.value = cam;

@@ -1,7 +1,7 @@
 import type { BrainParams } from '../combat/EnemyBrain';
 import type { Element } from '../combat/Elements';
 
-export type EnemyKind = 'beast' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking';
+export type EnemyKind = 'beast' | 'bucket' | 'crystalgolem' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking';
 
 export type BossAttackKind = 'slam' | 'boulder' | 'roar' | 'volley' | 'summon' | 'blink' | 'roots' | 'sweep' | 'breath' | 'charge' | 'bite';
 
@@ -36,6 +36,23 @@ export interface EnemyDef {
 }
 
 export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
+  // DeaqHWJBBPw: white buckets with grinning faces, full of blue crystals, scuttling on skeletal legs.
+  bucket: {
+    kind: 'bucket', name: 'Bucket Mimic', maxHp: 520, def: 25, atk: 62, speed: 3.4, element: 'stone', hover: 0, bodyRadius: 0.6, height: 1.3,
+    brain: { aggroRange: 16, attackRange: 2.0, windup: 0.4, recover: 0.8, attackCooldown: 0.5 }, respawn: 30, shards: [4, 9], drops: [{ itemId: 'rune-shard', chance: 0.4 }, { itemId: 'moon-dew', chance: 0.2 }],
+  },
+  // Dd0wR9Jh2lH: a humanoid of blue crystal shards walking rippled sand.
+  crystalgolem: {
+    kind: 'crystalgolem', stomp: true, name: 'Crystal Golem', maxHp: 1700, def: 90, atk: 120, speed: 2.4, element: 'stone', hover: 0, bodyRadius: 1.2, height: 3.2,
+    brain: { aggroRange: 20, attackRange: 3.2, windup: 0.7, recover: 1.0, attackCooldown: 0.6 }, respawn: 45, shards: [12, 20], drops: [{ itemId: 'rune-shard', chance: 0.8 }],
+  },
+  // Ddn0A49tnW7: a red-eyed rider on a black horse with a burning mane, through the dead wood.
+  emberrider: {
+    kind: 'emberrider', stomp: true, name: 'The Ember Rider', title: 'Who Rides the Dead Wood', maxHp: 6200, def: 70, atk: 150, speed: 6.5, element: 'blood', hover: 0, bodyRadius: 1.6, height: 3.0, boss: true,
+    brain: { aggroRange: 32, attackRange: 5, windup: 0.6, recover: 1.2, attackCooldown: 0.8 }, respawn: 200, shards: [140, 200],
+    attacks: [{ kind: 'charge', range: 26, windup: 0.7, recover: 1.3, weight: 3 }, { kind: 'breath', range: 10, windup: 0.9, recover: 1.4, weight: 2 }, { kind: 'roar', range: 14, windup: 0.9, recover: 1.2, weight: 1 }],
+    drops: [{ itemId: 'beast-fang', chance: 1 }, { itemId: 'moon-dew', chance: 1 }],
+  },
   beast: {
     kind: 'beast', name: 'Fog Beast', maxHp: 650, def: 30, atk: 85, speed: 6.5, element: 'rot', hover: 0, bodyRadius: 0.9, height: 1.5,
     brain: { aggroRange: 28, attackRange: 3.6, windup: 0.45, recover: 1.1, attackCooldown: 0.7 }, respawn: 35, shards: [8, 16], drops: [{ itemId: 'beast-fang', chance: 0.5 }, { itemId: 'moon-dew', chance: 0.3 }],
@@ -116,5 +133,10 @@ export const ENEMY_SPAWNS: ReadonlyArray<{ kind: EnemyKind; x: number; z: number
   { kind: 'beast', x: -38, z: 28 }, { kind: 'beast', x: -46, z: 19 },
   { kind: 'beast', x: 9, z: -34 }, { kind: 'beast', x: 18, z: -26 },
   { kind: 'beast', x: -7, z: -112 }, { kind: 'beast', x: 8, z: -109 },
+  // Crystal golems on the desert sand, the Ember Rider in the dead wood.
+  { kind: 'crystalgolem', x: 42, z: 56 }, { kind: 'crystalgolem', x: 56, z: 66 },
+  { kind: 'emberrider', x: -2, z: -92 },
+  // The bucket mimics' street in the galaxy city beyond the portal (see GALAXY in data/world.ts).
+  { kind: 'bucket', x: 975, z: 20 }, { kind: 'bucket', x: 966, z: 22 }, { kind: 'bucket', x: 958, z: 18 }, { kind: 'bucket', x: 984, z: 18 },
   { kind: 'beast', x: -65, z: 53 }, { kind: 'beast', x: 55, z: 59 }, { kind: 'beast', x: -24, z: -101 },
 ];

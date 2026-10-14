@@ -9,7 +9,7 @@ import { join, relative } from 'node:path';
 
 const ROOT = new URL('../src/', import.meta.url).pathname;
 const ALLOW = new Set([
-  'world/Terrain.ts', 'world/Water.ts', 'world/Grass.ts', 'world/CloudSea.ts', 'world/Walkways.ts', 'world/ModelLandmark.ts', 'world/Falls.ts', 'world/Stream.ts', 'world/Fire.ts',
+  'world/Terrain.ts', 'world/Water.ts', 'world/Grass.ts', 'world/CloudSea.ts', 'world/Walkways.ts', 'world/ModelLandmark.ts', 'world/Falls.ts', 'world/Stream.ts', 'world/Fire.ts', 'world/Portal.ts',
   'models/Placeholder.ts', 'models/ModelRig.ts', 'combat/Vfx.ts', 'combat/Loot.ts', 'combat/CombatSystem.ts',
   'characters/Rig.ts', // the weapon-trail ribbon only; the humanoid body comes from a GLB
 ]);

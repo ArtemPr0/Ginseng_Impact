@@ -132,3 +132,10 @@ export function witchBridgeDeck(streamX: number, bridgeZ: number, heightAt: Heig
   }
   return { object: g, footprints, deckY };
 }
+
+/** A flat stone floor slab whose top is at `top` (the realms' ground until their floor models exist). */
+export function floorSlab(x: number, z: number, top: number, w: number, d: number, rotY = 0): Landmark {
+  const g = new Group();
+  g.add(slab(w, 2, d, x, top - 1, z, rotY));
+  return { object: g, footprints: [{ kind: 'box', x, z, hw: w / 2, hd: d / 2, top, rotY }] };
+}

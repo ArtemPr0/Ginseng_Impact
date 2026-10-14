@@ -173,6 +173,92 @@ export const NPC_DEFS: NpcDef[] = [
     lines: ['...hic.'],
     behaviour: { kind: 'stand', pose: 'sit', yaw: Math.PI * 1.4 },
   },
+  // --- Fifth batch of reels ---
+  {
+    id: 'grumble', name: 'Grumble', title: 'Gnome of the Mushroom Tavern', weapon: 'staff',
+    model: 'gnome', accent: PALETTE.blood,
+    lines: ['Off my table. I was here before the table.', 'The lamps are mushrooms. The mushrooms are lamps. Nobody asks which came first.', 'Lift me again and I bite.'],
+    behaviour: { kind: 'stand', pose: 'watch', yaw: Math.PI / 2 },
+    shop: [{ itemId: 'lotus-tea', price: 28 }, { itemId: 'moon-dew', price: 34 }],
+  },
+  {
+    id: 'priest', name: 'The Root Priest', title: 'Keeper of the World Tree', weapon: 'staff',
+    model: 'robed-priest', accent: PALETTE.rune,
+    lines: ['The light runs up the bark like water runs down a hill. Backwards. Always backwards.', 'Every stone here has a name carved on it. Mine is not carved yet.', 'A rider burns through the dead wood at night. Let him pass.'],
+    behaviour: { kind: 'stand', pose: 'pray', yaw: -Math.PI / 2 },
+  },
+  {
+    id: 'lantern-witch', name: 'The Lantern Witch', title: 'Who Watches the Spire City', weapon: 'staff',
+    model: 'witch', accent: PALETTE.witch,
+    lines: ['The city across the water has more bridges than people.', 'Keep your lantern low. The aqueducts are listening.', 'I came to see the waterfalls. That was a long time ago.'],
+    behaviour: { kind: 'stand', pose: 'lantern', yaw: Math.PI },
+  },
+  {
+    id: 'skeleton-lord', name: 'The Skeleton Lord', title: 'Of the Domed Pavilion', weapon: 'sword',
+    model: 'skeleton-lord', accent: PALETTE.dusk,
+    lines: ['Sit. The wine is purple because the grapes were.', 'We ride the black dragon when the moon is full. Tonight it is merely large.', 'Gold teeth. One should smile at eternity.'],
+    behaviour: { kind: 'stand', pose: 'sit', yaw: Math.PI / 2 },
+  },
+  {
+    id: 'blue-knight', name: 'Sir Cobalt', title: 'The Blue Knight', weapon: 'sword',
+    model: 'blue-knight', accent: PALETTE.electric,
+    lines: ['To the city beyond the portal. To the galaxy over it.', 'My lord does not drink. He holds the goblet for the company.', 'For four hundred shards my sword is yours until the wine runs out.'],
+    behaviour: { kind: 'stand', pose: 'drink', yaw: -Math.PI / 2 },
+    hire: { cost: 400, atk: 105, maxHp: 2400, ranged: false },
+  },
+  {
+    id: 'skeleton-king', name: 'The Skeleton King', title: 'Counter of Coins', weapon: 'sword',
+    model: 'skeleton-king', accent: PALETTE.moon,
+    lines: ['Every coin on these stones was paid to cross the portal. Some paid twice.', 'Bring me what the great ones drop. I pay better than the antlered fool on the island.', 'The crystals grow from the ceiling because the ceiling is the sky.'],
+    behaviour: { kind: 'stand', pose: 'throne', yaw: 0 },
+    shop: [{ itemId: 'moon-dew', price: 26 }, { itemId: 'star-chart', price: 200 }],
+  },
+  {
+    id: 'skeleton-wizard', name: 'Old Hollowstaff', title: 'Skeleton Wizard of the Bucket Street', weapon: 'staff',
+    model: 'skeleton-wizard', accent: PALETTE.dusk,
+    lines: ['The buckets bite. They were wells once, and wells resent being dry.', 'My staff is gold because the crystal insisted.', 'Purple mushrooms mean the street is safe. Mostly.'],
+    behaviour: { kind: 'stand', yaw: 0 },
+  },
+  {
+    id: 'galaxy-wizard', name: 'The Star Brewer', title: 'Wizard of the Round Tower', weapon: 'staff',
+    model: 'galaxy-wizard', accent: PALETTE.dusk,
+    lines: ['Pink is the colour of a potion that has made up its mind.', 'Meteors fall past my window every night. I have stopped wishing.', 'One sip and you will see the city as I do. Thirty shards.'],
+    behaviour: { kind: 'stand', pose: 'stir', yaw: 0 },
+    shop: [{ itemId: 'lotus-tea', price: 30 }],
+  },
+  {
+    id: 'galaxy-king', name: 'The Galaxy King', title: 'Throne at the Head of the River Hall', weapon: 'sword',
+    model: 'galaxy-king', accent: PALETTE.cobalt,
+    lines: ['The river runs down my hall and out into the stars. Do not drink from it.', 'I was crowned by the night itself. It was not gentle.', 'Kneel, or stand. The pillars have seen both.'],
+    behaviour: { kind: 'stand', pose: 'throne', yaw: Math.PI / 2 },
+  },
+  {
+    id: 'void-monk', name: 'The Void Monk', title: 'Keeper of the Ring Portals', weapon: 'staff',
+    model: 'void-monk', accent: PALETTE.dusk,
+    lines: ['Each ring holds a sky. Only one of them leads home.', 'Step into the swirl to return to the island.', 'My face? It was a face. Now it is a door.'],
+    behaviour: { kind: 'stand', yaw: Math.PI },
+  },
+  {
+    id: 'market-a', name: 'Snaggle', title: 'Goblin Merchant of the Floating Isles', weapon: 'sword',
+    model: 'goblin', accent: PALETTE.witch,
+    lines: ['Crystal ball, slightly used, shows mostly next Tuesday.', 'Everything floats here. Prices too.', 'Mind the rope bridges. The ropes have opinions.'],
+    behaviour: { kind: 'stand', pose: 'offer', yaw: Math.PI / 2 },
+    shop: [{ itemId: 'moon-dew', price: 32 }, { itemId: 'rot-salve', price: 28 }],
+  },
+  {
+    id: 'market-b', name: 'Grizzle', title: 'Goblin Merchant of the Floating Isles', weapon: 'sword',
+    model: 'goblin', accent: PALETTE.blood,
+    lines: ['Lanterns! Lanterns that remember where you left them!', 'Snaggle overcharges. I overcharge less.'],
+    behaviour: { kind: 'stand', pose: 'offer', yaw: -Math.PI / 2 },
+    shop: [{ itemId: 'lotus-tea', price: 26 }],
+  },
+  {
+    id: 'fish-king', name: 'The Fish King', title: 'Host of the Sunken Tavern', weapon: 'staff',
+    model: 'fish-king', accent: PALETTE.rune,
+    lines: ['Welcome under the lake. Breathe if you like; it changes nothing down here.', 'The jellyfish are the lamps. The lamps are rude.', 'Drink from the purple chalice. Forty shards, and you will float a little.'],
+    behaviour: { kind: 'stand', pose: 'offer', yaw: Math.PI / 2 },
+    shop: [{ itemId: 'moon-dew', price: 40 }, { itemId: 'lotus-tea', price: 30 }],
+  },
 ];
 
 /** A talking, posed or wandering non-player character built on the party rig. */

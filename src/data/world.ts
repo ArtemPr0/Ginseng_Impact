@@ -64,4 +64,48 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   standard: { x: -54, z: -93 },
   'rose-knight': { x: 16, z: 34 }, maiden: { x: 18.2, z: 33 },
   'watcher-knight': { x: -18, z: -43 }, 'watcher-mage': { x: -15, z: -44 },
+  // Fifth batch of reels.
+  grumble: { x: -40, z: -24, dy: 1.0 },
+  priest: { x: -9, z: -96 },
+  'lantern-witch': { x: -114, z: 16 },
+  'skeleton-lord': { x: 1033, z: -55, dy: 0.5 }, 'blue-knight': { x: 1037, z: -55, dy: 0.5 },
+  'skeleton-king': { x: 965, z: -57, dy: 0.6 },
+  'skeleton-wizard': { x: 948, z: 20 },
+  'galaxy-wizard': { x: 952, z: -20 },
+  'galaxy-king': { x: 1000, z: -74, dy: 0.8 },
+  'void-monk': { x: 1008, z: 66 },
+  'market-a': { x: 1137, z: 11 }, 'market-b': { x: 1143, z: 19 },
+  'fish-king': { x: -1000, z: -10 },
 };
+
+/**
+ * Realms beyond the island, reached through portals. They float far out over the cloud sea on their own floors,
+ * so they never overlap the island's terrain. `fog` replaces the island fog while the player is inside.
+ */
+export interface RealmDef {
+  id: string;
+  name: string;
+  x: number;
+  z: number;
+  /** Walk surface height. */
+  y: number;
+  /** Half extent of the realm, for "is the player inside". */
+  radius: number;
+  fog: { color: number; density: number };
+  /** Bubbles and murk (the sunken city). */
+  underwater?: boolean;
+}
+
+/** The galaxy city beyond the portal (DeOemU1BOZF, DeaqHWJBBPw, DeXn5rSPxR8, DeQ-NnpvqF6, Dd0wR9Jh2lH, DdyN2PNyIxb, DdnJDwBMUoj). */
+export const GALAXY: RealmDef = { id: 'galaxy', name: 'The Galaxy City', x: 1000, z: 0, y: 24, radius: 190, fog: { color: 0x1d1650, density: 0.0075 } };
+/** The sunken city under the lake (DeVj-Z8POjl). */
+export const SUNKEN: RealmDef = { id: 'sunken', name: 'The Sunken City', x: -1000, z: 0, y: -48, radius: 90, fog: { color: 0x07304a, density: 0.034 }, underwater: true };
+export const REALMS: readonly RealmDef[] = [GALAXY, SUNKEN];
+
+/** Portal ends on the island. */
+export const ISLAND_PORTALS = {
+  /** The swirling portal at the end of the stepping stones by the face tree (DeQ-NnpvqF6). */
+  galaxy: { x: -56, z: -10, faceTree: { x: -47, z: -2 } },
+  /** The whirlpool in the lily pond: the way down to the sunken city. */
+  pond: { x: -18, z: -18, shore: { x: -3, z: -18 } },
+} as const;

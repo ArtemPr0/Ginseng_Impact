@@ -12,7 +12,7 @@ glb ("All added", "One file") → `node scripts/model-tools.mjs optimize <downlo
 Models should face +X; set `yaw` in the registry if a file faces another way. Clip names match by substring
 with alternatives (`"slam|attack|punch"`).
 
-100 registered, 37 present, 63 files to generate (63 ids).
+139 registered, 37 present, 102 files to generate (102 ids).
 
 | id | file | height (m) | what | status |
 |---|---|---|---|---|
@@ -116,3 +116,42 @@ with alternatives (`"slam|attack|punch"`).
 | `cobblestone` | cobblestone.glb | 0.14 | cobblestone | to generate |
 | `cypress` | cypress.glb | 9 | cypress | to generate |
 | `grave` | grave.glb | 1.2 | gravestone | to generate |
+| `round-tower` | round-tower.glb | 22 | round medieval tower with lit windows and a conical roof (DeOemU1BOZF) | to generate |
+| `stone-throne` | stone-throne.glb | 3.2 | grey stone throne of the skeleton king (DeOemU1BOZF) | to generate |
+| `coin-block` | coin-block.glb | 1.2 | cracked stone block heaped with gold coins (DeOemU1BOZF) | to generate |
+| `purple-crystal` | purple-crystal.glb | 1.0 | purple crystal (DeOemU1BOZF, DeaqHWJBBPw) | to generate |
+| `gothic-pavilion` | gothic-pavilion.glb | 9 | gothic pavilion with a ribbed dome and round arched windows (DeXn5rSPxR8) | to generate |
+| `purple-house` | purple-house.glb | 9 | half-timbered house with a purple roof (DeaqHWJBBPw) | to generate |
+| `purple-mushroom` | purple-mushroom.glb | 2.2 | glowing purple mushroom (DeaqHWJBBPw) | to generate |
+| `galaxy-hall` | galaxy-hall.glb | 26 | pillared hall with a river down its centre and crystal stalactites (Dd0wR9Jh2lH) | to generate |
+| `marble-throne` | marble-throne.glb | 4 | cracked white marble throne (Dd0wR9Jh2lH) | to generate |
+| `ring-portal` | ring-portal.glb | 7 | stone ring portal (DdyN2PNyIxb, DdnJDwBMUoj) | to generate |
+| `brazier` | brazier.glb | 1.4 | stone fire brazier (DdyN2PNyIxb) | to generate |
+| `market-stall` | market-stall.glb | 3.5 | thatched goblin market stall with lanterns (DdnJDwBMUoj) | to generate |
+| `crystal-ball` | crystal-ball.glb | 0.5 | purple crystal ball on a stand (DdnJDwBMUoj) | to generate |
+| `dragon-riders` | dragon-riders.glb | 6 | black dragon with gold horns carrying the skeleton lord and the blue knight (DeYtKbMh76x) | to generate |
+| `skeleton-lord` | skeleton-lord.glb | 1.9 | skeleton lord in a black fur cloak and gold chains (DeXn5rSPxR8) | to generate |
+| `blue-knight` | blue-knight.glb | 1.95 | blue plate knight with a goblet (DeXn5rSPxR8) | to generate |
+| `skeleton-king` | skeleton-king.glb | 2.0 | crowned skeleton king with gold chains and a galaxy cloak (DeOemU1BOZF) | to generate |
+| `skeleton-wizard` | skeleton-wizard.glb | 1.9 | skeleton wizard with a gold crystal staff (DeaqHWJBBPw) | to generate |
+| `galaxy-wizard` | galaxy-wizard.glb | 1.9 | galaxy-robed wizard pouring a glowing potion (DeQ-NnpvqF6) | to generate |
+| `galaxy-king` | galaxy-king.glb | 2.6 | crowned galaxy king with glowing eyes (Dd0wR9Jh2lH) | to generate |
+| `void-monk` | void-monk.glb | 1.85 | hooded monk whose face is a galaxy (DdyN2PNyIxb) | to generate |
+| `bucket` | bucket-mimic.glb | 1.3 | tooth-grinning bucket mimic on skeletal legs (DeaqHWJBBPw) | to generate |
+| `sunken-tavern` | sunken-tavern.glb | 12 | underwater tavern with jellyfish windows and bottle shelves (DeVj-Z8POjl) | to generate |
+| `coral-throne` | coral-throne.glb | 3 | coral throne (DeVj-Z8POjl) | to generate |
+| `jellyfish` | jellyfish.glb | 1.4 | glowing jellyfish (DeVj-Z8POjl) | to generate |
+| `barrel` | barrel.glb | 1.1 | wooden barrel (DeVj-Z8POjl) | to generate |
+| `giant-crown` | giant-crown.glb | 3 | giant golden crown hanging over the hearth (DeVj-Z8POjl) | to generate |
+| `fish-king` | fish-king.glb | 2.1 | crowned fish king with a lantern and a chalice (DeVj-Z8POjl) | to generate |
+| `face-tree` | face-tree.glb | 12 | tree with a carved stone face and a round door (DeQ-NnpvqF6) | to generate |
+| `stepping-stone` | stepping-stone.glb | 0.4 | flat round stepping stone (DeQ-NnpvqF6) | to generate |
+| `hanging-lantern` | hanging-lantern.glb | 1.2 | hanging lantern (DeQ-NnpvqF6) | to generate |
+| `mushroom-lamp` | mushroom-lamp.glb | 1.2 | hanging glowing mushroom lamp (DaIqFavJWbd) | to generate |
+| `tavern-table` | tavern-table.glb | 1.0 | long wooden tavern table with a pewter mug (DaIqFavJWbd) | to generate |
+| `world-tree` | world-tree.glb | 28 | giant tree veined with glowing blue light (Ddn0A49tnW7) | to generate |
+| `rune-grave` | rune-grave.glb | 1.6 | runic gravestone (Ddn0A49tnW7) | to generate |
+| `robed-priest` | robed-priest.glb | 1.9 | robed figure raising its arms to the world tree (Ddn0A49tnW7) | to generate |
+| `spire-city` | spire-city.glb | 90 | city of spires and aqueduct bridges beyond the cliffs (DdwXCyeSsXn) | to generate |
+| `crystalgolem` | crystal-golem.glb | 3.2 | golem of blue crystal shards (Dd0wR9Jh2lH) | to generate |
+| `emberrider` | ember-rider.glb | 3.0 | red-eyed rider on a black horse with a burning mane (Ddn0A49tnW7) | to generate |
