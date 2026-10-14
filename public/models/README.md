@@ -12,7 +12,7 @@ glb ("All added", "One file") → `node scripts/model-tools.mjs optimize <downlo
 Models should face +X; set `yaw` in the registry if a file faces another way. Clip names match by substring
 with alternatives (`"slam|attack|punch"`).
 
-92 registered, 16 present, 76 to generate.
+107 registered, 16 present, 90 files to generate (91 ids).
 
 | id | file | height (m) | what | status |
 |---|---|---|---|---|
@@ -96,15 +96,30 @@ with alternatives (`"slam|attack|punch"`).
 | `pilgrim` | pilgrim.glb | 1.8 | river pilgrim | to generate |
 | `ogre` | log-giant.glb | 3.1 | ogre woodhauler (Grub) — reuses the log giant | present |
 | `pine` | pine.glb | 13 | pine tree | to generate |
+| `snow-pine` | snow-pine.glb | 13 | snow-laden pine | to generate |
 | `birch` | birch.glb | 11 | birch | to generate |
+| `willow` | willow.glb | 9 | willow | to generate |
+| `palm` | palm.glb | 8 | palm | to generate |
 | `gnarled-tree` | gnarled-tree.glb | 6 | gnarled orchard tree | to generate |
+| `dead-tree` | dead-tree.glb | 5.5 | bare dead tree | to generate |
 | `dead-forest-tree` | dead-forest-tree.glb | 8 | dead forest tree | to generate |
+| `flower-tree` | flower-tree.glb | 10 | glowing flower tree | to generate |
 | `floating-island` | floating-island.glb | 6 | small floating rock island | to generate |
 | `giant-mushroom` | giant-mushroom.glb | 8 | giant mushroom | to generate |
+| `mushroom` | mushroom.glb | 0.45 | small glowing mushroom | to generate |
 | `sunflower` | sunflower.glb | 1.5 | blue sunflower | to generate |
+| `flower` | flower.glb | 0.35 | meadow flower | to generate |
 | `giant-flower` | giant-flower.glb | 3 | giant cosmos flower | to generate |
+| `rose-bush` | rose-bush.glb | 0.9 | rose bush | to generate |
 | `boulder` | boulder.glb | 1.2 | boulder | to generate |
+| `ice-crystal` | ice-crystal.glb | 2.4 | ice crystal cluster | to generate |
 | `pod-tree` | pod-tree.glb | 22 | tree with hanging glowing pods | to generate |
+| `coral` | coral.glb | 1.6 | coral bush | to generate |
 | `reed` | reed.glb | 2.4 | reed clump | to generate |
+| `lily-pad` | lily-pad.glb | 0.9 | lily pad | to generate |
+| `lotus` | lotus.glb | 0.5 | lotus flower | to generate |
 | `fallen-leaf` | fallen-leaf.glb | 0.28 | fallen leaf | to generate |
+| `fallen-fruit` | fallen-fruit.glb | 0.35 | fallen fruit | to generate |
 | `cobblestone` | cobblestone.glb | 0.14 | cobblestone | to generate |
+| `cypress` | cypress.glb | 9 | cypress | to generate |
+| `grave` | grave.glb | 1.2 | gravestone | to generate |

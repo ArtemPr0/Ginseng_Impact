@@ -1,4 +1,4 @@
-92 registered models, 16 present, 76 still to generate on Meshy:
+107 registered models, 16 present, 90 files still to generate on Meshy (91 ids):
 
 - rivershade         river-shade.glb              5 m  
 - passbeast          fog-beast.glb              3.8 m  
@@ -64,15 +64,30 @@
 - goblin             goblin.glb                1.15 m  tavern goblin (Snik, Vrak)
 - pilgrim            pilgrim.glb                1.8 m  river pilgrim
 - pine               pine.glb                    13 m  pine tree
+- snow-pine          snow-pine.glb               13 m  snow-laden pine
 - birch              birch.glb                   11 m  birch
+- willow             willow.glb                   9 m  willow
+- palm               palm.glb                     8 m  palm
 - gnarled-tree       gnarled-tree.glb             6 m  gnarled orchard tree
+- dead-tree          dead-tree.glb              5.5 m  bare dead tree
 - dead-forest-tree   dead-forest-tree.glb         8 m  dead forest tree
+- flower-tree        flower-tree.glb             10 m  glowing flower tree
 - floating-island    floating-island.glb          6 m  small floating rock island
 - giant-mushroom     giant-mushroom.glb           8 m  giant mushroom
+- mushroom           mushroom.glb              0.45 m  small glowing mushroom
 - sunflower          sunflower.glb              1.5 m  blue sunflower
+- flower             flower.glb                0.35 m  meadow flower
 - giant-flower       giant-flower.glb             3 m  giant cosmos flower
+- rose-bush          rose-bush.glb              0.9 m  rose bush
 - boulder            boulder.glb                1.2 m  boulder
+- ice-crystal        ice-crystal.glb            2.4 m  ice crystal cluster
 - pod-tree           pod-tree.glb                22 m  tree with hanging glowing pods
+- coral              coral.glb                  1.6 m  coral bush
 - reed               reed.glb                   2.4 m  reed clump
+- lily-pad           lily-pad.glb               0.9 m  lily pad
+- lotus              lotus.glb                  0.5 m  lotus flower
 - fallen-leaf        fallen-leaf.glb           0.28 m  fallen leaf
+- fallen-fruit       fallen-fruit.glb          0.35 m  fallen fruit
 - cobblestone        cobblestone.glb           0.14 m  cobblestone
+- cypress            cypress.glb                  9 m  cypress
+- grave              grave.glb                  1.2 m  gravestone
