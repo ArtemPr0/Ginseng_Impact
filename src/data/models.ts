@@ -4,7 +4,7 @@
  *
  * Clip names are matched case-insensitively and by substring, so "Idle", "idle_01" and "Armature|Idle" all work.
  */
-export type ClipName = 'idle' | 'walk' | 'run' | 'jump' | 'attack' | 'heavy' | 'cast' | 'hit' | 'death' | 'sit' | 'kneel' | 'roar' | 'fly';
+export type ClipName = 'idle' | 'walk' | 'run' | 'jump' | 'attack' | 'heavy' | 'cast' | 'hit' | 'death' | 'sit' | 'kneel' | 'roar' | 'fly' | 'drink' | 'bow' | 'lantern' | 'offer';
 
 export interface ModelDef {
   file: string;
@@ -37,7 +37,15 @@ export interface ModelDef {
   grip?: { x: number; y: number; z: number; rx: number; ry: number; rz: number; slide: number };
 }
 
-const NPC_CLIPS = (pose: string): Partial<Record<ClipName, string>> => ({ idle: `${pose}|idle_02|idle|stance`, walk: 'walking|walk', run: 'running|run', attack: 'attack|slash|cast', hit: 'hit', death: 'dying|death', sit: 'sit|drink|read|idle', kneel: 'kneel|pray|idle' });
+/**
+ * One clip map for every NPC body (Meshy biped presets: Idle_02, Walking, Running, Chair_Sit_Idle_M, Sit_and_Drink,
+ * Kneel_on_One_Knee_and_Stand, Formal_Bow, Torch_Look_Around, Attack). Rig maps a pose to these keys; a body
+ * without a clip falls back to idle. `_pose` is kept for call-site readability.
+ */
+const NPC_CLIPS = (_pose: string): Partial<Record<ClipName, string>> => ({
+  idle: 'idle_02|idle|stance|combat', walk: 'walking|walk', run: 'running|run', attack: 'attack|slash|cast', hit: 'hit', death: 'dying|death',
+  sit: 'chair_sit|sit_and_drink|sit', drink: 'sit_and_drink|drink|chair_sit', kneel: 'kneel|chair_sit', bow: 'formal_bow|bow', lantern: 'torch_look_around|torch', cast: 'charged_spell|spell|cast',
+});
 const stat = (file: string, height: number, label: string): ModelDef => ({ file, height, label });
 
 /**
@@ -78,8 +86,8 @@ export const MODELS: Record<string, ModelDef> = {
   loggiant: { file: 'log-giant.glb', height: 7.5, clips: { idle: 'idle|stance', walk: 'carry|walking|walk' } },
   spiderchapel: { file: 'spider-chapel.glb', height: 34, clips: { idle: 'idle', walk: 'walk|crawl|run' } },
   colossus: { file: 'moon-shell-colossus.glb', height: 18, clips: { idle: 'crawl' } },
-  king: { file: 'antlered-king.glb', height: 1.95, clips: { idle: 'sit', sit: 'sit' } },
-  witch: { file: 'witch.glb', height: 1.85, clips: { idle: 'idle', walk: 'walk', cast: 'cast' } },
+  king: { file: 'antlered-king.glb', height: 1.95, label: 'the Antlered King (DedGUYetKjP)', clips: NPC_CLIPS('throne') },
+  witch: { file: 'witch.glb', height: 1.85, label: 'coven witch in a pointed hat (DeWji_1PuKW)' },
   // Landmarks (static)
   head: { file: 'giant-head.glb', height: 52, label: 'giant stone head with red eyes' },
   cathedral: { file: 'cathedral.glb', height: 118 },
@@ -122,10 +130,10 @@ export const MODELS: Record<string, ModelDef> = {
   koi: { file: 'flying-koi.glb', height: 1.2, label: 'flying koi', clips: { idle: 'swim|idle' } },
   snake: { file: 'snake.glb', height: 0.6, label: 'coiled snake', clips: { idle: 'idle' } },
   // NPC bodies (humanoid rigs; the pose name is the idle clip)
-  'knight-npc': { file: 'knight-npc.glb', height: 1.9, label: 'armoured knight: tavern, rowing, kneeling, watching (DdfKgLsBmoA, DdjlyzyOcnK, DdKl7fKMO75)', clips: { ...NPC_CLIPS('idle'), sit: 'chair_sit|sit', kneel: 'kneel' } },
+  'knight-npc': { file: 'knight-npc.glb', height: 1.9, label: 'armoured knight: tavern, rowing, kneeling, watching (DdfKgLsBmoA, DdjlyzyOcnK, DdKl7fKMO75)', clips: NPC_CLIPS('idle') },
   'knight-seated': { file: 'knight-seated.glb', height: 1.95, label: 'caped greatsword knight sitting on the cliff (Sir Halvard)', clips: NPC_CLIPS('sit') },
   'knight-rose': { file: 'knight-rose.glb', height: 1.95, label: 'black knight offering a rose (Sir Corvin)', clips: NPC_CLIPS('offer') },
-  skeleton: { file: 'skeleton.glb', height: 1.75, label: 'skeletons at the campfire (DdjlyzyOcnK)', clips: { ...NPC_CLIPS('chair_sit'), sit: 'chair_sit|sit' } },
+  skeleton: { file: 'skeleton.glb', height: 1.75, label: 'skeletons at the campfire (DdjlyzyOcnK)', clips: NPC_CLIPS('sit') },
   'skeleton-banner': { file: 'skeleton-banner.glb', height: 1.85, label: 'skeleton standard-bearer with banner and trident (Hollow Jack)', clips: NPC_CLIPS('banner') },
   'witch-cook': { file: 'witch-cook.glb', height: 1.8, label: 'skeleton cook in a chef hat with a spoon (Mother Marrow)', clips: NPC_CLIPS('stir') },
   bride: { file: 'bride.glb', height: 1.8, label: 'the Pale Bride', clips: NPC_CLIPS('walk') },
@@ -169,12 +177,12 @@ export const MODELS: Record<string, ModelDef> = {
   'market-stall': stat('market-stall.glb', 3.5, 'thatched goblin market stall with lanterns (DdnJDwBMUoj)'),
   'crystal-ball': stat('crystal-ball.glb', 0.5, 'purple crystal ball on a stand (DdnJDwBMUoj)'),
   'dragon-riders': { file: 'dragon-riders.glb', height: 6, label: 'black dragon with gold horns carrying the skeleton lord and the blue knight (DeYtKbMh76x)', clips: { idle: 'fly|idle', fly: 'fly' } },
-  'skeleton-lord': { file: 'skeleton-lord.glb', height: 1.9, label: 'skeleton lord in a black fur cloak and gold chains (DeXn5rSPxR8)', clips: { ...NPC_CLIPS('chair_sit'), sit: 'chair_sit|sit' } },
-  'blue-knight': { file: 'blue-knight.glb', height: 1.95, label: 'blue plate knight with a goblet (DeXn5rSPxR8)', clips: { ...NPC_CLIPS('sit_and_drink'), sit: 'chair_sit|sit' } },
-  'skeleton-king': { file: 'skeleton-king.glb', height: 2.0, label: 'crowned skeleton king with gold chains and a galaxy cloak (DeOemU1BOZF)', clips: { ...NPC_CLIPS('chair_sit'), sit: 'chair_sit|sit' } },
+  'skeleton-lord': { file: 'skeleton-lord.glb', height: 1.9, label: 'skeleton lord in a black fur cloak and gold chains (DeXn5rSPxR8)', clips: NPC_CLIPS('sit') },
+  'blue-knight': { file: 'blue-knight.glb', height: 1.95, label: 'blue plate knight with a goblet (DeXn5rSPxR8)', clips: NPC_CLIPS('drink') },
+  'skeleton-king': { file: 'skeleton-king.glb', height: 2.0, label: 'crowned skeleton king with gold chains and a galaxy cloak (DeOemU1BOZF)', clips: NPC_CLIPS('sit') },
   'skeleton-wizard': { file: 'skeleton-wizard.glb', height: 1.9, label: 'skeleton wizard with a gold crystal staff (DeaqHWJBBPw)', clips: NPC_CLIPS('idle') },
   'galaxy-wizard': { file: 'galaxy-wizard.glb', height: 1.9, label: 'galaxy-robed wizard pouring a glowing potion (DeQ-NnpvqF6)', clips: NPC_CLIPS('idle') },
-  'galaxy-king': { file: 'galaxy-king.glb', height: 2.6, label: 'crowned galaxy king with glowing eyes (Dd0wR9Jh2lH)', clips: { ...NPC_CLIPS('chair_sit'), sit: 'chair_sit|sit' } },
+  'galaxy-king': { file: 'galaxy-king.glb', height: 2.6, label: 'crowned galaxy king with glowing eyes (Dd0wR9Jh2lH)', clips: NPC_CLIPS('sit') },
   'void-monk': { file: 'void-monk.glb', height: 1.85, label: 'hooded monk whose face is a galaxy (DdyN2PNyIxb)', clips: NPC_CLIPS('idle') },
   bucket: { file: 'bucket-mimic.glb', height: 1.3, label: 'tooth-grinning bucket mimic on skeletal legs (DeaqHWJBBPw)', clips: BOSS_CLIPS },
   // The sunken city under the lake (DeVj-Z8POjl)
