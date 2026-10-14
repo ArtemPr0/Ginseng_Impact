@@ -1,17 +1,25 @@
 import { DirectionalLight, FogExp2, HemisphereLight, PerspectiveCamera, Scene, Vector3 } from 'three';
+import { Rig } from './characters/Rig';
+import { ROSTER } from './characters/roster';
 import { Game } from './core/Game';
+import { Input } from './core/Input';
+import { CONTROLLER, createControllerState, stepController } from './player/CharacterController';
+import { Party } from './player/Party';
+import { ThirdPersonCamera } from './player/ThirdPersonCamera';
 import { PALETTE } from './render/palette';
 import { Renderer } from './render/Renderer';
 import { Sky } from './render/Sky';
+import { Hud } from './ui/Hud';
 import { Terrain } from './world/Terrain';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const renderer = new Renderer(canvas);
+const input = new Input(canvas);
+const hud = new Hud(document.getElementById('hud')!);
 const scene = new Scene();
 scene.fog = new FogExp2(PALETTE.fog, 0.0085);
 
 const camera = new PerspectiveCamera(65, renderer.aspect, 0.3, 600);
-
 const moon = new DirectionalLight(PALETTE.moon, 1.4);
 const sky = new Sky();
 moon.position.copy(sky.moonDir).multiplyScalar(200);
@@ -20,11 +28,20 @@ scene.add(moon, new HemisphereLight(PALETTE.cobalt, PALETTE.abyss, 1.0), sky.gro
 const terrain = new Terrain();
 scene.add(terrain.mesh);
 
-// M0 hero view: standing at the spawn end of the causeway line, looking north across the chasm.
-const eye = new Vector3(0, terrain.heightAt(0, 120) + 2.2, 120);
-const target = new Vector3(0, 14, -200);
-camera.position.copy(eye);
-camera.lookAt(target);
+// --- player ---
+const SPAWN = new Vector3(0, 0, 120);
+SPAWN.y = terrain.heightAt(SPAWN.x, SPAWN.z);
+const controller = createControllerState(SPAWN);
+const party = new Party(ROSTER);
+const rigs = ROSTER.map((def) => new Rig(def));
+for (const r of rigs) {
+  r.root.visible = false;
+  scene.add(r.root);
+}
+rigs[party.activeIndex].root.visible = true;
+const tpc = new ThirdPersonCamera(camera, terrain);
+tpc.snapTo(new Vector3(SPAWN.x, SPAWN.y + 1.4, SPAWN.z));
+hud.setParty(ROSTER, party.activeIndex);
 
 window.addEventListener('resize', () => {
   renderer.resize(window.innerWidth, window.innerHeight);
@@ -32,23 +49,58 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
 });
 
-let t = 0;
+const focus = new Vector3();
 const game = new Game()
   .add({
     update(dt) {
-      t += dt;
-      camera.position.x = eye.x + Math.sin(t * 0.08) * 6;
-      camera.position.y = eye.y + Math.sin(t * 0.05) * 0.6;
-      camera.lookAt(target);
+      const { dx, dy } = input.takeMouseDelta();
+      if (input.locked) tpc.rotate(dx, dy);
+      party.update(dt);
+      for (let i = 0; i < ROSTER.length; i++) {
+        if (input.justPressed(`Digit${i + 1}`)) {
+          const swap = party.switchTo(i);
+          if (swap) {
+            rigs[swap.from].root.visible = false;
+            rigs[swap.to].root.visible = true;
+            hud.setParty(ROSTER, swap.to);
+          }
+        }
+      }
+      const move = input.locked ? tpc.moveToWorld(input.moveAxis()) : { x: 0, z: 0 };
+      stepController(controller, {
+        move,
+        sprint: input.isDown('ShiftLeft') || input.isDown('ShiftRight'),
+        jump: input.locked && input.justPressed('Space'),
+        jumpHeld: input.isDown('Space'),
+        glide: false,
+        climbHeld: false,
+      }, terrain, dt);
+      if (controller.pos.y < -70) {
+        controller.pos = { x: SPAWN.x, y: SPAWN.y, z: SPAWN.z };
+        controller.vel = { x: 0, y: 0, z: 0 };
+        controller.mode = 'ground';
+      }
+      hud.setStamina(controller.stamina, CONTROLLER.maxStamina);
+      input.endStep();
     },
-    render() {
+    render(_alpha, dt) {
+      const rig = rigs[party.activeIndex];
+      rig.root.position.set(controller.pos.x, controller.pos.y, controller.pos.z);
+      rig.root.rotation.y = -controller.yaw - Math.PI / 2;
+      rig.animate({ mode: controller.mode, speed: Math.hypot(controller.vel.x, controller.vel.z) }, dt);
+      rig.setShadowHeight(terrain.heightAt(controller.pos.x, controller.pos.z));
+      focus.set(controller.pos.x, controller.pos.y + 1.4, controller.pos.z);
+      tpc.update(focus, dt);
       sky.follow(camera.position);
+      hud.setLocked(input.locked);
       renderer.render(scene, camera);
     },
   });
 game.start();
 
 declare global {
-  interface Window { __ginseng: { scene: Scene; camera: PerspectiveCamera; terrain: Terrain; sky: Sky } }
+  interface Window {
+    __ginseng: { scene: Scene; camera: PerspectiveCamera; terrain: Terrain; sky: Sky; controller: typeof controller; party: Party<(typeof ROSTER)[number]>; tpc: ThirdPersonCamera; input: Input };
+  }
 }
-window.__ginseng = { scene, camera, terrain, sky };
+window.__ginseng = { scene, camera, terrain, sky, controller, party, tpc, input };

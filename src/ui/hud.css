@@ -15,3 +15,32 @@ body { font-family: var(--font-body); color: var(--moon); }
   image-rendering: pixelated; image-rendering: crisp-edges;
 }
 #hud { position: fixed; inset: 0; pointer-events: none; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 2px;
+  box-shadow: inset 0 0 12px rgba(26, 44, 255, 0.25);
+}
+.hud-prompt {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 18px; background: rgba(5, 6, 15, 0.35); pointer-events: none;
+}
+.hud-wordmark {
+  font-family: var(--font-title); font-weight: 700; font-size: clamp(36px, 6vw, 72px); letter-spacing: 0.3em; color: var(--moon);
+  text-shadow: 0 0 1px var(--electric), 0 0 2px var(--electric);
+}
+.hud-press { font-family: var(--font-title); font-size: 16px; letter-spacing: 0.2em; color: var(--electric); animation: blink 1s steps(2, end) infinite; }
+.hud-controls { font-size: 12px; letter-spacing: 0.08em; color: var(--cloth); opacity: 0.8; }
+@keyframes blink { 50% { opacity: 0.2; } }
+.hud-active { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); min-width: 260px; padding: 8px 16px 10px; text-align: center; }
+.hud-name { font-family: var(--font-title); font-weight: 700; font-size: 20px; letter-spacing: 0.12em; text-transform: uppercase; }
+.hud-title { font-size: 11px; letter-spacing: 0.1em; color: var(--cloth); text-transform: uppercase; margin-top: 2px; }
+.hud-stamina-wrap { height: 4px; margin-top: 8px; background: var(--abyss); transition: opacity 120ms steps(3, end); }
+.hud-stamina { height: 100%; background: var(--electric); width: 100%; }
+.hud-party { position: absolute; right: 24px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 10px; }
+.hud-portrait { width: 72px; height: 72px; position: relative; display: flex; align-items: flex-end; justify-content: center; border-left: 3px solid var(--el); transition: transform 100ms steps(2, end); }
+.hud-portrait.active { transform: scale(1.15); border-color: var(--electric); box-shadow: inset 0 0 12px rgba(79, 124, 255, 0.45), 0 0 0 1px var(--electric); }
+.hud-portrait-key { position: absolute; top: 4px; left: 6px; font-family: var(--font-title); font-size: 11px; color: var(--cloth); }
+.hud-portrait-name { font-family: var(--font-title); font-size: 11px; letter-spacing: 0.08em; padding-bottom: 6px; color: var(--moon); text-transform: uppercase; }
+#hud:not(.locked) .hud-active, #hud:not(.locked) .hud-party { opacity: 0.35; }
