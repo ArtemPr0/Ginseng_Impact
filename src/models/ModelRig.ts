@@ -1,20 +1,46 @@
-import { AnimationAction, AnimationClip, AnimationMixer, Box3, Group, LoopOnce, LoopRepeat, Mesh, Object3D, Vector3 } from 'three';
+import { AnimationAction, AnimationClip, AnimationMixer, Box3, Group, LoopOnce, LoopRepeat, Mesh, type MeshStandardMaterial, Object3D, Vector3 } from 'three';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { MODELS, type ModelDef } from '../data/models';
 
 const loader = new GLTFLoader();
-const cache = new Map<string, Promise<GLTF | null>>();
+const files = new Map<string, Promise<GLTF | null>>();
+const models = new Map<string, Promise<GLTF | null>>();
 
-/** Loads a GLB once; resolves null when the file is missing so callers keep the procedural fallback. */
+/** Fetches one GLB once; null when it is missing (the dev server answers 404 or an HTML fallback). */
+function fetchGlb(file: string): Promise<GLTF | null> {
+  let p = files.get(file);
+  if (!p) {
+    p = fetch(`/models/${file}`, { method: 'HEAD' })
+      .then((r) => { const ct = (r.headers.get('content-type') ?? '').toLowerCase(); return r.ok && (ct.includes('octet') || ct.includes('gltf') || ct.includes('glb')) ? loader.loadAsync(`/models/${file}`) : null; })
+      .catch(() => null);
+    files.set(file, p);
+  }
+  return p;
+}
+
+/**
+ * Loads a model once; resolves null when its file is missing so callers keep the procedural fallback.
+ * Clips that live in their own files (`clipFiles`, one animation per GLB as Meshy exports them) are
+ * appended to the base model's animation list under their clip key, so `play('walk')` finds them.
+ */
 export function loadModel(id: string): Promise<GLTF | null> {
   const def = MODELS[id];
   if (!def) return Promise.resolve(null);
-  let p = cache.get(def.file);
+  let p = models.get(id);
   if (!p) {
-    p = fetch(`/models/${def.file}`, { method: 'HEAD' })
-      .then((r) => { const ct = (r.headers.get('content-type') ?? '').toLowerCase(); return r.ok && (ct.includes('octet') || ct.includes('gltf') || ct.includes('glb')) ? loader.loadAsync(`/models/${def.file}`) : null; })
-      .catch(() => null);
-    cache.set(def.file, p);
+    p = fetchGlb(def.file).then(async (base) => {
+      if (!base) return null;
+      if (def.clipFiles) {
+        const extra = await Promise.all(Object.entries(def.clipFiles).map(([key, file]) => fetchGlb(file as string).then((g) => ({ key, g }))));
+        for (const { key, g } of extra) {
+          if (!g) continue;
+          for (const clip of g.animations) { const c = clip.clone(); c.name = key; base.animations.push(c); }
+        }
+      }
+      return base;
+    });
+    models.set(id, p);
   }
   return p;
 }
@@ -35,8 +61,21 @@ export class ModelRig {
 
   constructor(readonly id: string, gltf: GLTF) {
     const def = MODELS[id];
-    const scene = gltf.scene;
-    scene.traverse((o) => { if ((o as Mesh).isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    // Each rig gets its own copy (skinned meshes need SkeletonUtils so bones and skeletons are duplicated together).
+    const scene = cloneSkinned(gltf.scene) as Group;
+    scene.traverse((o) => {
+      if (!(o as Mesh).isMesh) return;
+      o.castShadow = true;
+      o.receiveShadow = true;
+      o.frustumCulled = false;
+      // Meshy textures are unlit and often near-black; a faint cobalt self-light keeps the silhouette readable at night.
+      const mats = Array.isArray((o as Mesh).material) ? ((o as Mesh).material as MeshStandardMaterial[]) : [(o as Mesh).material as MeshStandardMaterial];
+      for (const m of mats) {
+        if (!m || !('emissive' in m)) continue;
+        if (m.emissive.getHex() === 0) { m.emissive.setHex(0x16224e); m.emissiveIntensity = 0.42; }
+        m.roughness = Math.max(m.roughness ?? 1, 0.6);
+      }
+    });
     // Normalise: scale to height, centre on x/z, feet at y = 0.
     const box = new Box3().setFromObject(scene);
     const size = new Vector3();
@@ -61,8 +100,12 @@ export class ModelRig {
 
   private find(key: ClipKey | string): AnimationAction | null {
     const def = MODELS[this.id];
-    const wanted = (def.clips?.[key as ClipKey] ?? key).toLowerCase();
-    for (const [name, action] of this.actions) if (name === wanted || name.includes(wanted)) return action;
+    // A clip entry may list alternatives ("slam|attack|punch"); the first alternative with a match wins.
+    const wanted = (def.clips?.[key as ClipKey] ?? key).toLowerCase().split('|');
+    for (const w of wanted) {
+      for (const [name, action] of this.actions) if (name === w) return action;
+      for (const [name, action] of this.actions) if (name.includes(w)) return action;
+    }
     return null;
   }
 

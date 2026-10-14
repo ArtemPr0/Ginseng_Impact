@@ -47,12 +47,26 @@ Blood + Astral = **Overload** (knockback splash).
 
 ## Bosses, loot, trade and hiring
 
+New in the third pass: **The Gorge Troll** (north-west gorge), **The Lake Lurker** (lily pond), **The Marsh Sovereign** (flooded
+nave east of the river) and **The Hollow King** (seated colossus by the northern mountains, with a sky of watching eyes). The
+log-hauling stone giant walks the village street and the chapel-carrying spider patrols the west woods; neither can be fought.
+
 Six bosses with their own attack patterns roam the island: the Yeti (slam, boulders, roar) in the frozen grove, the Horned Shade
 (volleys, summons, blink, sweep) in the dead forest, the Antlered Warden (root spikes, sweeps, slams) wading the great river, the
 Moon Wyrm (frost breath, dives) circling the castle, the River Shade rising from the coven stream and the Pass Beast below the peak.
 Each drops a mythic weapon plus a trophy and Moon Shards. Shards buy potions, charms, weapons and the Star Chart from Mirren,
 Brother Croak, Mother Marrow and the Antlered King, or hire companions (Sir Aldous, the Vigil, Sir Halvard, the skeleton Rattle)
 who follow and fight beside you. Every strike, loot pickup, coin, roar and spell is synthesised with Web Audio.
+
+## Real models (Meshy)
+
+`public/models/*.glb` are Meshy exports (image-to-3D from the reel frames in `docs/reference/frames/`, or text-to-3D), remeshed to
+~30k triangles, rigged and animated with Meshy's preset library, then shrunk with `node scripts/model-tools.mjs optimize` (WebP
+textures). The game swaps them in for the procedural builds at startup; delete a file to see the procedural version again. See
+`public/models/README.md` for the per-file list and the pipeline, and `docs/reference/meshy-tasks.json` for the task ids.
+
+Debug URL parameters: `?at=x,z` spawns the party there with free mouse-look (no pointer lock needed), `&face=x,z` aims the camera,
+`&cam=x,y,z` pins the camera at a world position.
 
 ## Code map
 

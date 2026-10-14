@@ -1,7 +1,7 @@
 import type { BrainParams } from '../combat/EnemyBrain';
 import type { Element } from '../combat/Elements';
 
-export type EnemyKind = 'wisp' | 'sentinel' | 'beast' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast';
+export type EnemyKind = 'wisp' | 'sentinel' | 'beast' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking';
 
 export type BossAttackKind = 'slam' | 'boulder' | 'roar' | 'volley' | 'summon' | 'blink' | 'roots' | 'sweep' | 'breath' | 'charge' | 'bite';
 
@@ -82,6 +82,30 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     attacks: [{ kind: 'breath', range: 26, windup: 1.1, recover: 1.5, weight: 3 }, { kind: 'charge', range: 40, windup: 0.8, recover: 1.6, weight: 2 }],
     drops: [{ itemId: 'wyrm-fang-blade', chance: 1 }, { itemId: 'wyrm-scale', chance: 1 }, { itemId: 'star-chart', chance: 1 }],
   },
+  troll: {
+    kind: 'troll', name: 'The Gorge Troll', title: 'Red-Eyed Keeper of the Chasm', maxHp: 6400, def: 85, atk: 150, speed: 4.6, element: 'stone', hover: 0, bodyRadius: 2.0, height: 4.6, boss: true, leash: 34,
+    brain: { aggroRange: 30, attackRange: 6.5, windup: 0.7, recover: 1.2, attackCooldown: 0.8 }, respawn: 240, shards: [150, 220],
+    attacks: [{ kind: 'slam', range: 7, windup: 0.8, recover: 1.3, weight: 3 }, { kind: 'charge', range: 24, windup: 0.7, recover: 1.4, weight: 2 }, { kind: 'boulder', range: 28, windup: 0.9, recover: 1.0, weight: 2 }],
+    drops: [{ itemId: 'troll-club', chance: 1 }, { itemId: 'troll-hide', chance: 1 }, { itemId: 'moon-dew', chance: 1 }],
+  },
+  lurker: {
+    kind: 'lurker', name: 'The Lake Lurker', title: 'What Watches from the Shallows', maxHp: 5200, def: 55, atk: 125, speed: 2.2, element: 'tide', hover: 0, bodyRadius: 1.6, height: 4.2, boss: true, leash: 13,
+    brain: { aggroRange: 28, attackRange: 16, windup: 0.8, recover: 1.0, attackCooldown: 0.8, preferredRange: 8 }, respawn: 220, shards: [130, 200],
+    attacks: [{ kind: 'volley', range: 20, windup: 0.8, recover: 1.0, weight: 3 }, { kind: 'sweep', range: 5, windup: 0.6, recover: 0.9, weight: 2 }, { kind: 'summon', range: 28, windup: 1.2, recover: 1.5, weight: 1 }],
+    drops: [{ itemId: 'tide-hook', chance: 1 }, { itemId: 'lurker-eye', chance: 1 }, { itemId: 'river-pearl', chance: 0.5 }],
+  },
+  marshdemon: {
+    kind: 'marshdemon', name: 'The Marsh Sovereign', title: 'Four Horns of the Flooded Nave', maxHp: 8600, def: 90, atk: 165, speed: 2.0, element: 'astral', hover: 0, bodyRadius: 2.6, height: 12, boss: true, leash: 18,
+    brain: { aggroRange: 36, attackRange: 14, windup: 0.9, recover: 1.3, attackCooldown: 0.9, preferredRange: 6 }, respawn: 300, shards: [220, 320],
+    attacks: [{ kind: 'sweep', range: 12, windup: 0.8, recover: 1.2, weight: 3 }, { kind: 'breath', range: 24, windup: 1.1, recover: 1.5, weight: 3 }, { kind: 'roar', range: 16, windup: 1.0, recover: 1.4, weight: 1 }, { kind: 'summon', range: 30, windup: 1.2, recover: 1.6, weight: 1 }],
+    drops: [{ itemId: 'horned-glaive', chance: 1 }, { itemId: 'demon-horn', chance: 1 }, { itemId: 'star-chart', chance: 0.5 }],
+  },
+  hollowking: {
+    kind: 'hollowking', name: 'The Hollow King', title: 'Whose Heart Is a Kingdom', maxHp: 12000, def: 110, atk: 180, speed: 0, element: 'astral', hover: 0, bodyRadius: 9, height: 42, boss: true, leash: 1,
+    brain: { aggroRange: 70, attackRange: 70, windup: 1.2, recover: 1.6, attackCooldown: 1.0 }, respawn: 400, shards: [320, 460],
+    attacks: [{ kind: 'volley', range: 70, windup: 1.2, recover: 1.4, weight: 3 }, { kind: 'summon', range: 70, windup: 1.4, recover: 1.8, weight: 2 }, { kind: 'roar', range: 40, windup: 1.2, recover: 1.6, weight: 1 }],
+    drops: [{ itemId: 'hollow-crown', chance: 1 }, { itemId: 'king-rib', chance: 1 }, { itemId: 'star-chart', chance: 1 }],
+  },
   croc: {
     kind: 'croc', name: 'Mire Crocodile', maxHp: 900, def: 45, atk: 95, speed: 4.2, element: 'tide', hover: 0, bodyRadius: 1.2, height: 1.0, leash: 30,
     brain: { aggroRange: 18, attackRange: 3.2, windup: 0.5, recover: 1.0, attackCooldown: 0.6 }, respawn: 60, shards: [8, 14], drops: [{ itemId: 'croc-hide', chance: 0.6 }],
@@ -91,6 +115,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
 export const ENEMY_SPAWNS: ReadonlyArray<{ kind: EnemyKind; x: number; z: number }> = [
   { kind: 'yeti', x: 118, z: -150 }, { kind: 'shade', x: -34, z: -152 }, { kind: 'warden', x: 60, z: 12 }, { kind: 'wyrm', x: -165, z: -40 },
   { kind: 'rivershade', x: -100, z: 24 }, { kind: 'passbeast', x: -40, z: -200 },
+  { kind: 'troll', x: -110, z: -215 }, { kind: 'lurker', x: -30, z: -30 }, { kind: 'marshdemon', x: 165, z: -18 }, { kind: 'hollowking', x: 40, z: -226 },
   { kind: 'croc', x: 150, z: 20 }, { kind: 'croc', x: 160, z: 28 }, { kind: 'croc', x: 130, z: 6 },
   { kind: 'wisp', x: -14, z: 60 }, { kind: 'wisp', x: 16, z: 52 }, { kind: 'sentinel', x: -11, z: 40 }, { kind: 'sentinel', x: 14, z: 28 },
   { kind: 'wisp', x: -60, z: 52 }, { kind: 'wisp', x: -80, z: 36 }, { kind: 'wisp', x: -66, z: 28 },

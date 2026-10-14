@@ -134,3 +134,21 @@ frog face, drifting whale, paired eyes, spiral galaxy, giant cloud face, aurora.
 
 Still missing: the chapel interior with the canopied bed under the vault eye; hanging roots on the giant mushrooms; a cobbled path
 winding through the mushroom forest.
+
+# Third pass — the eight frames the user pasted (2026-10-14, night)
+
+Saved in `docs/reference/frames/`. Each became a Meshy image-to-3D model (`public/models/`) and a game subject:
+
+| Frame | Subject | In the game |
+|---|---|---|
+| rock-troll.jpg | blue stone ape with red eyes knuckle-walking a grassy gorge between cliffs | boss **The Gorge Troll** at (−110, −215) in a walled gorge (`trollGorge`); slam, charge, boulder; drops Gorge Club + Troll Hide |
+| lake-lurker.jpg | hooded tentacle-faced thing with white eyes wading a misty lake, pines and village behind, full moon | boss **The Lake Lurker** in the lily pond (−30, −30), leashed to the water; volley, sweep, summon; drops Tide Hook + Lurker Eye |
+| hollow-king.jpg | crowned seated giant with a glowing castle inside its ribcage, valley with waterfall, a sky full of eyes | boss **The Hollow King** at (95, −215) by the mountains; never moves, volleys and summons; the sky fills with blinking eyes as you approach (`SkyEvents` eyes); drops Hollow Crown (+30 % damage) + Hollow Rib |
+| antlered-warden.jpg | the antlered tree giant wading the river under a violet sky | replaces the Antlered Warden's procedural body (image-to-3D, rigged, Yeti preset set) |
+| wizard-tower.jpg | spire on a cloud-sea rock, lit windows, boulders floating around it | `wizard-tower.glb` on the 90 m rock at (155, 70) with `floatingRocks` orbiting it |
+| marsh-demon.jpg | four-horned demon with blue eyes and fangs wading flooded ruins with columns | boss **The Marsh Sovereign** in the new `floodedRuin` at (165, −18); sweep, breath, roar, summon; drops Sovereign Glaive + Sovereign Horn |
+| spider-chapel.jpg | giant spider carrying a chapel on its back along a cliff at sunset, castle town behind | `spiderChapel` wanderer looping past the demon church and tree-house (−140..−95, 60..108) |
+| log-giant.jpg | blue stone giant hauling a log bundle through the village street at night | `logGiant` wanderer looping the village street (−80..−30, 108..140) with Meshy's carry-walk clip |
+
+Rigging notes: Meshy's biped rig needs legs — the half-body demon and lurker, the seated king, the spider, frog and wyrm got the
+"smart" rig instead, which Meshy cannot animate yet; those play no clips and the game breathes/sways them procedurally.

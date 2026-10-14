@@ -124,6 +124,8 @@ export class SkyEvents {
   private readonly events: Event[] = [];
   private time = 0;
   readonly aurora: Sprite;
+  /** The Hollow King's sky: a scatter of watching eyes that fades in as the player nears him. */
+  private readonly eyes: Sprite[] = [];
 
   constructor() {
     const make = (map: CanvasTexture, color: number, dir: Vector3, scale: [number, number], period: number, start: number, length: number, peak: number, drift?: Vector3, blending: Blending = AdditiveBlending): Event => {
@@ -143,6 +145,20 @@ export class SkyEvents {
     // Giant eyes (pair) over the gorge direction.
     make(eye(), 0xffffff, new Vector3(0.55, 0.62, -0.7), [120, 80], 240, 200, 35, 0.8);
     make(eye(), 0xffffff, new Vector3(0.75, 0.6, -0.55), [120, 80], 240, 203, 35, 0.8);
+    const eyeTex = eye();
+    const eyeDirs: Array<[number, number, number, number, number]> = [
+      [0.35, 0.72, -0.6, 150, 95], [0.05, 0.8, -0.55, 110, 70], [0.6, 0.55, -0.7, 125, 80], [-0.25, 0.65, -0.7, 95, 60],
+      [0.5, 0.85, -0.3, 80, 50], [0.2, 0.45, -0.9, 70, 45], [-0.1, 0.9, -0.35, 60, 38], [0.8, 0.7, -0.45, 55, 35],
+    ];
+    for (const [x, y, z, w, hgt] of eyeDirs) {
+      const sprite = new Sprite(new SpriteMaterial({ map: eyeTex, color: 0xffffff, transparent: true, opacity: 0, fog: false, depthWrite: false, blending: AdditiveBlending }));
+      sprite.position.set(x, y, z).normalize().multiplyScalar(R * 0.94);
+      sprite.scale.set(w, hgt, 1);
+      sprite.material.rotation = (x - y) * 0.6;
+      sprite.renderOrder = -7;
+      this.group.add(sprite);
+      this.eyes.push(sprite);
+    }
     this.aurora = new Sprite(new SpriteMaterial({ map: auroraTex(), color: new Color(0xffffff), transparent: true, opacity: 0.35, fog: false, depthWrite: false, blending: AdditiveBlending }));
     this.aurora.position.set(-0.4, 0.45, -0.85).normalize().multiplyScalar(R * 0.95);
     this.aurora.scale.set(620, 190, 1);
@@ -150,9 +166,14 @@ export class SkyEvents {
     this.group.add(this.aurora);
   }
 
-  update(dt: number, cameraPosition: Vector3, auroraAmount: number): void {
+  update(dt: number, cameraPosition: Vector3, auroraAmount: number, eyesAmount = 0): void {
     this.time += dt;
     this.group.position.copy(cameraPosition);
+    for (let i = 0; i < this.eyes.length; i++) {
+      // Each eye blinks on its own slow cycle.
+      const blink = Math.max(0, Math.min(1, 1 - Math.pow(Math.max(0, Math.sin(this.time * 0.35 + i * 1.7) - 0.93) * 14, 1)));
+      this.eyes[i].material.opacity = eyesAmount * 0.9 * blink;
+    }
     for (const e of this.events) {
       const p = ((this.time + e.period - e.start) % e.period);
       const f = p < e.length ? Math.sin((p / e.length) * Math.PI) : 0;

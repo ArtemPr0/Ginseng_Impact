@@ -54,6 +54,8 @@ export class Enemy {
     this.pos = { x: spawn.x, y: world.heightAt(spawn.x, spawn.z) + def.hover, z: spawn.z };
     const bossBuilders: Partial<Record<string, (root: Group, mat: MatFn) => BossRig>> = {
       yeti: yeti, shade: hornedShade, rivershade: (r, m) => hornedShade(r, m, false, 0.75), warden: antleredWarden, wyrm: moonWyrm, croc: crocodile,
+      // Reel subjects that normally come from GLBs; these procedural stand-ins only show when a model file is missing.
+      troll: yeti, lurker: (r, m) => hornedShade(r, m, false, 0.6), marshdemon: (r, m) => hornedShade(r, m, true, 1.7), hollowking: antleredWarden,
     };
     const builder = bossBuilders[def.kind];
     if (builder) {
@@ -425,6 +427,8 @@ export class Enemy {
         this.lastState = st;
       } else if ((st === 'recover' || st === 'chase') && m.finished) { if (!m.play('walk')) m.play('idle'); }
       m.update(dt);
+      // Models that came without clips (the seated Hollow King) still breathe.
+      if (!m.playing) { const b = 1 + Math.sin(this.time * 0.9) * 0.012; m.root.scale.set(1, b, 1); }
       return;
     }
     if (this.bossRig) {
@@ -433,7 +437,7 @@ export class Enemy {
       if (moving && this.def.kind !== 'wyrm') {
         const prev = this.stepPhase;
         this.stepPhase += dt * (this.def.kind === 'warden' ? 1.6 : 4.5);
-        if (Math.floor(prev / Math.PI) !== Math.floor(this.stepPhase / Math.PI) && (this.def.kind === 'warden' || this.def.kind === 'yeti')) this.onStomp?.(this.pos.x, this.pos.y, this.pos.z);
+        if (Math.floor(prev / Math.PI) !== Math.floor(this.stepPhase / Math.PI) && (this.def.kind === 'warden' || this.def.kind === 'yeti' || this.def.kind === 'troll')) this.onStomp?.(this.pos.x, this.pos.y, this.pos.z);
       }
       const windup = st === 'windup' && this.currentAttack ? Math.min(1, this.brain.stateTime / this.currentAttack.windup) : 0;
       this.bossRig.animate({ state: st, stateTime: this.brain.stateTime, time: this.time, dt, moving, attack: this.currentAttack?.kind ?? null, windup });

@@ -8,6 +8,7 @@ import { Input } from './core/Input';
 import { LAYOUT } from './data/world';
 import { Inventory } from './items/Inventory';
 import { loadModel } from './models/ModelRig';
+import { riverAt } from './world/Terrain';
 import { ITEMS } from './items/Items';
 import { CONTROLLER, createControllerState, stepController } from './player/CharacterController';
 import { Party } from './player/Party';
@@ -28,7 +29,8 @@ import { World } from './world/World';
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const game = new Game();
 const renderer = new Renderer(canvas);
-const input = new Input(canvas);
+const debugAt = new URLSearchParams(location.search).has('at');
+const input = new Input(canvas, debugAt);
 const audio = new Audio();
 const hud = new Hud(document.getElementById('hud')!);
 const inventory = new Inventory();
@@ -63,6 +65,7 @@ const minimap = new Minimap(document.getElementById('hud')!, terrain);
 const area = new World(terrain);
 scene.add(area.group);
 const world = area.heights;
+if (debugAt) (window as unknown as { __dbg: unknown }).__dbg = { h: (x: number, z: number) => world.heightAt(x, z), river: (x: number, z: number) => riverAt(x, z) };
 const atmosphere = new Atmosphere((x, z) => world.heightAt(x, z), new Vector3(LAYOUT.spawn.x, 0, LAYOUT.spawn.z));
 scene.add(atmosphere.group);
 const weather = new Weather(LAYOUT.rainZone, LAYOUT.snowZone);
@@ -70,7 +73,9 @@ scene.add(weather.group);
 const playerPos = new Vector3();
 
 // --- player ---
-const SPAWN = new Vector3(LAYOUT.spawn.x, 0, LAYOUT.spawn.z);
+// `?at=x,z` starts the party at a world position (used to check landmarks and bosses quickly).
+const atParam = new URLSearchParams(location.search).get('at')?.split(',').map(Number);
+const SPAWN = atParam && atParam.length === 2 && atParam.every((n) => Number.isFinite(n)) ? new Vector3(atParam[0], 0, atParam[1]) : new Vector3(LAYOUT.spawn.x, 0, LAYOUT.spawn.z);
 SPAWN.y = world.heightAt(SPAWN.x, SPAWN.z);
 const controller = createControllerState(SPAWN);
 const party = new Party(ROSTER);
@@ -84,6 +89,10 @@ let landedAt = -10;
 let wasAirborne = false;
 rigs[party.activeIndex].root.visible = true;
 const tpc = new ThirdPersonCamera(camera, world);
+const camParam = new URLSearchParams(location.search).get('cam')?.split(',').map(Number).filter((n) => Number.isFinite(n));
+// `?face=x,z` (debug) aims the camera from the spawn toward a world point.
+const faceParam = new URLSearchParams(location.search).get('face')?.split(',').map(Number);
+if (faceParam && faceParam.length === 2 && faceParam.every((n) => Number.isFinite(n))) tpc.yaw = Math.atan2(-(faceParam[0] - SPAWN.x), -(faceParam[1] - SPAWN.z));
 tpc.snapTo(new Vector3(SPAWN.x, SPAWN.y + 1.4, SPAWN.z));
 hud.setParty(ROSTER, party.activeIndex);
 const companions: Companion[] = [];
@@ -283,11 +292,14 @@ game
       } else {
         if (!wasLocked) { tpc.snapTo(focus); wasLocked = true; }
         tpc.update(focus, dt);
+        // `?cam=x,y,z` (debug) pins the camera at a world position looking at the `face` point.
+        if (camParam) { camera.position.set(camParam[0], camParam[1], camParam[2]); camera.lookAt(faceParam ? faceParam[0] : SPAWN.x, camParam[1] - 6, faceParam ? faceParam[1] : SPAWN.z); }
       }
       playerPos.set(controller.pos.x, controller.pos.y, controller.pos.z);
       sky.update(dt, camera.position);
       const auroraNear = Math.max(0, 1 - Math.hypot(playerPos.x - area.auroraCentre.x, playerPos.z - area.auroraCentre.z) / 90);
-      skyEvents.update(dt, camera.position, auroraNear);
+      const kingNear = Math.max(0, Math.min(1, 1 - (Math.hypot(playerPos.x - 95, playerPos.z + 215) - 70) / 90));
+      skyEvents.update(dt, camera.position, auroraNear, kingNear);
       area.update(dt, camera.position, playerPos, talking);
       atmosphere.update(dt, playerPos, camera.position);
       if (weather.update(dt, playerPos) > 0) sky.flash = 1;

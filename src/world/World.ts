@@ -11,6 +11,7 @@ import {
 import { CloudSea } from './CloudSea';
 import { HeightWorld } from './Colliders';
 import { frogKing, moonShellColossus, witchBridge } from './Creatures';
+import { floatingRocks, floodedRuin, logGiant, spiderChapel, trollGorge } from './Reels2';
 import { boulders, flowers, pines, sunflowers, type Placement } from './Flora';
 import { Grass } from './Grass';
 import { cathedral, causeway, giantHead, monolith, waterfall, type Landmark } from './Landmarks';
@@ -84,6 +85,12 @@ export class World {
 
     // --- structures from the second viewing ---
     this.place(wizardTower(155, 70, Math.max(-8, h(155, 70) - 6)), 'tower');
+    this.place(floatingRocks(155, 70, Math.max(-8, h(155, 70) - 6)));
+    // Second reel batch: the Sovereign's flooded nave by the chasm, the troll's gorge, and two wandering giants.
+    this.place(floodedRuin(165, -18, h(165, -18) - 0.6, 20));
+    this.place(trollGorge(-110, -215, h(-110, -215) - 0.5, 36));
+    this.place(logGiant([[-80, 124], [-55, 140], [-30, 124], [-55, 108]], hw), 'loggiant');
+    this.place(spiderChapel([[-140, 70], [-110, 60], [-95, 85], [-125, 108], [-150, 95]], hw), 'spiderchapel');
     this.place(demonChurch(-110, 95, h(-110, 95) - 0.5, Math.PI), 'church');
     this.auroraCentre.set(-110, 0, 95);
     this.place(palmIsland(120, 34, 148, ));
@@ -222,7 +229,10 @@ export class World {
         const m = new ModelRig(modelId, g);
         l.object.children.forEach((c) => { c.visible = false; });
         l.object.add(m.root);
-        this.extras.push({ update: (dt) => m.update(dt) });
+        if (l.clip) m.play(l.clip);
+        // Static exports (smart-rigged creatures have no clips yet) still breathe and sway a little.
+        let t = Math.random() * 10;
+        this.extras.push({ update: (dt) => { m.update(dt); if (!m.playing) { t += dt; m.root.scale.y = 1 + Math.sin(t * 0.8) * 0.015; m.root.rotation.z = Math.sin(t * 0.5) * 0.01; } } });
       });
     }
   }

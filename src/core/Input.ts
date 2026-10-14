@@ -11,7 +11,12 @@ export class Input {
   mouseDY = 0;
   locked = false;
 
-  constructor(private readonly canvas: HTMLCanvasElement) {
+  /**
+   * @param free Debug mode (`?at=` in the URL): behaves as if the pointer were locked so screenshots and
+   * automated checks work without a user gesture; mouse look uses plain mouse movement.
+   */
+  constructor(private readonly canvas: HTMLCanvasElement, private readonly free = false) {
+    this.locked = free;
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
       this.down.add(e.code);
@@ -21,7 +26,7 @@ export class Input {
     window.addEventListener('keyup', (e) => this.down.delete(e.code));
     window.addEventListener('blur', () => this.down.clear());
     canvas.addEventListener('mousedown', (e) => {
-      if (!this.locked) {
+      if (!this.locked && !this.free) {
         if (!this.uiOpen) void canvas.requestPointerLock();
         return;
       }
@@ -35,6 +40,7 @@ export class Input {
       this.mouseDY += e.movementY;
     });
     document.addEventListener('pointerlockchange', () => {
+      if (this.free) return;
       this.locked = document.pointerLockElement === this.canvas;
       if (!this.locked) this.down.clear();
     });

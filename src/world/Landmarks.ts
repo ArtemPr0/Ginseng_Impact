@@ -11,6 +11,8 @@ export interface Landmark {
   object: Group;
   footprints: Footprint[];
   update?(dt: number, player: import('three').Vector3): void;
+  /** Clip to play when a glTF model replaces the procedural build (walkers want 'walk'). */
+  clip?: string;
 }
 
 const STONE_LIGHT = 0x5a6aa8;
