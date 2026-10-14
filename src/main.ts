@@ -66,7 +66,7 @@ const minimap = new Minimap(document.getElementById('hud')!, terrain);
 const area = new World(terrain);
 scene.add(area.group);
 const world = area.heights;
-if (debugAt) (window as unknown as { __dbg: unknown }).__dbg = { h: (x: number, z: number) => world.heightAt(x, z), river: (x: number, z: number) => riverAt(x, z) };
+if (debugAt) (window as unknown as { __dbg: unknown }).__dbg = { h: (x: number, z: number) => world.heightAt(x, z), river: (x: number, z: number) => riverAt(x, z), rigs: () => rigs, combat: () => combat };
 const atmosphere = new Atmosphere((x, z) => world.heightAt(x, z), new Vector3(LAYOUT.spawn.x, 0, LAYOUT.spawn.z));
 scene.add(atmosphere.group);
 const weather = new Weather(LAYOUT.rainZone, LAYOUT.snowZone);

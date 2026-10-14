@@ -122,7 +122,7 @@ export class Enemy {
           this.knock.z += (dz / dist) * push;
         }
       } else {
-        action = this.def.kind === 'wisp' ? { kind: 'bolt' } : { kind: 'melee' };
+        action = { kind: 'melee' };
         if ((this.def.kind === 'beast' || this.def.kind === 'croc') && dist > 0.01) {
           this.knock.x += (dx / dist) * 9;
           this.knock.z += (dz / dist) * 9;

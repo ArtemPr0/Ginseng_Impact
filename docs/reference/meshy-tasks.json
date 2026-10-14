@@ -62,27 +62,75 @@
   },
   "_note2": "Text-to-3D (2026-10-14 evening): draft = untextured mesh task (20 credits), texture = text-prompt texture task on it (10 credits). Created by API: POST /web/v2/tasks {phase:'draft', args:{draft:{aiModel:'avocado', poseMode:''|'a', license:'private', shouldTransferImageStyle:true, modelType:'standard', autoSplit:false, prompt}}} and {phase:'texture', parent, args:{texture:{prompt, imageId:'', artStyle:'realistic', aiModel:'blueberry', enablePBR:true}}}.",
   "staff": {
-    "draft": "01a13b9e-7e61-7118-a3bc-ce2cfb9b35d8"
+    "draft": "01a13bbd-f082-738e-982a-10b66987503c",
+    "texture": "01a13ba8-3115-70cf-953a-3b1272c1a723",
+    "draft_v1_crystal": "01a13b9e-7e61-7118-a3bc-ce2cfb9b35d8",
+    "texture_v1_crystal": "01a13ba8-3115-70cf-953a-3b1272c1a723"
   },
   "greatsword": {
-    "draft": "see Meshy (submitted via UI 18:20)"
+    "draft": "01a13ba5-ff7b-7168-9fbb-d795e6e76262",
+    "texture": "01a13ba9-72fb-7645-9e04-91201fdc0e50"
   },
   "causeway-segment": {
-    "draft": "01a13ba8-c321-777e-88e5-e99698d19a94"
+    "draft": "01a13bbd-edec-736a-9683-02a37c737bd8",
+    "draft_v1_gate": "01a13ba8-c321-777e-88e5-e99698d19a94",
+    "texture": "01a13bc1-6a58-7755-a141-518f663aaa1a"
   },
   "causeway-stairs": {
-    "draft": "01a13ba8-c6db-7448-a96e-f93c6428a253"
+    "draft": "01a13ba8-c6db-7448-a96e-f93c6428a253",
+    "texture": "01a13bad-997b-70f3-bcbb-ba13a9546813"
   },
   "pine": {
-    "draft": "01a13ba8-cae8-7110-bff7-62df220200dc"
+    "draft": "01a13ba8-cae8-7110-bff7-62df220200dc",
+    "texture": "01a13bad-94b6-76da-857f-3ea42d49e7bd"
   },
   "head": {
-    "draft": "01a13ba8-ce9a-71e8-8986-17b9626d27a1"
+    "draft": "01a13bbd-eb3f-715e-97d3-910058216bbd",
+    "draft_v1_bust": "01a13ba8-ce9a-71e8-8986-17b9626d27a1",
+    "texture": "01a13bc1-6346-72e2-a6d4-4d01c2d6a313"
   },
   "cathedral": {
-    "draft": "01a13ba8-d1ba-7466-9310-ab242ec31da8"
+    "draft": "01a13ba8-d1ba-7466-9310-ab242ec31da8",
+    "texture": "01a13bad-8f19-73f7-97d5-fbb15b89129e"
   },
   "castle": {
-    "draft": "01a13ba8-d495-73c0-99fc-7b4ca29325c9"
-  }
+    "draft": "01a13ba8-d495-73c0-99fc-7b4ca29325c9",
+    "texture": "01a13bad-8931-72b4-a835-2d2192177ea4"
+  },
+  "sentinel": {
+    "draft": "01a13bad-a4b7-7618-b0be-2899bd3cff64",
+    "note": "not a reel subject; untextured"
+  },
+  "wisp": {
+    "draft": "01a13bad-a74b-7158-abc8-5d8e880d1cb1",
+    "note": "not a reel subject; untextured"
+  },
+  "village-house": {
+    "draft": "01a13bad-a9c3-767d-881a-7ed2337a041f"
+  },
+  "knight-npc": {
+    "draft": "01a13bad-ac96-70ea-b2df-93d3d38c7a48"
+  },
+  "church": {
+    "draft": "01a13bc3-5563-70f7-bb31-1007b07ab082"
+  },
+  "treehouse": {
+    "draft": "01a13bc3-5824-72ae-9c35-60bec816d721"
+  },
+  "chasm-bridge": {
+    "draft": "01a13bc3-5b3f-709d-a6b6-6dda1b7d0805"
+  },
+  "fog-beast": {
+    "draft": "01a13bc3-5ec5-72f2-b4f8-5fe300bb4f9f"
+  },
+  "rivershade": {
+    "draft": "01a13bc3-6282-76bd-9ad3-edfd287db9b9"
+  },
+  "croc": {
+    "draft": "01a13bc3-6578-72df-b029-a4ef783bed62"
+  },
+  "skeleton": {
+    "draft": "01a13bc3-6892-77c0-a17e-0ef97cf3d309"
+  },
+  "_presets": "Biped animation presets (POST /web/v2/tasks/<rigId>/animation-actions {animationSelection}): Idle_02 11, Combat_Stance 89, Attack 4, Dead 8, Hit_Reaction 178, dying_backwards 189, Monster_Walk 112, Crawl_and_Look_Back 340, Zombie_Scream 386, Chair_Sit_Idle_M 33, Sit_and_Drink 343, Kneel_on_One_Knee_and_Stand 365, Torch_Look_Around 337, Walk_Slowly_and_Look_Around 341, Charged_Spell_Cast 125, mage_soell_cast 129, Slow_Orc_Walk 119, Carry_Heavy_Object_Walk 611. Full table: window.__presets from chunk 2wg0y1oo4r30v.js (628 entries)."
 }

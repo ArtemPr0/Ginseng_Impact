@@ -472,7 +472,7 @@ export class CombatSystem {
         this.vfx.impact(at.clone().add(new Vector3(0, 3, 0)), color, 5);
         for (let i = 0; i < 2; i++) {
           const a = Math.random() * Math.PI * 2;
-          const m = this.spawnEnemy(ENEMY_DEFS.wisp, e.pos.x + Math.cos(a) * 4, e.pos.z + Math.sin(a) * 4, true);
+          const m = this.spawnEnemy(ENEMY_DEFS.beast, e.pos.x + Math.cos(a) * 4, e.pos.z + Math.sin(a) * 4, true);
           m.brain.state = 'chase';
         }
         this.d.audio.cast();

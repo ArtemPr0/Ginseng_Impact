@@ -6,6 +6,9 @@
  *   node scripts/model-tools.mjs optimize <in.glb> <out.glb> [maxTextureSize=1024] [targetTriangles]
  *       Converts textures to WebP (≤ maxTextureSize), dedups and prunes. 20 MB → ~1–2 MB. With a triangle
  *       target it also simplifies the mesh (meshoptimizer), e.g. 30000 for a prop, 80000 for a landmark.
+ *   node scripts/model-tools.mjs strip-floaters <in.glb> <out.glb> [aboveFraction=0.45]
+ *       Deletes mesh islands that float entirely above that fraction of the model's height (Meshy likes to add a
+ *       moon sphere over buildings and stairs).
  *   node scripts/model-tools.mjs clip <in.glb> <out.glb>
  *       Keeps only the node hierarchy and animations (drops meshes, skins, materials, textures), so one
  *       animation export becomes a ~100 KB file the game layers onto the base model (see models.ts clipFiles).
@@ -53,6 +56,36 @@ async function optimize(inPath, outPath, maxSize = 1024, targetTris = 0) {
   console.log(`optimized ${inPath} (${mb(inPath)}) → ${outPath} (${mb(outPath)})`);
 }
 
+async function stripFloaters(inPath, outPath, above = 0.45) {
+  const doc = await io.read(inPath);
+  let dropped = 0;
+  for (const mesh of doc.getRoot().listMeshes()) for (const prim of mesh.listPrimitives()) {
+    const pos = prim.getAttribute('POSITION').getArray();
+    const idxAcc = prim.getIndices();
+    if (!idxAcc) continue;
+    const idx = idxAcc.getArray();
+    const n = pos.length / 3;
+    // Union vertices that share a triangle or sit at the same position (UV seams split vertices).
+    const parent = new Int32Array(n).map((_, i) => i);
+    const find = (a) => { while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; };
+    const unite = (a, b) => { a = find(a); b = find(b); if (a !== b) parent[a] = b; };
+    for (let t = 0; t < idx.length; t += 3) { unite(idx[t], idx[t + 1]); unite(idx[t], idx[t + 2]); }
+    const seen = new Map();
+    for (let i = 0; i < n; i++) { const k = `${Math.round(pos[i * 3] * 1e4)},${Math.round(pos[i * 3 + 1] * 1e4)},${Math.round(pos[i * 3 + 2] * 1e4)}`; const j = seen.get(k); if (j === undefined) seen.set(k, i); else unite(i, j); }
+    let minY = Infinity, maxY = -Infinity;
+    for (let i = 0; i < n; i++) { minY = Math.min(minY, pos[i * 3 + 1]); maxY = Math.max(maxY, pos[i * 3 + 1]); }
+    const lowest = new Map();
+    for (let i = 0; i < n; i++) { const r = find(i); const y = pos[i * 3 + 1]; if (!lowest.has(r) || y < lowest.get(r)) lowest.set(r, y); }
+    const cut = minY + (maxY - minY) * above;
+    const keep = [];
+    for (let t = 0; t < idx.length; t += 3) { if (lowest.get(find(idx[t])) > cut) { dropped++; continue; } keep.push(idx[t], idx[t + 1], idx[t + 2]); }
+    idxAcc.setArray(new Uint32Array(keep));
+  }
+  await doc.transform(prune());
+  await io.write(outPath, doc);
+  console.log(`strip-floaters ${inPath}: dropped ${dropped} floating triangles → ${outPath}`);
+}
+
 async function clip(inPath, outPath) {
   const doc = await io.read(inPath);
   const root = doc.getRoot();
@@ -70,6 +103,7 @@ async function clip(inPath, outPath) {
 async function main() {
   if (cmd === 'info') return info(a);
   if (cmd === 'optimize') return optimize(a, b, c ? Number(c) : 1024, d ? Number(d) : 0);
+  if (cmd === 'strip-floaters') return stripFloaters(a, b, c ? Number(c) : 0.45);
   if (cmd === 'clip') return clip(a, b);
   if (cmd === 'import') {
     const name = b;

@@ -1,32 +1,18 @@
-107 registered models, 16 present, 90 files still to generate on Meshy (91 ids):
+public/models/README.md regenerated
+100 registered models, 33 present, 66 files still to generate on Meshy (67 ids):
 
-- rivershade         river-shade.glb              5 m  
-- passbeast          fog-beast.glb              3.8 m  
-- beast              fog-beast.glb              1.5 m  
-- sentinel           stone-sentinel.glb         2.6 m  
-- wisp               fog-wisp.glb               1.4 m  
-- croc               crocodile.glb              1.0 m  
-- colossus           moon-shell-colossus.glb     18 m  
+- rivershade         river-shade.glb              5 m  hooded river shade with glowing eyes (DeUydbMvKqC, DeWZT3jvPCG)
+- passbeast          fog-beast.glb              3.8 m  red-eyed black beast of the mountain pass (DeXeZ7rhGVi)
+- beast              fog-beast.glb              2.2 m  red-eyed black beast (DeXeZ7rhGVi)
 - king               antlered-king.glb         1.95 m  
 - witch              witch.glb                 1.85 m  
-- head               giant-head.glb              52 m  giant stone head with red eyes
-- cathedral          cathedral.glb              118 m  
-- castle             castle.glb                  44 m  
-- church             demon-church.glb            36 m  
-- treehouse          tree-house.glb              48 m  
-- causeway-segment   causeway-segment.glb         8 m  causeway deck segment with balustrade posts
-- causeway-stairs    causeway-stairs.glb          6 m  causeway stairs at the south end
-- chasm-bridge       chasm-bridge.glb             4 m  wooden rope bridge span across the chasm
 - witch-bridge       witch-bridge.glb             3 m  stone bridge over the witch stream
 - nave               ruined-nave.glb             26 m  ruined nave with columns, arches and a rose window
 - archgate           arch-gate.glb               14 m  frozen arch gate
 - palmisland         palm-island.glb             28 m  floating palm island on an inverted rock
 - colossus-statue    kneeling-colossus.glb     15.5 m  kneeling horned colossus statue
 - burning-castle     burning-castle.glb          68 m  burning castle on the far shore
-- village-house      village-house.glb          5.8 m  thatched village house
 - tavern             tavern.glb                 7.6 m  tavern with its sign, table and stools
-- well               well.glb                   1.2 m  village well
-- barrel             barrel.glb                 1.1 m  wooden barrel
 - torch-post         torch-post.glb             2.6 m  torch on a post
 - campfire           campfire.glb               2.8 m  campfire ring with tripod, kettle and three log seats
 - cloister           cloister.glb               8.6 m  cloister: three stone arches on a cobbled floor
@@ -38,20 +24,17 @@
 - ruin-arch          ruin-arch.glb              6.6 m  ruined stone arch
 - ruin-column        ruin-column.glb            4.5 m  broken stone column
 - flooded-ruin       flooded-ruin.glb             9 m  flooded ruin: ring of columns, wall and arch
-- monolith           monolith.glb                12 m  standing stone
 - troll-gorge        troll-gorge.glb             15 m  rock walls of the troll gorge
 - floating-rock      floating-rock.glb            3 m  floating boulder
 - pinnacle           pinnacle.glb                30 m  sea pinnacle rising from the cloud sea
 - mountain           mountain.glb               180 m  backdrop mountain
-- orchard            orchard.glb                  6 m  orchard of gnarled trees (one block)
 - boat               boat.glb                   1.9 m  rowing boat with two rowers
 - horse-rider        horse-rider.glb            2.6 m  knight on horseback with a lantern
 - koi                flying-koi.glb             1.2 m  flying koi
 - snake              snake.glb                  0.6 m  coiled snake
-- knight-npc         knight-npc.glb             1.9 m  sword-and-shield knight (Aldous, the Vigil, Dunmar)
 - knight-seated      knight-seated.glb         1.95 m  caped greatsword knight sitting on the cliff (Sir Halvard)
 - knight-rose        knight-rose.glb           1.95 m  black knight offering a rose (Sir Corvin)
-- skeleton           skeleton.glb              1.75 m  skeleton (Rattle, Bone, Marrow)
+- skeleton           skeleton.glb              1.75 m  skeletons at the campfire (DdjlyzyOcnK)
 - skeleton-banner    skeleton-banner.glb       1.85 m  skeleton standard-bearer with banner and trident (Hollow Jack)
 - witch-cook         witch-cook.glb             1.8 m  skeleton cook in a chef hat with a spoon (Mother Marrow)
 - bride              bride.glb                  1.8 m  the Pale Bride
@@ -62,25 +45,19 @@
 - frog-monk          frog-monk.glb             1.75 m  frog monk reading a book (Brother Croak)
 - troll-fisher       troll-fisher.glb           2.6 m  troll fisher with a rod (Old Moss)
 - goblin             goblin.glb                1.15 m  tavern goblin (Snik, Vrak)
-- pilgrim            pilgrim.glb                1.8 m  river pilgrim
-- pine               pine.glb                    13 m  pine tree
 - snow-pine          snow-pine.glb               13 m  snow-laden pine
 - birch              birch.glb                   11 m  birch
 - willow             willow.glb                   9 m  willow
 - palm               palm.glb                     8 m  palm
 - gnarled-tree       gnarled-tree.glb             6 m  gnarled orchard tree
-- dead-tree          dead-tree.glb              5.5 m  bare dead tree
 - dead-forest-tree   dead-forest-tree.glb         8 m  dead forest tree
 - flower-tree        flower-tree.glb             10 m  glowing flower tree
 - floating-island    floating-island.glb          6 m  small floating rock island
-- giant-mushroom     giant-mushroom.glb           8 m  giant mushroom
 - mushroom           mushroom.glb              0.45 m  small glowing mushroom
 - sunflower          sunflower.glb              1.5 m  blue sunflower
-- flower             flower.glb                0.35 m  meadow flower
 - giant-flower       giant-flower.glb             3 m  giant cosmos flower
 - rose-bush          rose-bush.glb              0.9 m  rose bush
 - boulder            boulder.glb                1.2 m  boulder
-- ice-crystal        ice-crystal.glb            2.4 m  ice crystal cluster
 - pod-tree           pod-tree.glb                22 m  tree with hanging glowing pods
 - coral              coral.glb                  1.6 m  coral bush
 - reed               reed.glb                   2.4 m  reed clump

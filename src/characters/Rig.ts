@@ -51,6 +51,8 @@ export class Rig {
   private propRig: ModelRig | null = null;
   private propBase = 1;
   private propShown = 0;
+  /** Boneless bodies hold their prop at a fixed anchor that the rig swings itself. */
+  private anchor: Group | null = null;
   private wasCharging = false;
   private lastKind: RigPose['attackKind'] = undefined;
   /** Orlan's pipe. */
@@ -95,38 +97,48 @@ export class Rig {
     this.root.add(this.model.root);
     this.hand = this.model.bone(HAND_BONE);
     this.offHand = this.model.bone(OFF_HAND_BONE);
+    const hand = MODELS[id]?.hand;
+    if (!this.hand && hand) {
+      this.anchor = new Group();
+      this.anchor.position.set(hand.x, hand.y, hand.z);
+      this.model.frame.add(this.anchor);
+    }
     const propId = WEAPON_MODEL[this.def.weapon];
-    if (propId && this.hand) void loadModelOrWarn(propId, MODELS[propId]?.label).then((g) => { if (g) this.attachProp(propId, g); });
+    if (propId && (this.hand || this.anchor)) void loadModelOrWarn(propId, MODELS[propId]?.label).then((g) => { if (g) this.attachProp(propId, g); });
     if (MODELS[id]?.robe) for (const mat of this.model.materials) { patchRobeWind(mat, this.model.rawHeight * 0.55, 0.05); mat.needsUpdate = true; }
     const anchor = MODELS[id]?.smoke;
     if (anchor) {
       this.smoke = new PipeSmoke();
       this.smoke.group.position.set(anchor.x, anchor.y, anchor.z);
-      this.model.root.add(this.smoke.group);
+      this.model.frame.add(this.smoke.group);
     }
   }
 
   /** Parents a weapon model to the hand bone at the registry grip, compensating the skeleton's scale. */
   private attachProp(id: string, gltf: GLTF): void {
-    if (!this.hand || !this.model) return;
+    const parent = this.hand ?? this.anchor;
+    if (!parent || !this.model) return;
     const rig = new ModelRig(id, gltf);
-    const grip = MODELS[id]?.grip ?? { x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0 };
-    rig.root.position.set(grip.x, grip.y, grip.z);
-    rig.root.rotation.set(grip.rx, grip.ry, grip.rz);
+    const grip = MODELS[id]?.grip ?? { x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0, slide: 0 };
+    const pivot = new Group();
+    pivot.position.set(grip.x, grip.y, grip.z);
+    pivot.rotation.set(grip.rx, grip.ry, grip.rz);
+    rig.root.position.y = grip.slide;
+    pivot.add(rig.root);
     const holder = new Group();
-    holder.add(rig.root);
+    holder.add(pivot);
     this.model.root.updateWorldMatrix(true, true);
     const ws = new Vector3();
-    this.hand.getWorldScale(ws);
+    parent.getWorldScale(ws);
     this.propBase = 1 / Math.max(1e-4, ws.y);
     holder.scale.setScalar(0.001);
     holder.visible = false;
-    this.hand.add(holder);
+    parent.add(holder);
     this.prop = holder;
     this.propRig = rig;
   }
 
-  /** Scales the weapon prop in while attacking and away afterwards. */
+  /** Scales the weapon prop in while attacking and away afterwards; a boneless body also swings it. */
   private animateProp(pose: RigPose, dt: number): void {
     if (!this.prop) return;
     const want = pose.attack !== undefined ? 1 : 0;
@@ -134,6 +146,15 @@ export class Rig {
     const s = this.propBase * Math.max(0.001, this.propShown);
     this.prop.scale.setScalar(s);
     this.prop.visible = this.propShown > 0.03;
+    if (this.anchor) {
+      // Drawn upright at the side, then levelled at the target for the strike and held while the bolt flies.
+      const a = pose.attack ?? 1;
+      const raise = a < 0.25 ? a / 0.25 : a < 0.75 ? 1 : 1 - (a - 0.75) / 0.25;
+      const thrust = Math.sin(Math.min(1, a / 0.45) * Math.PI * 0.5);
+      const target = pose.attack === undefined ? 0 : 0.25 + raise * 0.95 * thrust;
+      this.anchor.rotation.x += (target - this.anchor.rotation.x) * Math.min(1, dt * 18);
+      this.anchor.position.y = (MODELS[this.model?.id ?? '']?.hand?.y ?? 1) + raise * 0.12;
+    }
   }
 
   /**
@@ -144,7 +165,8 @@ export class Rig {
     if (!this.model) return null;
     if (this.propRig && this.prop && this.def.weapon === 'staff') {
       this.prop.updateWorldMatrix(true, true);
-      return this.propRig.root.localToWorld(out.set(0, this.propRig.height * 0.92, 0));
+      // The prop is scaled to `height` with its feet at 0; the knob sits at the top.
+      return this.propRig.root.localToWorld(out.set(0, this.propRig.height * 0.97, 0));
     }
     const hand = this.def.weapon === 'bow' ? this.offHand ?? this.hand : this.hand;
     if (hand) { hand.updateWorldMatrix(true, false); return hand.getWorldPosition(out); }

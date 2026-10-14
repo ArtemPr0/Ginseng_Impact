@@ -159,3 +159,68 @@ The party is now built from the user's three references: `knight.png` (seated kn
 (hooded archer, image-to-3D with A-pose) and `wizard.png` (blue wizard with pipe; the image-to-3D result was a closed cone of
 robe that Meshy's rig refused, so the user chose the closed-robe model anyway: it has no bones and is animated procedurally in Rig.driveStaticModel — hover-bob, sway, cast lean, and a hem wind in the vertex shader). Clip sets are
 listed in `public/models/README.md`. The map was scaled to 60 % so every Meshy subject is a short sprint apart.
+
+# Fifth batch — twelve reels the user sent 2026-10-14 19:45–19:59 (watched in the logged-in tab, ~4 frames each)
+
+Rule from the user (same evening): every model must come from these reels; nothing invented. Generation order for
+these subjects is in `docs/reference/meshy-todo.txt`.
+
+## DeXn5rSPxR8 — the Skeleton Lord's pavilion
+- Skeleton lord in a black fur cloak, gold chain with a jewelled skull pendant, diamond teeth, purple smoke curling past.
+- Seated beside him: a blue plate-armoured knight with a slit visor holding a gold goblet of purple wine and a broad sword.
+- Gothic pavilion with a ribbed dome and round arched windows onto a city of lit towers.
+
+## DeOemU1BOZF — the Skeleton King's treasury and the checkered causeway
+- Crowned skeleton king on a stone throne, heaped gold chains and diamonds, a galaxy cloak, raising a jewelled goblet.
+- Cracked stone blocks piled with gold coins, a purple crystal on the floor, crystal stalactites, a ringed planet in a pink nebula.
+- A checkered blue-and-cream stone causeway with a wooden railing between round medieval towers with lit windows, a spiral galaxy ahead.
+
+## DeaqHWJBBPw — the Bucket Mimics' village
+- Mob: white tooth-grinning BUCKET MIMICS (a bucket with a face, filled with blue crystals, on skeletal legs) walking a cobbled street.
+- Street of half-timbered houses with purple roofs, a castle, a swirling purple sky with floating crystals, glowing purple mushrooms.
+- Skeleton wizard in a blue hooded robe with an ornate gold staff topped by a crystal, purple orbs around him.
+- Blue chain-mail knights with gold chains, crystal spear.
+
+## DeYtKbMh76x — the dragon riders
+- The skeleton lord and the blue knight ride a black DRAGON with gold horns and a gold-chain harness across a full moon.
+
+## DeVj-Z8POjl — the underwater city (user: put it under a lake or river)
+- Crowned FISH KING (blue fish head, red-and-gold robe, a lantern hanging from his crown) offering a purple glowing chalice.
+- Underwater tavern: round jellyfish windows, shelves of glowing bottles, barrels, candles in purple goblets, a coral throne,
+  a fireplace with teal fire, plates of gold coins, a giant crown hanging over the hearth.
+
+## DeQ-NnpvqF6 — the portal (user: add a portal to another city)
+- Galaxy-robed wizard with a long blue beard pours a glowing pink potion from a copper kettle into a bowl; round stone tower,
+  a star window with falling meteors.
+- A tree with a carved stone FACE and a round wooden door with a lantern; a stepping-stone path across glowing blue ground;
+  a black swirling PORTAL in the sky with hanging lanterns.
+- A lantern-headed robed figure rows a boat along a galaxy river between broken stone arches; glowing lily pads; ringed planet.
+
+## Dd0wR9Jh2lH — the Galaxy King's hall and the crystal golem
+- Tall crowned king with glowing eyes and a galaxy robe on a cracked white marble throne.
+- Pillared hall with a river running down its centre between copper banks, crystal stalactites, a galaxy ceiling.
+- CRYSTAL GOLEM: a humanoid of blue crystal shards walking across rippled orange sand.
+
+## DdyN2PNyIxb — the Void Monk and the ring portals
+- Hooded monk whose face is a galaxy cracked by lightning; blue-and-brown robe.
+- Stone RING PORTALS hanging in a starry cave, each holding a swirling galaxy.
+- Brown-robed hooded figure lifting a fire brazier on a stone ledge.
+
+## Ddn0A49tnW7 — the Ember Rider and the world tree
+- Dark armoured RIDER with red eyes on a black horse with a flaming mane and burning hooves, through dead black trees.
+- Path of cracked earth with glowing embers under a galaxy sky.
+- A robed figure raising its arms to a giant tree veined with glowing blue light, runic gravestones and blue waterfalls around.
+
+## DdnJDwBMUoj — the floating isles and the goblin market
+- Floating rock ISLANDS with trees and waterfalls joined by ROPE BRIDGES; a broken stone ring in the sky; hanging roots.
+- Hooded dark figure with an armoured gauntlet in a gothic archway.
+- GOBLIN MARKET: green goblins with red eyes behind a stall, a purple crystal ball, hanging lanterns, thatched stalls.
+
+## DdwXCyeSsXn — the gorge river and the forest spirit
+- A hooded rower with a lantern in a wooden boat on a glowing river through a gorge of ruins; castle and moon ahead.
+- A giant ANTLERED FOREST SPIRIT rising above a pine village (already in game as the Antlered Warden).
+- A witch in a pointed hat with a lantern on a stone ledge above a city of spires, aqueduct bridges and waterfalls.
+
+## DaIqFavJWbd — the mushroom tavern
+- Cave tavern lit by hanging glowing MUSHROOM LAMPS (red-and-white, blue, green, pink), patrons drinking at long tables.
+- A pewter mug on a wooden table; an angry GNOME with a red hat and white beard standing on the table.

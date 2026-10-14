@@ -173,18 +173,6 @@ export const NPC_DEFS: NpcDef[] = [
     lines: ['...hic.'],
     behaviour: { kind: 'stand', pose: 'sit', yaw: Math.PI * 1.4 },
   },
-  {
-    id: 'pilgrim-a', name: 'Pilgrim', title: 'Walker of the River', weapon: 'staff',
-    model: 'pilgrim', accent: PALETTE.fog,
-    lines: ['We walk the river to the sea that is not there.', 'Keep the water on your left and the moon on your right.'],
-    behaviour: { kind: 'loop', path: [[150, 36], [100, 10], [50, 30], [0, 40], [-50, 20], [-90, 34], [-50, 20], [0, 40], [50, 30], [100, 10]], speed: 1.3 },
-  },
-  {
-    id: 'pilgrim-b', name: 'Pilgrim', title: 'Walker of the River', weapon: 'staff',
-    model: 'pilgrim', accent: PALETTE.moon,
-    lines: ['The water remembers every kingdom. It keeps none.'],
-    behaviour: { kind: 'loop', path: [[148, 39], [98, 13], [48, 33], [-2, 43], [-52, 23], [-92, 37], [-52, 23], [-2, 43], [48, 33], [98, 13]], speed: 1.3 },
-  },
 ];
 
 /** A talking, posed or wandering non-player character built on the party rig. */

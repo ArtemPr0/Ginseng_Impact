@@ -1,7 +1,7 @@
 import type { BrainParams } from '../combat/EnemyBrain';
 import type { Element } from '../combat/Elements';
 
-export type EnemyKind = 'wisp' | 'sentinel' | 'beast' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking';
+export type EnemyKind = 'beast' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking';
 
 export type BossAttackKind = 'slam' | 'boulder' | 'roar' | 'volley' | 'summon' | 'blink' | 'roots' | 'sweep' | 'breath' | 'charge' | 'bite';
 
@@ -36,14 +36,6 @@ export interface EnemyDef {
 }
 
 export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
-  wisp: {
-    kind: 'wisp', name: 'Fog Wisp', maxHp: 380, def: 20, atk: 55, speed: 3.6, element: 'fog', hover: 1.6, bodyRadius: 0.7, height: 1.4,
-    brain: { aggroRange: 24, attackRange: 12, windup: 0.5, recover: 0.6, attackCooldown: 1.6, preferredRange: 8 }, respawn: 25, shards: [3, 7], drops: [{ itemId: 'wisp-ember', chance: 0.6 }],
-  },
-  sentinel: {
-    kind: 'sentinel', stomp: true, name: 'Stone Sentinel', maxHp: 900, def: 60, atk: 95, speed: 2.2, element: 'stone', hover: 0, bodyRadius: 1.0, height: 2.6,
-    brain: { aggroRange: 20, attackRange: 2.9, windup: 0.6, recover: 0.9, attackCooldown: 0.4 }, respawn: 30, shards: [6, 12], drops: [{ itemId: 'rune-shard', chance: 0.5 }, { itemId: 'sentinel-core', chance: 0.12 }],
-  },
   beast: {
     kind: 'beast', name: 'Fog Beast', maxHp: 650, def: 30, atk: 85, speed: 6.5, element: 'rot', hover: 0, bodyRadius: 0.9, height: 1.5,
     brain: { aggroRange: 28, attackRange: 3.6, windup: 0.45, recover: 1.1, attackCooldown: 0.7 }, respawn: 35, shards: [8, 16], drops: [{ itemId: 'beast-fang', chance: 0.5 }, { itemId: 'moon-dew', chance: 0.3 }],
@@ -119,9 +111,10 @@ export const ENEMY_SPAWNS: ReadonlyArray<{ kind: EnemyKind; x: number; z: number
   { kind: 'rivershade', x: -60, z: 14 }, { kind: 'passbeast', x: -24, z: -120 },
   { kind: 'troll', x: -66, z: -129 }, { kind: 'lurker', x: -18, z: -18 }, { kind: 'marshdemon', x: 99, z: -11 }, { kind: 'hollowking', x: 24, z: -136 },
   { kind: 'croc', x: 90, z: 12 }, { kind: 'croc', x: 96, z: 17 }, { kind: 'croc', x: 78, z: 4 },
-  { kind: 'wisp', x: -8, z: 36 }, { kind: 'wisp', x: 10, z: 31 }, { kind: 'sentinel', x: -7, z: 24 }, { kind: 'sentinel', x: 8, z: 17 },
-  { kind: 'wisp', x: -36, z: 31 }, { kind: 'wisp', x: -48, z: 22 }, { kind: 'wisp', x: -40, z: 17 },
-  { kind: 'sentinel', x: -8, z: -30 }, { kind: 'wisp', x: 9, z: -34 }, { kind: 'wisp', x: 18, z: -26 },
-  { kind: 'sentinel', x: -7, z: -113 }, { kind: 'sentinel', x: 8, z: -110 },
+  // Field packs: the red-eyed black beasts of the mountain-pass reel (DeXeZ7rhGVi), in pairs.
+  { kind: 'beast', x: -8, z: 34 }, { kind: 'beast', x: 9, z: 30 },
+  { kind: 'beast', x: -38, z: 28 }, { kind: 'beast', x: -46, z: 19 },
+  { kind: 'beast', x: 9, z: -34 }, { kind: 'beast', x: 18, z: -26 },
+  { kind: 'beast', x: -7, z: -112 }, { kind: 'beast', x: 8, z: -109 },
   { kind: 'beast', x: -65, z: 53 }, { kind: 'beast', x: 55, z: 59 }, { kind: 'beast', x: -24, z: -101 },
 ];

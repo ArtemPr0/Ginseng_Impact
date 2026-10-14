@@ -6,6 +6,7 @@ import { glowSprite } from '../render/Glow';
 import { PointLight } from 'three';
 import { CloudSea } from './CloudSea';
 import { HeightWorld } from './Colliders';
+import { MODELS } from '../data/models';
 import { tealFalls, waterfall } from './Falls';
 import { fire } from './Fire';
 import { cobbleSpots, floraSet, ringSpots, type Placement } from './Flora';
@@ -17,7 +18,7 @@ import { Npc, NPC_DEFS } from './NPCs';
 import { Noise2D } from './noise';
 import { witchStream } from './Stream';
 import { deadAt, frozenAt, riverAt, riverDistance, sandAt, streamAt, Terrain, WORLD } from './Terrain';
-import { causewayPostPoints, causewaySlabs, chasmBridgeSlab, witchBridgeDeck } from './Walkways';
+import { causewayPostPoints, causewayWalk, chasmBridge, witchBridgeDeck } from './Walkways';
 import { lilyPond, river, stillWaterDisc } from './Water';
 
 function rng(seed: number): () => number {
@@ -55,8 +56,15 @@ export class World {
     const vfx = (f: { group: Group; update: (dt: number) => void }) => { this.group.add(f.group); this.extras.push(f); };
 
     // --- walkways (placeholder slabs until their models land) ---
-    this.place(causewaySlabs(LAYOUT.causeway, h));
-    this.place(chasmBridgeSlab(42, -30, 43, -84, Math.max(h(42, -30), h(43, -84)) + 0.6));
+    const causeway = causewayWalk(LAYOUT.causeway, h, MODELS['causeway-segment'].height);
+    this.place(causeway.landmark);
+    flora('causeway-segment', causeway.spans);
+    const stairs = modelLandmark('causeway-stairs', causeway.stairs.x, causeway.stairs.z, causeway.stairs.y);
+    stairs.root.scale.setScalar(causeway.stairs.height / MODELS['causeway-stairs'].height);
+    this.place(stairs);
+    const bridge = chasmBridge(42, -30, 43, -84, Math.max(h(42, -30), h(43, -84)) + 0.6, MODELS['chasm-bridge'].height);
+    this.place(bridge);
+    flora('chasm-bridge', bridge.tiles);
     const deck = witchBridgeDeck(LAYOUT.coven.streamX, LAYOUT.coven.bridgeZ, h);
     this.place(deck);
 
@@ -70,7 +78,9 @@ export class World {
     this.place(modelLandmark('castle', LAYOUT.castle.x, LAYOUT.castle.z, castleY, { footprints: castleFootprints(LAYOUT.castle.x, LAYOUT.castle.z, castleY) }));
     this.place(modelLandmark('throne', LAYOUT.castle.x, LAYOUT.castle.z + 11, castleY, { footprints: [{ kind: 'box', x: LAYOUT.castle.x, z: LAYOUT.castle.z + 11, hw: 4.5, hd: 3.5, top: castleY + 1.2 }] }));
     for (const side of [-1, 1]) vfx(fire(LAYOUT.castle.x + side * 4.2, castleY + 2.0, LAYOUT.castle.z + 11 + 1.8, 0.7, 16));
-    this.place(modelLandmark('church', -66, 57, h(-66, 57) - 0.5, { yaw: Math.PI, footprints: [{ kind: 'box', x: -66, z: 57, hw: 10, hd: 15.5, top: h(-66, 57) + 21.5, rotY: Math.PI }], update: churchGlow(this.group, -66, h(-66, 57) - 0.5, 57) }));
+    // Horned facade faces east (local +z → world +x), toward the road from the spawn.
+    const churchY = h(-66, 57) - 0.5;
+    this.place(modelLandmark('church', -66, 57, churchY, { yaw: Math.PI / 2, footprints: [{ kind: 'box', x: -66, z: 57, hw: 9, hd: 13.4, top: churchY + 15 }], update: churchGlow(this.group, -66 + 9.5, churchY, 57) }))
     this.auroraCentre.set(-66, 0, 57);
     const towerY = Math.max(-8, h(93, 42) - 6);
     this.place(modelLandmark('tower', 93, 42, towerY, { footprints: [{ kind: 'cyl', x: 93, z: 42, r: 6.2, top: towerY + 70 }, { kind: 'cyl', x: 93, z: 42, r: 4.6, top: towerY + 94 }] }));
@@ -83,7 +93,7 @@ export class World {
         update: (dt, root) => { angle += dt * speed; root.position.set(93 + Math.cos(angle) * radius, height + Math.sin(angle * 9 + i) * 1.2, 42 + Math.sin(angle) * radius); root.rotation.y += dt * 0.08; },
       }));
     }
-    this.place(modelLandmark('treehouse', -90, 30, h(-90, 30) - 1, { footprints: [{ kind: 'cyl', x: -90, z: 30, r: 6.5, top: h(-90, 30) + 41 }] }));
+    this.place(modelLandmark('treehouse', -90, 30, h(-90, 30) - 1, { yaw: Math.PI / 2, footprints: [{ kind: 'cyl', x: -90, z: 30, r: 5, top: h(-90, 30) + 15 }] }));
     this.place(modelLandmark('nave', 66, -17, h(66, -17) - 0.4, { yaw: 0.3, footprints: naveFootprints(66, -17, h(66, -17) - 0.4, 0.3) }));
     this.place(modelLandmark('archgate', 58, -90, h(58, -90) - 0.3, { yaw: 0.5, footprints: archGateFootprints(58, -90, h(58, -90) - 0.3, 0.5) }));
     this.place(modelLandmark('palmisland', 72, 89, 34, { footprints: [{ kind: 'cyl', x: 72, z: 89, r: 21, top: 36.4 }], update: (dt, root) => { root.position.y = 34 + Math.sin(performance.now() * 0.0004) * 0.6; void dt; } }));
@@ -92,7 +102,11 @@ export class World {
     this.place(modelLandmark('burning-castle', 0, 180, -32, { color: PALETTE.blood }));
     vfx(fire(0, 12, 180, 14, 0));
     for (const r of LAYOUT.ruins) this.place(modelLandmark(r.arch ? 'ruin-arch' : 'ruin-column', r.x, r.z, h(r.x, r.z) - 0.3, { yaw: r.yaw }));
-    this.place(modelLandmark('orchard', LAYOUT.orchard.x, LAYOUT.orchard.z, h(LAYOUT.orchard.x, LAYOUT.orchard.z), { footprints: orchardFootprints(LAYOUT.orchard.x, LAYOUT.orchard.z, h) }));
+    // Rainy orchard (DdKl7fKMO75): rows of twisted trees; each trunk keeps its collider.
+    const orchardTrunks = orchardFootprints(LAYOUT.orchard.x, LAYOUT.orchard.z, h);
+    this.heights.add(...orchardTrunks);
+    const orng = rng(321);
+    flora('gnarled-tree', orchardTrunks.map((f) => ({ x: f.x, y: h(f.x, f.z) - 0.2, z: f.z, yaw: orng() * Math.PI * 2, scale: 0.75 + orng() * 0.3 })));
     this.place(modelLandmark('flooded-ruin', 99, -11, h(99, -11) - 0.6, { footprints: floodedRuinFootprints(99, -11, h(99, -11) - 0.6, 18) }));
     this.place(stillWaterDisc(99, -11, h(99, -11) - 0.3, 18));
     this.place(modelLandmark('troll-gorge', -66, -129, h(-66, -129) - 0.5, { footprints: trollGorgeFootprints(-66, -129, h(-66, -129) - 0.5, 36) }));
@@ -156,11 +170,6 @@ export class World {
     }
     flora('torch-post', torchSpots);
     flora('cobblestone', cobbleSpots([[VILLAGE.x - 34, VILLAGE.z + 1], [VILLAGE.x + 34, VILLAGE.z + 1]], 5, h, vrnd), { shadows: false });
-    const wellY = h(VILLAGE.x + 4, VILLAGE.z + 1);
-    this.place(modelLandmark('well', VILLAGE.x + 4, VILLAGE.z + 1, wellY, { footprints: [{ kind: 'cyl', x: VILLAGE.x + 4, z: VILLAGE.z + 1, r: 1.4, top: wellY + 0.9 }] }));
-    const barrels: Placement[] = [];
-    for (let i = 0; i < 7; i++) { const bx = VILLAGE.x + (vrnd() - 0.5) * 56; const bz = VILLAGE.z + (vrnd() < 0.5 ? -6.5 : 8.5); barrels.push({ x: bx, y: h(bx, bz), z: bz, yaw: vrnd() * 6, scale: 1 }); }
-    flora('barrel', barrels);
     const tavernY = h(20, 66) - 0.2;
     this.place(modelLandmark('tavern', 20, 63, tavernY, { footprints: [{ kind: 'box', x: 20, z: 60, hw: 6, hd: 4.5, top: tavernY + 5.4 }, { kind: 'cyl', x: 20, z: 68, r: 1.2, top: tavernY + 1.0 }] }));
     for (const side of [-1, 1]) vfx(fire(20 + side * 6.4, tavernY + 2.6, 55.6, 0.4, 8));
@@ -214,9 +223,9 @@ export class World {
       }
       return out;
     };
-    flora('ice-crystal', frozenPick(260, 0.6, 1.8, -0.1), { shadows: false });
-    flora('dead-tree', frozenPick(70, 0.9, 1.6, -0.3));
-    flora('snow-pine', frozenPick(90, 0.7, 1.3, -0.3));
+    // Frozen reel (DeJj8CDhL2f, DeVKAIavhfv): blue snow pines and dark boulders along the glowing stream.
+    flora('snow-pine', frozenPick(150, 0.7, 1.3, -0.3));
+    flora('boulder', frozenPick(70, 0.8, 2.4, -0.2));
     flora('pod-tree', frozenPick(14, 0.9, 1.4, -0.3).filter((p) => p.x > 72 && p.z < -72));
     flora('mushroom', [...this.scatterDisc(rnd, LAYOUT.frog.x, LAYOUT.frog.z, 22, 70, 0.7, 1.3), ...this.scatterRing(rnd, 66, 114, 80, 0.6, 1.2)], { shadows: false });
     const shroomRing = this.scatterDisc(rnd, LAYOUT.frog.x, LAYOUT.frog.z, 34, 14, 0.8, 1.5).filter((p) => Math.hypot(p.x - LAYOUT.frog.x, p.z - LAYOUT.frog.z) > 12);
@@ -346,10 +355,10 @@ export class World {
 
 /** The demon church's doorway glow and light, flickering. */
 function churchGlow(scene: Group, x: number, y: number, z: number): (dt: number) => void {
-  const glow = glowSprite(PALETTE.witch, 18, 0.55, true);
-  glow.position.set(x, y + 5, z - 18);
+  const glow = glowSprite(PALETTE.witch, 9, 0.55, true);
+  glow.position.set(x, y + 4, z);
   const light = new PointLight(PALETTE.witch, 120, 40, 1.6);
-  light.position.set(x, y + 6, z - 18);
+  light.position.set(x + 2, y + 5, z);
   scene.add(glow, light);
   let t = 0;
   return (dt) => { t += dt; glow.material.opacity = 0.45 + Math.sin(t * 3) * 0.1; light.intensity = 110 + Math.sin(t * 5) * 20; };

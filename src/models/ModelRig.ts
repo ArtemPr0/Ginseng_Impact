@@ -66,7 +66,7 @@ export function normaliseTransform(scene: Object3D, def: ModelDef): { scale: num
   const box = new Box3().setFromObject(scene);
   const size = new Vector3();
   box.getSize(size);
-  const scale = def.height / Math.max(0.001, size.y);
+  const scale = def.height / Math.max(0.001, size[def.fit ?? 'y']);
   const centre = new Vector3();
   box.getCenter(centre);
   return { scale, offset: new Vector3(-centre.x * scale, -(box.min.y * scale) + (def.yOffset ?? 0), -centre.z * scale), yaw: def.yaw ?? 0 };
@@ -101,6 +101,8 @@ export class ModelRig {
   readonly materials: MeshStandardMaterial[] = [];
 
   private readonly scene: Group;
+  /** The registry-yawed group around the file: anchors (pipe smoke, a held staff) live here, in the file's own frame. */
+  readonly frame: Group;
 
   constructor(readonly id: string, gltf: GLTF, opts: ModelRigOptions = {}) {
     const def = MODELS[id];
@@ -129,7 +131,7 @@ export class ModelRig {
     const size = new Vector3();
     box.getSize(size);
     this.rawHeight = size.y;
-    const s = def.height / Math.max(0.001, size.y);
+    const s = def.height / Math.max(0.001, size[def.fit ?? 'y']);
     scene.scale.setScalar(s);
     box.setFromObject(scene);
     const centre = new Vector3();
@@ -142,6 +144,7 @@ export class ModelRig {
     holder.add(scene);
     this.root.add(holder);
     this.scene = scene;
+    this.frame = holder;
     this.height = def.height;
     this.mixer = new AnimationMixer(scene);
     for (const clip of gltf.animations) this.actions.set(clip.name.toLowerCase(), this.mixer.clipAction(clip));
