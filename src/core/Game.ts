@@ -17,6 +17,8 @@ export class Game {
   paused = false;
   /** Smoothed frames per second, for the debug readout. */
   fps = 0;
+  /** Seconds of simulation freeze remaining (hit-stop). */
+  hitStop = 0;
 
   add(system: System): this {
     this.systems.push(system);
@@ -45,7 +47,9 @@ export class Game {
     const frameDt = Math.min(MAX_FRAME, (now - this.last) / 1000);
     this.last = now;
     if (frameDt > 0) this.fps += (1 / frameDt - this.fps) * 0.05;
-    if (!this.paused) {
+    if (this.hitStop > 0) {
+      this.hitStop -= frameDt;
+    } else if (!this.paused) {
       this.accumulator += frameDt;
       while (this.accumulator >= FIXED_DT) {
         for (const s of this.systems) s.update?.(FIXED_DT);

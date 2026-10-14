@@ -1,16 +1,7 @@
 import { PALETTE } from '../render/palette';
+import type { Element } from '../combat/Elements';
 
-export type Element = 'lunar' | 'blood' | 'astral' | 'fog' | 'stone' | 'rot' | 'tide';
-
-export const ELEMENT_COLOR: Record<Element, number> = {
-  lunar: PALETTE.moon,
-  blood: PALETTE.blood,
-  astral: PALETTE.dusk,
-  fog: PALETTE.fog,
-  stone: PALETTE.ultramarine,
-  rot: PALETTE.witch,
-  tide: PALETTE.rune,
-};
+export { ELEMENT_COLOR, type Element } from '../combat/Elements';
 
 export type WeaponKind = 'sword' | 'greatsword' | 'staff';
 

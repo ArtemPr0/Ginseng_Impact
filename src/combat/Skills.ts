@@ -1,0 +1,83 @@
+import type { WeaponKind } from '../characters/roster';
+import type { Element } from './Elements';
+
+export type HitShape =
+  | { kind: 'cone'; range: number; halfAngle: number }
+  | { kind: 'radius'; radius: number }
+  | { kind: 'bolt'; range: number; chains: number; chainRange: number };
+
+/** 'own' resolves to the caster's element; null is physical. */
+export interface AttackDef {
+  mult: number;
+  element: 'own' | null;
+  shape: HitShape;
+  knockback: number;
+  hitStop: number;
+}
+
+export interface GroundEffectDef {
+  radius: number;
+  duration: number;
+  tickMult: number;
+  tickEvery: number;
+  element: Element;
+}
+
+export interface SkillDef {
+  id: string;
+  name: string;
+  cooldown: number;
+  castTime: number;
+  hitFraction: number;
+  attack: AttackDef;
+  ground?: GroundEffectDef;
+}
+
+const deg = (d: number) => (d * Math.PI) / 180;
+const cone = (range: number, half: number): HitShape => ({ kind: 'cone', range, halfAngle: deg(half) });
+
+export interface ComboDef { durations: number[]; hitFraction: number; hits: AttackDef[] }
+
+export const COMBO: Record<WeaponKind, ComboDef> = {
+  sword: {
+    durations: [0.36, 0.36, 0.55], hitFraction: 0.45,
+    hits: [
+      { mult: 0.9, element: null, shape: cone(2.8, 70), knockback: 0.6, hitStop: 0.03 },
+      { mult: 1.0, element: null, shape: cone(2.8, 70), knockback: 0.6, hitStop: 0.03 },
+      { mult: 1.6, element: 'own', shape: cone(3.2, 80), knockback: 1.8, hitStop: 0.07 },
+    ],
+  },
+  greatsword: {
+    durations: [0.55, 0.6, 0.85], hitFraction: 0.5,
+    hits: [
+      { mult: 1.2, element: null, shape: cone(3.3, 80), knockback: 1.2, hitStop: 0.05 },
+      { mult: 1.3, element: null, shape: cone(3.3, 80), knockback: 1.2, hitStop: 0.05 },
+      { mult: 2.1, element: 'own', shape: cone(3.8, 90), knockback: 3, hitStop: 0.1 },
+    ],
+  },
+  staff: {
+    durations: [0.4, 0.4, 0.5], hitFraction: 0.4,
+    hits: [
+      { mult: 0.85, element: 'own', shape: { kind: 'bolt', range: 15, chains: 0, chainRange: 0 }, knockback: 0.3, hitStop: 0.02 },
+      { mult: 0.85, element: 'own', shape: { kind: 'bolt', range: 15, chains: 0, chainRange: 0 }, knockback: 0.3, hitStop: 0.02 },
+      { mult: 1.3, element: 'own', shape: { kind: 'bolt', range: 15, chains: 1, chainRange: 6 }, knockback: 0.8, hitStop: 0.04 },
+    ],
+  },
+};
+
+export const SKILLS: Record<string, SkillDef> = {
+  vesper: {
+    id: 'moonfall', name: 'Moonfall', cooldown: 6, castTime: 0.55, hitFraction: 0.5,
+    attack: { mult: 2.4, element: 'own', shape: cone(4.5, 60), knockback: 2, hitStop: 0.08 },
+    ground: { radius: 3, duration: 4, tickMult: 0.35, tickEvery: 1, element: 'lunar' },
+  },
+  morrow: {
+    id: 'crimson-cleave', name: 'Crimson Cleave', cooldown: 8, castTime: 0.7, hitFraction: 0.55,
+    attack: { mult: 3.0, element: 'own', shape: cone(5, 70), knockback: 4, hitStop: 0.1 },
+    ground: { radius: 3.5, duration: 5, tickMult: 0.4, tickEvery: 1, element: 'blood' },
+  },
+  ashka: {
+    id: 'starfall', name: 'Starfall', cooldown: 5, castTime: 0.45, hitFraction: 0.4,
+    attack: { mult: 2.0, element: 'own', shape: { kind: 'bolt', range: 16, chains: 2, chainRange: 7 }, knockback: 1, hitStop: 0.05 },
+  },
+};

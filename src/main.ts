@@ -1,5 +1,6 @@
 import { DirectionalLight, FogExp2, HemisphereLight, PerspectiveCamera, Scene, Vector3 } from 'three';
 import { Rig } from './characters/Rig';
+import { CombatSystem } from './combat/CombatSystem';
 import { ROSTER } from './characters/roster';
 import { Game } from './core/Game';
 import { Input } from './core/Input';
@@ -15,6 +16,7 @@ import { Terrain } from './world/Terrain';
 import { World } from './world/World';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
+const game = new Game();
 const renderer = new Renderer(canvas);
 const input = new Input(canvas);
 const hud = new Hud(document.getElementById('hud')!);
@@ -48,6 +50,21 @@ const tpc = new ThirdPersonCamera(camera, world);
 tpc.snapTo(new Vector3(SPAWN.x, SPAWN.y + 1.4, SPAWN.z));
 hud.setParty(ROSTER, party.activeIndex);
 
+function switchTo(i: number): boolean {
+  const swap = party.switchTo(i);
+  if (!swap) return false;
+  rigs[swap.from].root.visible = false;
+  rigs[swap.to].root.visible = true;
+  hud.setParty(ROSTER, swap.to);
+  combat.onSwitch();
+  return true;
+}
+
+const combat = new CombatSystem({
+  scene, world, sky, hud, camera, game, controller, party, rigs, spawn: SPAWN,
+  onForceSwitch: (i) => { party.update(Party.cooldown); switchTo(i); },
+});
+
 window.addEventListener('resize', () => {
   renderer.resize(window.innerWidth, window.innerHeight);
   camera.aspect = renderer.aspect;
@@ -55,23 +72,17 @@ window.addEventListener('resize', () => {
 });
 
 const focus = new Vector3();
-const game = new Game()
+game
   .add({
     update(dt) {
       const { dx, dy } = input.takeMouseDelta();
       if (input.locked) tpc.rotate(dx, dy);
       party.update(dt);
       for (let i = 0; i < ROSTER.length; i++) {
-        if (input.justPressed(`Digit${i + 1}`)) {
-          const swap = party.switchTo(i);
-          if (swap) {
-            rigs[swap.from].root.visible = false;
-            rigs[swap.to].root.visible = true;
-            hud.setParty(ROSTER, swap.to);
-          }
-        }
+        if (input.justPressed(`Digit${i + 1}`)) switchTo(i);
       }
-      const move = input.locked ? tpc.moveToWorld(input.moveAxis()) : { x: 0, z: 0 };
+      combat.update(dt, { attack: input.locked && input.mouseJustPressed(0), skill: input.locked && input.justPressed('KeyE') });
+      const move = input.locked && !combat.busy ? tpc.moveToWorld(input.moveAxis()) : { x: 0, z: 0 };
       stepController(controller, {
         move,
         sprint: input.isDown('ShiftLeft') || input.isDown('ShiftRight'),
@@ -92,7 +103,8 @@ const game = new Game()
       const rig = rigs[party.activeIndex];
       rig.root.position.set(controller.pos.x, controller.pos.y, controller.pos.z);
       rig.root.rotation.y = -controller.yaw - Math.PI / 2;
-      rig.animate({ mode: controller.mode, speed: Math.hypot(controller.vel.x, controller.vel.z) }, dt);
+      rig.animate({ mode: controller.mode, speed: Math.hypot(controller.vel.x, controller.vel.z), attack: combat.attackProgress }, dt);
+      combat.render(dt);
       rig.setShadowHeight(world.heightAt(controller.pos.x, controller.pos.z));
       focus.set(controller.pos.x, controller.pos.y + 1.4, controller.pos.z);
       tpc.update(focus, dt);
@@ -106,7 +118,7 @@ game.start();
 
 declare global {
   interface Window {
-    __ginseng: { scene: Scene; camera: PerspectiveCamera; terrain: Terrain; world: World['heights']; area: World; sky: Sky; controller: typeof controller; party: Party<(typeof ROSTER)[number]>; tpc: ThirdPersonCamera; input: Input; game: Game; renderer: Renderer };
+    __ginseng: { scene: Scene; camera: PerspectiveCamera; terrain: Terrain; world: World['heights']; area: World; sky: Sky; controller: typeof controller; party: Party<(typeof ROSTER)[number]>; tpc: ThirdPersonCamera; input: Input; game: Game; renderer: Renderer; combat: CombatSystem };
   }
 }
-window.__ginseng = { scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer };
+window.__ginseng = { scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat };
