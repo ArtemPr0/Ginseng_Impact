@@ -1,9 +1,6 @@
 public/models/README.md regenerated
-100 registered models, 33 present, 66 files still to generate on Meshy (67 ids):
+100 registered models, 37 present, 63 files still to generate on Meshy (63 ids):
 
-- rivershade         river-shade.glb              5 m  hooded river shade with glowing eyes (DeUydbMvKqC, DeWZT3jvPCG)
-- passbeast          fog-beast.glb              3.8 m  red-eyed black beast of the mountain pass (DeXeZ7rhGVi)
-- beast              fog-beast.glb              2.2 m  red-eyed black beast (DeXeZ7rhGVi)
 - king               antlered-king.glb         1.95 m  
 - witch              witch.glb                 1.85 m  
 - witch-bridge       witch-bridge.glb             3 m  stone bridge over the witch stream
@@ -34,7 +31,6 @@ public/models/README.md regenerated
 - snake              snake.glb                  0.6 m  coiled snake
 - knight-seated      knight-seated.glb         1.95 m  caped greatsword knight sitting on the cliff (Sir Halvard)
 - knight-rose        knight-rose.glb           1.95 m  black knight offering a rose (Sir Corvin)
-- skeleton           skeleton.glb              1.75 m  skeletons at the campfire (DdjlyzyOcnK)
 - skeleton-banner    skeleton-banner.glb       1.85 m  skeleton standard-bearer with banner and trident (Hollow Jack)
 - witch-cook         witch-cook.glb             1.8 m  skeleton cook in a chef hat with a spoon (Mother Marrow)
 - bride              bride.glb                  1.8 m  the Pale Bride

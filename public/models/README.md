@@ -12,7 +12,7 @@ glb ("All added", "One file") → `node scripts/model-tools.mjs optimize <downlo
 Models should face +X; set `yaw` in the registry if a file faces another way. Clip names match by substring
 with alternatives (`"slam|attack|punch"`).
 
-100 registered, 33 present, 66 files to generate (67 ids).
+100 registered, 37 present, 63 files to generate (63 ids).
 
 | id | file | height (m) | what | status |
 |---|---|---|---|---|
@@ -29,9 +29,9 @@ with alternatives (`"slam|attack|punch"`).
 | `lurker` | lake-lurker.glb | 4.2 |  | present |
 | `marshdemon` | marsh-demon.glb | 12 |  | present |
 | `hollowking` | hollow-king.glb | 42 |  | present |
-| `rivershade` | river-shade.glb | 5 | hooded river shade with glowing eyes (DeUydbMvKqC, DeWZT3jvPCG) | to generate |
-| `passbeast` | fog-beast.glb | 3.8 | red-eyed black beast of the mountain pass (DeXeZ7rhGVi) | to generate |
-| `beast` | fog-beast.glb | 2.2 | red-eyed black beast (DeXeZ7rhGVi) | to generate |
+| `rivershade` | river-shade.glb | 5 | hooded river shade with glowing eyes (DeUydbMvKqC, DeWZT3jvPCG) | present |
+| `passbeast` | fog-beast.glb | 3.8 | red-eyed black beast of the mountain pass (DeXeZ7rhGVi) | present |
+| `beast` | fog-beast.glb | 2.2 | red-eyed black beast (DeXeZ7rhGVi) | present |
 | `croc` | crocodile.glb | 1.0 | crocodile in the flooded ruins (DeJj8CDhL2f) | present |
 | `frogking` | frog-king.glb | 6 |  | present |
 | `loggiant` | log-giant.glb | 7.5 |  | present |
@@ -78,7 +78,7 @@ with alternatives (`"slam|attack|punch"`).
 | `knight-npc` | knight-npc.glb | 1.9 | armoured knight: tavern, rowing, kneeling, watching (DdfKgLsBmoA, DdjlyzyOcnK, DdKl7fKMO75) | present |
 | `knight-seated` | knight-seated.glb | 1.95 | caped greatsword knight sitting on the cliff (Sir Halvard) | to generate |
 | `knight-rose` | knight-rose.glb | 1.95 | black knight offering a rose (Sir Corvin) | to generate |
-| `skeleton` | skeleton.glb | 1.75 | skeletons at the campfire (DdjlyzyOcnK) | to generate |
+| `skeleton` | skeleton.glb | 1.75 | skeletons at the campfire (DdjlyzyOcnK) | present |
 | `skeleton-banner` | skeleton-banner.glb | 1.85 | skeleton standard-bearer with banner and trident (Hollow Jack) | to generate |
 | `witch-cook` | witch-cook.glb | 1.8 | skeleton cook in a chef hat with a spoon (Mother Marrow) | to generate |
 | `bride` | bride.glb | 1.8 | the Pale Bride | to generate |

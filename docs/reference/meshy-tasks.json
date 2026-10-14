@@ -109,7 +109,10 @@
     "draft": "01a13bad-a9c3-767d-881a-7ed2337a041f"
   },
   "knight-npc": {
-    "draft": "01a13bad-ac96-70ea-b2df-93d3d38c7a48"
+    "draft": "01a13bad-ac96-70ea-b2df-93d3d38c7a48",
+    "remesh": "01a13bcc-f4c5-73ea-af27-9add1ff4a723",
+    "rig": "01a13bd6-02b5-7248-99ae-fd8d95c5fdd8",
+    "presets": "Idle_02, Sit_and_Drink, Kneel_on_One_Knee_and_Stand, Chair_Sit_Idle_M, Attack"
   },
   "church": {
     "draft": "01a13bc3-5563-70f7-bb31-1007b07ab082"
@@ -121,16 +124,33 @@
     "draft": "01a13bc3-5b3f-709d-a6b6-6dda1b7d0805"
   },
   "fog-beast": {
-    "draft": "01a13bc3-5ec5-72f2-b4f8-5fe300bb4f9f"
+    "draft": "01a13bc3-5ec5-72f2-b4f8-5fe300bb4f9f",
+    "remesh": "01a13bcc-f9a6-73dd-ade1-ef372be71813",
+    "rig": "01a13bd6-2ee4-7268-9334-ab704ea33218",
+    "presets": "Monster_Walk, Attack, Zombie_Scream, Hit_Reaction, dying_backwards, Crawl_and_Look_Back, Combat_Stance, Idle_02"
   },
   "rivershade": {
-    "draft": "01a13bc3-6282-76bd-9ad3-edfd287db9b9"
+    "draft": "01a13bc3-6282-76bd-9ad3-edfd287db9b9",
+    "remesh": "01a13bcc-fea2-7066-a50f-a5b89e744ab4",
+    "rig": "FAILED (robe hides the legs) — static"
   },
   "croc": {
     "draft": "01a13bc3-6578-72df-b029-a4ef783bed62"
   },
   "skeleton": {
-    "draft": "01a13bc3-6892-77c0-a17e-0ef97cf3d309"
+    "draft": "01a13bc3-6892-77c0-a17e-0ef97cf3d309",
+    "remesh": "01a13bcc-f79a-77ab-abe8-26fffb539e85",
+    "rig": "01a13bd6-1a93-72a4-9276-e1f887c3a657",
+    "presets": "Idle_02, Chair_Sit_Idle_M, Sit_and_Drink"
   },
-  "_presets": "Biped animation presets (POST /web/v2/tasks/<rigId>/animation-actions {animationSelection}): Idle_02 11, Combat_Stance 89, Attack 4, Dead 8, Hit_Reaction 178, dying_backwards 189, Monster_Walk 112, Crawl_and_Look_Back 340, Zombie_Scream 386, Chair_Sit_Idle_M 33, Sit_and_Drink 343, Kneel_on_One_Knee_and_Stand 365, Torch_Look_Around 337, Walk_Slowly_and_Look_Around 341, Charged_Spell_Cast 125, mage_soell_cast 129, Slow_Orc_Walk 119, Carry_Heavy_Object_Walk 611. Full table: window.__presets from chunk 2wg0y1oo4r30v.js (628 entries)."
+  "_presets": "Biped animation presets (POST /web/v2/tasks/<rigId>/animation-actions {animationSelection}): Idle_02 11, Combat_Stance 89, Attack 4, Dead 8, Hit_Reaction 178, dying_backwards 189, Monster_Walk 112, Crawl_and_Look_Back 340, Zombie_Scream 386, Chair_Sit_Idle_M 33, Sit_and_Drink 343, Kneel_on_One_Knee_and_Stand 365, Torch_Look_Around 337, Walk_Slowly_and_Look_Around 341, Charged_Spell_Cast 125, mage_soell_cast 129, Slow_Orc_Walk 119, Carry_Heavy_Object_Walk 611. Full table: window.__presets from chunk 2wg0y1oo4r30v.js (628 entries).",
+  "flower": {
+    "texture": "01a13bcc-dddb-7309-9868-61468d2739d9"
+  },
+  "giant-mushroom": {
+    "texture": "01a13bcc-e392-71d6-a4af-3169f6641a94"
+  },
+  "colossus": {
+    "texture": "01a13bcc-ef0e-70fc-b771-14034662401b"
+  }
 }
