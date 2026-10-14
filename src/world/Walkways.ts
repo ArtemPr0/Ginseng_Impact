@@ -119,18 +119,36 @@ export function chasmBridge(ax: number, az: number, bx: number, bz: number, y: n
 }
 
 /** Deck, parapets and piers of the bridge over the witch stream. */
-export function witchBridgeDeck(streamX: number, bridgeZ: number, heightAt: HeightAt): Landmark & { deckY: number } {
-  const deckY = heightAt(streamX - 9, bridgeZ) + 0.6;
+/**
+ * The witches' humpback bridge (DeWji_1PuKW): 22 m along x. The walk surface follows the Meshy model's deck
+ * profile (fractions of its height, measured at 11 points with scripts/model-measure-style sampling) in 0.5 m
+ * collider slices; parapets run along both edges. `baseY` is where the model's base sits, `deckY` the crown.
+ */
+const WITCH_BRIDGE_PROFILE = [0.29, 0.43, 0.59, 0.73, 0.85, 0.85, 0.85, 0.73, 0.59, 0.43, 0.29];
+export const WITCH_BRIDGE = { length: 22, height: 22 * (0.368 / 1.899), halfWidth: 2.3 };
+
+export function witchBridgeDeck(streamX: number, bridgeZ: number, heightAt: HeightAt): Landmark & { deckY: number; baseY: number } {
+  const bank = Math.max(heightAt(streamX - 11.5, bridgeZ), heightAt(streamX + 11.5, bridgeZ));
+  const H = WITCH_BRIDGE.height;
+  const baseY = bank + 0.1 - WITCH_BRIDGE_PROFILE[0] * H;
+  const surface = (t: number) => {
+    const f = Math.min(1, Math.max(0, t)) * (WITCH_BRIDGE_PROFILE.length - 1);
+    const i = Math.min(WITCH_BRIDGE_PROFILE.length - 2, Math.floor(f));
+    return baseY + H * (WITCH_BRIDGE_PROFILE[i] + (WITCH_BRIDGE_PROFILE[i + 1] - WITCH_BRIDGE_PROFILE[i]) * (f - i));
+  };
   const g = new Group();
   const footprints: Footprint[] = [];
-  g.add(slab(22, 0.9, 5, streamX, deckY, bridgeZ));
-  footprints.push({ kind: 'box', x: streamX, z: bridgeZ, hw: 11, hd: 2.5, top: deckY + 0.45 });
-  for (const side of [-1, 1]) {
-    g.add(slab(22, 0.8, 0.4, streamX, deckY + 0.85, bridgeZ + side * 2.3));
-    footprints.push({ kind: 'box', x: streamX, z: bridgeZ + side * 2.3, hw: 11, hd: 0.2, top: deckY + 1.25 });
-    g.add(slab(2.4, 6, 4, streamX + side * 4, deckY - 3.2, bridgeZ));
+  const slices = 44;
+  for (let k = 0; k < slices; k++) {
+    const t = (k + 0.5) / slices;
+    const x = streamX - WITCH_BRIDGE.length / 2 + t * WITCH_BRIDGE.length;
+    const top = surface(t);
+    footprints.push({ kind: 'box', x, z: bridgeZ, hw: WITCH_BRIDGE.length / slices / 2 + 0.02, hd: WITCH_BRIDGE.halfWidth, top });
+    for (const side of [-1, 1]) footprints.push({ kind: 'box', x, z: bridgeZ + side * (WITCH_BRIDGE.halfWidth + 0.2), hw: WITCH_BRIDGE.length / slices / 2 + 0.02, hd: 0.2, top: top + 0.9 });
   }
-  return { object: g, footprints, deckY };
+  // Stand-in until the model loads: a flat slab at the crown.
+  g.add(slab(WITCH_BRIDGE.length, 0.6, WITCH_BRIDGE.halfWidth * 2, streamX, surface(0.5) - 0.3, bridgeZ));
+  return { object: g, footprints, deckY: surface(0.5), baseY };
 }
 
 /** A flat stone floor slab whose top is at `top` (the realms' ground until their floor models exist). */

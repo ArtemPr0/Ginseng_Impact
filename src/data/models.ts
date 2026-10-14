@@ -93,7 +93,7 @@ export const MODELS: Record<string, ModelDef> = {
   'causeway-segment': stat('causeway-segment.glb', 1.89, 'arched cobbled bridge span (three per causeway segment)'),
   'causeway-stairs': stat('causeway-stairs.glb', 6, 'causeway stairs at the south end'),
   'chasm-bridge': stat('chasm-bridge.glb', 1.8, 'rope-bridge deck tile, repeated across the chasm (DeWji_1PuKW, DdnJDwBMUoj)'),
-  'witch-bridge': stat('witch-bridge.glb', 3, 'stone bridge over the witch stream'),
+  'witch-bridge': { ...stat('witch-bridge.glb', 22, 'humpback stone footbridge over the witch stream (DeWji_1PuKW)'), fit: 'x' },
   nave: stat('ruined-nave.glb', 26, 'ruined nave with columns, arches and a rose window'),
   archgate: stat('arch-gate.glb', 14, 'frozen arch gate'),
   palmisland: stat('palm-island.glb', 28, 'floating palm island on an inverted rock'),

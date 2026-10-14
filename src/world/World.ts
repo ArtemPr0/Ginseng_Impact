@@ -74,7 +74,7 @@ export class World {
     const deck = witchBridgeDeck(LAYOUT.coven.streamX, LAYOUT.coven.bridgeZ, h);
     this.place(deck);
     // The witches' bridge (DeWji_1PuKW): the stone slab keeps the colliders and hides once the model is in.
-    this.place(modelLandmark('witch-bridge', LAYOUT.coven.streamX, LAYOUT.coven.bridgeZ, deck.deckY - MODELS['witch-bridge'].height * 0.8, { onLoad: () => { deck.object.visible = false; } }));
+    this.place(modelLandmark('witch-bridge', LAYOUT.coven.streamX, LAYOUT.coven.bridgeZ, deck.baseY, { onLoad: () => { deck.object.visible = false; } }));
 
     // --- the skyline ---
     const headY = Math.max(-12, h(LAYOUT.head.x, LAYOUT.head.z) - 8);
