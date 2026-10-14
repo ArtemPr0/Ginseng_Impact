@@ -10,6 +10,8 @@ import { PALETTE } from './render/palette';
 import { Renderer } from './render/Renderer';
 import { Sky } from './render/Sky';
 import { Hud } from './ui/Hud';
+import { HeightWorld } from './world/Colliders';
+import { monolith } from './world/Landmarks';
 import { Terrain } from './world/Terrain';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
@@ -27,6 +29,14 @@ scene.add(moon, new HemisphereLight(PALETTE.cobalt, PALETTE.abyss, 1.0), sky.gro
 
 const terrain = new Terrain();
 scene.add(terrain.mesh);
+const world = new HeightWorld(terrain);
+
+// Standing stones near the spawn: climbable test objects and the first of the causeway's broken posts.
+for (const [x, z, w, h, d] of [[-9, 108, 2.2, 6, 2.2], [9, 104, 2.6, 9, 2.4], [-14, 96, 3, 13, 3]] as const) {
+  const m = monolith(x, z, terrain.heightAt(x, z) - 0.5, w, h, d, 0.2);
+  scene.add(m.object);
+  world.add(...m.footprints);
+}
 
 // --- player ---
 const SPAWN = new Vector3(0, 0, 120);
@@ -39,7 +49,7 @@ for (const r of rigs) {
   scene.add(r.root);
 }
 rigs[party.activeIndex].root.visible = true;
-const tpc = new ThirdPersonCamera(camera, terrain);
+const tpc = new ThirdPersonCamera(camera, world);
 tpc.snapTo(new Vector3(SPAWN.x, SPAWN.y + 1.4, SPAWN.z));
 hud.setParty(ROSTER, party.activeIndex);
 
@@ -72,9 +82,9 @@ const game = new Game()
         sprint: input.isDown('ShiftLeft') || input.isDown('ShiftRight'),
         jump: input.locked && input.justPressed('Space'),
         jumpHeld: input.isDown('Space'),
-        glide: false,
+        glide: input.locked && input.justPressed('Space'),
         climbHeld: false,
-      }, terrain, dt);
+      }, world, dt);
       if (controller.pos.y < -70) {
         controller.pos = { x: SPAWN.x, y: SPAWN.y, z: SPAWN.z };
         controller.vel = { x: 0, y: 0, z: 0 };
@@ -88,7 +98,7 @@ const game = new Game()
       rig.root.position.set(controller.pos.x, controller.pos.y, controller.pos.z);
       rig.root.rotation.y = -controller.yaw - Math.PI / 2;
       rig.animate({ mode: controller.mode, speed: Math.hypot(controller.vel.x, controller.vel.z) }, dt);
-      rig.setShadowHeight(terrain.heightAt(controller.pos.x, controller.pos.z));
+      rig.setShadowHeight(world.heightAt(controller.pos.x, controller.pos.z));
       focus.set(controller.pos.x, controller.pos.y + 1.4, controller.pos.z);
       tpc.update(focus, dt);
       sky.follow(camera.position);
@@ -100,7 +110,7 @@ game.start();
 
 declare global {
   interface Window {
-    __ginseng: { scene: Scene; camera: PerspectiveCamera; terrain: Terrain; sky: Sky; controller: typeof controller; party: Party<(typeof ROSTER)[number]>; tpc: ThirdPersonCamera; input: Input };
+    __ginseng: { scene: Scene; camera: PerspectiveCamera; terrain: Terrain; world: HeightWorld; sky: Sky; controller: typeof controller; party: Party<(typeof ROSTER)[number]>; tpc: ThirdPersonCamera; input: Input; game: Game };
   }
 }
-window.__ginseng = { scene, camera, terrain, sky, controller, party, tpc, input };
+window.__ginseng = { scene, camera, terrain, world, sky, controller, party, tpc, input, game };

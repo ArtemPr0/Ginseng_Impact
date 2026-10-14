@@ -31,6 +31,12 @@ export class Game {
     requestAnimationFrame(this.frame);
   }
 
+  /** Synchronously runs fixed updates for `seconds` of simulated time (tests and scripted checks). */
+  advance(seconds: number): void {
+    const steps = Math.round(seconds / FIXED_DT);
+    for (let i = 0; i < steps; i++) for (const s of this.systems) s.update?.(FIXED_DT);
+  }
+
   private frame = (now: number): void => {
     if (!this.running) return;
     if (this.last === 0) this.last = now;

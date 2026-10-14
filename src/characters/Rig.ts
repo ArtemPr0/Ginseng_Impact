@@ -44,6 +44,7 @@ export class Rig {
   private readonly cape?: Mesh;
   private readonly weapon: Group;
   private readonly shadow: Mesh;
+  private readonly glider: Group;
   private phase = 0;
   private time = 0;
   private readonly legLen: number;
@@ -108,6 +109,21 @@ export class Rig {
     this.weapon.position.y = -armLen;
     this.armR.add(this.weapon);
     this.buildWeapon(def, accent);
+
+    // Glider: two angled panels on the back, electric with an accent leading edge.
+    this.glider = new Group();
+    for (const side of [-1, 1]) {
+      const panel = new Mesh(new PlaneGeometry(1.4, 0.7, 1, 1), ps1Lambert({ color: PALETTE.electric, side: DoubleSide }));
+      panel.position.set(side * 0.72, 0, 0);
+      panel.rotation.set(-Math.PI / 2, 0, side * 0.35);
+      const edge = box(1.4, 0.03, 0.04, PALETTE.void, accent, 1.5);
+      edge.position.set(side * 0.72, 0.02, -0.33);
+      edge.rotation.z = side * 0.35;
+      this.glider.add(panel, edge);
+    }
+    this.glider.position.set(0, T + 0.25, -torsoD / 2 - 0.15);
+    this.glider.visible = false;
+    this.hips.add(this.glider);
 
     this.shadow = new Mesh(new CircleGeometry(0.45 * b, 10), new MeshBasicMaterial({ color: PALETTE.void, transparent: true, opacity: 0.55, depthWrite: false }));
     this.shadow.rotation.x = -Math.PI / 2;
@@ -190,6 +206,7 @@ export class Rig {
       lean = 0.1 + Math.sin(a * Math.PI) * 0.25;
     }
 
+    this.glider.visible = pose.mode === 'glide';
     this.legL.rotation.x += (legL - this.legL.rotation.x) * k;
     this.legR.rotation.x += (legR - this.legR.rotation.x) * k;
     this.armL.rotation.x += (armL - this.armL.rotation.x) * k;
