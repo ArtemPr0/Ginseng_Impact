@@ -17,6 +17,7 @@ import { ComboTracker, Cooldown, computeDamage, inCone, inRadius } from './Comba
 import { ELEMENT_COLOR, REACTIONS, applyElement, type Element, type ReactionId } from './Elements';
 import { Enemy } from './Enemy';
 import { LootField, rollDrops } from './Loot';
+import { loadModel } from '../models/ModelRig';
 import { COMBO, SKILLS, type AttackDef, type GroundEffectDef } from './Skills';
 import { Vfx } from './Vfx';
 
@@ -90,6 +91,7 @@ export class CombatSystem {
     };
     this.enemies.push(e);
     this.d.scene.add(e.object, ...e.trailObjects);
+    void loadModel(def.kind).then((g) => { if (g && e.alive) e.useModel(def.kind, g); });
     return e;
   }
 

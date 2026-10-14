@@ -7,6 +7,7 @@ import { Game } from './core/Game';
 import { Input } from './core/Input';
 import { LAYOUT } from './data/world';
 import { Inventory } from './items/Inventory';
+import { loadModel } from './models/ModelRig';
 import { ITEMS } from './items/Items';
 import { CONTROLLER, createControllerState, stepController } from './player/CharacterController';
 import { Party } from './player/Party';
@@ -74,6 +75,7 @@ SPAWN.y = world.heightAt(SPAWN.x, SPAWN.z);
 const controller = createControllerState(SPAWN);
 const party = new Party(ROSTER);
 const rigs = ROSTER.map((def) => new Rig(def));
+rigs.forEach((r, i) => { void loadModel(ROSTER[i].id).then((g) => { if (g) r.useModel(ROSTER[i].id, g); }); });
 for (const r of rigs) {
   r.root.visible = false;
   scene.add(r.root, r.trailObject);

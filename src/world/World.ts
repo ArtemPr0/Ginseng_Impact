@@ -22,6 +22,7 @@ import {
 } from './Settlements';
 import { deadAt, frozenAt, riverAt, riverDistance, sandAt, streamAt, Terrain, WORLD } from './Terrain';
 import { lilyPond, river } from './Water';
+import { loadModel, ModelRig } from '../models/ModelRig';
 
 function rng(seed: number): () => number {
   let s = seed >>> 0;
@@ -49,15 +50,15 @@ export class World {
 
     // --- the original landmarks ---
     this.place(causeway(LAYOUT.causeway, h, rnd));
-    this.place(giantHead(LAYOUT.head.x, LAYOUT.head.z, Math.max(-12, h(LAYOUT.head.x, LAYOUT.head.z) - 8), LAYOUT.head.height));
-    this.place(cathedral(LAYOUT.cathedral.x, LAYOUT.cathedral.z, Math.max(0, h(LAYOUT.cathedral.x, LAYOUT.cathedral.z) - 1)));
+    this.place(giantHead(LAYOUT.head.x, LAYOUT.head.z, Math.max(-12, h(LAYOUT.head.x, LAYOUT.head.z) - 8), LAYOUT.head.height), 'head');
+    this.place(cathedral(LAYOUT.cathedral.x, LAYOUT.cathedral.z, Math.max(0, h(LAYOUT.cathedral.x, LAYOUT.cathedral.z) - 1)), 'cathedral');
     for (const [x, z, w, mh, d, rot] of LAYOUT.monoliths) this.place(monolith(x, z, h(x, z) - 0.6, w, mh, d, rot));
     for (const w of LAYOUT.waterfalls) this.place(waterfall(w.x, w.z, h(w.x, w.z + (w.z > -95 ? 4 : -4)) - 0.5, w.width, w.height));
-    this.place(frogKing(LAYOUT.frog.x, LAYOUT.frog.z, h(LAYOUT.frog.x, LAYOUT.frog.z) - 0.3));
+    this.place(frogKing(LAYOUT.frog.x, LAYOUT.frog.z, h(LAYOUT.frog.x, LAYOUT.frog.z) - 0.3), 'frogking');
     this.place(witchBridge(LAYOUT.coven.streamX, LAYOUT.coven.zMin, LAYOUT.coven.zMax, LAYOUT.coven.bridgeZ, h));
-    this.place(castle(LAYOUT.castle.x, LAYOUT.castle.z, Math.max(0, h(LAYOUT.castle.x, LAYOUT.castle.z) - 1)));
+    this.place(castle(LAYOUT.castle.x, LAYOUT.castle.z, Math.max(0, h(LAYOUT.castle.x, LAYOUT.castle.z) - 1)), 'castle');
     this.place(orchard(LAYOUT.orchard.x, LAYOUT.orchard.z, h));
-    this.place(moonShellColossus(LAYOUT.colossusPath, hw));
+    this.place(moonShellColossus(LAYOUT.colossusPath, hw), 'colossus');
     this.group.add(mountains(WORLD.islandCentre));
     this.group.add(ruins(LAYOUT.ruins.map((r) => ({ ...r, y: h(r.x, r.z) }))));
 
@@ -82,11 +83,11 @@ export class World {
     this.place(rider([[-20, 120], [10, 112], [30, 100], [50, 104], [60, 125], [30, 140], [0, 134]], 3.6, hw));
 
     // --- structures from the second viewing ---
-    this.place(wizardTower(155, 70, Math.max(-8, h(155, 70) - 6)));
-    this.place(demonChurch(-110, 95, h(-110, 95) - 0.5, Math.PI));
+    this.place(wizardTower(155, 70, Math.max(-8, h(155, 70) - 6)), 'tower');
+    this.place(demonChurch(-110, 95, h(-110, 95) - 0.5, Math.PI), 'church');
     this.auroraCentre.set(-110, 0, 95);
     this.place(palmIsland(120, 34, 148, ));
-    this.place(treeHouse(-150, 50, h(-150, 50) - 1));
+    this.place(treeHouse(-150, 50, h(-150, 50) - 1), 'treehouse');
     this.place(ruinedNave(110, -28, h(110, -28) - 0.4, 0.3));
     this.place(archGate(96, -150, h(96, -150) - 0.3, 0.5));
     this.place(woodenBridge(70, -50, 72, -140, Math.max(h(70, -50), h(72, -140)) + 0.6));
@@ -203,16 +204,27 @@ export class World {
       const s = spots[def.id] ?? { x: 0, z: 0 };
       const npc = new Npc(def, s, hw);
       if (s.y !== undefined) npc.pos.y = s.y;
+      const modelId = def.id === 'king' ? 'king' : def.id.startsWith('witch') ? 'witch' : null;
+      if (modelId) void loadModel(modelId).then((g) => { if (g) npc.rig.useModel(modelId, g); });
       if (def.behaviour.kind === 'stand' && (def.behaviour.pose === 'sit' || def.behaviour.pose === 'drink' || def.behaviour.pose === 'read' || def.behaviour.pose === 'throne' || def.behaviour.pose === 'sitSword' || def.behaviour.pose === 'fish')) npc.pos.y += def.behaviour.pose === 'throne' ? 1.2 : 0.5;
       this.group.add(npc.object);
       this.npcs.push(npc);
     }
   }
 
-  private place(l: Landmark): void {
+  private place(l: Landmark, modelId?: string): void {
     this.group.add(l.object);
     this.heights.add(...l.footprints);
     this.landmarks.push(l);
+    if (modelId) {
+      void loadModel(modelId).then((g) => {
+        if (!g) return;
+        const m = new ModelRig(modelId, g);
+        l.object.children.forEach((c) => { c.visible = false; });
+        l.object.add(m.root);
+        this.extras.push({ update: (dt) => m.update(dt) });
+      });
+    }
   }
 
   /** True where flora may grow: on the island, off the road, not in water or chasm, on gentle ground, clear of buildings. */

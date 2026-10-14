@@ -1,4 +1,6 @@
 import type { MatFn } from './BossRigs';
+import { ModelRig } from '../models/ModelRig';
+import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { AdditiveBlending, BoxGeometry, BufferGeometry, CapsuleGeometry, ConeGeometry, Group, IcosahedronGeometry, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, Quaternion, SphereGeometry, Sprite, Vector3 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { rockify, tintRock } from '../world/geometry';
@@ -43,6 +45,8 @@ export class Enemy {
   private orbitAngle = Math.random() * Math.PI * 2;
   /** Set by the combat system when a bolt-summoned minion should vanish for good. */
   noRespawn = false;
+  model: ModelRig | null = null;
+  private lastState: EnemyState = 'idle';
 
   constructor(readonly def: EnemyDef, readonly spawn: { x: number; z: number }, private readonly world: WorldQuery) {
     this.brain = new EnemyBrain({ ...def.brain });
@@ -236,6 +240,14 @@ export class Enemy {
     return this.trail;
   }
 
+  /** Swaps the procedural body for a loaded glTF. */
+  useModel(id: string, gltf: GLTF): void {
+    this.model = new ModelRig(id, gltf);
+    for (const c of [...this.object.children]) c.visible = false;
+    this.object.add(this.model.root);
+    this.object.scale.setScalar(1);
+  }
+
   get alive(): boolean {
     return this.brain.state !== 'dead';
   }
@@ -402,6 +414,19 @@ export class Enemy {
     }
     const st = this.brain.state;
     const k = 1 - Math.exp(-dt * 16);
+    if (this.model) {
+      this.object.rotation.y = -this.yaw;
+      const m = this.model;
+      if (st !== this.lastState) {
+        if (st === 'windup') { if (!m.play(this.currentAttack?.kind === 'roar' ? 'roar' : 'attack', true)) m.play('attack', true); }
+        else if (st === 'chase') { if (!m.play('walk')) m.play('idle'); }
+        else if (st === 'idle') m.play('idle');
+        else if (st === 'dead') { if (!m.play('death', true)) m.play('idle'); }
+        this.lastState = st;
+      } else if ((st === 'recover' || st === 'chase') && m.finished) { if (!m.play('walk')) m.play('idle'); }
+      m.update(dt);
+      return;
+    }
     if (this.bossRig) {
       this.object.rotation.y = -this.yaw;
       const moving = st === 'chase';

@@ -3,6 +3,8 @@ import {
   Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, PlaneGeometry, SphereGeometry, TorusGeometry, Vector3, type Object3D,
 } from 'three';
 import { surface } from '../render/Materials';
+import { ModelRig } from '../models/ModelRig';
+import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PALETTE } from '../render/palette';
 import type { Mode } from '../player/CharacterController';
 import type { CharacterDef } from './roster';
@@ -77,6 +79,9 @@ export class Rig {
   private time = 0;
   private readonly legLen: number;
   private lastAttack: number | undefined;
+  /** Real glTF model, when one has been generated for this character. */
+  model: ModelRig | null = null;
+  private lastClipOnce = '';
 
   constructor(readonly def: CharacterDef) {
     const { height: h, bulk: b, cloth, armour, skin, accent } = def.look;
@@ -264,6 +269,43 @@ export class Rig {
     for (let i = 0; i < N; i++) this.trailPoints.push(new Vector3(), new Vector3());
   }
 
+  /** Swaps the procedural body for a loaded glTF (the trail and props stay). */
+  useModel(id: string, gltf: GLTF): void {
+    this.model = new ModelRig(id, gltf);
+    this.hips.visible = false;
+    this.root.add(this.model.root);
+  }
+
+  /** Maps a pose to a model clip. One-shot clips (attacks, hits) restart only when a new swing begins. */
+  private driveModel(pose: RigPose, dt: number): void {
+    const m = this.model!;
+    const v = pose.speed;
+    let clip: string = 'idle';
+    let once = false;
+    if (pose.attack !== undefined) {
+      const k = pose.attackKind;
+      clip = k === 'heavy' ? 'heavy' : k === 'skill' || k === 'burst' ? 'cast' : 'attack';
+      once = true;
+      const tag = clip + ':' + String(k) + ':' + (pose.attack < (this.lastAttack ?? 1) ? Math.random() : 0);
+      if (this.lastAttack === undefined || pose.attack < this.lastAttack) this.lastClipOnce = tag;
+      if (m.playing !== clip || this.lastClipOnce === tag) {
+        if (!m.play(clip, true)) m.play('attack', true);
+        this.lastClipOnce = '';
+      }
+    } else if (pose.pose) {
+      clip = pose.pose === 'sit' || pose.pose === 'drink' || pose.pose === 'read' || pose.pose === 'throne' || pose.pose === 'sitSword' || pose.pose === 'fish' || pose.pose === 'row' ? 'sit' : pose.pose === 'kneel' ? 'kneel' : 'idle';
+      if (!m.play(clip)) m.play('idle');
+    } else if (pose.mode === 'air') { if (!m.play('jump')) m.play('idle'); }
+    else if (pose.mode === 'glide') { if (!m.play('fly')) m.play('jump'); }
+    else if (pose.mode === 'climb') { if (!m.play('climb')) m.play('idle', false, 0.5); }
+    else if (v > 5.5) { if (!m.play('run', false, v / 7)) m.play('walk', false, v / 4); }
+    else if (v > 0.3) { if (!m.play('walk', false, Math.max(0.6, v / 4))) m.play('run', false, v / 7); }
+    else m.play('idle');
+    void once;
+    m.update(dt);
+    this.lastAttack = pose.attack;
+  }
+
   /** The trail lives in world space: add it to the scene next to the root. */
   get trailObject(): Object3D {
     return this.trail;
@@ -322,6 +364,7 @@ export class Rig {
 
   /** Advance the animation. Call once per rendered frame. */
   animate(pose: RigPose, dt: number): void {
+    if (this.model) { this.time += dt; this.driveModel(pose, dt); this.animateTrail(pose, dt); return; }
     this.time += dt;
     const v = pose.speed;
     const run = Math.min(1, v / 4.5);
