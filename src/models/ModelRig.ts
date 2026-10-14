@@ -1,4 +1,5 @@
 import { AnimationAction, AnimationClip, AnimationMixer, Box3, Group, LoopOnce, LoopRepeat, Mesh, type MeshStandardMaterial, Object3D, Vector3 } from 'three';
+import { warnMissing } from './Placeholder';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { MODELS, type ModelDef } from '../data/models';
@@ -45,7 +46,35 @@ export function loadModel(id: string): Promise<GLTF | null> {
   return p;
 }
 
+/** `loadModel` that also logs a missing file once (the console is the Meshy to-do list). */
+export function loadModelOrWarn(id: string, label?: string): Promise<GLTF | null> {
+  return loadModel(id).then((g) => { if (!g) warnMissing(id, label); return g; });
+}
+
 export type ClipKey = keyof NonNullable<ModelDef['clips']>;
+
+/** The scale, offset and yaw that put a file at `def.height`, centred on x/z with its feet at y = 0. */
+export function normaliseTransform(scene: Object3D, def: ModelDef): { scale: number; offset: Vector3; yaw: number } {
+  const box = new Box3().setFromObject(scene);
+  const size = new Vector3();
+  box.getSize(size);
+  const scale = def.height / Math.max(0.001, size.y);
+  const centre = new Vector3();
+  box.getCenter(centre);
+  return { scale, offset: new Vector3(-centre.x * scale, -(box.min.y * scale) + (def.yOffset ?? 0), -centre.z * scale), yaw: def.yaw ?? 0 };
+}
+
+/** Every mesh of a scene in traversal order (flora instancing reads geometry + material from these). */
+export function firstMeshes(scene: Object3D): Mesh[] {
+  const out: Mesh[] = [];
+  scene.traverse((o) => { if ((o as Mesh).isMesh) out.push(o as Mesh); });
+  return out;
+}
+
+export interface ModelRigOptions {
+  /** Give this instance its own material copies (enemies flash on hit without lighting up their siblings). */
+  cloneMaterials?: boolean;
+}
 
 /**
  * A loaded glTF character: scaled to its target height, feet on the ground, with crossfaded clip playback.
@@ -63,7 +92,9 @@ export class ModelRig {
   /** Materials of the loaded meshes (for per-model shader patches). */
   readonly materials: MeshStandardMaterial[] = [];
 
-  constructor(readonly id: string, gltf: GLTF) {
+  private readonly scene: Group;
+
+  constructor(readonly id: string, gltf: GLTF, opts: ModelRigOptions = {}) {
     const def = MODELS[id];
     // Each rig gets its own copy (skinned meshes need SkeletonUtils so bones and skeletons are duplicated together).
     const scene = cloneSkinned(gltf.scene) as Group;
@@ -72,12 +103,16 @@ export class ModelRig {
       o.castShadow = true;
       o.receiveShadow = true;
       o.frustumCulled = false;
+      const mesh = o as Mesh;
+      if (opts.cloneMaterials) mesh.material = Array.isArray(mesh.material) ? mesh.material.map((m) => m.clone()) : mesh.material.clone();
       // Meshy textures are unlit and often near-black; a faint cobalt self-light keeps the silhouette readable at night.
-      const mats = Array.isArray((o as Mesh).material) ? ((o as Mesh).material as MeshStandardMaterial[]) : [(o as Mesh).material as MeshStandardMaterial];
+      const mats = Array.isArray(mesh.material) ? (mesh.material as MeshStandardMaterial[]) : [mesh.material as MeshStandardMaterial];
       for (const m of mats) {
         if (!m || !('emissive' in m)) continue;
         if (m.emissive.getHex() === 0) { m.emissive.setHex(0x16224e); m.emissiveIntensity = 0.42; }
         m.roughness = Math.max(m.roughness ?? 1, 0.6);
+        m.userData.baseEmissive = m.emissive.getHex();
+        m.userData.baseIntensity = m.emissiveIntensity;
         this.materials.push(m);
       }
     });
@@ -98,6 +133,7 @@ export class ModelRig {
     holder.rotation.y = def.yaw ?? 0;
     holder.add(scene);
     this.root.add(holder);
+    this.scene = scene;
     this.height = def.height;
     this.mixer = new AnimationMixer(scene);
     for (const clip of gltf.animations) this.actions.set(clip.name.toLowerCase(), this.mixer.clipAction(clip));
@@ -134,6 +170,13 @@ export class ModelRig {
 
   get playing(): string {
     return this.currentKey;
+  }
+
+  /** First node whose name matches (bone lookups: `bone(/right.?hand/i)`), or null. */
+  bone(pattern: RegExp): Object3D | null {
+    let found: Object3D | null = null;
+    this.scene.traverse((o) => { if (!found && pattern.test(o.name)) found = o; });
+    return found;
   }
 
   /** False for static exports (no animation clips at all). */

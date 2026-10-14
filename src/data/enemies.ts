@@ -31,6 +31,8 @@ export interface EnemyDef {
   drops?: DropEntry[];
   /** Keeps the mob near its spawn (water-bound bosses). */
   leash?: number;
+  /** Heavy walker: footsteps shake the camera and puff dust. */
+  stomp?: boolean;
 }
 
 export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
@@ -39,7 +41,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     brain: { aggroRange: 24, attackRange: 12, windup: 0.5, recover: 0.6, attackCooldown: 1.6, preferredRange: 8 }, respawn: 25, shards: [3, 7], drops: [{ itemId: 'wisp-ember', chance: 0.6 }],
   },
   sentinel: {
-    kind: 'sentinel', name: 'Stone Sentinel', maxHp: 900, def: 60, atk: 95, speed: 2.2, element: 'stone', hover: 0, bodyRadius: 1.0, height: 2.6,
+    kind: 'sentinel', stomp: true, name: 'Stone Sentinel', maxHp: 900, def: 60, atk: 95, speed: 2.2, element: 'stone', hover: 0, bodyRadius: 1.0, height: 2.6,
     brain: { aggroRange: 20, attackRange: 2.9, windup: 0.6, recover: 0.9, attackCooldown: 0.4 }, respawn: 30, shards: [6, 12], drops: [{ itemId: 'rune-shard', chance: 0.5 }, { itemId: 'sentinel-core', chance: 0.12 }],
   },
   beast: {
@@ -47,13 +49,13 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     brain: { aggroRange: 28, attackRange: 3.6, windup: 0.45, recover: 1.1, attackCooldown: 0.7 }, respawn: 35, shards: [8, 16], drops: [{ itemId: 'beast-fang', chance: 0.5 }, { itemId: 'moon-dew', chance: 0.3 }],
   },
   passbeast: {
-    kind: 'passbeast', name: 'The Pass Beast', title: 'Terror of the Mountain Pass', maxHp: 5200, def: 60, atk: 140, speed: 5.5, element: 'rot', hover: 0, bodyRadius: 2.4, height: 3.8, scale: 2.6, boss: true,
+    kind: 'passbeast', stomp: true, name: 'The Pass Beast', title: 'Terror of the Mountain Pass', maxHp: 5200, def: 60, atk: 140, speed: 5.5, element: 'rot', hover: 0, bodyRadius: 2.4, height: 3.8, scale: 2.6, boss: true,
     brain: { aggroRange: 34, attackRange: 7, windup: 0.6, recover: 1.2, attackCooldown: 0.8 }, respawn: 180, shards: [120, 180],
     attacks: [{ kind: 'bite', range: 7, windup: 0.5, recover: 1.0, weight: 3 }, { kind: 'charge', range: 22, windup: 0.8, recover: 1.4, weight: 2 }, { kind: 'roar', range: 14, windup: 0.9, recover: 1.2, weight: 1 }],
     drops: [{ itemId: 'fang-cleaver', chance: 1 }, { itemId: 'beast-fang', chance: 1 }],
   },
   yeti: {
-    kind: 'yeti', name: 'The Yeti', title: 'Lord of the Frozen Grove', maxHp: 7000, def: 80, atk: 160, speed: 3.4, element: 'lunar', hover: 0, bodyRadius: 2.0, height: 5.2, boss: true,
+    kind: 'yeti', stomp: true, name: 'The Yeti', title: 'Lord of the Frozen Grove', maxHp: 7000, def: 80, atk: 160, speed: 3.4, element: 'lunar', hover: 0, bodyRadius: 2.0, height: 5.2, boss: true,
     brain: { aggroRange: 30, attackRange: 6, windup: 0.8, recover: 1.3, attackCooldown: 0.9 }, respawn: 240, shards: [160, 240],
     attacks: [{ kind: 'slam', range: 7, windup: 0.9, recover: 1.4, weight: 3 }, { kind: 'boulder', range: 30, windup: 0.9, recover: 1.0, weight: 2 }, { kind: 'roar', range: 16, windup: 1.0, recover: 1.5, weight: 1 }],
     drops: [{ itemId: 'glacier-maul', chance: 1 }, { itemId: 'yeti-pelt', chance: 1 }, { itemId: 'moon-dew', chance: 1 }],
@@ -71,7 +73,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     drops: [{ itemId: 'tide-blade', chance: 1 }, { itemId: 'river-pearl', chance: 1 }],
   },
   warden: {
-    kind: 'warden', name: 'The Antlered Warden', title: 'Who Wades the Great River', maxHp: 9000, def: 90, atk: 170, speed: 2.6, element: 'rot', hover: 0, bodyRadius: 3.2, height: 15, boss: true, leash: 40,
+    kind: 'warden', stomp: true, name: 'The Antlered Warden', title: 'Who Wades the Great River', maxHp: 9000, def: 90, atk: 170, speed: 2.6, element: 'rot', hover: 0, bodyRadius: 3.2, height: 15, boss: true, leash: 40,
     brain: { aggroRange: 40, attackRange: 9, windup: 1.0, recover: 1.6, attackCooldown: 1.0 }, respawn: 300, shards: [220, 320],
     attacks: [{ kind: 'roots', range: 24, windup: 1.1, recover: 1.6, weight: 3 }, { kind: 'sweep', range: 11, windup: 0.9, recover: 1.4, weight: 3 }, { kind: 'slam', range: 9, windup: 1.0, recover: 1.5, weight: 2 }],
     drops: [{ itemId: 'warden-bough', chance: 1 }, { itemId: 'warden-antler', chance: 1 }, { itemId: 'moon-dew', chance: 1 }],
@@ -83,7 +85,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     drops: [{ itemId: 'wyrm-fang-blade', chance: 1 }, { itemId: 'wyrm-scale', chance: 1 }, { itemId: 'star-chart', chance: 1 }],
   },
   troll: {
-    kind: 'troll', name: 'The Gorge Troll', title: 'Red-Eyed Keeper of the Chasm', maxHp: 6400, def: 85, atk: 150, speed: 4.6, element: 'stone', hover: 0, bodyRadius: 2.0, height: 4.6, boss: true, leash: 34,
+    kind: 'troll', stomp: true, name: 'The Gorge Troll', title: 'Red-Eyed Keeper of the Chasm', maxHp: 6400, def: 85, atk: 150, speed: 4.6, element: 'stone', hover: 0, bodyRadius: 2.0, height: 4.6, boss: true, leash: 34,
     brain: { aggroRange: 30, attackRange: 6.5, windup: 0.7, recover: 1.2, attackCooldown: 0.8 }, respawn: 240, shards: [150, 220],
     attacks: [{ kind: 'slam', range: 7, windup: 0.8, recover: 1.3, weight: 3 }, { kind: 'charge', range: 24, windup: 0.7, recover: 1.4, weight: 2 }, { kind: 'boulder', range: 28, windup: 0.9, recover: 1.0, weight: 2 }],
     drops: [{ itemId: 'troll-club', chance: 1 }, { itemId: 'troll-hide', chance: 1 }, { itemId: 'moon-dew', chance: 1 }],
