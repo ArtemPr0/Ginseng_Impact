@@ -112,3 +112,16 @@ void main() {
 - [ ] Palette tokens only; accents emissive, ≤ 2% red in frame
 - [ ] Reads at 480×270 (test by screenshot; if detail vanishes, simplify the silhouette)
 - [ ] Dissolves into `fog` at distance
+
+## Lessons from the first build (verified by screenshot)
+
+- **Point sprites need a texture.** `PointsMaterial` without `map` draws squares; at 480×270 with
+  additive blending a 1 m particle becomes a huge pink block. Use `glowTexture()` and sizes 0.3–0.5.
+- **Additive glows are amplified by the quantiser.** Keep halo sprites ≤ 1.2 m for projectiles and
+  ≤ 0.3 × landmark height for landmark eyes; ground zone fills ≤ 0.05 opacity.
+- **Emissive flora blows out.** Sunflower petals read blue at `emissiveIntensity 0.55` on a `#1a2a7a`
+  base; 1.6 turned the field white.
+- **Cloud sea tint**: fog → electric mix 0.15–0.3; higher reads as a white sheet.
+- **Landmark eyes must be `fog: false`** on both the emissive mesh and the halo sprite so they
+  show through the fog from 300 m. Everything else keeps fog.
+- **Cones for pines**: `openEnded: true`, or the flat bottom disc shows black from below.
