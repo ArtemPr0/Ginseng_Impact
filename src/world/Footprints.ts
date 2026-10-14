@@ -28,16 +28,33 @@ export function cathedralFootprints(x: number, z: number, baseY: number): Footpr
 }
 
 /** Curtain walls, seven towers and the keep of the castle (64 m square). */
+/**
+ * The castle model (castle.glb at 44 m) is solid: four towers, curtain walls and a central keep with no open
+ * courtyard. Its colliders are a 10×10 grid of the model's top heights in metres (rows run −z → +z, columns
+ * −x → +x), sampled from the file, so every wall and tower can be climbed where it stands.
+ */
+const CASTLE_GRID = [
+  [11, 14, 14, 14, 13, 14, 14, 14, 14, 10],
+  [16, 17, 32, 33, 14, 14, 33, 32, 17, 16],
+  [17, 18, 34, 36, 27, 27, 36, 34, 18, 16],
+  [17, 18, 35, 37, 28, 28, 37, 34, 18, 17],
+  [13, 17, 21, 28, 27, 27, 28, 21, 17, 12],
+  [11, 15, 32, 33, 32, 37, 38, 38, 15, 11],
+  [11, 26, 33, 38, 33, 38, 44, 38, 26, 11],
+  [11, 26, 24, 33, 21, 37, 37, 37, 26, 11],
+  [9, 11, 11, 21, 21, 21, 21, 12, 12, 9],
+  [1, 9, 10, 8, 6, 6, 1, 9, 9, 1],
+];
+export const CASTLE_SIZE = { w: 45.3, d: 48 };
+
 export function castleFootprints(x: number, z: number, baseY: number): Footprint[] {
-  const half = 32;
   const out: Footprint[] = [];
-  for (const [wx, wz, w, d] of [[0, -half, half * 2, 3], [0, half, half * 2, 3], [-half, 0, 3, half * 2], [half, 0, 3, half * 2]] as const) {
-    out.push({ kind: 'box', x: x + wx, z: z + wz, hw: w / 2, hd: d / 2, top: baseY + 12 });
-  }
-  for (const [tx, tz, r, h] of [[-half, -half, 6.5, 30], [half, -half, 6.5, 30], [-half, half, 6.5, 30], [half, half, 6.5, 30], [0, -8, 5, 44], [-6, half, 3.5, 18], [6, half, 3.5, 18]] as const) {
-    out.push({ kind: 'cyl', x: x + tx, z: z + tz, r, top: baseY + h });
-  }
-  out.push({ kind: 'box', x, z: z - 8, hw: 12, hd: 11, top: baseY + 26 });
+  const cw = CASTLE_SIZE.w / 10;
+  const cd = CASTLE_SIZE.d / 10;
+  CASTLE_GRID.forEach((row, j) => row.forEach((top, i) => {
+    if (top < 2) return;
+    out.push({ kind: 'box', x: x - CASTLE_SIZE.w / 2 + (i + 0.5) * cw, z: z - CASTLE_SIZE.d / 2 + (j + 0.5) * cd, hw: cw / 2, hd: cd / 2, top: baseY + top });
+  }));
   return out;
 }
 

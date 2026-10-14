@@ -84,8 +84,12 @@ export class World {
     for (const w of LAYOUT.waterfalls) this.place(waterfall(w.x, w.z, h(w.x, w.z + (w.z > -57 ? 4 : -4)) - 0.5, w.width, w.height));
     const castleY = Math.max(0, h(LAYOUT.castle.x, LAYOUT.castle.z) - 1);
     this.place(modelLandmark('castle', LAYOUT.castle.x, LAYOUT.castle.z, castleY, { footprints: castleFootprints(LAYOUT.castle.x, LAYOUT.castle.z, castleY) }));
-    this.place(modelLandmark('throne', LAYOUT.castle.x, LAYOUT.castle.z + 11, castleY, { footprints: [{ kind: 'box', x: LAYOUT.castle.x, z: LAYOUT.castle.z + 11, hw: 4.5, hd: 3.5, top: castleY + 1.2 }] }));
-    for (const side of [-1, 1]) vfx(fire(LAYOUT.castle.x + side * 4.2, castleY + 2.0, LAYOUT.castle.z + 11 + 1.8, 0.7, 16));
+    // Antler throne (DedGUYetKjP): 6 m dais 1.1 m high, the seat toward the back, facing +z.
+    // The throne stands in front of the castle gate (the keep itself is a solid model).
+    const thZ = LAYOUT.castle.z + 29;
+    const thY = h(LAYOUT.castle.x, thZ) - 0.05;
+    this.place(modelLandmark('throne', LAYOUT.castle.x, thZ, thY, { footprints: [{ kind: 'box', x: LAYOUT.castle.x, z: thZ, hw: 3, hd: 2.25, top: thY + 1.1 }] }));
+    for (const side of [-1, 1]) vfx(fire(LAYOUT.castle.x + side * 2.6, thY + 2.85, thZ + 0.4, 0.35, 10));
     // Horned facade faces east (local +z → world +x), toward the road from the spawn.
     const churchY = h(-66, 57) - 0.5;
     this.place(modelLandmark('church', -66, 57, churchY, { yaw: Math.PI / 2, footprints: [{ kind: 'box', x: -66, z: 57, hw: 9, hd: 13.4, top: churchY + 15 }], update: churchGlow(this.group, -66 + 9.5, churchY, 57) }))

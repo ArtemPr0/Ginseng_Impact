@@ -114,7 +114,7 @@ export const MODELS: Record<string, ModelDef> = {
   campfire: stat('campfire.glb', 0.75, 'stone campfire ring with a kettle tripod (DdjlyzyOcnK)'),
   cloister: stat('cloister.glb', 8.6, 'three pointed gothic arches on slender columns (DdKl7fKMO75)'),
   observatory: stat('observatory.glb', 12, 'mushroom observatory hut with balcony and telescope'),
-  throne: stat('throne.glb', 7.8, 'antler-and-bone throne on a dais with candelabras (DedGUYetKjP)'),
+  throne: stat('throne.glb', 4.5, 'antler-and-bone throne on a dais with candelabras (DedGUYetKjP)'),
   cauldron: stat('cauldron.glb', 1.4, 'iron cauldron over coals'),
   'lantern-post': stat('lantern-post.glb', 2.5, 'red paper lantern on a pole'),
   candle: stat('candle.glb', 0.3, 'candle'),
@@ -194,7 +194,7 @@ export const MODELS: Record<string, ModelDef> = {
   'fish-king': { file: 'fish-king.glb', height: 2.1, label: 'crowned fish king with a lantern and a chalice (DeVj-Z8POjl)', clips: NPC_CLIPS('idle') },
   // On the island
   'face-tree': stat('face-tree.glb', 12, 'tree with a carved stone face and a round door (DeQ-NnpvqF6)'),
-  'stepping-stone': stat('stepping-stone.glb', 0.4, 'flat round stepping stone (DeQ-NnpvqF6)'),
+  'stepping-stone': { ...stat('stepping-stone.glb', 1.0, 'flat round stepping stone (DeQ-NnpvqF6)'), fit: 'x' },
   'hanging-lantern': stat('hanging-lantern.glb', 1.2, 'hanging lantern (DeQ-NnpvqF6)'),
   'mushroom-lamp': stat('mushroom-lamp.glb', 1.2, 'hanging glowing mushroom lamp (DaIqFavJWbd)'),
   'tavern-table': stat('tavern-table.glb', 1.0, 'long wooden tavern table with a pewter mug (DaIqFavJWbd)'),

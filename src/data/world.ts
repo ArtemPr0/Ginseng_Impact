@@ -56,7 +56,7 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   rattle: { x: -21.9, z: 53.2, dy: 0.5 }, bone: { x: -26.1, z: 53.3, dy: 0.5 }, marrow: { x: -24.1, z: 49.6, dy: 0.5 },
   vigil: { x: 32, z: 69 },
   pim: { x: -44, z: 64.2 },
-  king: { x: -99, z: -32.2, dy: 1.2 },
+  king: { x: -99, z: -13.3 },
   croak: { x: -2, z: -22, dy: 0.5 },
   cook: { x: 25.6, z: 77 },
   moss: { x: -58, z: 19, dy: 0.5 },

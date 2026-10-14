@@ -36,7 +36,7 @@ export const NPC_DEFS: NpcDef[] = [
     id: 'king', name: 'The Antlered King', title: 'Who Buys What the Fog Drops', weapon: 'sword',
     model: 'king', accent: PALETTE.witch,
     lines: ['Kneel or do not. The candles do not care.', 'Bring me what the great ones drop. I pay in shards and in silence.', 'My crown was antlers before it was gold. Everything here was something else first.'],
-    behaviour: { kind: 'stand', pose: 'throne', yaw: -Math.PI / 2 },
+    behaviour: { kind: 'stand', pose: 'throne', yaw: Math.PI / 2 },
     shop: [{ itemId: 'crown-blade', price: 900 }, { itemId: 'moon-dew', price: 30 }, { itemId: 'star-chart', price: 220 }],
   },
   {
