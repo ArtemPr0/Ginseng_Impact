@@ -1,5 +1,6 @@
 import type { CharacterDef } from '../characters/roster';
 import { ELEMENT_COLOR } from '../characters/roster';
+import { glyph } from './glyphs';
 
 const hex = (n: number) => '#' + n.toString(16).padStart(6, '0');
 
@@ -25,8 +26,8 @@ export class Hud {
   constructor(container: HTMLElement) {
     this.root = container;
     container.innerHTML = `
-      <div class="hud-prompt" id="hud-prompt"><div class="hud-wordmark">GINSENG IMPACT</div><div class="hud-press">CLICK TO ENTER THE FOG</div>
-        <div class="hud-controls">WASD move · SHIFT sprint · SPACE jump · 1 2 3 switch · ESC release mouse</div></div>
+      <div class="hud-prompt" id="hud-prompt"><div class="hud-subtitle">A SILENT KINGDOM BEYOND THE FOG</div><div class="hud-wordmark">GINSENG IMPACT</div><div class="hud-press">CLICK TO ENTER THE FOG</div>
+        <div class="hud-controls">WASD move · SHIFT sprint · SPACE jump, climb, glide · LMB attack · E skill · 1 2 3 switch · ESC pause</div></div>
       <div class="hud-active panel"><div class="hud-name" id="hud-name"></div><div class="hud-title" id="hud-title"></div>
         <div class="hud-hp-wrap"><div class="hud-hp" id="hud-hp"></div><div class="hud-hp-text" id="hud-hp-text"></div></div>
         <div class="hud-stamina-wrap" id="hud-stamina-wrap"><div class="hud-stamina" id="hud-stamina"></div></div></div>
@@ -64,7 +65,7 @@ export class Hud {
     this.skillCd.textContent = cooldownFraction > 0 ? '' : '';
   }
 
-  enemyBar(id: number, name: string, x: number, y: number, fraction: number, auraColor: number | null, visible: boolean): void {
+  enemyBar(id: number, name: string, x: number, y: number, fraction: number, auraColor: number | null, visible: boolean, auraElement: import('../combat/Elements').Element | null = null): void {
     let el = this.bars.get(id);
     if (!el) {
       el = document.createElement('div');
@@ -80,7 +81,10 @@ export class Hud {
     (el.querySelector('.hud-enemy-fill') as HTMLElement).style.width = `${Math.round(fraction * 100)}%`;
     const aura = el.querySelector('.hud-enemy-aura') as HTMLElement;
     aura.style.display = auraColor === null ? 'none' : 'block';
-    if (auraColor !== null) aura.style.background = hex(auraColor);
+    if (auraColor !== null && auraElement !== null && aura.dataset.el !== auraElement) {
+      aura.dataset.el = auraElement;
+      aura.innerHTML = glyph(auraElement, hex(auraColor), 14);
+    }
   }
 
   removeEnemyBar(id: number): void {
@@ -114,10 +118,10 @@ export class Hud {
   setParty(defs: readonly CharacterDef[], activeIndex: number): void {
     this.party.innerHTML = defs
       .map((d, i) => `<div class="hud-portrait panel${i === activeIndex ? ' active' : ''}" style="--el:${hex(ELEMENT_COLOR[d.element])}">
-        <div class="hud-portrait-key">${i + 1}</div><div class="hud-portrait-name">${d.name}</div></div>`)
+        <div class="hud-portrait-key">${i + 1}</div><div class="hud-portrait-glyph">${glyph(d.element, hex(ELEMENT_COLOR[d.element]), 22)}</div><div class="hud-portrait-name">${d.name}</div></div>`)
       .join('');
     const d = defs[activeIndex];
-    this.name.textContent = d.name;
+    this.name.innerHTML = `${glyph(d.element, hex(ELEMENT_COLOR[d.element]), 18)} ${d.name}`;
     this.name.style.color = hex(ELEMENT_COLOR[d.element]);
     this.title.textContent = d.title;
   }

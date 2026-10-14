@@ -11,6 +11,7 @@ import { PALETTE } from './render/palette';
 import { Renderer } from './render/Renderer';
 import { Sky } from './render/Sky';
 import { Hud } from './ui/Hud';
+import { Minimap } from './ui/Minimap';
 import { LAYOUT } from './data/world';
 import { Terrain } from './world/Terrain';
 import { World } from './world/World';
@@ -31,6 +32,7 @@ scene.add(moon, new HemisphereLight(PALETTE.cobalt, PALETTE.abyss, 1.0), sky.gro
 
 const terrain = new Terrain();
 scene.add(terrain.mesh);
+const minimap = new Minimap(document.getElementById('hud')!, terrain);
 const area = new World(terrain);
 scene.add(area.group);
 const world = area.heights;
@@ -111,6 +113,8 @@ game
       sky.follow(camera.position);
       area.update(dt, camera.position);
       hud.setLocked(input.locked);
+      game.paused = !input.locked;
+      minimap.draw(controller.pos.x, controller.pos.z, tpc.yaw, combat.enemies.map((e) => ({ x: e.pos.x, z: e.pos.z, alive: e.alive, aggro: e.aggro })));
       renderer.render(scene, camera);
     },
   });

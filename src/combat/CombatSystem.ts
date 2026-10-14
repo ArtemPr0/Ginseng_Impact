@@ -386,7 +386,7 @@ export class CombatSystem {
       const dist = Math.hypot(e.pos.x - cam.position.x, e.pos.z - cam.position.z);
       this.screen.set(e.pos.x, e.pos.y + e.def.height + 0.4, e.pos.z).project(cam);
       const visible = this.screen.z < 1 && Math.abs(this.screen.x) < 1.1 && Math.abs(this.screen.y) < 1.1 && dist < 60 && (e.aggro || e.hp < e.def.maxHp);
-      this.d.hud.enemyBar(e.id, e.def.name, (this.screen.x + 1) / 2 * window.innerWidth, (1 - this.screen.y) / 2 * window.innerHeight, e.hp / e.def.maxHp, e.aura ? ELEMENT_COLOR[e.aura.element] : null, visible);
+      this.d.hud.enemyBar(e.id, e.def.name, (this.screen.x + 1) / 2 * window.innerWidth, (1 - this.screen.y) / 2 * window.innerHeight, e.hp / e.def.maxHp, e.aura ? ELEMENT_COLOR[e.aura.element] : null, visible, e.aura ? e.aura.element : null);
     }
   }
 }
