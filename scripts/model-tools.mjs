@@ -3,8 +3,9 @@
  * Model pipeline helpers for Meshy exports (GLB).
  *
  *   node scripts/model-tools.mjs info <in.glb>
- *   node scripts/model-tools.mjs optimize <in.glb> <out.glb> [maxTextureSize=1024]
- *       Converts textures to WebP (≤ maxTextureSize), dedups and prunes. 20 MB → ~1–2 MB.
+ *   node scripts/model-tools.mjs optimize <in.glb> <out.glb> [maxTextureSize=1024] [targetTriangles]
+ *       Converts textures to WebP (≤ maxTextureSize), dedups and prunes. 20 MB → ~1–2 MB. With a triangle
+ *       target it also simplifies the mesh (meshoptimizer), e.g. 30000 for a prop, 80000 for a landmark.
  *   node scripts/model-tools.mjs clip <in.glb> <out.glb>
  *       Keeps only the node hierarchy and animations (drops meshes, skins, materials, textures), so one
  *       animation export becomes a ~100 KB file the game layers onto the base model (see models.ts clipFiles).
@@ -14,13 +15,14 @@
  */
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
-import { dedup, prune, resample, textureCompress } from '@gltf-transform/functions';
+import { dedup, prune, resample, simplify, textureCompress, weld } from '@gltf-transform/functions';
+import { MeshoptSimplifier } from 'meshoptimizer';
 import sharp from 'sharp';
 import { statSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
-const [cmd, a, b, c] = process.argv.slice(2);
+const [cmd, a, b, c, d] = process.argv.slice(2);
 
 function mb(path) {
   return (statSync(path).size / 1048576).toFixed(2) + ' MB';
@@ -36,13 +38,17 @@ async function info(path) {
   console.log(`  textures: ${root.listTextures().map((t) => `${t.getName() || '?'} ${t.getMimeType()} ${(t.getImage()?.byteLength / 1048576).toFixed(2)} MB`).join(', ') || 'none'}`);
 }
 
-async function optimize(inPath, outPath, maxSize = 1024) {
+async function optimize(inPath, outPath, maxSize = 1024, targetTris = 0) {
   const doc = await io.read(inPath);
-  await doc.transform(
-    dedup(),
-    textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [maxSize, maxSize], quality: 82 }),
-    prune(),
-  );
+  const tris = doc.getRoot().listMeshes().reduce((n, m) => n + m.listPrimitives().reduce((k, p) => k + (p.getIndices()?.getCount() ?? p.getAttribute('POSITION').getCount()) / 3, 0), 0);
+  const steps = [dedup()];
+  if (targetTris > 0 && tris > targetTris * 1.15) {
+    await MeshoptSimplifier.ready;
+    steps.push(weld(), simplify({ simplifier: MeshoptSimplifier, ratio: targetTris / tris, error: 0.002 }));
+    console.log(`simplify ${Math.round(tris)} → ~${targetTris} triangles`);
+  }
+  steps.push(textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [maxSize, maxSize], quality: 82 }), prune());
+  await doc.transform(...steps);
   await io.write(outPath, doc);
   console.log(`optimized ${inPath} (${mb(inPath)}) → ${outPath} (${mb(outPath)})`);
 }
@@ -63,7 +69,7 @@ async function clip(inPath, outPath) {
 
 async function main() {
   if (cmd === 'info') return info(a);
-  if (cmd === 'optimize') return optimize(a, b, c ? Number(c) : 1024);
+  if (cmd === 'optimize') return optimize(a, b, c ? Number(c) : 1024, d ? Number(d) : 0);
   if (cmd === 'clip') return clip(a, b);
   if (cmd === 'import') {
     const name = b;

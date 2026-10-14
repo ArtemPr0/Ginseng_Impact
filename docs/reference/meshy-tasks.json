@@ -1,15 +1,88 @@
 {
   "_note": "Meshy task ids on the project account (2026-10-14). texture = textured mesh, remesh = 30k retopo of it, rig = animate task. Downloads: Animate sidebar → select the rig card → Download → glb → All added → One file.",
-  "yeti": { "texture": "01a13ad8-4296-712d-b76f-e592d2cdfc92", "remesh": "01a13add-fb8c-749a-b793-ca1570fd27cf", "rig": "01a13af2-8753-7619-a94a-9a46940b44bf" },
-  "troll": { "texture": "01a13af7-ec06-77bd-aa32-b7978f1f4de9", "remesh": "01a13b08-1967-72c9-966e-0fa7ce66357e", "rig": "01a13b0d-adb0-7134-9528-eea50cba74ec" },
-  "tower": { "texture": "01a13af4-5c05-7047-9011-434de2d9246e", "remesh": "01a13b23-b6a6-7730-a078-f8108f9ca2ae", "rig": null },
-  "warden": { "texture": "01a13af4-2d3f-744f-b7b6-b84a1bcb014a", "remesh": "01a13b08-1ca2-74cc-a69e-ea98c657e269", "rig": "01a13b0d-9c7b-7000-aec2-8ebaa4d5b6eb" },
-  "loggiant": { "texture": "01a13af3-7d77-76f2-84b6-352eea8eda57", "remesh": "01a13b08-2065-7054-abd2-56f4aa29bbc4", "rig": "01a13b0d-9319-7416-bbbe-9b8417eb4a49" },
-  "spiderchapel": { "texture": "01a13af3-4c61-7688-abe1-b86b975344b2", "remesh": "01a13b08-235c-7314-9f00-b031e66c42fd", "rig": "01a13b12-06c0-70f2-88b3-74ba7e6434f7" },
-  "hollowking": { "texture": "01a13af2-ffef-707f-a4a8-d659a06bc440", "remesh": "01a13b08-2613-7405-bb0d-dd43b050e918", "rig": null },
-  "marshdemon": { "texture": "01a13af2-9bc5-7712-99e8-e884735060a8", "remesh": null, "rig": "01a13b0a-1d4f-767d-95ef-ac3bffa9a731" },
-  "lurker": { "texture": "01a13af1-37b2-7494-bee0-e82d04c893f2", "remesh": null, "rig": "smart rig (see Meshy)" },
-  "wyrm": { "texture": "01a13aed-45c5-7084-845b-793c8393fce1", "remesh": "01a13b08-3d3d-7530-818e-d1155b06745b", "rig": "smart rig (see Meshy)" },
-  "frogking": { "texture": "01a13aea-e45f-7652-af20-c517400477b1", "remesh": "see Meshy", "rig": "smart rig (see Meshy)" },
-  "shade": { "texture": "see Meshy (text-to-3D, 811k)", "remesh": "see Meshy", "rig": "01a13b0d-...-625b0ceb" }
+  "yeti": {
+    "texture": "01a13ad8-4296-712d-b76f-e592d2cdfc92",
+    "remesh": "01a13add-fb8c-749a-b793-ca1570fd27cf",
+    "rig": "01a13af2-8753-7619-a94a-9a46940b44bf"
+  },
+  "troll": {
+    "texture": "01a13af7-ec06-77bd-aa32-b7978f1f4de9",
+    "remesh": "01a13b08-1967-72c9-966e-0fa7ce66357e",
+    "rig": "01a13b0d-adb0-7134-9528-eea50cba74ec"
+  },
+  "tower": {
+    "texture": "01a13af4-5c05-7047-9011-434de2d9246e",
+    "remesh": "01a13b23-b6a6-7730-a078-f8108f9ca2ae",
+    "rig": null
+  },
+  "warden": {
+    "texture": "01a13af4-2d3f-744f-b7b6-b84a1bcb014a",
+    "remesh": "01a13b08-1ca2-74cc-a69e-ea98c657e269",
+    "rig": "01a13b0d-9c7b-7000-aec2-8ebaa4d5b6eb"
+  },
+  "loggiant": {
+    "texture": "01a13af3-7d77-76f2-84b6-352eea8eda57",
+    "remesh": "01a13b08-2065-7054-abd2-56f4aa29bbc4",
+    "rig": "01a13b0d-9319-7416-bbbe-9b8417eb4a49"
+  },
+  "spiderchapel": {
+    "texture": "01a13af3-4c61-7688-abe1-b86b975344b2",
+    "remesh": "01a13b08-235c-7314-9f00-b031e66c42fd",
+    "rig": "01a13b12-06c0-70f2-88b3-74ba7e6434f7"
+  },
+  "hollowking": {
+    "texture": "01a13af2-ffef-707f-a4a8-d659a06bc440",
+    "remesh": "01a13b08-2613-7405-bb0d-dd43b050e918",
+    "rig": null
+  },
+  "marshdemon": {
+    "texture": "01a13af2-9bc5-7712-99e8-e884735060a8",
+    "remesh": null,
+    "rig": "01a13b0a-1d4f-767d-95ef-ac3bffa9a731"
+  },
+  "lurker": {
+    "texture": "01a13af1-37b2-7494-bee0-e82d04c893f2",
+    "remesh": null,
+    "rig": "smart rig (see Meshy)"
+  },
+  "wyrm": {
+    "texture": "01a13aed-45c5-7084-845b-793c8393fce1",
+    "remesh": "01a13b08-3d3d-7530-818e-d1155b06745b",
+    "rig": "smart rig (see Meshy)"
+  },
+  "frogking": {
+    "texture": "01a13aea-e45f-7652-af20-c517400477b1",
+    "remesh": "see Meshy",
+    "rig": "smart rig (see Meshy)"
+  },
+  "shade": {
+    "texture": "see Meshy (text-to-3D, 811k)",
+    "remesh": "see Meshy",
+    "rig": "01a13b0d-...-625b0ceb"
+  },
+  "_note2": "Text-to-3D (2026-10-14 evening): draft = untextured mesh task (20 credits), texture = text-prompt texture task on it (10 credits). Created by API: POST /web/v2/tasks {phase:'draft', args:{draft:{aiModel:'avocado', poseMode:''|'a', license:'private', shouldTransferImageStyle:true, modelType:'standard', autoSplit:false, prompt}}} and {phase:'texture', parent, args:{texture:{prompt, imageId:'', artStyle:'realistic', aiModel:'blueberry', enablePBR:true}}}.",
+  "staff": {
+    "draft": "01a13b9e-7e61-7118-a3bc-ce2cfb9b35d8"
+  },
+  "greatsword": {
+    "draft": "see Meshy (submitted via UI 18:20)"
+  },
+  "causeway-segment": {
+    "draft": "01a13ba8-c321-777e-88e5-e99698d19a94"
+  },
+  "causeway-stairs": {
+    "draft": "01a13ba8-c6db-7448-a96e-f93c6428a253"
+  },
+  "pine": {
+    "draft": "01a13ba8-cae8-7110-bff7-62df220200dc"
+  },
+  "head": {
+    "draft": "01a13ba8-ce9a-71e8-8986-17b9626d27a1"
+  },
+  "cathedral": {
+    "draft": "01a13ba8-d1ba-7466-9310-ab242ec31da8"
+  },
+  "castle": {
+    "draft": "01a13ba8-d495-73c0-99fc-7b4ca29325c9"
+  }
 }
