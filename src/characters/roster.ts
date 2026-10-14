@@ -43,3 +43,9 @@ export const ROSTER: readonly CharacterDef[] = [
     look: { cloth: 0x3c1f7a, armour: PALETTE.dusk, skin: 0xa7b0d8, accent: PALETTE.witch, hat: true, bulk: 0.8, height: 1.75 },
   },
 ];
+
+/** Non-party NPC look for the coven witches. */
+export const WITCH: CharacterDef = {
+  id: 'witch', name: 'Witch', title: 'Of the Green Bridge', element: 'rot', weapon: 'staff', maxHp: 1, atk: 1,
+  look: { cloth: 0x12163a, armour: 0x1d2350, skin: 0x7fa58c, accent: PALETTE.witch, hat: true, bulk: 0.78, height: 1.85 },
+};

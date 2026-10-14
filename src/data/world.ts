@@ -18,7 +18,20 @@ export const LAYOUT = {
   sunflowerFields: [
     { x: -70, z: 44, r: 28, count: 280 },
     { x: 74, z: 92, r: 22, count: 200 },
-    { x: -92, z: -36, r: 18, count: 150 },
+    { x: -72, z: -32, r: 16, count: 150 },
+  ],
+  frog: { x: -86, z: -54 },
+  coven: { streamX: -112, zMin: -70, zMax: 80, bridgeZ: 15 },
+  castle: { x: -165, z: -70 },
+  orchard: { x: 100, z: 40 },
+  rainZone: { x: 100, z: 40, radius: 45 },
+  snowZone: { x: 120, z: -80, radius: 60 },
+  frozenRect: { xFrom: 55, xTo: 190, zFrom: -175, zTo: -30 },
+  colossusPath: [[165, -150], [178, -90], [172, -30], [160, 30], [140, 90], [150, 40], [165, -40], [170, -110]] as Array<[number, number]>,
+  ruins: [
+    { x: -14, z: 72, yaw: 0.3, arch: true }, { x: 15, z: 34, yaw: -0.4, arch: false }, { x: -15, z: -22, yaw: 0.9, arch: false },
+    { x: 16, z: -150, yaw: 0.2, arch: true }, { x: 82, z: -62, yaw: 1.1, arch: true }, { x: 96, z: -98, yaw: -0.7, arch: false },
+    { x: -40, z: 100, yaw: 0.5, arch: false }, { x: 60, z: -130, yaw: 0.0, arch: false },
   ],
   waterfalls: [
     { x: -34, z: -74, width: 9, height: 72 },

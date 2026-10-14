@@ -11,7 +11,7 @@ varying vec3 vDir;
 void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 
 const SKY_FRAG = /* glsl */ `
-uniform vec3 uHorizon; uniform vec3 uMid; uniform vec3 uZenith; uniform vec3 uCloud; uniform vec3 uMoonDir; uniform vec3 uMoonGlow; uniform float uTime;
+uniform vec3 uHorizon; uniform vec3 uMid; uniform vec3 uZenith; uniform vec3 uCloud; uniform vec3 uMoonDir; uniform vec3 uMoonGlow; uniform float uTime; uniform vec3 uNebulaA; uniform vec3 uNebulaB; uniform float uFlash;
 varying vec3 vDir;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vnoise(vec2 p) {
@@ -27,8 +27,17 @@ void main() {
   float n = fbm(p);
   float cloud = smoothstep(0.46, 0.74, n) * smoothstep(0.02, 0.22, y) * (1.0 - smoothstep(0.55, 0.95, y));
   c = mix(c, uCloud, cloud * 0.75);
+  // Nebula band arcing across the sky.
+  float az = atan(vDir.x, vDir.z);
+  float bandY = 0.42 + 0.22 * sin(az * 1.3 + 0.8);
+  float band = exp(-pow((vDir.y - bandY) * 4.5, 2.0));
+  vec2 np = vec2(az * 2.0, vDir.y * 6.0) + vec2(uTime * 0.001, 0.0);
+  float nn = fbm(np) * 0.6 + fbm(np * 2.7 + 11.0) * 0.4;
+  vec3 neb = mix(uNebulaA, uNebulaB, fbm(np * 0.7 + 3.0));
+  c += neb * band * smoothstep(0.42, 0.78, nn) * 0.55 * (1.0 - cloud);
   float m = max(dot(normalize(vDir), uMoonDir), 0.0);
   c += uMoonGlow * (pow(m, 20.0) * 0.35 + pow(m, 180.0) * 0.6);
+  c += vec3(0.5, 0.6, 1.0) * uFlash * (0.35 + cloud * 0.5);
   gl_FragColor = vec4(c, 1.0);
 }`;
 
@@ -53,6 +62,13 @@ export class Sky {
   private readonly moonMat: MeshBasicMaterial;
   private readonly glowMat: SpriteMaterial;
   private readonly glow: Sprite;
+  private readonly faceMat: MeshBasicMaterial;
+  private readonly streak: Sprite;
+  private readonly streakDir = new Vector3();
+  private streakT = 99;
+  private nextStreak = 8;
+  /** 0..1 lightning flash, decays. */
+  flash = 0;
   private time = 0;
 
   constructor() {
@@ -65,6 +81,9 @@ export class Sky {
         uMoonDir: { value: this.moonDir },
         uMoonGlow: { value: new Color(PALETTE.electric).multiplyScalar(0.5) },
         uTime: { value: 0 },
+        uNebulaA: { value: new Color(PALETTE.dusk).multiplyScalar(0.5) },
+        uNebulaB: { value: new Color(PALETTE.electric).multiplyScalar(0.45) },
+        uFlash: { value: 0 },
       },
       vertexShader: SKY_VERT,
       fragmentShader: SKY_FRAG,
@@ -106,6 +125,19 @@ export class Sky {
     moon.renderOrder = -8;
     this.group.add(moon);
 
+    // The moon with a face: fades in for a while every few minutes.
+    this.faceMat = new MeshBasicMaterial({ map: faceTexture(), transparent: true, opacity: 0, fog: false, depthWrite: false, toneMapped: false });
+    const face = new Mesh(new CircleGeometry(moonRadius * 1.001, 48), this.faceMat);
+    face.position.copy(this.moonDir).multiplyScalar(SKY_RADIUS * 0.939);
+    face.lookAt(0, 0, 0);
+    face.renderOrder = -7;
+    this.group.add(face);
+
+    this.streak = new Sprite(new SpriteMaterial({ map: streakTexture(), color: PALETTE.moon, blending: AdditiveBlending, transparent: true, opacity: 0, fog: false, depthWrite: false }));
+    this.streak.scale.set(40, 3, 1);
+    this.streak.renderOrder = -7;
+    this.group.add(this.streak);
+
     this.glowMat = new SpriteMaterial({ map: haloTexture(), color: PALETTE.electric, blending: AdditiveBlending, transparent: true, opacity: 0.5, fog: false, depthWrite: false });
     this.glow = new Sprite(this.glowMat);
     this.glow.position.copy(this.moonDir).multiplyScalar(SKY_RADIUS * 0.955);
@@ -126,10 +158,31 @@ export class Sky {
     this.starMat.uniforms.uTime.value = this.time;
     this.glowMat.opacity = 0.45 + Math.sin(this.time * 0.6) * 0.07;
     this.group.position.copy(cameraPosition);
+    // Moon face: period 150 s, visible ~30 s.
+    const phase = (this.time % 150) / 150;
+    const face = phase > 0.6 && phase < 0.8 ? Math.sin(((phase - 0.6) / 0.2) * Math.PI) : 0;
+    this.faceMat.opacity = Math.min(1, face * 1.4) * 0.9;
+    // Shooting stars.
+    this.streakT += dt;
+    if (this.streakT > this.nextStreak) {
+      this.streakT = 0;
+      this.nextStreak = 10 + Math.random() * 18;
+      const az = Math.random() * Math.PI * 2;
+      const el = 0.35 + Math.random() * 0.4;
+      this.streak.position.set(Math.cos(az) * SKY_RADIUS * 0.9, Math.sin(el) * SKY_RADIUS * 0.9, Math.sin(az) * SKY_RADIUS * 0.9);
+      this.streakDir.set(-Math.sin(az), -0.35, Math.cos(az)).normalize().multiplyScalar(90);
+      this.streak.material.rotation = Math.atan2(-0.35, 1) + (az > Math.PI ? Math.PI : 0);
+    }
+    if (this.streakT < 1.1) {
+      this.streak.position.addScaledVector(this.streakDir, dt);
+      this.streak.material.opacity = Math.sin((this.streakT / 1.1) * Math.PI) * 0.9;
+    } else this.streak.material.opacity = 0;
+    this.flash = Math.max(0, this.flash - dt * 4);
+    this.domeMat.uniforms.uFlash.value = this.flash;
   }
 }
 
-function moonTexture(): CanvasTexture {
+export function moonTexture(): CanvasTexture {
   const size = 256;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;
@@ -170,5 +223,52 @@ function haloTexture(): CanvasTexture {
   g.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, size, size);
+  return new CanvasTexture(canvas);
+}
+
+function faceTexture(): CanvasTexture {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  ctx.clearRect(0, 0, size, size);
+  ctx.fillStyle = 'rgba(10,12,40,0.85)';
+  // Hollow eyes.
+  for (const x of [88, 168]) {
+    ctx.beginPath();
+    ctx.ellipse(x, 100, 22, 30, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Wide grin with teeth.
+  ctx.beginPath();
+  ctx.moveTo(60, 150);
+  ctx.quadraticCurveTo(128, 230, 196, 150);
+  ctx.quadraticCurveTo(128, 185, 60, 150);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(200,210,240,0.9)';
+  for (let i = 0; i < 9; i++) {
+    const x = 72 + i * 14;
+    const y = 158 + Math.sin((i / 8) * Math.PI) * 14;
+    ctx.fillRect(x, y, 9, 10);
+  }
+  // Faint glowing pupils.
+  ctx.fillStyle = 'rgba(79,124,255,0.9)';
+  for (const x of [88, 168]) { ctx.beginPath(); ctx.arc(x, 104, 6, 0, Math.PI * 2); ctx.fill(); }
+  return new CanvasTexture(canvas);
+}
+
+function streakTexture(): CanvasTexture {
+  const w = 256;
+  const h = 16;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d')!;
+  const g = ctx.createLinearGradient(0, 0, w, 0);
+  g.addColorStop(0, 'rgba(255,255,255,0)');
+  g.addColorStop(0.75, 'rgba(255,255,255,0.6)');
+  g.addColorStop(1, 'rgba(255,255,255,1)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
   return new CanvasTexture(canvas);
 }

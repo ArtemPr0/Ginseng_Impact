@@ -9,6 +9,7 @@ import { Party } from './player/Party';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera';
 import { PALETTE } from './render/palette';
 import { Atmosphere } from './render/Atmosphere';
+import { Weather } from './render/Weather';
 import { Renderer } from './render/Renderer';
 import { Sky } from './render/Sky';
 import { Hud } from './ui/Hud';
@@ -41,7 +42,8 @@ moon.shadow.camera.far = 420;
 moon.shadow.bias = -0.0005;
 moon.shadow.normalBias = 0.5;
 moon.shadow.radius = 3;
-scene.add(moon, moon.target, fill, fill.target, new HemisphereLight(PALETTE.cobalt, PALETTE.abyss, 0.55), sky.group);
+const hemi = new HemisphereLight(PALETTE.cobalt, PALETTE.abyss, 0.55);
+scene.add(moon, moon.target, fill, fill.target, hemi, sky.group);
 
 const terrain = new Terrain();
 scene.add(terrain.mesh);
@@ -51,6 +53,8 @@ scene.add(area.group);
 const world = area.heights;
 const atmosphere = new Atmosphere((x, z) => world.heightAt(x, z), new Vector3(LAYOUT.spawn.x, 0, LAYOUT.spawn.z));
 scene.add(atmosphere.group);
+const weather = new Weather(LAYOUT.rainZone, LAYOUT.snowZone);
+scene.add(weather.group);
 const playerPos = new Vector3();
 
 // --- player ---
@@ -156,6 +160,9 @@ game
       sky.update(dt, camera.position);
       area.update(dt, camera.position, playerPos);
       atmosphere.update(dt, playerPos, camera.position);
+      if (weather.update(dt, playerPos) > 0) sky.flash = 1;
+      hemi.intensity = 0.55 + sky.flash * 2.2;
+      moon.intensity = 1.5 + sky.flash * 1.5;
       moon.position.copy(playerPos).addScaledVector(sky.moonDir, 240);
       moon.target.position.copy(playerPos);
       fill.position.set(playerPos.x + 70, playerPos.y + 60, playerPos.z + 110);

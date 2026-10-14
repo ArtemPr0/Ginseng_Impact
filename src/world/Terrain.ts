@@ -14,7 +14,26 @@ export const WORLD = {
   chasmCentreZ: -95,
   chasmHalfWidth: 22,
   corridorZ: { min: -205, max: 115 },
+  /** Glowing green stream ravine (witch bridge) along x ≈ streamX. */
+  streamX: -112,
+  streamZ: { min: -70, max: 80 },
+  /** Climbable peak for the lone-knight vantage. */
+  peak: { x: -90, z: -155, height: 88, radius: 58 },
+  /** Frozen realm: north-east quadrant. */
+  frozen: { xFrom: 40, xTo: 95, zFrom: -20, zTo: -70 },
 } as const;
+
+/** 0..1 how frozen a point is. */
+export function frozenAt(x: number, z: number): number {
+  return smoothstep(WORLD.frozen.xFrom, WORLD.frozen.xTo, x) * smoothstep(WORLD.frozen.zFrom, WORLD.frozen.zTo, z);
+}
+
+/** 0..1 inside the stream channel. */
+export function streamAt(x: number, z: number, noise: Noise2D): number {
+  const wobble = noise.noise(z * 0.02, 7) * 6;
+  const band = smoothstep(WORLD.streamZ.min - 10, WORLD.streamZ.min, z) * (1 - smoothstep(WORLD.streamZ.max, WORLD.streamZ.max + 10, z));
+  return (1 - smoothstep(3.5, 7, Math.abs(x - (WORLD.streamX + wobble)))) * band;
+}
 
 /** Pure height function. Plateau island with a wobbly cliff edge and a chasm band across it. */
 export function terrainHeight(x: number, z: number, noise: Noise2D): number {
@@ -36,6 +55,14 @@ export function terrainHeight(x: number, z: number, noise: Noise2D): number {
     const corridor = 1 - smoothstep(6, 16, Math.abs(x));
     plateau = lerp(plateau, 3.2, corridor);
   }
+  // Stream ravine.
+  plateau -= 3.2 * streamAt(x, z, noise);
+  // The peak.
+  const pd = Math.hypot(x - WORLD.peak.x, z - WORLD.peak.z);
+  if (pd < WORLD.peak.radius) {
+    const t = 1 - pd / WORLD.peak.radius;
+    plateau += WORLD.peak.height * Math.pow(t, 1.7) + noise.fbm(x * 0.05, z * 0.05, 3) * 6 * t;
+  }
   return lerp(WORLD.abyssY, plateau, land);
 }
 
@@ -52,6 +79,8 @@ export class Terrain {
     const ground = new Color(0x121d48);
     const moss = new Color(0x163a33);
     const stone = new Color(0x3d4a80);
+    const snow = new Color(0x9fb3e6);
+    const streamBed = new Color(0x1a3a3a);
         const c = new Color();
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
@@ -62,6 +91,8 @@ export class Terrain {
       const meadow = smoothstep(-0.2, 0.5, this.noise.fbm(x * 0.012 + 50, z * 0.012 + 50, 3));
       c.copy(ground).lerp(moss, meadow * 0.75 * (1 - slope));
       c.lerp(stone, smoothstep(0.3, 0.85, slope));
+      c.lerp(snow, frozenAt(x, z) * (1 - smoothstep(0.5, 0.9, slope)) * 0.85);
+      c.lerp(streamBed, streamAt(x, z, this.noise) * 0.8);
       const mottle = 1 + this.noise.noise(x * 0.2, z * 0.2) * 0.08;
       colors[i * 3] = c.r * mottle;
       colors[i * 3 + 1] = c.g * mottle;

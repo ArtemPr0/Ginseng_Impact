@@ -1,4 +1,5 @@
-import { AdditiveBlending, BoxGeometry, CapsuleGeometry, Group, IcosahedronGeometry, Mesh, MeshBasicMaterial, MeshStandardMaterial, SphereGeometry, Sprite, Vector3 } from 'three';
+import { AdditiveBlending, BoxGeometry, BufferGeometry, CapsuleGeometry, ConeGeometry, Group, IcosahedronGeometry, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, Quaternion, SphereGeometry, Sprite, Vector3 } from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { rockify, tintRock } from '../world/geometry';
 import type { EnemyDef } from '../data/enemies';
 import { PALETTE } from '../render/palette';
@@ -27,7 +28,7 @@ export class Enemy {
   private deadFor = 0;
   private time = 0;
   private readonly flashMats: MeshStandardMaterial[] = [];
-  private readonly parts: { body: Mesh; legL?: Group; legR?: Group; armL?: Group; armR?: Group; core?: Mesh; shells?: Mesh[]; orbit?: Group; cracks?: MeshStandardMaterial };
+  private readonly parts: { body: Mesh; legL?: Group; legR?: Group; armL?: Group; armR?: Group; core?: Mesh; shells?: Mesh[]; orbit?: Group; cracks?: MeshStandardMaterial; head?: Group; jaw?: Mesh; mane?: Mesh; legs?: Group[]; tail?: Mesh };
   private readonly trail: Sprite[] = [];
   private readonly history: Vector3[] = [];
   private stepPhase = 0;
@@ -38,7 +39,7 @@ export class Enemy {
     this.brain = new EnemyBrain(def.brain);
     this.hp = def.maxHp;
     this.pos = { x: spawn.x, y: world.heightAt(spawn.x, spawn.z) + def.hover, z: spawn.z };
-    this.parts = def.kind === 'wisp' ? this.buildWisp() : this.buildSentinel();
+    this.parts = def.kind === 'wisp' ? this.buildWisp() : def.kind === 'beast' ? this.buildBeast() : this.buildSentinel();
     this.object.position.set(this.pos.x, this.pos.y, this.pos.z);
   }
 
@@ -130,6 +131,87 @@ export class Enemy {
     return { body, legL, legR, armL, armR, cracks: cracksMat };
   }
 
+  /** Shaggy red-eyed quadruped that prowls the forest and lunges. */
+  private buildBeast() {
+    const furColor = 0x0b0f2e;
+    const bodyMat = this.mat(0x121840);
+    const body = new Mesh(new CapsuleGeometry(0.55, 1.5, 4, 12).rotateZ(Math.PI / 2), bodyMat);
+    body.position.y = 1.0;
+    body.castShadow = true;
+    // Fur: cones scattered over the body, leaning back.
+    const furs: BufferGeometry[] = [];
+    const up = new Vector3(0, 1, 0);
+    const q = new Quaternion();
+    const m4 = new Matrix4();
+    for (let i = 0; i < 110; i++) {
+      const ax = (Math.random() - 0.5) * 2.2;
+      const th = Math.random() * Math.PI * 2;
+      const n = new Vector3(0, Math.cos(th), Math.sin(th));
+      const pos = new Vector3(ax, n.y * 0.55, n.z * 0.55);
+      const dir = n.clone().add(new Vector3(-0.6, 0.2, 0)).normalize();
+      const cone = new ConeGeometry(0.07, 0.35 + Math.random() * 0.3, 5).translate(0, 0.2, 0);
+      q.setFromUnitVectors(up, dir);
+      m4.compose(pos, q, new Vector3(1, 1, 1));
+      cone.applyMatrix4(m4);
+      furs.push(cone);
+    }
+    const fur = new Mesh(mergeGeometries(furs, false)!, this.mat(furColor));
+    fur.castShadow = true;
+    body.add(fur);
+    const mane = new Mesh(new SphereGeometry(0.7, 12, 8), this.mat(furColor));
+    mane.scale.set(0.8, 1, 1);
+    mane.position.set(0.8, 0.2, 0);
+    body.add(mane);
+    const head = new Group();
+    head.position.set(1.25, 0.25, 0);
+    const skull = new Mesh(new SphereGeometry(0.42, 14, 10), bodyMat);
+    skull.scale.set(1.1, 0.9, 0.9);
+    const snout = new Mesh(new BoxGeometry(0.5, 0.26, 0.34), bodyMat);
+    snout.position.set(0.5, -0.08, 0);
+    const jaw = new Mesh(new BoxGeometry(0.42, 0.1, 0.3), bodyMat);
+    jaw.position.set(0.48, -0.26, 0);
+    for (const side of [-1, 1]) {
+      const ear = new Mesh(new ConeGeometry(0.1, 0.32, 5), this.mat(furColor));
+      ear.position.set(-0.05, 0.42, side * 0.22);
+      ear.rotation.z = -0.2;
+      const eye = new Mesh(new SphereGeometry(0.085, 10, 8), this.mat(PALETTE.void, PALETTE.blood, 2.6));
+      eye.position.set(0.3, 0.12, side * 0.2);
+      const halo = glowSprite(PALETTE.blood, 0.8, 0.55, true);
+      halo.position.copy(eye.position);
+      const tooth = new Mesh(new ConeGeometry(0.03, 0.12, 4), this.mat(0xc9d2f5));
+      tooth.position.set(0.68, -0.18, side * 0.1);
+      tooth.rotation.z = Math.PI;
+      head.add(ear, eye, halo, tooth);
+    }
+    head.add(skull, snout, jaw);
+    body.add(head);
+    const legs: Group[] = [];
+    const legMat = this.mat(0x101538);
+    for (const [lx, lz] of [[0.65, -0.32], [0.65, 0.32], [-0.65, -0.32], [-0.65, 0.32]] as const) {
+      const pivot = new Group();
+      pivot.position.set(lx, 0.85, lz);
+      const upper = new Mesh(new CapsuleGeometry(0.13, 0.4, 3, 8), legMat);
+      upper.position.y = -0.3;
+      upper.castShadow = true;
+      const joint = new Group();
+      joint.position.y = -0.55;
+      const lower = new Mesh(new CapsuleGeometry(0.1, 0.35, 3, 8), legMat);
+      lower.position.y = -0.25;
+      const paw = new Mesh(new BoxGeometry(0.22, 0.1, 0.3), legMat);
+      paw.position.set(0.05, -0.48, 0);
+      joint.add(lower, paw);
+      pivot.add(upper, joint);
+      this.object.add(pivot);
+      legs.push(pivot);
+    }
+    const tail = new Mesh(new CapsuleGeometry(0.09, 0.9, 3, 8), this.mat(furColor));
+    tail.position.set(-1.25, 0.35, 0);
+    tail.rotation.z = -0.9;
+    body.add(tail);
+    this.object.add(body);
+    return { body, head, jaw, mane, legs, tail };
+  }
+
   /** World-space trail sprites (wisp). Add to the scene next to `object`. */
   get trailObjects(): Sprite[] {
     return this.trail;
@@ -166,7 +248,13 @@ export class Enemy {
     const dist = Math.hypot(dx, dz);
     const state = this.brain.update(dt, dist);
     let action: EnemyAction = null;
-    if (state === 'attack') action = this.def.kind === 'wisp' ? { kind: 'bolt' } : { kind: 'melee' };
+    if (state === 'attack') {
+      action = this.def.kind === 'wisp' ? { kind: 'bolt' } : { kind: 'melee' };
+      if (this.def.kind === 'beast' && dist > 0.01) {
+        this.knock.x += (dx / dist) * 9;
+        this.knock.z += (dz / dist) * 9;
+      }
+    }
 
     // Facing and movement.
     if (state === 'chase' || state === 'windup' || state === 'recover') this.yaw = Math.atan2(dz, dx);
@@ -250,7 +338,29 @@ export class Enemy {
     }
     const st = this.brain.state;
     const k = 1 - Math.exp(-dt * 16);
-    if (this.def.kind === 'wisp') {
+    if (this.def.kind === 'beast') {
+      this.object.rotation.y = -this.yaw;
+      const moving = st === 'chase';
+      if (moving) this.stepPhase += dt * 11;
+      const { body, head, jaw, mane, legs, tail } = this.parts;
+      const amp = moving ? 0.7 : 0;
+      const gait = [1, -1, -1, 1];
+      legs!.forEach((leg, i) => {
+        const ph = this.stepPhase + (gait[i] > 0 ? 0 : Math.PI);
+        const target = Math.sin(ph) * amp + (st === 'windup' ? 0.6 : 0);
+        leg.rotation.x += (target - leg.rotation.x) * k;
+        const joint = leg.children[1];
+        joint.rotation.x += ((Math.max(0, -Math.sin(ph)) * amp * 1.2 + (st === 'windup' ? 0.9 : 0.15)) - joint.rotation.x) * k;
+      });
+      let crouch = st === 'windup' ? -0.3 : st === 'attack' || (st === 'recover' && this.brain.stateTime < 0.2) ? 0.15 : 0;
+      body.position.y += ((1.0 + crouch + (moving ? Math.abs(Math.sin(this.stepPhase)) * 0.08 : 0)) - body.position.y) * k;
+      body.rotation.z += (((st === 'windup' ? 0.25 : st === 'attack' ? -0.3 : 0) + (moving ? Math.sin(this.stepPhase) * 0.04 : 0)) - body.rotation.z) * k;
+      head!.rotation.z += (((moving ? 0.2 : st === 'windup' ? 0.45 : 0.1) + Math.sin(this.time * 1.7) * 0.05) - head!.rotation.z) * k;
+      const jawOpen = st === 'attack' || st === 'windup' ? 0.45 : 0.05;
+      jaw!.rotation.z += (jawOpen - jaw!.rotation.z) * k;
+      mane!.scale.setScalar(1 + (st === 'windup' ? 0.25 : 0) + Math.sin(this.time * 2) * 0.03);
+      tail!.rotation.z = -0.9 + Math.sin(this.time * 3) * 0.2 + (moving ? 0.3 : 0);
+    } else if (this.def.kind === 'wisp') {
       const { core, shells, orbit } = this.parts;
       this.object.rotation.y += dt * (st === 'windup' ? 6 : 0.8);
       const pulse = 1 + Math.sin(this.time * 4) * 0.08;

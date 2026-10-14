@@ -56,3 +56,12 @@ docs/superpowers/specs   design spec
 
 `window.__ginseng` exposes the live objects; `__ginseng.game.advance(seconds)` steps the simulation
 synchronously for scripted testing.
+
+## World tour (everything from the reels)
+
+Causeway to the giant head · cathedral in the frozen realm (ice crystals, dead trees, snow) · cliff castle
+with waving banners and a rune gate · witch coven on the bridge over the glowing green stream · the Astral
+Frog King in the mushroom hollow · the Moon-Shell Colossus crawling the east cliffs · rainy orchard with
+glowing fruit and lightning · blue sunflower gardens and flower meadows · mountains beyond the cloud sea and
+a climbable peak · fog wisps, stone sentinels and the red-eyed fog beast · nebula sky, shooting stars, and a
+moon that sometimes grins.

@@ -10,7 +10,7 @@ import { rockify, tintRock } from './geometry';
 export interface Landmark {
   object: Group;
   footprints: Footprint[];
-  update?(dt: number): void;
+  update?(dt: number, player: import('three').Vector3): void;
 }
 
 const STONE_LIGHT = 0x5a6aa8;

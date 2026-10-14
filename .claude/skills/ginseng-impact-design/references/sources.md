@@ -22,3 +22,34 @@ Observed cover frames that are not linked above but on the same grid: hairy beas
 moon with a grinning face, stone-brick path toward the head (PS1 look), cathedral in clouds (PS1 look),
 knight on cliff (PS1 look), witches on a bridge (PS1 look), blue sunflowers under an orange sky
 (PS1 look; the one warm sky — treated as an exception, not a rule).
+
+## Added 2026-10-14 (second batch)
+
+| Reel | Caption | In-game |
+|---|---|---|
+| https://www.instagram.com/reel/DeJj8CDhL2f/ | Frozen Dreams of Forgotten Realms ❄️ | frozen realm (NE quadrant): snow ground tint, ice crystal clusters, dead trees, falling snow |
+| https://www.instagram.com/reel/DeIwZlWPj9y/ | Peaceful Mysteries Beyond Reality 🌌 | nebula band in the sky, twinkling stars, shooting stars |
+| https://www.instagram.com/reel/DeDRVZwxJyO/ | Lost Kingdoms Under Silver Moons 🌙 | cratered moon with halo, moon-with-a-face event every 150 s |
+| https://www.instagram.com/reel/Dd93tyxMLB3/ | Lost Horizons of Ozavry 🌌 | mountain ranges beyond the cloud sea, nebula sky |
+| https://www.instagram.com/reel/DdmvaMvMvS4/ | "Real" (no subject in caption) | not identifiable without login |
+| https://www.instagram.com/reel/DdjlyzyOcnK/ | "A chaotic peace" (no subject in caption) | not identifiable without login |
+| https://www.instagram.com/reel/DdhZQ3-hdaY/ | "Epic ✨" (no subject in caption) | not identifiable without login |
+| https://www.instagram.com/reel/DdhDILcJXVC/ | The Astral Frog King 🐸 | Frog King NPC in the mossy hollow (breathes, throat pulses, blinks, watches the player), mushrooms |
+| https://www.instagram.com/reel/DdfKgLsBmoA/ | 🐌 Moon-Shell Colossus | colossal snail with a moon shell crawling the east cliffs, glowing trail |
+| https://www.instagram.com/reel/DdKl7fKMO75/ | 🌧️ Rainy Orchard | orchard with glowing fruit, mirror puddles, localised rain, lightning |
+
+## Coverage of the first batch and grid covers
+
+| Subject | In-game |
+|---|---|
+| Causeway into fog, giant head with red eyes | stone causeway, 52 m head with breathing/flaring eyes |
+| Cathedral above the cloud sea | cathedral spires with rune slits and portal fire (frozen realm) |
+| Lonely towers / forgotten castle under dark skies | cliff castle with towers, keep, rune gate, waving banners; blood moon in combat |
+| Witches on a bridge over glowing water | witch coven circling a cauldron on a stone bridge over the acid-green stream |
+| Last Garden of Darkness (blue sunflowers) | three sunflower fields |
+| Flower meadow | glowing meadow flowers (blood, dusk, electric, rune, pink) |
+| Misty valley with moon and pink clouds | cloud sky shader, mist layers, cobalt→dusk clouds |
+| Beyond the Silent Mountains (lone knight on a cliff) | mountain ring + climbable peak vantage |
+| Hairy beast with red eyes | Fog Beast enemy (shaggy quadruped, lunge) |
+| Moon with a grinning face | moon face event |
+| Waterfalls, rune portal | chasm waterfalls, cathedral portal, castle gate |

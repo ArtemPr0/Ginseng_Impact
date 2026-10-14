@@ -1,7 +1,7 @@
 import {
   AdditiveBlending, BoxGeometry, BufferAttribute, BufferGeometry, Color, ConeGeometry, CylinderGeometry, DoubleSide,
   Float32BufferAttribute, Group, InstancedMesh, Matrix4, MeshBasicMaterial, Object3D, PlaneGeometry, Points, PointsMaterial,
-  CircleGeometry, CanvasTexture,
+  CanvasTexture,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { patchWind, surface } from '../render/Materials';
@@ -78,12 +78,11 @@ export function sunflowers(placements: Placement[]): Group {
   const stemMat = surface({ vertexColors: true, side: DoubleSide });
   patchWind(stemMat, 0.18);
   g.add(instanced(mergeGeometries([stem, leaf], false)!, stemMat, placements, false));
-  const petals = new CircleGeometry(0.32, 10).translate(0, 1.25, 0.05);
-  const petalMat = surface({ color: 0x1a2a7a, emissive: PALETTE.electric, emissiveIntensity: 0.9, side: DoubleSide });
-  patchWind(petalMat, 0.18);
+  const head = new PlaneGeometry(0.5, 0.5).translate(0, 1.25, 0);
+  const petals = mergeGeometries([head, head.clone().rotateY(Math.PI / 2)], false)!;
+  const petalMat = new MeshBasicMaterial({ map: sunflowerTexture(), alphaTest: 0.4, color: new Color(PALETTE.electric).multiplyScalar(0.85), toneMapped: false, side: DoubleSide });
+  patchWind(petalMat as unknown as Parameters<typeof patchWind>[0], 0.18);
   g.add(instanced(petals, petalMat, placements, false));
-  const centre = new CircleGeometry(0.13, 8).translate(0, 1.25, 0.08);
-  g.add(instanced(centre, surface({ color: PALETTE.void }), placements, false));
   const pos: number[] = [];
   for (const p of placements) pos.push(p.x, p.y + 1.25 * p.scale, p.z);
   const pg = new BufferGeometry();
@@ -92,6 +91,29 @@ export function sunflowers(placements: Placement[]): Group {
   halos.frustumCulled = false;
   g.add(halos);
   return g;
+}
+
+let sunTex: CanvasTexture | undefined;
+function sunflowerTexture(): CanvasTexture {
+  if (sunTex) return sunTex;
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  ctx.clearRect(0, 0, size, size);
+  ctx.fillStyle = '#fff';
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.ellipse(size / 2 + Math.cos(a) * 34, size / 2 + Math.sin(a) * 34, 26, 9, a, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.fillStyle = '#060818';
+  ctx.beginPath();
+  ctx.arc(size / 2, size / 2, 20, 0, Math.PI * 2);
+  ctx.fill();
+  sunTex = new CanvasTexture(canvas);
+  return sunTex;
 }
 
 let petalTex: CanvasTexture | undefined;
