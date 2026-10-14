@@ -1,5 +1,5 @@
 public/models/README.md regenerated
-139 registered models, 37 present, 102 files still to generate on Meshy (102 ids):
+140 registered models, 37 present, 103 files still to generate on Meshy (103 ids):
 
 - king               antlered-king.glb         1.95 m  
 - witch              witch.glb                 1.85 m  
@@ -64,6 +64,7 @@ public/models/README.md regenerated
 - cobblestone        cobblestone.glb           0.14 m  cobblestone
 - cypress            cypress.glb                  9 m  cypress
 - grave              grave.glb                  1.2 m  gravestone
+- checker-road       checker-road.glb             4 m  checkered stone causeway section with a wooden railing (DeOemU1BOZF)
 - round-tower        round-tower.glb             22 m  round medieval tower with lit windows and a conical roof (DeOemU1BOZF)
 - stone-throne       stone-throne.glb           3.2 m  grey stone throne of the skeleton king (DeOemU1BOZF)
 - coin-block         coin-block.glb             1.2 m  cracked stone block heaped with gold coins (DeOemU1BOZF)

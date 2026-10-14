@@ -12,7 +12,7 @@ glb ("All added", "One file") → `node scripts/model-tools.mjs optimize <downlo
 Models should face +X; set `yaw` in the registry if a file faces another way. Clip names match by substring
 with alternatives (`"slam|attack|punch"`).
 
-139 registered, 37 present, 102 files to generate (102 ids).
+140 registered, 37 present, 103 files to generate (103 ids).
 
 | id | file | height (m) | what | status |
 |---|---|---|---|---|
@@ -116,6 +116,7 @@ with alternatives (`"slam|attack|punch"`).
 | `cobblestone` | cobblestone.glb | 0.14 | cobblestone | to generate |
 | `cypress` | cypress.glb | 9 | cypress | to generate |
 | `grave` | grave.glb | 1.2 | gravestone | to generate |
+| `checker-road` | checker-road.glb | 4 | checkered stone causeway section with a wooden railing (DeOemU1BOZF) | to generate |
 | `round-tower` | round-tower.glb | 22 | round medieval tower with lit windows and a conical roof (DeOemU1BOZF) | to generate |
 | `stone-throne` | stone-throne.glb | 3.2 | grey stone throne of the skeleton king (DeOemU1BOZF) | to generate |
 | `coin-block` | coin-block.glb | 1.2 | cracked stone block heaped with gold coins (DeOemU1BOZF) | to generate |

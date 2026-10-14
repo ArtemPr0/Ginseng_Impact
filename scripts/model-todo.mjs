@@ -7,7 +7,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 const src = readFileSync(new URL('../src/data/models.ts', import.meta.url), 'utf8');
 // Entries are `id: stat('file', height, 'label')` or `id: { file: '…', height: n, …, label: '…' }`; several may share a line.
-const re = /(?:^|,)\s*'?([\w-]+)'?:\s*(?:stat\('([^']+)',\s*([\d.]+),\s*'([^']+)'\)|\{\s*file:\s*'([^']+)',\s*height:\s*([\d.]+)(?:[^}]*?label:\s*'([^']+)')?)/gm;
+const re = /(?:^|,)\s*'?([\w-]+)'?:\s*(?:\{\s*\.\.\.)?(?:stat\('([^']+)',\s*([\d.]+),\s*'([^']+)'\)|\{\s*file:\s*'([^']+)',\s*height:\s*([\d.]+)(?:[^}]*?label:\s*'([^']+)')?)/gm;
 const rows = [];
 let m;
 while ((m = re.exec(src))) {
