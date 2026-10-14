@@ -103,10 +103,10 @@ export const MODELS: Record<string, ModelDef> = {
   'village-house': stat('village-house.glb', 5.8, 'thatched village house'),
   tavern: stat('tavern.glb', 7.6, 'tavern with its sign, table and stools'),
   'torch-post': stat('torch-post.glb', 2.6, 'torch on a post'),
-  campfire: stat('campfire.glb', 2.8, 'campfire ring with tripod, kettle and three log seats'),
-  cloister: stat('cloister.glb', 8.6, 'cloister: three stone arches on a cobbled floor'),
+  campfire: stat('campfire.glb', 0.75, 'stone campfire ring with a kettle tripod (DdjlyzyOcnK)'),
+  cloister: stat('cloister.glb', 8.6, 'three pointed gothic arches on slender columns (DdKl7fKMO75)'),
   observatory: stat('observatory.glb', 12, 'mushroom observatory hut with balcony and telescope'),
-  throne: stat('throne.glb', 7.8, 'antler-and-bone throne on a dais with candles'),
+  throne: stat('throne.glb', 7.8, 'antler-and-bone throne on a dais with candelabras (DedGUYetKjP)'),
   cauldron: stat('cauldron.glb', 1.4, 'iron cauldron over coals'),
   'lantern-post': stat('lantern-post.glb', 2.5, 'red paper lantern on a pole'),
   candle: stat('candle.glb', 0.3, 'candle'),
@@ -117,8 +117,8 @@ export const MODELS: Record<string, ModelDef> = {
   'floating-rock': stat('floating-rock.glb', 3, 'floating boulder'),
   pinnacle: stat('pinnacle.glb', 30, 'sea pinnacle rising from the cloud sea'),
   mountain: stat('mountain.glb', 180, 'backdrop mountain'),
-  boat: { file: 'boat.glb', height: 1.9, label: 'rowing boat with two rowers', clips: { idle: 'row|idle' } },
-  'horse-rider': { file: 'horse-rider.glb', height: 2.6, label: 'knight on horseback with a lantern', clips: { idle: 'idle', walk: 'walk|trot' } },
+  boat: { file: 'boat.glb', height: 1.9, yaw: -Math.PI / 2, label: 'rowing boat with a bow lantern (DdjlyzyOcnK, DdwXCyeSsXn)' },
+  'horse-rider': { file: 'horse-rider.glb', height: 2.6, yaw: Math.PI / 2, label: 'knight on horseback with a lantern (DdmvaMvMvS4)' },
   koi: { file: 'flying-koi.glb', height: 1.2, label: 'flying koi', clips: { idle: 'swim|idle' } },
   snake: { file: 'snake.glb', height: 0.6, label: 'coiled snake', clips: { idle: 'idle' } },
   // NPC bodies (humanoid rigs; the pose name is the idle clip)
@@ -154,7 +154,7 @@ export const MODELS: Record<string, ModelDef> = {
 
   // --- Fifth batch of reels (2026-10-14 evening). Every id names its reel. ---
   // The galaxy city beyond the portal (DeOemU1BOZF, DeaqHWJBBPw, DeXn5rSPxR8, DeQ-NnpvqF6, Dd0wR9Jh2lH, DdyN2PNyIxb, DdnJDwBMUoj)
-  'checker-road': { ...stat('checker-road.glb', 4, 'checkered stone causeway section with a wooden railing (DeOemU1BOZF)'), fit: 'z' },
+  'checker-road': { ...stat('checker-road.glb', 6, 'checkered stone causeway tile (DeOemU1BOZF)'), fit: 'z' },
   'round-tower': stat('round-tower.glb', 22, 'round medieval tower with lit windows and a conical roof (DeOemU1BOZF)'),
   'stone-throne': stat('stone-throne.glb', 3.2, 'grey stone throne of the skeleton king (DeOemU1BOZF)'),
   'coin-block': stat('coin-block.glb', 1.2, 'cracked stone block heaped with gold coins (DeOemU1BOZF)'),

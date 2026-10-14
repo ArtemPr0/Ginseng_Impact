@@ -23,6 +23,8 @@ export interface ModelLandmarkOptions {
   color?: number;
   /** Per-frame hook with the landmark root and the model once it has loaded. */
   update?: (dt: number, root: Group, model: ModelRig | null, player: Vector3) => void;
+  /** Called once when the GLB has loaded (hide a stand-in, align props). */
+  onLoad?: (model: ModelRig) => void;
 }
 
 export interface ModelLandmark extends Landmark {
@@ -55,6 +57,7 @@ export function modelLandmark(id: string, x: number, z: number, y: number, opts:
     lm.model = new ModelRig(id, gltf);
     root.add(lm.model.root);
     if (opts.clip) lm.model.play(opts.clip);
+    opts.onLoad?.(lm.model);
   });
   return lm;
 }

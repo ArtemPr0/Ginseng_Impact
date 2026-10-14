@@ -54,7 +54,7 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   const P = ISLAND_PORTALS.galaxy;
   const py = api.h(P.x, P.z);
   const ft = P.faceTree;
-  api.place(modelLandmark('face-tree', ft.x, ft.z, api.h(ft.x, ft.z) - 0.3, { yaw: face(Math.PI * 0.75), footprints: [{ kind: 'cyl', x: ft.x, z: ft.z, r: 2.6, top: api.h(ft.x, ft.z) + 8 }] }));
+  api.place(modelLandmark('face-tree', ft.x, ft.z, api.h(ft.x, ft.z) - 0.3, { yaw: face(Math.atan2(-15, 4)), footprints: [{ kind: 'cyl', x: ft.x, z: ft.z, r: 2.6, top: api.h(ft.x, ft.z) + 8 }] }));
   const stones: Placement[] = [];
   for (let i = 0; i < 9; i++) {
     const t = i / 8;
@@ -120,7 +120,7 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   api.place(floorSlab(G.x, G.z - 5, gy, 120, 160));
   // Checkered causeway with towers either side (DeOemU1BOZF).
   const road: Placement[] = [];
-  for (let z = G.z + 70; z > G.z - 42; z -= 4) road.push({ x: G.x, y: gy + 0.02, z, yaw: 0, scale: 1 });
+  for (let z = G.z + 69; z > G.z - 44; z -= 6) road.push({ x: G.x, y: gy + 0.02, z, yaw: 0, scale: 1 });
   api.flora('checker-road', road, { shadows: false });
   for (const z of [52, 30, 8, -14]) {
     for (const side of [-1, 1]) {
@@ -137,12 +137,12 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   }
   // Return portal in a ring, the ring portals and the void monk (DdyN2PNyIxb).
   api.place(modelLandmark('ring-portal', G.x, G.z + 72, gy, { yaw: face(-Math.PI / 2) }));
-  api.place(portal(G.x, gy + 3, G.z + 72, 2.6, { vertical: true, facing: -Math.PI / 2 }));
-  links.push(link(new Vector3(G.x, gy + 1, G.z + 72), 2, 3, -49, -13, 0, 'The Island'));
+  api.place(portal(G.x, gy + 3.9, G.z + 72, 1.65, { vertical: true, facing: -Math.PI / 2 }));
+  links.push(link(new Vector3(G.x, gy + 1, G.z + 72), 1.6, 3, -49, -13, 0, 'The Island'));
   for (const [dx, dy, dz, spin] of [[-12, 9, 76, 0.3], [12, 11, 76, -0.25], [0, 16, 82, 0.2]] as const) {
     let a = 0;
     api.place(modelLandmark('ring-portal', G.x + dx, G.z + dz, gy + dy, { yaw: face(-Math.PI / 2), update: (dt, root) => { a += dt * spin; root.rotation.z = Math.sin(a) * 0.2; root.position.y = gy + dy + Math.sin(a * 2) * 0.4; } }));
-    api.place(portal(G.x + dx, gy + dy + 3.4, G.z + dz, 2.4, { vertical: true, facing: -Math.PI / 2, colors: [PALETTE.void, PALETTE.electric] }));
+    api.place(portal(G.x + dx, gy + dy + 3.9, G.z + dz, 1.65, { vertical: true, facing: -Math.PI / 2, colors: [PALETTE.void, PALETTE.electric] }));
   }
   // The river hall of the galaxy king (Dd0wR9Jh2lH).
   api.place(modelLandmark('galaxy-hall', G.x, G.z - 66, gy, { yaw: face(Math.PI / 2) }));
@@ -200,7 +200,7 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   // ===== The sunken city =====
   const sy = S.y;
   api.place(floorSlab(S.x, S.z, sy, 110, 110));
-  api.place(modelLandmark('sunken-tavern', S.x, S.z - 24, sy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'box', x: S.x, z: S.z - 26, hw: 9, hd: 6, top: sy + 9 }] }));
+  api.place(modelLandmark('sunken-tavern', S.x, S.z - 24, sy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'box', x: S.x, z: S.z - 28.5, hw: 10.5, hd: 1.8, top: sy + 11 }] }));
   api.place(modelLandmark('coral-throne', S.x - 4, S.z - 13, sy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'box', x: S.x - 4, z: S.z - 13.4, hw: 1.3, hd: 1, top: sy + 0.8 }] }));
   let ca = 0;
   api.place(modelLandmark('giant-crown', S.x, S.z - 16, sy + 11, { update: (dt, root) => { ca += dt; root.rotation.y = Math.sin(ca * 0.3) * 0.2; root.position.y = sy + 11 + Math.sin(ca * 0.8) * 0.2; } }));

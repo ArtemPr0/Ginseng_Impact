@@ -15,6 +15,8 @@ import { Grass } from './Grass';
 import type { Landmark } from './Landmarks';
 import { modelLandmark, riverDrifter, walkerLandmark } from './ModelLandmark';
 import { Npc, NPC_DEFS } from './NPCs';
+import { Rig } from '../characters/Rig';
+import { yawToRotation } from '../models/ModelRig';
 import { Noise2D } from './noise';
 import { witchStream } from './Stream';
 import { buildRealms } from './Realms';
@@ -71,6 +73,8 @@ export class World {
     flora('chasm-bridge', bridge.tiles);
     const deck = witchBridgeDeck(LAYOUT.coven.streamX, LAYOUT.coven.bridgeZ, h);
     this.place(deck);
+    // The witches' bridge (DeWji_1PuKW): the stone slab keeps the colliders and hides once the model is in.
+    this.place(modelLandmark('witch-bridge', LAYOUT.coven.streamX, LAYOUT.coven.bridgeZ, deck.deckY - MODELS['witch-bridge'].height * 0.8, { onLoad: () => { deck.object.visible = false; } }));
 
     // --- the skyline ---
     const headY = Math.max(-12, h(LAYOUT.head.x, LAYOUT.head.z) - 8);
@@ -151,8 +155,21 @@ export class World {
     this.place(pond);
     flora('lily-pad', pond.padSpots, { shadows: false });
     flora('lotus', pond.lotusSpots, { shadows: false });
-    this.place(riverDrifter('boat', 0, 2.4));
-    this.place(riverDrifter('boat', 108, 2.0));
+    // Two armoured knights row each boat (DdjlyzyOcnK), facing the stern as rowers do.
+    for (const [start, speed] of [[0, 2.4], [108, 2.0]] as const) {
+      const boat = riverDrifter('boat', start, speed);
+      const rowers: Rig[] = [];
+      for (const dz of [0.55, -0.45]) {
+        const rig = new Rig({ id: 'rower', name: 'Rower', title: '', element: 'fog', weapon: 'sword', maxHp: 1, atk: 1, accent: PALETTE.electric }, 'knight-npc');
+        rig.root.position.set(0, 0.32, dz);
+        rig.root.rotation.y = yawToRotation(-Math.PI / 2);
+        boat.root.add(rig.root);
+        rowers.push(rig);
+      }
+      const base = boat.update!;
+      boat.update = (dt, player) => { base(dt, player); for (const r of rowers) r.animate({ mode: 'ground', speed: 0, pose: 'row' }, dt); };
+      this.place(boat);
+    }
     this.place(witchStream(LAYOUT.coven.streamX, LAYOUT.coven.zMin, LAYOUT.coven.zMax, LAYOUT.coven.bridgeZ, deck.deckY, h));
     this.place(modelLandmark('cauldron', LAYOUT.coven.streamX, LAYOUT.coven.bridgeZ, deck.deckY + 0.45, { color: PALETTE.witch, footprints: [{ kind: 'cyl', x: LAYOUT.coven.streamX, z: LAYOUT.coven.bridgeZ, r: 0.8, top: deck.deckY + 1.4 }] }));
 
@@ -175,7 +192,7 @@ export class World {
     flora('torch-post', torchSpots);
     flora('cobblestone', cobbleSpots([[VILLAGE.x - 34, VILLAGE.z + 1], [VILLAGE.x + 34, VILLAGE.z + 1]], 5, h, vrnd), { shadows: false });
     const tavernY = h(20, 66) - 0.2;
-    this.place(modelLandmark('tavern', 20, 63, tavernY, { footprints: [{ kind: 'box', x: 20, z: 60, hw: 6, hd: 4.5, top: tavernY + 5.4 }, { kind: 'cyl', x: 20, z: 68, r: 1.2, top: tavernY + 1.0 }] }));
+    this.place(modelLandmark('tavern', 20, 63, tavernY, { footprints: [{ kind: 'box', x: 20, z: 61.6, hw: 4.2, hd: 2.6, top: tavernY + 4.6 }] }));
     for (const side of [-1, 1]) vfx(fire(20 + side * 6.4, tavernY + 2.6, 55.6, 0.4, 8));
     const campY = h(-24, 52);
     this.place(modelLandmark('campfire', -24, 52, campY, { footprints: [{ kind: 'cyl', x: -24, z: 52, r: 1.2, top: campY + 0.4 }] }));
@@ -186,7 +203,8 @@ export class World {
     this.extras.push({ update: (dt) => { steamT += dt; steam.position.y = campY + 2.4 + Math.sin(steamT) * 0.2; steam.scale.setScalar(1.6 + Math.sin(steamT * 0.7) * 0.4); } });
     let steamT = 0;
     const cloY = h(32, 68);
-    this.place(modelLandmark('cloister', 32, 64.5, cloY, { footprints: [{ kind: 'box', x: 32, z: 64.5, hw: 8.5, hd: 0.7, top: cloY + 8.6 }] }));
+    // Columns only: the player walks through the arches.
+    this.place(modelLandmark('cloister', 32, 64.5, cloY, { footprints: [-6.2, -2.1, 2.1, 6.2].map((dx) => ({ kind: 'cyl' as const, x: 32 + dx, z: 64.5, r: 0.45, top: cloY + 8.6 })) }));
     flora('cobblestone', cobbleSpots([[23, 68], [41, 68]], 7, h, rng(55)), { shadows: false });
     const obsY = h(-44, 60);
     this.place(modelLandmark('observatory', -44, 60, obsY, { footprints: [{ kind: 'cyl', x: -44, z: 60, r: 3.2, top: obsY + 10.4 }] }));
