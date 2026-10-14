@@ -10,6 +10,11 @@ export const LAYOUT = {
     [-60, -150, 3, 14, 3, 0.4], [70, -160, 2.5, 9, 2.5, 1.1], [-100, 60, 3.4, 17, 3, -0.2],
   ] as const,
   forest: { innerRadius: 120, outerRadius: 198, count: 650 },
+  flowerMeadows: [
+    { x: 40, z: 70, r: 30, count: 320 },
+    { x: -40, z: -20, r: 26, count: 260 },
+    { x: 90, z: -120, r: 24, count: 220 },
+  ],
   sunflowerFields: [
     { x: -70, z: 44, r: 28, count: 280 },
     { x: 74, z: 92, r: 22, count: 200 },

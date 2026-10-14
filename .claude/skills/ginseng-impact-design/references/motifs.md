@@ -44,3 +44,14 @@ chosen so a 1.8 m character reads as tiny against them.
    far (`fog` silhouette).
 5. **One red**: a single `blood` focal point per view (eyes or moon), never both at full intensity.
 6. **Everything is old**: broken posts, buried bases, moss as `witch` vertex tint, no clean edges.
+
+## Characters and mobs — construction rules (post-rework)
+
+- Humanoids: `CapsuleGeometry` limbs with a joint group at elbow/knee; capsule torso and pelvis; sphere head;
+  hood, helmet (sphere + visor + crest) or witch hat; shoulder pads; belt torus; CPU-animated cloak plane
+  (10 rows) that streams back with speed; weapons with a metal blade, emissive edge, guard, grip; staff orb with
+  orbiting crystals. Never plain boxes for bodies.
+- Animation: phase-driven walk/run with knee and elbow bends, lean with speed, landing crouch, climb reach,
+  glide spread, attack wind-up → eased cut → settle, alternating sides; staff thrust. Exponential blending.
+- Wisp: emissive core + two translucent shells + 6 orbiting glow sprites + 10-sprite position trail.
+- Sentinel: `rockify`'d body/head/shoulders/fists, capsule limbs, pulsing rune cracks, stomp dust and shake.

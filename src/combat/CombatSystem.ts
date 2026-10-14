@@ -6,7 +6,7 @@ import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
 import type { ControllerState, WorldQuery } from '../player/CharacterController';
 import type { Party } from '../player/Party';
 import { PALETTE } from '../render/palette';
-import { ps1Lambert } from '../render/PS1Material';
+import { surface } from '../render/Materials';
 import type { Sky } from '../render/Sky';
 import type { Hud } from '../ui/Hud';
 import { glowSprite } from '../world/Landmarks';
@@ -31,6 +31,8 @@ export interface CombatDeps {
   controller: ControllerState; party: Party<CharacterDef>; rigs: Rig[]; spawn: Vector3;
   /** Called when the active character falls and another must take over. */
   onForceSwitch?: (index: number) => void;
+  /** Camera shake request, 0..1. */
+  onShake?: (amount: number) => void;
 }
 
 const PLAYER_DEF = 30;
@@ -54,8 +56,13 @@ export class CombatSystem {
     d.scene.add(this.vfx.group);
     for (const s of ENEMY_SPAWNS) {
       const e = new Enemy(ENEMY_DEFS[s.kind], { x: s.x, z: s.z }, d.world);
+      e.onStomp = (x, y, z) => {
+        this.vfx.burst(new Vector3(x, y + 0.2, z), 0x5a6aa8, 14, 3.5, 0.45);
+        const dist = Math.hypot(x - this.d.controller.pos.x, z - this.d.controller.pos.z);
+        this.d.onShake?.(Math.max(0, 0.35 - dist * 0.02));
+      };
       this.enemies.push(e);
-      d.scene.add(e.object);
+      d.scene.add(e.object, ...e.trailObjects);
     }
     for (const c of d.party.members) {
       const combo = COMBO[c.weapon];
@@ -82,6 +89,12 @@ export class CombatSystem {
   get attackProgress(): number | undefined {
     if (this.casting) return Math.min(1, this.casting.t / SKILLS[this.casting.def.id].castTime);
     return this.combo.swinging ? this.combo.progress : undefined;
+  }
+
+  /** Which swing is playing: combo hit index or 'skill'. */
+  get attackKind(): number | 'skill' | undefined {
+    if (this.casting) return 'skill';
+    return this.combo.swinging ? this.combo.currentHit : undefined;
   }
 
   /** Called by the party switch so a swing does not carry across characters. */
@@ -288,6 +301,7 @@ export class CombatSystem {
     this.vfx.burst(at, color, 8, 4, 0.3);
     this.showNumber(at, dmg, color, false);
     this.d.game.hitStop = Math.max(this.d.game.hitStop, hitStop);
+    this.d.onShake?.(hitStop * 2.5);
     if (reaction) this.applyReaction(e, reaction, dmg, at);
     if (died) {
       this.vfx.burst(at, PALETTE.moon, 24, 7, 0.5);
@@ -330,7 +344,7 @@ export class CombatSystem {
 
   private spawnProjectile(from: Vector3, vel: Vector3, owner: 'player' | 'enemy', atk: number, mult: number, element: Element | null, radius: number, color: number, chains: number, chainRange: number, knockback: number, hitStop: number): void {
     const object = new Group();
-    const core = new Mesh(new BoxGeometry(0.24, 0.24, 0.24), ps1Lambert({ color: PALETTE.void, emissive: color, emissiveIntensity: 3 }));
+    const core = new Mesh(new BoxGeometry(0.24, 0.24, 0.24), surface({ color: PALETTE.void, emissive: color, emissiveIntensity: 3 }));
     core.rotation.set(0.7, 0.7, 0);
     object.add(core, glowSprite(color, 1.1, 0.8, true));
     object.position.copy(from);
@@ -349,6 +363,7 @@ export class CombatSystem {
     this.showNumber(at, dmg, PALETTE.blood, false);
     this.vfx.impact(at, PALETTE.blood, 1.6);
     this.d.hud.flashDamage();
+    this.d.onShake?.(0.4);
     if (hp <= 0) this.onCharacterDown();
   }
 

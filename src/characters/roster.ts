@@ -30,12 +30,12 @@ export const ROSTER: readonly CharacterDef[] = [
   {
     id: 'vesper', name: 'Vesper', title: 'Blade of the Silver Moon', element: 'lunar', weapon: 'sword',
     maxHp: 1100, atk: 62,
-    look: { cloth: PALETTE.cloth, armour: 0x5f6fb8, skin: 0xb9c0e0, accent: PALETTE.moon, cape: true, bulk: 0.85, height: 1.8 },
+    look: { cloth: 0x202a60, armour: 0x4a5a9c, skin: 0xb9c0e0, accent: PALETTE.moon, cape: true, bulk: 0.85, height: 1.8 },
   },
   {
     id: 'morrow', name: 'Morrow', title: 'Knight of the Lonely Cliff', element: 'blood', weapon: 'greatsword',
     maxHp: 1600, atk: 80,
-    look: { cloth: PALETTE.bark, armour: 0x1e2246, skin: 0x8c93b8, accent: PALETTE.blood, bulk: 1.25, height: 1.95 },
+    look: { cloth: 0x1a1d3c, armour: 0x23284f, skin: 0x8c93b8, accent: PALETTE.blood, bulk: 1.25, height: 1.95 },
   },
   {
     id: 'ashka', name: 'Ashka', title: 'Witch of the Astral Bridge', element: 'astral', weapon: 'staff',

@@ -1,12 +1,11 @@
 import { BufferAttribute, Color, Mesh, PlaneGeometry, Vector3 } from 'three';
-import { PALETTE } from '../render/palette';
-import { ps1Lambert } from '../render/PS1Material';
+import { surface } from '../render/Materials';
 import { Noise2D, lerp, smoothstep } from './noise';
 
 /** World layout constants (metres). The island is centred at ISLAND_CENTRE; the causeway runs along x = 0. */
 export const WORLD = {
   size: 560,
-  segments: 140,
+  segments: 280,
   islandCentre: { x: 0, z: -60 },
   islandRadius: 205,
   cliffWidth: 25,
@@ -50,28 +49,29 @@ export class Terrain {
     geo.rotateX(-Math.PI / 2);
     const pos = geo.attributes.position as BufferAttribute;
     const colors = new Float32Array(pos.count * 3);
-    const ground = new Color(0x2a3775);
-    const stone = new Color(0x5a6aa8);
-    const moss = new Color(PALETTE.witch);
-    const c = new Color();
+    const ground = new Color(0x121d48);
+    const moss = new Color(0x163a33);
+    const stone = new Color(0x3d4a80);
+        const c = new Color();
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
       const z = pos.getZ(i);
       const h = terrainHeight(x, z, this.noise);
       pos.setY(i, h);
       const slope = this.slopeAt(x, z);
-      c.copy(ground).lerp(stone, smoothstep(0.25, 0.9, slope));
-      const mossy = smoothstep(0.35, 0.7, this.noise.noise(x * 0.02 + 50, z * 0.02 + 50));
-      c.lerp(moss, mossy * 0.12 * (1 - slope));
-      const mottle = 1 + this.noise.noise(x * 0.15, z * 0.15) * 0.12;
+      const meadow = smoothstep(-0.2, 0.5, this.noise.fbm(x * 0.012 + 50, z * 0.012 + 50, 3));
+      c.copy(ground).lerp(moss, meadow * 0.75 * (1 - slope));
+      c.lerp(stone, smoothstep(0.3, 0.85, slope));
+      const mottle = 1 + this.noise.noise(x * 0.2, z * 0.2) * 0.08;
       colors[i * 3] = c.r * mottle;
       colors[i * 3 + 1] = c.g * mottle;
       colors[i * 3 + 2] = c.b * mottle;
     }
     geo.setAttribute('color', new BufferAttribute(colors, 3));
     geo.computeVertexNormals();
-    this.mesh = new Mesh(geo, ps1Lambert({ vertexColors: true }));
+    this.mesh = new Mesh(geo, surface({ vertexColors: true, roughness: 0.95 }));
     this.mesh.name = 'terrain';
+    this.mesh.receiveShadow = true;
   }
 
   heightAt(x: number, z: number): number {

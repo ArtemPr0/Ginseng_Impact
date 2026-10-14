@@ -2,7 +2,8 @@ import { Group, Vector3 } from 'three';
 import { LAYOUT } from '../data/world';
 import { CloudSea } from './CloudSea';
 import { HeightWorld } from './Colliders';
-import { pines, sunflowers, type Placement } from './Flora';
+import { boulders, flowers, pines, sunflowers, type Placement } from './Flora';
+import { Grass } from './Grass';
 import { cathedral, causeway, giantHead, monolith, waterfall, type Landmark } from './Landmarks';
 import { Terrain, WORLD } from './Terrain';
 
@@ -20,6 +21,7 @@ export class World {
   readonly heights: HeightWorld;
   private readonly landmarks: Landmark[] = [];
   private readonly clouds: CloudSea;
+  readonly grass: Grass;
 
   constructor(readonly terrain: Terrain) {
     this.heights = new HeightWorld(terrain);
@@ -34,6 +36,13 @@ export class World {
 
     this.group.add(pines(this.scatterRing(rnd, LAYOUT.forest.innerRadius, LAYOUT.forest.outerRadius, LAYOUT.forest.count)));
     for (const f of LAYOUT.sunflowerFields) this.group.add(sunflowers(this.scatterDisc(rnd, f.x, f.z, f.r, f.count, 0.8, 1.2)));
+    const meadow: Placement[] = [];
+    for (const f of LAYOUT.flowerMeadows) meadow.push(...this.scatterDisc(rnd, f.x, f.z, f.r, f.count, 0.7, 1.3));
+    meadow.push(...this.scatterRing(rnd, 20, 150, 600, 0.6, 1.1));
+    this.group.add(flowers(meadow));
+    this.group.add(boulders(this.scatterRing(rnd, 30, 190, 90, 0.8, 2.6)));
+    this.grass = new Grass((x, z) => this.heights.heightAt(x, z), (x, z) => this.plantable(x, z));
+    this.group.add(this.grass.mesh);
 
     this.clouds = new CloudSea(LAYOUT.cloudSea.y);
     this.group.add(this.clouds.group);
@@ -46,7 +55,7 @@ export class World {
   }
 
   /** True where flora may grow: on the island, off the road, not in the chasm, on gentle ground. */
-  private plantable(x: number, z: number): boolean {
+  plantable(x: number, z: number): boolean {
     const y = this.terrain.heightAt(x, z);
     if (y < -2) return false;
     if (Math.abs(x) < 7 && z < LAYOUT.causeway.zStart + 8 && z > LAYOUT.causeway.zEnd - 8) return false;
@@ -61,7 +70,7 @@ export class World {
     return true;
   }
 
-  private scatterRing(rnd: () => number, inner: number, outer: number, count: number): Placement[] {
+  private scatterRing(rnd: () => number, inner: number, outer: number, count: number, minS = 0.7, maxS = 1.5): Placement[] {
     const out: Placement[] = [];
     const c = WORLD.islandCentre;
     let guard = 0;
@@ -71,7 +80,7 @@ export class World {
       const x = c.x + Math.cos(a) * r;
       const z = c.z + Math.sin(a) * r;
       if (!this.plantable(x, z)) continue;
-      out.push({ x, y: this.terrain.heightAt(x, z) - 0.3, z, yaw: rnd() * Math.PI * 2, scale: 0.7 + rnd() * 0.8 });
+      out.push({ x, y: this.terrain.heightAt(x, z) - 0.3, z, yaw: rnd() * Math.PI * 2, scale: minS + rnd() * (maxS - minS) });
     }
     return out;
   }
@@ -90,8 +99,9 @@ export class World {
     return out;
   }
 
-  update(dt: number, cameraPos: Vector3): void {
+  update(dt: number, cameraPos: Vector3, playerPos: Vector3): void {
     for (const l of this.landmarks) l.update?.(dt);
     this.clouds.update(dt, cameraPos);
+    this.grass.update(playerPos.x, playerPos.z);
   }
 }

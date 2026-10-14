@@ -16,6 +16,8 @@ export class ThirdPersonCamera {
   private readonly focus = new Vector3();
   private readonly desired = new Vector3();
   private initialised = false;
+  private shakeAmount = 0;
+  private time = 0;
 
   constructor(readonly camera: PerspectiveCamera, private readonly world: CameraWorld) {}
 
@@ -70,7 +72,23 @@ export class ThirdPersonCamera {
     this.camera.position.lerpVectors(this.focus, this.desired, t);
     const floor = this.world.heightAt(this.camera.position.x, this.camera.position.z) + 0.5;
     if (this.camera.position.y < floor) this.camera.position.y = floor;
+    this.time += dt;
+    // Subtle handheld breathing plus decaying impact shake.
+    const breathe = 0.012;
+    this.camera.position.x += Math.sin(this.time * 0.9) * breathe;
+    this.camera.position.y += Math.sin(this.time * 1.3 + 1) * breathe;
+    if (this.shakeAmount > 0.001) {
+      const a = this.shakeAmount * 0.25;
+      this.camera.position.x += (Math.random() - 0.5) * a;
+      this.camera.position.y += (Math.random() - 0.5) * a;
+      this.camera.position.z += (Math.random() - 0.5) * a;
+      this.shakeAmount *= Math.exp(-dt * 9);
+    }
     this.camera.lookAt(this.focus);
+  }
+
+  shake(amount: number): void {
+    this.shakeAmount = Math.min(1, this.shakeAmount + amount);
   }
 
   snapTo(target: Vector3): void {

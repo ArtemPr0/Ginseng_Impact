@@ -35,7 +35,7 @@ login-gated, but ~25 cover frames and all captions were inspected. Findings:
 | Decision | Choice | Why |
 |---|---|---|
 | Platform | Web: Vite + TypeScript + Three.js (vanilla) | Buildable and visually verifiable by the agent; static deploy to Vercel. |
-| Art | Retro low-poly, fully procedural geometry, PS1 post pipeline | Matches reels; no asset pipeline or licensing; chunky look hides low fidelity. |
+| Art | ~~Retro low-poly PS1~~ → **Cinematic**: full-res, smooth shading, soft shadows, bloom, grade, mist | The PS1 build was rejected by the user as "too pixelated / Roblox"; the target is the photoreal half of the reels. Still fully procedural. |
 | First slice | Exploration (walk/sprint/jump/climb/glide) + light combat (3-char party, attack + skill, 2 enemies, reactions) | Delivers the Genshin "feel" in one scene. |
 | Physics | Custom kinematic controller vs. heightfield + simple colliders | No engine dependency; climbing/gliding are easier kinematically. |
 | HUD | DOM overlay (HTML/CSS) | Crisp text at any resolution over the low-res 3D. |
@@ -86,3 +86,11 @@ Each milestone: tsc clean, vitest green, build clean, Chrome screenshot checked 
   on a monument, one-point causeway, visible dither, low-poly silhouettes.
 - A player can walk, sprint, jump, climb a wall, glide over the cloud sea, switch between three
   characters, and defeat both enemy types, triggering at least one elemental reaction.
+
+## 10. Revision 2026-10-14 (evening): cinematic rework
+
+User feedback on the first slice: "mobs and animation look like Roblox", "too pixelated, match the videos".
+Rework (M7): full-resolution MSAA + bloom + grade pipeline, PCF soft shadows, cloud sky, mist layers and
+motes, grass and flower meadows, noise-displaced rock, jointed capsule rigs with cloaks and weapon trails,
+spirit wisp and rock golem mobs, title dolly, camera shake. Hard ceiling: procedural geometry cannot match
+AI-generated video photorealism; real animated glTF characters are the next step and need asset approval.

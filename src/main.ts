@@ -8,6 +8,7 @@ import { CONTROLLER, createControllerState, stepController } from './player/Char
 import { Party } from './player/Party';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera';
 import { PALETTE } from './render/palette';
+import { Atmosphere } from './render/Atmosphere';
 import { Renderer } from './render/Renderer';
 import { Sky } from './render/Sky';
 import { Hud } from './ui/Hud';
@@ -22,13 +23,25 @@ const renderer = new Renderer(canvas);
 const input = new Input(canvas);
 const hud = new Hud(document.getElementById('hud')!);
 const scene = new Scene();
-scene.fog = new FogExp2(PALETTE.fog, 0.006);
+scene.fog = new FogExp2(PALETTE.fog, 0.0062);
 
 const camera = new PerspectiveCamera(65, renderer.aspect, 0.3, 600);
-const moon = new DirectionalLight(PALETTE.moon, 1.4);
+const moon = new DirectionalLight(PALETTE.moon, 1.5);
+const fill = new DirectionalLight(0x7f95e0, 0.35);
+fill.position.set(70, 60, 110);
 const sky = new Sky();
-moon.position.copy(sky.moonDir).multiplyScalar(200);
-scene.add(moon, new HemisphereLight(PALETTE.cobalt, PALETTE.abyss, 1.0), sky.group);
+moon.castShadow = true;
+moon.shadow.mapSize.set(2048, 2048);
+moon.shadow.camera.left = -80;
+moon.shadow.camera.right = 80;
+moon.shadow.camera.top = 80;
+moon.shadow.camera.bottom = -80;
+moon.shadow.camera.near = 20;
+moon.shadow.camera.far = 420;
+moon.shadow.bias = -0.0005;
+moon.shadow.normalBias = 0.5;
+moon.shadow.radius = 3;
+scene.add(moon, moon.target, fill, fill.target, new HemisphereLight(PALETTE.cobalt, PALETTE.abyss, 0.55), sky.group);
 
 const terrain = new Terrain();
 scene.add(terrain.mesh);
@@ -36,6 +49,9 @@ const minimap = new Minimap(document.getElementById('hud')!, terrain);
 const area = new World(terrain);
 scene.add(area.group);
 const world = area.heights;
+const atmosphere = new Atmosphere((x, z) => world.heightAt(x, z), new Vector3(LAYOUT.spawn.x, 0, LAYOUT.spawn.z));
+scene.add(atmosphere.group);
+const playerPos = new Vector3();
 
 // --- player ---
 const SPAWN = new Vector3(LAYOUT.spawn.x, 0, LAYOUT.spawn.z);
@@ -45,8 +61,10 @@ const party = new Party(ROSTER);
 const rigs = ROSTER.map((def) => new Rig(def));
 for (const r of rigs) {
   r.root.visible = false;
-  scene.add(r.root);
+  scene.add(r.root, r.trailObject);
 }
+let landedAt = -10;
+let wasAirborne = false;
 rigs[party.activeIndex].root.visible = true;
 const tpc = new ThirdPersonCamera(camera, world);
 tpc.snapTo(new Vector3(SPAWN.x, SPAWN.y + 1.4, SPAWN.z));
@@ -65,7 +83,12 @@ function switchTo(i: number): boolean {
 const combat = new CombatSystem({
   scene, world, sky, hud, camera, game, controller, party, rigs, spawn: SPAWN,
   onForceSwitch: (i) => { party.update(Party.cooldown); switchTo(i); },
+  onShake: (a) => tpc.shake(a),
 });
+// Title cinematic: a slow dolly up the causeway toward the head while the pointer is not locked.
+const HEAD_EYES = new Vector3(LAYOUT.head.x, Math.max(-12, terrain.heightAt(LAYOUT.head.x, LAYOUT.head.z) - 8) + LAYOUT.head.height * 0.69, LAYOUT.head.z);
+let cinematicT = 0;
+let wasLocked = false;
 
 window.addEventListener('resize', () => {
   renderer.resize(window.innerWidth, window.innerHeight);
@@ -105,13 +128,38 @@ game
       const rig = rigs[party.activeIndex];
       rig.root.position.set(controller.pos.x, controller.pos.y, controller.pos.z);
       rig.root.rotation.y = -controller.yaw - Math.PI / 2;
-      rig.animate({ mode: controller.mode, speed: Math.hypot(controller.vel.x, controller.vel.z), attack: combat.attackProgress }, dt);
+      const airborne = controller.mode === 'air' || controller.mode === 'glide';
+      if (wasAirborne && !airborne) landedAt = performance.now() / 1000;
+      wasAirborne = airborne;
+      rig.animate({
+        mode: controller.mode,
+        speed: Math.hypot(controller.vel.x, controller.vel.z),
+        attack: combat.attackProgress,
+        attackKind: combat.attackKind,
+        landed: performance.now() / 1000 - landedAt,
+        grounded: controller.mode === 'ground',
+      }, dt);
+      for (const r of rigs) if (r !== rig) r.animate({ mode: 'ground', speed: 0 }, dt);
       combat.render(dt);
-      rig.setShadowHeight(world.heightAt(controller.pos.x, controller.pos.z));
       focus.set(controller.pos.x, controller.pos.y + 1.4, controller.pos.z);
-      tpc.update(focus, dt);
-      sky.follow(camera.position);
-      area.update(dt, camera.position);
+      if (!input.locked) {
+        cinematicT += dt;
+        const u = (Math.sin(cinematicT * 0.045) + 1) / 2;
+        camera.position.set(Math.sin(cinematicT * 0.1) * 2.5, 8.5 + u * 6, 150 - u * 95);
+        camera.lookAt(HEAD_EYES.x, HEAD_EYES.y * 0.55, HEAD_EYES.z);
+        wasLocked = false;
+      } else {
+        if (!wasLocked) { tpc.snapTo(focus); wasLocked = true; }
+        tpc.update(focus, dt);
+      }
+      playerPos.set(controller.pos.x, controller.pos.y, controller.pos.z);
+      sky.update(dt, camera.position);
+      area.update(dt, camera.position, playerPos);
+      atmosphere.update(dt, playerPos, camera.position);
+      moon.position.copy(playerPos).addScaledVector(sky.moonDir, 240);
+      moon.target.position.copy(playerPos);
+      fill.position.set(playerPos.x + 70, playerPos.y + 60, playerPos.z + 110);
+      fill.target.position.copy(playerPos);
       hud.setLocked(input.locked);
       game.paused = !input.locked;
       minimap.draw(controller.pos.x, controller.pos.z, tpc.yaw, combat.enemies.map((e) => ({ x: e.pos.x, z: e.pos.z, alive: e.alive, aggro: e.aggro })));

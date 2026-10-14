@@ -1,7 +1,7 @@
 # Ginseng Impact
 
-A Genshin-style action RPG vertical slice for the browser, rendered as a retro low-poly PS1 dark-fantasy
-world: cobalt skies, blue fog, a stone causeway toward a giant head with burning red eyes, cathedral
+A Genshin-style action RPG vertical slice for the browser, rendered as a cinematic dark-fantasy
+world (full-res, soft shadows, bloom, drifting mist): cobalt skies, blue fog, a stone causeway toward a giant head with burning red eyes, cathedral
 spires above a cloud sea, and glowing blue sunflower fields. The look follows the project skill in
 `.claude/skills/ginseng-impact-design/`, which encodes the visual language of the @ozavry_ reels.
 
@@ -44,7 +44,7 @@ Blood + Astral = **Overload** (knockback splash).
 
 ```
 src/core      fixed-step loop (hit-stop, advance() for scripted checks), input
-src/render    low-res render target + Bayer dither, PS1 vertex-snap material patch, sky, palette
+src/render    composer pipeline (MSAA, bloom, grade), materials + wind, sky, atmosphere (mist, motes), palette
 src/world     terrain height field, height-field colliders, landmarks, flora, cloud sea, World assembler
 src/player    kinematic controller (ground/air/climb/glide), spring-arm camera, party
 src/characters procedural low-poly rigs + roster

@@ -1,4 +1,42 @@
-# Rendering recipe — retro low-poly dark fantasy
+# Rendering recipe — cinematic dark fantasy
+
+**Superseded direction:** the PS1 recipe below the line was the first build and was rejected by the user
+("too pixelated, looks like Roblox"). The current pipeline is this section.
+
+## Pipeline (src/render/Renderer.ts)
+
+1. `WebGLRenderer` at DPR ≤ 1.5, `ACESFilmicToneMapping`, exposure 0.95, `PCFSoftShadowMap`.
+2. `EffectComposer` on a `HalfFloat`, `samples: 4` target → `RenderPass` → `UnrealBloomPass(0.55, 0.65, 0.8)`
+   → grade `ShaderPass` (cobalt lift `(0.006, 0.012, 0.045)` in shadows, contrast 1.08, vignette 0.5) → `OutputPass`.
+3. Canvas CSS has no `image-rendering`; everything is smooth.
+
+## Lighting
+
+- Moon `DirectionalLight` `#dfe6ff` 1.5, shadows on: 2048 map, ortho ±80 m following the player, bias −0.0005, normalBias 0.5.
+- Fill `DirectionalLight` `#7f95e0` 0.35 from the south-east so faces toward the camera are not black.
+- `HemisphereLight` cobalt/abyss 0.55. Low ambient = contrast; the reels are dark with bright accents.
+- Emissive accents: eyes 2.5–5 (bloom does the halo), runes ≤ 1.3 (higher turns orange under ACES).
+
+## Materials and geometry
+
+- `surface()` = `MeshStandardMaterial` roughness 0.92; armour roughness 0.5 metalness 0.35; blades 0.3/0.85.
+- Stone: `rockify(BoxGeometry(w,h,d,segs), amp)` → welded, noise-displaced, smooth normals; `tintRock` adds moss.
+- Pines: cylinder trunk + five lumpy open cones with tier offsets. Grass: 26k curved instanced blades with `patchWind`.
+- Flowers: unlit petal-textured crossed quads with per-instance colour (`toneMapped: false`) so bloom lights them.
+
+## Atmosphere (src/render/Atmosphere.ts, Sky.ts)
+
+- `FogExp2(fog, 0.0062)`; 42 ground-hugging mist sprites (noise alpha, 55–135 m wide, opacity 0.2–0.38) drifting and wrapping around the player; 1 400 floating motes.
+- Sky dome shader: gradient + fbm clouds tinted cobalt→dusk drifting slowly + moon glow; 2 200 twinkling stars; cratered moon disc `toneMapped: false` ×1.6 for bloom.
+
+## Motion checklist (the reels are never static)
+
+cloud drift · moon halo breathing · mist drift · motes · grass/flower sway · cloak · weapon trails · head eyes breathing and flaring · wisp trails and orbiting motes · golem stomp dust + camera shake · title dolly · camera breathing.
+
+---
+
+
+# (Archived) retro low-poly recipe
 
 The reels' 3D frames look like PS1/N64 captures: flat-shaded low-poly meshes, a low internal
 resolution, wobbling vertices, ordered dither, and fog so thick it is a colour. Reproduce all of it.

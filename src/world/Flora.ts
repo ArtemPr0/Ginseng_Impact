@@ -1,28 +1,31 @@
 import {
-  AdditiveBlending, BoxGeometry, BufferAttribute, BufferGeometry, ConeGeometry, Color, Float32BufferAttribute,
-  InstancedMesh, Matrix4, Object3D, Points, PointsMaterial, Group,
+  AdditiveBlending, BoxGeometry, BufferAttribute, BufferGeometry, Color, ConeGeometry, CylinderGeometry, DoubleSide,
+  Float32BufferAttribute, Group, InstancedMesh, Matrix4, MeshBasicMaterial, Object3D, PlaneGeometry, Points, PointsMaterial,
+  CircleGeometry, CanvasTexture,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { patchWind, surface } from '../render/Materials';
 import { PALETTE } from '../render/palette';
-import { ps1Lambert } from '../render/PS1Material';
+import { rockify } from './geometry';
 import { glowTexture } from './Landmarks';
 
 export interface Placement { x: number; y: number; z: number; yaw: number; scale: number }
 
-function colorize(geo: BufferGeometry, color: number): BufferGeometry {
+function colorize(geo: BufferGeometry, color: number, variation = 0): BufferGeometry {
   const c = new Color(color);
   const n = geo.attributes.position.count;
   const arr = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) {
-    arr[i * 3] = c.r;
-    arr[i * 3 + 1] = c.g;
-    arr[i * 3 + 2] = c.b;
+    const v = 1 + (Math.random() - 0.5) * variation;
+    arr[i * 3] = c.r * v;
+    arr[i * 3 + 1] = c.g * v;
+    arr[i * 3 + 2] = c.b * v;
   }
   geo.setAttribute('color', new BufferAttribute(arr, 3));
   return geo;
 }
 
-function instanced(geo: BufferGeometry, material: ReturnType<typeof ps1Lambert>, placements: Placement[]): InstancedMesh {
+function instanced(geo: BufferGeometry, material: InstancedMesh['material'], placements: Placement[], shadows = true): InstancedMesh {
   const mesh = new InstancedMesh(geo, material, placements.length);
   const dummy = new Object3D();
   const m = new Matrix4();
@@ -36,36 +39,86 @@ function instanced(geo: BufferGeometry, material: ReturnType<typeof ps1Lambert>,
   });
   mesh.instanceMatrix.needsUpdate = true;
   mesh.frustumCulled = false;
+  mesh.castShadow = shadows;
+  mesh.receiveShadow = shadows;
   return mesh;
 }
 
-/** Dark stacked-cone pines (≈ 40 tris each), one instanced draw call. */
+/** Dark pines: cylinder trunk and four lumpy noise-displaced foliage tiers, one instanced draw call. */
 export function pines(placements: Placement[]): InstancedMesh {
-  const trunk = colorize(new BoxGeometry(0.6, 3.2, 0.6).translate(0, 1.6, 0), PALETTE.bark);
-  const canopyColor = 0x0f1f3f;
-  const c1 = colorize(new ConeGeometry(3.2, 5, 5, 1, true).translate(0, 4.8, 0), canopyColor);
-  const c2 = colorize(new ConeGeometry(2.5, 4.2, 5, 1, true).translate(0, 7.6, 0), canopyColor);
-  const c3 = colorize(new ConeGeometry(1.6, 3.6, 5, 1, true).translate(0, 10.2, 0), 0x132650);
-  const geo = mergeGeometries([trunk, c1, c2, c3], false)!;
-  return instanced(geo, ps1Lambert({ vertexColors: true }), placements);
+  const trunk = colorize(new CylinderGeometry(0.22, 0.5, 4.5, 7).translate(0, 2.2, 0), PALETTE.bark);
+  const tiers: BufferGeometry[] = [];
+  const tierSpec: Array<[number, number, number, number, number, number]> = [[3.6, 4.6, 4.2, 0x0c1a36, 0.2, -0.15], [2.9, 4.2, 6.6, 0x0e1f40, -0.25, 0.1], [2.3, 3.8, 8.9, 0x112548, 0.15, 0.2], [1.6, 3.4, 11.0, 0x142b52, -0.1, -0.2], [0.9, 2.8, 12.9, 0x173160, 0.05, 0.1]];
+  for (const [r, h, y, color, dx, dz] of tierSpec) {
+    const cone = rockify(new ConeGeometry(r, h, 11, 5, true), 0.55, 0.7, y * 3.1);
+    tiers.push(colorize(cone.translate(dx, y, dz), color, 0.18));
+  }
+  const geo = mergeGeometries([trunk, ...tiers], false)!;
+  return instanced(geo, surface({ vertexColors: true, side: DoubleSide }), placements);
 }
 
-/** Glowing blue sunflowers: instanced stems + heads, and one Points cloud for the halos. */
+/** Unlit glowing meadow flowers (bloom makes them shine): crossed quads with per-instance colour. */
+export function flowers(placements: Placement[]): InstancedMesh {
+  const quad = new PlaneGeometry(0.2, 0.2, 1, 2).translate(0, 0.16, 0);
+  const geo = mergeGeometries([quad, quad.clone().rotateY(Math.PI / 2)], false)!;
+  const mat = new MeshBasicMaterial({ color: 0xffffff, map: petalTexture(), alphaTest: 0.45, side: DoubleSide, toneMapped: false });
+  patchWind(mat as unknown as Parameters<typeof patchWind>[0], 0.5);
+  const mesh = instanced(geo, mat, placements, false);
+  const palette = [new Color(PALETTE.blood).multiplyScalar(0.9), new Color(PALETTE.dusk).multiplyScalar(1.1), new Color(PALETTE.electric).multiplyScalar(1.2), new Color(PALETTE.rune).multiplyScalar(0.8), new Color(0xff5aa0).multiplyScalar(0.9)];
+  placements.forEach((_, i) => mesh.setColorAt(i, palette[(i * 7 + Math.floor(i / 3)) % palette.length]));
+  mesh.instanceColor!.needsUpdate = true;
+  return mesh;
+}
+
+/** Glowing blue sunflowers: stems, emissive petal discs, dark centres, soft halos. */
 export function sunflowers(placements: Placement[]): Group {
   const g = new Group();
-  const stem = colorize(new BoxGeometry(0.08, 1.2, 0.08).translate(0, 0.6, 0), PALETTE.bark);
-  const leaf = colorize(new BoxGeometry(0.5, 0.04, 0.2).translate(0.25, 0.5, 0), 0x163a3a);
-  g.add(instanced(mergeGeometries([stem, leaf], false)!, ps1Lambert({ vertexColors: true }), placements));
-  const petals = new BoxGeometry(0.55, 0.55, 0.06).translate(0, 1.25, 0.05);
-  g.add(instanced(petals, ps1Lambert({ color: 0x1a2a7a, emissive: PALETTE.electric, emissiveIntensity: 0.55 }), placements));
-  const centre = new BoxGeometry(0.22, 0.22, 0.08).translate(0, 1.25, 0.08);
-  g.add(instanced(centre, ps1Lambert({ color: PALETTE.void }), placements));
+  const stem = colorize(new CylinderGeometry(0.03, 0.05, 1.2, 5).translate(0, 0.6, 0), PALETTE.bark);
+  const leaf = colorize(new PlaneGeometry(0.5, 0.18).rotateX(-0.6).translate(0.3, 0.5, 0), 0x163a3a);
+  const stemMat = surface({ vertexColors: true, side: DoubleSide });
+  patchWind(stemMat, 0.18);
+  g.add(instanced(mergeGeometries([stem, leaf], false)!, stemMat, placements, false));
+  const petals = new CircleGeometry(0.32, 10).translate(0, 1.25, 0.05);
+  const petalMat = surface({ color: 0x1a2a7a, emissive: PALETTE.electric, emissiveIntensity: 0.9, side: DoubleSide });
+  patchWind(petalMat, 0.18);
+  g.add(instanced(petals, petalMat, placements, false));
+  const centre = new CircleGeometry(0.13, 8).translate(0, 1.25, 0.08);
+  g.add(instanced(centre, surface({ color: PALETTE.void }), placements, false));
   const pos: number[] = [];
   for (const p of placements) pos.push(p.x, p.y + 1.25 * p.scale, p.z);
   const pg = new BufferGeometry();
   pg.setAttribute('position', new Float32BufferAttribute(pos, 3));
-  const halos = new Points(pg, new PointsMaterial({ map: glowTexture(), color: PALETTE.cobalt, size: 1.6, transparent: true, opacity: 0.3, blending: AdditiveBlending, depthWrite: false, fog: true }));
+  const halos = new Points(pg, new PointsMaterial({ map: glowTexture(), color: PALETTE.cobalt, size: 1.4, transparent: true, opacity: 0.25, blending: AdditiveBlending, depthWrite: false, fog: true }));
   halos.frustumCulled = false;
   g.add(halos);
   return g;
+}
+
+let petalTex: CanvasTexture | undefined;
+function petalTexture(): CanvasTexture {
+  if (petalTex) return petalTex;
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  ctx.clearRect(0, 0, size, size);
+  ctx.fillStyle = '#fff';
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.ellipse(size / 2 + Math.cos(a) * 14, size / 2 + Math.sin(a) * 14, 13, 8, a, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.fillStyle = '#9ab';
+  ctx.beginPath();
+  ctx.arc(size / 2, size / 2, 6, 0, Math.PI * 2);
+  ctx.fill();
+  petalTex = new CanvasTexture(canvas);
+  return petalTex;
+}
+
+/** Scattered boulders. */
+export function boulders(placements: Placement[]): InstancedMesh {
+  const geo = colorize(rockify(new BoxGeometry(1.6, 1.1, 1.3, 6, 5, 6), 0.3, 0.9, 5), PALETTE.stone, 0.15);
+  return instanced(geo, surface({ vertexColors: true }), placements);
 }

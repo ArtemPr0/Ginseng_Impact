@@ -1,10 +1,11 @@
 import {
-  AdditiveBlending, BoxGeometry, CanvasTexture, ConeGeometry, Group, Mesh, MeshBasicMaterial, NearestFilter,
+  AdditiveBlending, BoxGeometry, CanvasTexture, Color, ConeGeometry, Group, Mesh, MeshBasicMaterial,
   PlaneGeometry, PointLight, RepeatWrapping, SphereGeometry, Sprite, SpriteMaterial, DoubleSide,
 } from 'three';
 import { PALETTE } from '../render/palette';
-import { ps1Lambert } from '../render/PS1Material';
+import { surface } from '../render/Materials';
 import type { Footprint } from './Colliders';
+import { rockify, tintRock } from './geometry';
 
 export interface Landmark {
   object: Group;
@@ -15,8 +16,24 @@ export interface Landmark {
 const STONE_LIGHT = 0x5a6aa8;
 const STONE_DARK = 0x323d6e;
 
-function stoneBox(w: number, h: number, d: number, color: number = PALETTE.stone): Mesh {
-  return new Mesh(new BoxGeometry(w, h, d), ps1Lambert({ color }));
+let rockSeed = 0;
+/** Weathered stone block: displaced, smooth-shaded, moss on upward faces, casts and receives shadows. */
+function stoneBox(w: number, h: number, d: number, color: number = PALETTE.stone, rough = 0.06): Mesh {
+  const seg = (n: number) => Math.max(2, Math.min(14, Math.round(n / 2.5)));
+  const geo = rockify(new BoxGeometry(w, h, d, seg(w), seg(h), seg(d)), Math.min(w, h, d) * rough, 0.12, rockSeed += 3.1);
+  tintRock(geo, color, 0x1f4d46, 0.45, rockSeed);
+  const m = new Mesh(geo, surface({ vertexColors: true }));
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
+}
+
+/** Plain architectural block (decks, piers): no displacement. */
+function plainBox(w: number, h: number, d: number, color: number): Mesh {
+  const m = new Mesh(new BoxGeometry(w, h, d), surface({ color }));
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
 }
 
 let glowTex: CanvasTexture | undefined;
@@ -34,7 +51,6 @@ export function glowTexture(): CanvasTexture {
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, size, size);
   glowTex = new CanvasTexture(canvas);
-  glowTex.minFilter = glowTex.magFilter = NearestFilter;
   return glowTex;
 }
 
@@ -68,28 +84,34 @@ export function causeway(cfg: CausewayConfig, groundAt: (x: number, z: number) =
   const length = cfg.zStart - cfg.zEnd;
   const n = Math.ceil(length / cfg.segmentLength);
   const segLen = length / n;
-  const deckMat = ps1Lambert({ color: STONE_LIGHT });
-  const wallMat = ps1Lambert({ color: PALETTE.stone });
-  const pierMat = ps1Lambert({ color: STONE_DARK });
+  const deckMat = surface({ vertexColors: true, roughness: 0.95 });
+  const wallMat = surface({ color: 0x2f3868 });
+  const pierMat = surface({ color: STONE_DARK });
   for (let i = 0; i < n; i++) {
     const zc = cfg.zStart - (i + 0.5) * segLen;
     const top = cfg.yStart + ((cfg.yEnd - cfg.yStart) * (i + 0.5)) / n;
-    const deck = new Mesh(new BoxGeometry(cfg.width, 0.3, segLen), deckMat);
+    const deckGeo = rockify(new BoxGeometry(cfg.width, 0.3, segLen, 6, 1, 12), 0.05, 0.9, i * 2.3);
+    tintRock(deckGeo, 0x3b4478, 0x1f4d46, 0.25, i * 2.3);
+    const deck = new Mesh(deckGeo, deckMat);
     deck.position.set(cfg.x, top - 0.15, zc);
+    deck.receiveShadow = true;
+    deck.castShadow = true;
     const body = new Mesh(new BoxGeometry(cfg.width + 0.6, 3, segLen), wallMat);
     body.position.set(cfg.x, top - 1.8, zc);
+    body.castShadow = true;
+    body.receiveShadow = true;
     g.add(deck, body);
     const ground = groundAt(cfg.x, zc);
     if (ground < top - 4) {
       const pierH = top - 3 - Math.max(ground, -95);
       const pier = new Mesh(new BoxGeometry(cfg.width * 0.7, pierH, segLen * 0.45), pierMat);
       pier.position.set(cfg.x, top - 3 - pierH / 2, zc);
+      pier.castShadow = true;
       g.add(pier);
     }
     footprints.push({ kind: 'box', x: cfg.x, z: zc, hw: cfg.width / 2 + 0.3, hd: segLen / 2, top });
   }
   // Balustrade posts, some broken or missing.
-  const postMat = ps1Lambert({ color: PALETTE.stone });
   for (let z = cfg.zStart - 2; z > cfg.zEnd + 2; z -= cfg.postSpacing) {
     const t = (cfg.zStart - z) / length;
     const top = cfg.yStart + (cfg.yEnd - cfg.yStart) * t;
@@ -97,7 +119,7 @@ export function causeway(cfg: CausewayConfig, groundAt: (x: number, z: number) =
       const r = rnd();
       if (r < 0.28) continue;
       const h = r < 0.55 ? 0.5 + rnd() * 0.6 : 1.6;
-      const post = new Mesh(new BoxGeometry(0.7, h, 0.7), postMat);
+      const post = stoneBox(0.7, h, 0.7, PALETTE.stone, 0.12);
       const px = cfg.x + side * (cfg.width / 2 + 0.05);
       post.position.set(px, top + h / 2, z);
       g.add(post);
@@ -110,7 +132,7 @@ export function causeway(cfg: CausewayConfig, groundAt: (x: number, z: number) =
   for (let i = 1; i <= steps; i++) {
     const top = cfg.yStart - i * 0.45;
     const zc = cfg.zStart + i * 1.1 - 0.55;
-    const step = new Mesh(new BoxGeometry(cfg.width, 3, 1.1), wallMat);
+    const step = plainBox(cfg.width, 3, 1.1, PALETTE.stone);
     step.position.set(cfg.x, top - 1.5, zc);
     g.add(step);
     footprints.push({ kind: 'box', x: cfg.x, z: zc, hw: cfg.width / 2, hd: 0.55, top });
@@ -135,15 +157,20 @@ export function giantHead(x: number, z: number, baseY: number, H: number): Landm
   const mouth = stoneBox(0.3 * H, 0.03 * H, 0.04 * H, PALETTE.void);
   mouth.position.set(0, 0.36 * H, front + 0.02 * H);
   g.add(jaw, face, crown, brow, nose, mouth);
+  const eyeMats: import('three').MeshStandardMaterial[] = [];
+  const halos: Sprite[] = [];
   for (const side of [-1, 1]) {
     const socket = stoneBox(0.15 * H, 0.09 * H, 0.06 * H, PALETTE.void);
     socket.position.set(side * 0.19 * H, 0.69 * H, front + 0.01 * H);
-    const eye = new Mesh(new SphereGeometry(0.035 * H, 6, 4), ps1Lambert({ color: PALETTE.void, emissive: PALETTE.blood, emissiveIntensity: 3, fog: false }));
+    const eye = new Mesh(new SphereGeometry(0.035 * H, 12, 8), surface({ color: PALETTE.void, emissive: PALETTE.blood, emissiveIntensity: 5, fog: false }));
     eye.position.set(side * 0.19 * H, 0.69 * H, front + 0.045 * H);
-    const halo = glowSprite(PALETTE.blood, 0.28 * H, 0.75);
+    const halo = glowSprite(PALETTE.blood, 0.2 * H, 0.6);
     halo.position.copy(eye.position);
     g.add(socket, eye, halo);
+    eyeMats.push(eye.material as import('three').MeshStandardMaterial);
+    halos.push(halo);
   }
+  let t = 0;
   // Cracks.
   const crackPos: Array<[number, number, number, number]> = [[-0.2, 0.5, 0.02, 0.3], [0.25, 0.42, 0.015, 0.22], [0.05, 0.8, 0.02, 0.14], [-0.3, 0.3, 0.012, 0.18]];
   for (const [cx, cy, cw, ch] of crackPos) {
@@ -153,7 +180,18 @@ export function giantHead(x: number, z: number, baseY: number, H: number): Landm
     g.add(crack);
   }
   g.position.set(x, baseY, z);
-  return { object: g, footprints: [{ kind: 'box', x, z, hw: 0.36 * H, hd: 0.375 * H, top: baseY + 1.02 * H }] };
+  return {
+    object: g,
+    footprints: [{ kind: 'box', x, z, hw: 0.36 * H, hd: 0.375 * H, top: baseY + 1.02 * H }],
+    update(dt) {
+      // The eyes breathe slowly and flare every ~9 s.
+      t += dt;
+      const breathe = 0.75 + Math.sin(t * 0.8) * 0.25;
+      const flare = Math.pow(Math.max(0, Math.sin(t * 0.7 + 1.2)), 24) * 2.5;
+      for (const m of eyeMats) m.emissiveIntensity = 3.5 * breathe + flare;
+      for (const h of halos) { h.scale.setScalar(0.2 * H * (0.8 + breathe * 0.3 + flare * 0.1)); h.material.opacity = 0.45 + breathe * 0.2; }
+    },
+  };
 }
 
 /** Cluster of gothic spires on a hall, with a rune-fire portal at the door. Walls are climbable. */
@@ -161,7 +199,7 @@ export function cathedral(x: number, z: number, baseY: number): Landmark {
   const g = new Group();
   const footprints: Footprint[] = [];
   const spires: Array<[number, number, number]> = [[0, 0, 118], [15, 7, 86], [-13, 9, 78], [7, -15, 66], [-9, -13, 58]];
-  const slitMat = ps1Lambert({ color: PALETTE.void, emissive: PALETTE.rune, emissiveIntensity: 1.2 });
+  const slitMat = surface({ color: PALETTE.void, emissive: PALETTE.rune, emissiveIntensity: 2.2 });
   for (const [dx, dz, h] of spires) {
     const w1 = h * 0.11;
     let y = 0;
@@ -180,7 +218,8 @@ export function cathedral(x: number, z: number, baseY: number): Landmark {
       }
       y += heights[t];
     }
-    const cap = new Mesh(new ConeGeometry(widths[2] * 0.75, h * 0.1, 4), ps1Lambert({ color: STONE_DARK }));
+    const cap = new Mesh(new ConeGeometry(widths[2] * 0.75, h * 0.1, 4), surface({ color: STONE_DARK }));
+    cap.castShadow = true;
     cap.position.set(dx, y + h * 0.05, dz);
     cap.rotation.y = Math.PI / 4;
     g.add(cap);
@@ -190,7 +229,7 @@ export function cathedral(x: number, z: number, baseY: number): Landmark {
   hall.position.set(0, 8, 2);
   g.add(hall);
   footprints.push({ kind: 'box', x, z: z + 2, hw: 17, hd: 11, top: baseY + 16 });
-  const door = new Mesh(new BoxGeometry(3.2, 6.5, 0.4), ps1Lambert({ color: PALETTE.void, emissive: PALETTE.rune, emissiveIntensity: 2.5 }));
+  const door = new Mesh(new BoxGeometry(3.2, 6.5, 0.4), surface({ color: PALETTE.void, emissive: PALETTE.rune, emissiveIntensity: 4 }));
   door.position.set(0, 3.25, 13.3);
   const fire = glowSprite(PALETTE.rune, 12, 0.7, true);
   fire.position.set(0, 4, 14);
@@ -212,10 +251,9 @@ export function waterfall(x: number, z: number, topY: number, width: number, hei
   ctx.fillStyle = 'rgba(223,230,255,0.9)';
   for (let i = 0; i < 6; i++) ctx.fillRect(i * 1.4, (i * 13) % 64, 1, 18 + (i * 7) % 20);
   const tex = new CanvasTexture(canvas);
-  tex.minFilter = tex.magFilter = NearestFilter;
   tex.wrapS = tex.wrapT = RepeatWrapping;
   tex.repeat.set(width / 2, height / 8);
-  const mat = new MeshBasicMaterial({ map: tex, transparent: true, side: DoubleSide, depthWrite: false, fog: true });
+  const mat = new MeshBasicMaterial({ map: tex, transparent: true, side: DoubleSide, depthWrite: false, fog: true, color: new Color(1.3, 1.35, 1.6), toneMapped: false });
   const mesh = new Mesh(new PlaneGeometry(width, height), mat);
   mesh.position.set(x, topY - height / 2, z);
   const mist = glowSprite(PALETTE.electric, width * 1.6, 0.35, true);
