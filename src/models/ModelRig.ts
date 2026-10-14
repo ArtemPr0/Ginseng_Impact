@@ -58,6 +58,10 @@ export class ModelRig {
   private current: AnimationAction | null = null;
   private currentKey = '';
   readonly height: number;
+  /** Bounding-box height of the file before scaling (model units), for shader effects in local space. */
+  readonly rawHeight: number;
+  /** Materials of the loaded meshes (for per-model shader patches). */
+  readonly materials: MeshStandardMaterial[] = [];
 
   constructor(readonly id: string, gltf: GLTF) {
     const def = MODELS[id];
@@ -74,12 +78,14 @@ export class ModelRig {
         if (!m || !('emissive' in m)) continue;
         if (m.emissive.getHex() === 0) { m.emissive.setHex(0x16224e); m.emissiveIntensity = 0.42; }
         m.roughness = Math.max(m.roughness ?? 1, 0.6);
+        this.materials.push(m);
       }
     });
     // Normalise: scale to height, centre on x/z, feet at y = 0.
     const box = new Box3().setFromObject(scene);
     const size = new Vector3();
     box.getSize(size);
+    this.rawHeight = size.y;
     const s = def.height / Math.max(0.001, size.y);
     scene.scale.setScalar(s);
     box.setFromObject(scene);
@@ -128,6 +134,11 @@ export class ModelRig {
 
   get playing(): string {
     return this.currentKey;
+  }
+
+  /** False for static exports (no animation clips at all). */
+  get hasClips(): boolean {
+    return this.actions.size > 0;
   }
 
   /** True when a one-shot clip has finished. */

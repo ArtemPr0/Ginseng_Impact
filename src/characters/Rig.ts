@@ -5,6 +5,7 @@ import {
 import { surface } from '../render/Materials';
 import { ModelRig } from '../models/ModelRig';
 import { PipeSmoke } from '../render/Smoke';
+import { patchRobeWind } from '../render/Materials';
 import { MODELS } from '../data/models';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PALETTE } from '../render/palette';
@@ -71,6 +72,7 @@ export class Rig {
   private readonly weapon = new Group();
   /** Orlan's pipe. */
   private smoke: PipeSmoke | null = null;
+  private staticPhase = Math.random() * 6;
   private readonly cloak?: Mesh;
   private readonly cloakRest: Float32Array = new Float32Array(0);
   private readonly orbit?: Group;
@@ -278,6 +280,7 @@ export class Rig {
     this.model = new ModelRig(id, gltf);
     this.hips.visible = false;
     this.root.add(this.model.root);
+    if (MODELS[id]?.robe) for (const mat of this.model.materials) { patchRobeWind(mat, this.model.rawHeight * 0.55, 0.05); mat.needsUpdate = true; }
     const anchor = MODELS[id]?.smoke;
     if (anchor) {
       this.smoke = new PipeSmoke();
@@ -286,10 +289,40 @@ export class Rig {
     }
   }
 
+  /**
+   * A boneless model (the wizard's closed robe): hovers along instead of walking, sways while idle, leans into
+   * casts, and tips over when dead. The hem itself flutters in the vertex shader (patchRobeWind).
+   */
+  private driveStaticModel(m: ModelRig, pose: RigPose, dt: number): void {
+    const r = m.root;
+    this.staticPhase += dt * (pose.speed > 0.3 ? 5.5 : 1.1);
+    const t = this.staticPhase;
+    let bob = Math.sin(t) * 0.012;
+    let lean = Math.sin(t * 0.5) * 0.015;
+    const tilt = 0;
+    let scaleY = 1 + Math.sin(t * 0.9) * 0.008;
+    if (pose.speed > 0.3) { bob = Math.abs(Math.sin(t)) * 0.07; lean = -0.12 - Math.min(0.12, pose.speed * 0.012); }
+    if (pose.mode === 'air' || pose.mode === 'glide') { bob = 0.1; lean = -0.2; }
+    if (pose.attack !== undefined) {
+      const a = pose.attack;
+      const windup = a < 0.3 ? a / 0.3 : 1 - (a - 0.3) / 0.7;
+      lean = 0.18 * windup - 0.28 * (1 - windup) * (a > 0.3 ? 1 : 0);
+      scaleY = 1 + windup * 0.04;
+    }
+    if (pose.landed !== undefined && pose.landed < 0.25) { bob -= 0.05 * (1 - pose.landed / 0.25); }
+    r.position.y = bob;
+    r.rotation.z = lean;
+    r.rotation.x += (tilt - r.rotation.x) * Math.min(1, dt * 8);
+    r.scale.set(1, scaleY, 1);
+    m.update(dt);
+    this.smoke?.update(dt, pose.speed > 0.3);
+  }
+
   /** Maps a pose to a model clip. One-shot clips (attacks, hits) restart only when a new swing begins. */
   private driveModel(pose: RigPose, dt: number): void {
     const m = this.model!;
     const v = pose.speed;
+    if (!m.hasClips) { this.driveStaticModel(m, pose, dt); return; }
     let clip: string = 'idle';
     let once = false;
     if (pose.attack !== undefined) {

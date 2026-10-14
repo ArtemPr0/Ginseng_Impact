@@ -157,5 +157,5 @@ Rigging notes: Meshy's biped rig needs legs — the half-body demon and lurker, 
 
 The party is now built from the user's three references: `knight.png` (seated knight, image-to-3D with A-pose), `archer.png`
 (hooded archer, image-to-3D with A-pose) and `wizard.png` (blue wizard with pipe; the image-to-3D result was a closed cone of
-robe that Meshy's rig refused, so the mesh is text-to-3D in A-pose with boots showing, textured from the photo). Clip sets are
+robe that Meshy's rig refused, so the user chose the closed-robe model anyway: it has no bones and is animated procedurally in Rig.driveStaticModel — hover-bob, sway, cast lean, and a hem wind in the vertex shader). Clip sets are
 listed in `public/models/README.md`. The map was scaled to 60 % so every Meshy subject is a short sprint apart.

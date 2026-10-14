@@ -36,3 +36,29 @@ export function patchWind(mat: MeshStandardMaterial, strength = 0.25): void {
       );
   };
 }
+
+/**
+ * Cloth wind for a rigid robe model (no bones): the hem sways, the shoulders and head stay put.
+ * `hemTop` is the local-space height (model units) above which the sway fades to zero.
+ */
+export function patchRobeWind(mat: MeshStandardMaterial, hemTop: number, strength = 0.06): void {
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uWind = WIND;
+    shader.uniforms.uRobeStrength = { value: strength };
+    shader.uniforms.uRobeTop = { value: hemTop };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uWind;\nuniform float uRobeStrength;\nuniform float uRobeTop;')
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        {
+          float hem = 1.0 - clamp(transformed.y / max(uRobeTop, 0.001), 0.0, 1.0);
+          hem = hem * hem;
+          float phase = uWind * 2.1 + transformed.x * 3.0 + transformed.z * 2.0;
+          float sway = (sin(phase) + sin(phase * 2.7 + 1.3) * 0.5) * uRobeStrength * uRobeTop * hem;
+          transformed.x += sway;
+          transformed.z += sway * 0.7;
+        }`,
+      );
+  };
+}

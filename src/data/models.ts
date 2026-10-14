@@ -22,6 +22,8 @@ export interface ModelDef {
   clips?: Partial<Record<ClipName, string>>;
   /** Where a pipe-smoke emitter sits, in metres relative to the feet (x forward, z to the model's left). */
   smoke?: { x: number; y: number; z: number };
+  /** A boneless robe/cloak model: the rig animates it procedurally (hover, sway, hem wind) instead of clips. */
+  robe?: boolean;
 }
 
 /**
@@ -39,7 +41,7 @@ export const MODELS: Record<string, ModelDef> = {
   // Party (Meshy image-to-3D from docs/reference/frames, biped rig, preset clips)
   knight: { file: 'knight.glb', height: 1.95, clips: { idle: 'idle_02|idle|stance', walk: 'walking|walk', run: 'running|run', jump: 'basic_jump|jump', attack: 'right_hand_sword_slash|slash|attack', heavy: 'sword_judgment|judgment|slash', cast: 'sword_shout|shout|slash', hit: 'hit_reaction|hit', death: 'dying|death' } },
   archer: { file: 'archer.glb', height: 1.8, clips: { idle: 'idle_02|idle|stance', walk: 'walking|walk', run: 'running|run', jump: 'basic_jump|jump', attack: 'archery_shot|shot', heavy: 'archery_shot_1|shot', cast: 'archery_aim|aim|shot', hit: 'hit_reaction|hit', death: 'dying|death' } },
-  wizard: { file: 'wizard.glb', height: 1.85, smoke: { x: 0.22, y: 1.36, z: 0.08 }, clips: { idle: 'idle_02|idle|stance', walk: 'walking|walk', run: 'running|run', jump: 'basic_jump|jump', attack: 'mage_soell_cast|spell|cast', heavy: 'charged_spell_cast|charged|cast', cast: 'charged_spell_cast|charged|cast', hit: 'hit_reaction|hit', death: 'dying|death' } },
+  wizard: { file: 'wizard.glb', height: 1.85, robe: true, smoke: { x: 0.2, y: 1.12, z: 0.1 }, clips: { idle: 'idle_02|idle|stance', walk: 'walking|walk', run: 'running|run', jump: 'basic_jump|jump', attack: 'mage_soell_cast|spell|cast', heavy: 'charged_spell_cast|charged|cast', cast: 'charged_spell_cast|charged|cast', hit: 'hit_reaction|hit', death: 'dying|death' } },
   // Bosses and mobs
   // Meshy animate exports bundle every added preset into one GLB; clip names are the preset's English ids.
   yeti: { file: 'yeti.glb', height: 5.2, clips: BOSS_CLIPS },
