@@ -14,6 +14,7 @@ export const WORLD = {
   cloudSeaY: -26,
   chasmCentreZ: -95,
   chasmHalfWidth: 22,
+  corridorZ: { min: -205, max: 115 },
 } as const;
 
 /** Pure height function. Plateau island with a wobbly cliff edge and a chasm band across it. */
@@ -30,7 +31,12 @@ export function terrainHeight(x: number, z: number, noise: Noise2D): number {
   const chasmCentre = WORLD.chasmCentreZ + noise.noise(x * 0.01, 3) * 10;
   const chasm = 1 - smoothstep(WORLD.chasmHalfWidth - 6, WORLD.chasmHalfWidth + 8, Math.abs(z - chasmCentre));
   const land = island * (1 - chasm);
-  const plateau = 3 + rolling + detail;
+  let plateau = 3 + rolling + detail;
+  // Flatten a corridor under the causeway so the raised road always sits above the ground.
+  if (z > WORLD.corridorZ.min && z < WORLD.corridorZ.max) {
+    const corridor = 1 - smoothstep(6, 16, Math.abs(x));
+    plateau = lerp(plateau, 3.2, corridor);
+  }
   return lerp(WORLD.abyssY, plateau, land);
 }
 

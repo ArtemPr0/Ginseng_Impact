@@ -10,16 +10,16 @@ import { PALETTE } from './render/palette';
 import { Renderer } from './render/Renderer';
 import { Sky } from './render/Sky';
 import { Hud } from './ui/Hud';
-import { HeightWorld } from './world/Colliders';
-import { monolith } from './world/Landmarks';
+import { LAYOUT } from './data/world';
 import { Terrain } from './world/Terrain';
+import { World } from './world/World';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const renderer = new Renderer(canvas);
 const input = new Input(canvas);
 const hud = new Hud(document.getElementById('hud')!);
 const scene = new Scene();
-scene.fog = new FogExp2(PALETTE.fog, 0.0085);
+scene.fog = new FogExp2(PALETTE.fog, 0.006);
 
 const camera = new PerspectiveCamera(65, renderer.aspect, 0.3, 600);
 const moon = new DirectionalLight(PALETTE.moon, 1.4);
@@ -29,18 +29,13 @@ scene.add(moon, new HemisphereLight(PALETTE.cobalt, PALETTE.abyss, 1.0), sky.gro
 
 const terrain = new Terrain();
 scene.add(terrain.mesh);
-const world = new HeightWorld(terrain);
-
-// Standing stones near the spawn: climbable test objects and the first of the causeway's broken posts.
-for (const [x, z, w, h, d] of [[-9, 108, 2.2, 6, 2.2], [9, 104, 2.6, 9, 2.4], [-14, 96, 3, 13, 3]] as const) {
-  const m = monolith(x, z, terrain.heightAt(x, z) - 0.5, w, h, d, 0.2);
-  scene.add(m.object);
-  world.add(...m.footprints);
-}
+const area = new World(terrain);
+scene.add(area.group);
+const world = area.heights;
 
 // --- player ---
-const SPAWN = new Vector3(0, 0, 120);
-SPAWN.y = terrain.heightAt(SPAWN.x, SPAWN.z);
+const SPAWN = new Vector3(LAYOUT.spawn.x, 0, LAYOUT.spawn.z);
+SPAWN.y = world.heightAt(SPAWN.x, SPAWN.z);
 const controller = createControllerState(SPAWN);
 const party = new Party(ROSTER);
 const rigs = ROSTER.map((def) => new Rig(def));
@@ -102,6 +97,7 @@ const game = new Game()
       focus.set(controller.pos.x, controller.pos.y + 1.4, controller.pos.z);
       tpc.update(focus, dt);
       sky.follow(camera.position);
+      area.update(dt, camera.position);
       hud.setLocked(input.locked);
       renderer.render(scene, camera);
     },
@@ -110,7 +106,7 @@ game.start();
 
 declare global {
   interface Window {
-    __ginseng: { scene: Scene; camera: PerspectiveCamera; terrain: Terrain; world: HeightWorld; sky: Sky; controller: typeof controller; party: Party<(typeof ROSTER)[number]>; tpc: ThirdPersonCamera; input: Input; game: Game };
+    __ginseng: { scene: Scene; camera: PerspectiveCamera; terrain: Terrain; world: World['heights']; area: World; sky: Sky; controller: typeof controller; party: Party<(typeof ROSTER)[number]>; tpc: ThirdPersonCamera; input: Input; game: Game; renderer: Renderer };
   }
 }
-window.__ginseng = { scene, camera, terrain, world, sky, controller, party, tpc, input, game };
+window.__ginseng = { scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer };

@@ -15,6 +15,8 @@ export class Game {
   private last = 0;
   private running = false;
   paused = false;
+  /** Smoothed frames per second, for the debug readout. */
+  fps = 0;
 
   add(system: System): this {
     this.systems.push(system);
@@ -42,6 +44,7 @@ export class Game {
     if (this.last === 0) this.last = now;
     const frameDt = Math.min(MAX_FRAME, (now - this.last) / 1000);
     this.last = now;
+    if (frameDt > 0) this.fps += (1 / frameDt - this.fps) * 0.05;
     if (!this.paused) {
       this.accumulator += frameDt;
       while (this.accumulator >= FIXED_DT) {
