@@ -432,8 +432,8 @@ export function boat(startS: number, speed: number): Landmark {
   const pole = new Mesh(new CylinderGeometry(0.04, 0.04, 1.2, 6), surface({ color: 0x1a1428 }));
   pole.position.set(2.3, 0.9, 0);
   g.add(lantern.group, pole);
-  const knight: CharacterDef = { id: 'rower', name: 'Rower', title: '', element: 'fog', weapon: 'sword', maxHp: 1, atk: 1, look: { cloth: 0x0f1430, armour: 0x1e2246, skin: 0x8c93b8, accent: PALETTE.electric, bulk: 1.15, height: 1.85 } };
-  const rowers = [new Rig(knight), new Rig({ ...knight, id: 'rower2' })];
+  const knight: CharacterDef = { id: 'rower', name: 'Rower', title: '', element: 'fog', weapon: 'sword', maxHp: 1, atk: 1, accent: PALETTE.electric };
+  const rowers = [new Rig(knight, 'knight-npc'), new Rig({ ...knight, id: 'rower2' }, 'knight-npc')];
   rowers.forEach((r, i) => {
     r.root.position.set(i === 0 ? -1.2 : 0.8, 0.25, 0);
     r.root.rotation.y = -Math.PI / 2;
@@ -509,7 +509,7 @@ export function rider(path: Array<[number, number]>, speed: number, heightAt: (x
   const saddle = new Mesh(new BoxGeometry(0.7, 0.15, 0.6), surface({ color: 0x3a2e24 }));
   saddle.position.set(0, 1.85, 0);
   g.add(saddle);
-  const knight = new Rig({ id: 'rider', name: 'Rider', title: '', element: 'fog', weapon: 'sword', maxHp: 1, atk: 1, look: { cloth: 0x14183a, armour: 0x2a3160, skin: 0x8c93b8, accent: PALETTE.electric, cape: true, bulk: 1.1, height: 1.85 } });
+  const knight = new Rig({ id: 'rider', name: 'Rider', title: '', element: 'fog', weapon: 'sword', maxHp: 1, atk: 1, accent: PALETTE.electric }, 'knight-npc');
   knight.root.position.set(0, 1.55, 0);
   knight.root.rotation.y = -Math.PI / 2;
   g.add(knight.root);

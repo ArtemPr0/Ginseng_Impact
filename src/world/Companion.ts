@@ -1,6 +1,5 @@
 import { Vector3 } from 'three';
 import { Rig } from '../characters/Rig';
-import type { CharacterDef } from '../characters/roster';
 import type { NpcDef } from './NPCs';
 
 export interface CompanionTarget { id: number; pos: { x: number; y: number; z: number }; alive: boolean; aggro: boolean }
@@ -17,8 +16,7 @@ export class Companion {
   private readonly follow: Vector3;
 
   constructor(readonly def: NpcDef, start: Vector3, private readonly heightAt: (x: number, z: number) => number, slot: number) {
-    const look: CharacterDef['look'] = def.look;
-    this.rig = new Rig({ id: def.id, name: def.name, title: def.title, element: 'fog', weapon: def.weapon, maxHp: def.hire!.maxHp, atk: def.hire!.atk, look });
+    this.rig = new Rig({ id: def.id, name: def.name, title: def.title, element: 'fog', weapon: def.weapon, maxHp: def.hire!.maxHp, atk: def.hire!.atk, accent: def.accent }, def.model);
     this.hp = def.hire!.maxHp;
     this.pos.copy(start);
     this.follow = new Vector3(slot % 2 === 0 ? -2.2 : 2.2, 0, 2 + Math.floor(slot / 2) * 1.6);
