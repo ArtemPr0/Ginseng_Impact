@@ -1,7 +1,6 @@
 import { BoxGeometry, Group, Mesh, PerspectiveCamera, Scene, Vector3 } from 'three';
 import type { Audio } from '../audio/Audio';
 import type { CharacterDef } from '../characters/roster';
-import type { Rig } from '../characters/Rig';
 import type { Game } from '../core/Game';
 import { ENEMY_DEFS, ENEMY_SPAWNS, type BossAttackKind, type EnemyDef } from '../data/enemies';
 import type { Inventory } from '../items/Inventory';
@@ -17,7 +16,6 @@ import { ComboTracker, Cooldown, computeDamage, inCone, inRadius } from './Comba
 import { ELEMENT_COLOR, REACTIONS, applyElement, type Element, type ReactionId } from './Elements';
 import { Enemy } from './Enemy';
 import { LootField, rollDrops } from './Loot';
-import { loadModel } from '../models/ModelRig';
 import { COMBO, SKILLS, type AttackDef, type GroundEffectDef } from './Skills';
 import { Vfx } from './Vfx';
 
@@ -33,7 +31,7 @@ export interface CombatInput { attack: boolean; heavyHeld: boolean; heavyRelease
 
 export interface CombatDeps {
   scene: Scene; world: WorldQuery; sky: Sky; hud: Hud; camera: PerspectiveCamera; game: Game; audio: Audio; inventory: Inventory;
-  controller: ControllerState; party: Party<CharacterDef>; rigs: Rig[]; spawn: Vector3;
+  controller: ControllerState; party: Party<CharacterDef>; spawn: Vector3;
   /** Called when the active character falls and another must take over. */
   onForceSwitch?: (index: number) => void;
   /** Camera shake request, 0..1. */
@@ -90,8 +88,7 @@ export class CombatSystem {
       if (dist < 40) this.d.audio.stomp();
     };
     this.enemies.push(e);
-    this.d.scene.add(e.object, ...e.trailObjects);
-    void loadModel(def.kind).then((g) => { if (g && e.alive) e.useModel(def.kind, g); });
+    this.d.scene.add(e.object);
     return e;
   }
 
@@ -324,7 +321,7 @@ export class CombatSystem {
     }
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i];
-      if (!e.alive && e.noRespawn && !e.object.visible) { d.scene.remove(e.object, ...e.trailObjects); this.enemies.splice(i, 1); }
+      if (!e.alive && e.noRespawn && !e.object.visible) { d.scene.remove(e.object); this.enemies.splice(i, 1); }
     }
     d.sky.setBloodMoon(anyAggro || this.burstCast !== null);
     if (bossNear) d.hud.setBoss(bossNear.def.name, bossNear.def.title ?? '', bossNear.hp / bossNear.def.maxHp, true);
