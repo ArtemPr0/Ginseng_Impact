@@ -554,7 +554,7 @@ export class CombatSystem {
         ? new Vector3(target.pos.x - from.x, target.pos.y + 0.5 - from.y, target.pos.z - from.z).normalize()
         : new Vector3(Math.cos(c.yaw), 0.05, Math.sin(c.yaw));
       const arrow = me.weapon === 'bow';
-      this.spawnProjectile(from, dir.multiplyScalar(arrow ? 30 : 22), 'player', atk, def.mult, element, 1.0, ELEMENT_COLOR[this.elementOf(me)], def.shape.chains, def.shape.chainRange, def.knockback, def.hitStop, 0.24, arrow ? 'arrow' : 'bolt');
+      this.spawnProjectile(from, dir.multiplyScalar(arrow ? 26 : 22), 'player', atk, def.mult, element, 1.0, ELEMENT_COLOR[this.elementOf(me)], def.shape.chains, def.shape.chainRange, def.knockback, def.hitStop, 0.24, arrow ? 'arrow' : 'bolt');
       return;
     }
     for (const e of this.enemies) {
@@ -640,18 +640,24 @@ export class CombatSystem {
     const object = new Group();
     if (kind === 'arrow') {
       // A real arrow: shaft along +z (the direction lookAt points), glowing head, two fletching vanes.
-      const shaft = new Mesh(new CylinderGeometry(0.016, 0.016, 0.95, 5), surface({ color: PALETTE.bark, emissive: PALETTE.cloth, emissiveIntensity: 0.25 }));
+      // Sized to read at play distance: a thick pale shaft, a glowing head and a short light trail behind it.
+      const shaft = new Mesh(new CylinderGeometry(0.032, 0.032, 1.15, 6), surface({ color: PALETTE.cloth, emissive: PALETTE.moon, emissiveIntensity: 0.6 }));
       shaft.rotation.x = Math.PI / 2;
-      const head = new Mesh(new ConeGeometry(0.05, 0.18, 5), surface({ color: PALETTE.stone, emissive: color, emissiveIntensity: 2.2 }));
+      const head = new Mesh(new ConeGeometry(0.08, 0.26, 6), surface({ color: PALETTE.stone, emissive: color, emissiveIntensity: 3 }));
       head.rotation.x = Math.PI / 2;
-      head.position.z = 0.54;
-      const vane = new Mesh(new BoxGeometry(0.012, 0.14, 0.2), surface({ color: PALETTE.cloth, emissive: color, emissiveIntensity: 0.8 }));
-      vane.position.z = -0.4;
+      head.position.z = 0.7;
+      const vane = new Mesh(new BoxGeometry(0.016, 0.2, 0.28), surface({ color: PALETTE.cloth, emissive: color, emissiveIntensity: 1.2 }));
+      vane.position.z = -0.48;
       const vane2 = vane.clone();
       vane2.rotation.z = Math.PI / 2;
-      const glow = glowSprite(color, 0.55, 0.6, true);
-      glow.position.z = 0.5;
+      const glow = glowSprite(color, 0.9, 0.75, true);
+      glow.position.z = 0.7;
       object.add(shaft, head, vane, vane2, glow);
+      for (let k = 1; k <= 4; k++) {
+        const t = glowSprite(color, 0.5 - k * 0.07, 0.45 - k * 0.08, true);
+        t.position.z = -0.5 - k * 0.45;
+        object.add(t);
+      }
       object.position.copy(from);
       object.lookAt(aim.copy(from).add(vel));
     } else {
