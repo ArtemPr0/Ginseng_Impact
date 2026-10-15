@@ -39,11 +39,12 @@ export const LAYOUT = {
     { x: 44, z: 55, r: 15, count: 140 },
     { x: -43, z: -19, r: 11, count: 100 },
   ],
-  frog: { x: -52, z: -32 },
+  frog: { x: -54, z: -26 },
   coven: { streamX: -67, zMin: -42, zMax: 48, bridgeZ: 9 },
-  castle: { x: -96, z: -40, yaw: 0 },
+  /** On the plateau north-west of the chasm (it used to hang half over the abyss). */
+  castle: { x: -94, z: -24, yaw: 0 },
   /** The Antlered King's throne before the castle gate, facing the road south. */
-  throne: { x: -96, z: -16 },
+  throne: { x: -94, z: -4 },
   church: { x: -66, z: 57 },
   /** The wizard's lonely tower on the east cliffs, where the Moon Wyrm circles. */
   tower: { x: 93, z: 42 },
@@ -55,12 +56,14 @@ export const LAYOUT = {
   /** The moon-shell colossus crawls the east shore, outside every building. */
   colossusPath: [[84, -90], [90, -110], [84, -130], [90, -110]] as Array<[number, number]>,
   /** The world tree west of the causeway's north end (its roots must not cross the road). */
-  worldTree: { x: -30, z: -106 },
+  worldTree: { x: 44, z: -104 },
   /** Walkers that roam among the buildings without touching them. */
   logGiantPath: [[-12, 36], [-26, 38], [-38, 40], [-26, 38]] as Array<[number, number]>,
   /** Pim's observatory north of the village, clear of the houses. */
   observatory: { x: -46, z: 48 },
-  spiderPath: [[-92, -2], [-80, 4], [-82, 12], [-94, 8]] as Array<[number, number]>,
+  /** The spider chapel flies (FLY_HEIGHT above the sea) over the west cliffs, clear of the castle. */
+  spiderPath: [[-104, 44], [-88, 58], [-104, 72], [-120, 58]] as Array<[number, number]>,
+  spiderFlyHeight: 26,
   riderPath: [[8, 48], [24, 48], [40, 42], [24, 48]] as Array<[number, number]>,
   ruins: [
     { x: -8, z: 43, yaw: 0.3, arch: true }, { x: 9, z: 20, yaw: -0.4, arch: false }, { x: -9, z: -13, yaw: 0.9, arch: false },
@@ -95,21 +98,22 @@ export const VILLAGE = {
 export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: number }> = {
   aldous: { x: 18.4, z: 68.2, dy: 0.5 }, mirren: { x: 21.6, z: 68.2, dy: 0.5 },
   'gob-a': { x: 21.2, z: 66.8, dy: 0.5 }, 'gob-b': { x: 23.0, z: 66.0, dy: 0.5 },
-  rattle: { x: -21.9, z: 53.2, dy: 0.5 }, bone: { x: -26.1, z: 53.3, dy: 0.5 }, marrow: { x: -24.1, z: 49.6, dy: 0.5 },
+  // Seated on barrels around the campfire at (-24, 52); `seat` is the barrel under each.
+  rattle: { x: -21.6, z: 53.4, dy: 0.02 }, bone: { x: -26.4, z: 53.4, dy: 0.02 }, marrow: { x: -24, z: 49.2, dy: 0.02 },
   vigil: { x: 32, z: 69 },
   pim: { x: -46, z: 53.5 },
-  king: { x: -96, z: -16.5 },
-  croak: { x: -2, z: -22, dy: 0.5 },
+  king: { x: -94, z: -4 },
+  croak: { x: -36, z: -20 },
   cook: { x: 25.6, z: 77 },
-  moss: { x: -58, z: 19, dy: 0.5 },
-  sentry: { x: -40, z: -90, dy: 0.5 },
-  standard: { x: -54, z: -93 },
+  moss: { x: -56, z: 19, dy: 0.02 },
+  sentry: { x: -40, z: -90, dy: 0.02 },
+  standard: { x: -61, z: -86 },
   'rose-knight': { x: 16, z: 34 }, maiden: { x: 18.2, z: 33 },
-  'watcher-knight': { x: -18, z: -38 }, 'watcher-mage': { x: -15, z: -39 },
+  'watcher-knight': { x: -18, z: -31 }, 'watcher-mage': { x: -15, z: -32 },
   'cup-gnome': { x: 6.5, z: 64 },
   // Fifth batch of reels.
-  grumble: { x: -40, z: -24, dy: 1.0 },
-  priest: { x: -11, z: -104 },
+  grumble: { x: -40, z: -24 },
+  priest: { x: 36, z: -96 },
   'lantern-witch': { x: -106, z: 14 },
   'skeleton-lord': { x: 1033, z: -55, dy: 0.5 }, 'blue-knight': { x: 1037, z: -55, dy: 0.5 },
   'skeleton-king': { x: 965, z: -57, dy: 0.6 },
@@ -152,3 +156,22 @@ export const ISLAND_PORTALS = {
   /** The whirlpool in the lily pond: the way down to the sunken city. */
   pond: { x: -18, z: -18, shore: { x: -3, z: -18 } },
 } as const;
+
+/**
+ * Level ground pads: the terrain inside `r` is flattened to `y`, blending back over `blend` metres. Where buildings and
+ * big creatures stand. `solid` pads are land even where the island would end (only under the castle).
+ */
+export const PADS: ReadonlyArray<{ x: number; z: number; r: number; y: number; blend: number; solid?: boolean }> = [
+  { x: -94, z: -24, r: 18, y: 4.4, blend: 8, solid: true }, // castle (land even over the chasm's lip) and its terrace
+  { x: -94, z: -4, r: 6, y: 4.4, blend: 5 },
+  { x: 68, z: 38, r: 13, y: 2.5, blend: 8 },      // the Antlered Warden's clearing in the east forest
+  { x: 44, z: -104, r: 17, y: 1.2, blend: 8 },    // the world tree
+  { x: 66, z: -130, r: 13, y: 0.8, blend: 8 },    // the Horned Shade's drowned stones
+  { x: -54, z: -26, r: 6, y: 1.8, blend: 5 },     // the Frog King's hollow
+  { x: -36, z: -20, r: 4, y: 2.0, blend: 4 },     // Brother Croak by the mushroom tavern
+  { x: -61, z: -86, r: 2.5, y: 40.3, blend: 3 },  // Hollow Jack's ledge on the peak
+  { x: 16, z: -122, r: 7, y: 4.6, blend: 5 },     // the Ember Rider
+  { x: -40, z: -90, r: 1.6, y: 28.4, blend: 2.5 }, // Sir Halvard's seat on the cliff
+  { x: -16.5, z: -31.5, r: 4, y: 1.0, blend: 4 },  // Dunmar and Sel watching the sky
+  { x: -56, z: 19, r: 2, y: 0.9, blend: 2.5 },     // Old Moss fishing the stream
+];

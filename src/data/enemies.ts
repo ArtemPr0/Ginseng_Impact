@@ -33,6 +33,8 @@ export interface EnemyDef {
   leash?: number;
   /** Heavy walker: footsteps shake the camera and puff dust. */
   stomp?: boolean;
+  /** Wading: the feet never sink below this world height (stands in water with its body above it). */
+  floatAt?: number;
 }
 
 export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
@@ -70,7 +72,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     drops: [{ itemId: 'glacier-maul', chance: 1 }, { itemId: 'yeti-pelt', chance: 1 }, { itemId: 'moon-dew', chance: 1 }],
   },
   shade: {
-    kind: 'shade', name: 'The Horned Shade', title: 'Sovereign of the Drowned Ruins', maxHp: 6200, def: 50, atk: 130, speed: 3.0, element: 'astral', hover: 0.6, bodyRadius: 1.2, height: 3.4, boss: true,
+    kind: 'shade', name: 'The Horned Shade', title: 'Sovereign of the Drowned Ruins', maxHp: 6200, def: 50, atk: 130, speed: 3.0, element: 'astral', hover: 0.6, bodyRadius: 3.4, height: 10, boss: true,
     brain: { aggroRange: 18, attackRange: 14, windup: 0.8, recover: 1.1, attackCooldown: 0.7, preferredRange: 8 }, respawn: 240, leash: 28, shards: [160, 240],
     attacks: [{ kind: 'volley', range: 16, windup: 0.9, recover: 1.0, weight: 3 }, { kind: 'summon', range: 20, windup: 1.2, recover: 1.6, weight: 1 }, { kind: 'blink', range: 16, windup: 0.5, recover: 0.4, weight: 2 }, { kind: 'sweep', range: 4, windup: 0.6, recover: 1.0, weight: 3 }],
     drops: [{ itemId: 'horn-staff', chance: 1 }, { itemId: 'shade-horn', chance: 1 }, { itemId: 'star-chart', chance: 0.5 }],
@@ -100,7 +102,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     drops: [{ itemId: 'troll-club', chance: 1 }, { itemId: 'troll-hide', chance: 1 }, { itemId: 'moon-dew', chance: 1 }],
   },
   lurker: {
-    kind: 'lurker', name: 'The Lake Lurker', title: 'What Watches from the Shallows', maxHp: 5200, def: 55, atk: 125, speed: 2.2, element: 'tide', hover: 0, bodyRadius: 1.2, height: 2.8, boss: true, leash: 8,
+    kind: 'lurker', name: 'The Lake Lurker', title: 'What Watches from the Shallows', maxHp: 5200, def: 55, atk: 125, speed: 2.2, element: 'tide', hover: 0, floatAt: 0.6, bodyRadius: 1.2, height: 2.8, boss: true, leash: 8,
     brain: { aggroRange: 14, attackRange: 12, windup: 0.8, recover: 1.0, attackCooldown: 0.8, preferredRange: 7 }, respawn: 220, shards: [130, 200],
     attacks: [{ kind: 'volley', range: 14, windup: 0.8, recover: 1.0, weight: 3 }, { kind: 'sweep', range: 4, windup: 0.6, recover: 0.9, weight: 2 }, { kind: 'summon', range: 16, windup: 1.2, recover: 1.5, weight: 1 }],
     drops: [{ itemId: 'tide-hook', chance: 1 }, { itemId: 'moonstring-bow', chance: 1 }, { itemId: 'lurker-eye', chance: 1 }],
@@ -131,8 +133,8 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
 export const ENEMY_SPAWNS: ReadonlyArray<{ kind: EnemyKind; x: number; z: number }> = [
   // Bosses
   { kind: 'yeti', x: 72, z: -94 },          // frozen grove, north-east
-  { kind: 'shade', x: 36, z: -122 },        // the drowned stones east of the causeway's end
-  { kind: 'warden', x: 42, z: 6 },          // wading the great river east of the causeway
+  { kind: 'shade', x: 66, z: -130 },        // the drowned stones on the north shore
+  { kind: 'warden', x: 68, z: 38 },         // the clearing in the east forest, under the rain
   { kind: 'wyrm', x: 106, z: 22 },          // circling the lonely wizard tower
   { kind: 'rivershade', x: -62, z: 16 },    // rising from the witch stream by the bridge
   { kind: 'passbeast', x: -36, z: -140 },   // the mountain pass behind the peak
@@ -140,12 +142,11 @@ export const ENEMY_SPAWNS: ReadonlyArray<{ kind: EnemyKind; x: number; z: number
   { kind: 'lurker', x: -24, z: -14 },       // the lily pond's shallows (west of the whirlpool)
   { kind: 'marshdemon', x: 106, z: -18 },   // the flooded ruin's pool, east of the cathedral
   { kind: 'hollowking', x: 36, z: -146 },   // seated on the north shore, east of the head
-  { kind: 'emberrider', x: 24, z: -106 },   // the dead wood east of the causeway's end
+  { kind: 'emberrider', x: 16, z: -122 },   // the dead wood east of the causeway's end
   // Camps (pairs)
   { kind: 'croc', x: 108, z: 10 }, { kind: 'croc', x: 118, z: 6 }, { kind: 'croc', x: 100, z: 15 }, // the river mouth, east
   { kind: 'beast', x: -62, z: 36 }, { kind: 'beast', x: -66, z: 30 },      // west meadow, by the stream
-  { kind: 'beast', x: 60, z: -118 }, { kind: 'beast', x: 65, z: -112 },    // between the Hollow King and the grove
-  { kind: 'crystalgolem', x: 58, z: 44 }, { kind: 'crystalgolem', x: 68, z: 50 }, // desert
+  { kind: 'crystalgolem', x: 44, z: 62 }, { kind: 'crystalgolem', x: 52, z: 66 }, // deep in the desert
   // The bucket mimics' street in the galaxy city beyond the portal (see GALAXY in data/world.ts).
   { kind: 'bucket', x: 975, z: 20 }, { kind: 'bucket', x: 966, z: 22 }, { kind: 'bucket', x: 958, z: 18 }, { kind: 'bucket', x: 984, z: 18 },
 ];

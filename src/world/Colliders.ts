@@ -201,6 +201,30 @@ export class HeightWorld implements WorldQuery {
     return h;
   }
 
+  /**
+   * The underside of the lowest overhang above feet at `y` at (x, z) (a bridge deck, an arch vault), or Infinity:
+   * flying or jumping up into a deck stops there instead of passing through it.
+   */
+  ceilingAt(x: number, z: number, y: number): number {
+    let c = Infinity;
+    const list = this.grid.get(HeightWorld.key(Math.floor(x / HeightWorld.CELL), Math.floor(z / HeightWorld.CELL)));
+    if (list) for (const f of list) {
+      let bottom: number | undefined;
+      if (f.kind === 'grid') {
+        const cell = gridCell(f, x, z);
+        if (cell < 0) continue;
+        const b = f.data[cell * 3 + 1];
+        if (b === 255 || f.data[cell * 3 + 2] === 0) continue;
+        bottom = f.base + b * f.unit;
+      } else {
+        if (f.bottom === undefined || !footprintContains(f, x, z)) continue;
+        bottom = f.bottom;
+      }
+      if (bottom > y + 0.2 && bottom < c) c = bottom;
+    }
+    return c;
+  }
+
   /** True when (x, z) is inside any structure's outline (not just under its overhang). */
   blocked(x: number, z: number): boolean {
     const list = this.grid.get(HeightWorld.key(Math.floor(x / HeightWorld.CELL), Math.floor(z / HeightWorld.CELL)));

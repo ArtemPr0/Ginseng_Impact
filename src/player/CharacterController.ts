@@ -46,6 +46,18 @@ export interface ControllerInput {
 export interface WorldQuery {
   /** Surface height under (x, z); with `y` (the asker's feet) overhangs they fit under are skipped. */
   heightAt(x: number, z: number, y?: number): number;
+  /** Underside of the lowest overhang above feet at `y` (a bridge deck), or Infinity. */
+  ceilingAt?(x: number, z: number, y: number): number;
+}
+
+/** Height of a hero's head above the feet (for ceilings). */
+const HEAD = 1.8;
+
+/** Stops a rise into an overhang: the head meets the deck's underside instead of passing through it. */
+function bumpCeiling(world: WorldQuery, s: ControllerState, startY: number): void {
+  if (!world.ceilingAt || s.pos.y <= startY) return;
+  const c = world.ceilingAt(s.pos.x, s.pos.z, startY);
+  if (s.pos.y + HEAD > c) { s.pos.y = Math.max(startY, c - HEAD); if (s.vel.y > 0) s.vel.y = 0; }
 }
 
 export const CONTROLLER = {
@@ -282,10 +294,12 @@ export function stepController(s: ControllerState, input: ControllerInput, world
         }
         slideAlongWall(world, s, dt);
       }
+      const airStartY = s.pos.y;
       s.pos.x += s.vel.x * dt;
       s.pos.z += s.vel.z * dt;
       s.pos.y += s.vel.y * dt;
-      const ground = world.heightAt(s.pos.x, s.pos.z, s.pos.y - s.vel.y * dt);
+      bumpCeiling(world, s, airStartY);
+      const ground = world.heightAt(s.pos.x, s.pos.z, airStartY);
       if (s.vel.y <= 0 && s.pos.y <= ground) {
         s.pos.y = ground;
         s.vel.y = 0;
@@ -382,10 +396,12 @@ export function stepController(s: ControllerState, input: ControllerInput, world
       s.vel.z = approach(s.vel.z, mz * speed, (wantsMove ? CONTROLLER.flyAccel : 4) * dt);
       if (wantsMove) s.yaw = turnToward(s.yaw, Math.atan2(mz, mx), CONTROLLER.turnRate * 0.6 * dt);
       if (blockedAhead(world, s.pos.x, s.pos.z, s.vel.x * dt, s.vel.z * dt, s.pos.y)) slideAlongWall(world, s, dt);
+      const flyStartY = s.pos.y;
       s.pos.x += s.vel.x * dt;
       s.pos.z += s.vel.z * dt;
       s.pos.y += s.vel.y * dt;
-      const below = world.heightAt(s.pos.x, s.pos.z, s.pos.y - s.vel.y * dt);
+      bumpCeiling(world, s, flyStartY);
+      const below = world.heightAt(s.pos.x, s.pos.z, flyStartY);
       if (s.pos.y <= below) {
         s.pos.y = below;
         s.vel.y = 0;

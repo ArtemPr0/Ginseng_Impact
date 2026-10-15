@@ -1,7 +1,7 @@
 import { BufferAttribute, Color, Mesh, PlaneGeometry, Vector3 } from 'three';
 import { surface } from '../render/Materials';
 import { Noise2D, lerp, smoothstep } from './noise';
-import { LAYOUT } from '../data/world';
+import { LAYOUT, PADS } from '../data/world';
 
 /** World layout constants (metres). The island is centred at ISLAND_CENTRE; the causeway runs along x = 0. */
 export const WORLD = {
@@ -145,7 +145,16 @@ export function terrainHeight(x: number, z: number, noise: Noise2D): number {
     const t = 1 - pd / WORLD.peak.radius;
     plateau += WORLD.peak.height * Math.pow(t, 1.7) + noise.fbm(x * 0.05, z * 0.05, 3) * 6 * t;
   }
-  return lerp(WORLD.abyssY, plateau, land);
+  // Level pads for buildings and big creatures (always land inside).
+  let padLand = 0;
+  for (const p of PADS) {
+    const dd = Math.hypot(x - p.x, z - p.z);
+    if (dd >= p.r + p.blend) continue;
+    const t = 1 - smoothstep(p.r, p.r + p.blend, dd);
+    plateau = lerp(plateau, p.y, t);
+    if (p.solid) padLand = Math.max(padLand, t);
+  }
+  return lerp(WORLD.abyssY, plateau, Math.max(land, padLand));
 }
 
 export class Terrain {

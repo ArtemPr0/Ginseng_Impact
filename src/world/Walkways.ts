@@ -127,7 +127,7 @@ export function chasmBridge(ax: number, az: number, bx: number, bz: number, y: n
     const t = (i + 0.5) / n;
     tiles.push({ x: ax + (bx - ax) * t, y: y - tileHeight * BRIDGE_DECK, z: az + (bz - az) * t, yaw: Math.atan2(bx - ax, bz - az), scale: step / BRIDGE_TILE });
   }
-  return { object: new Group(), tiles, footprints: [{ kind: 'box', x: (ax + bx) / 2, z: (az + bz) / 2, hw: len / 2, hd: 1.4, top: y, rotY: -yaw }] };
+  return { object: new Group(), tiles, footprints: [{ kind: 'box', x: (ax + bx) / 2, z: (az + bz) / 2, hw: len / 2, hd: 1.4, top: y, rotY: -yaw, bottom: y - 0.6 }] };
 }
 
 /** Deck, parapets and piers of the bridge over the witch stream. */

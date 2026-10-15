@@ -26,7 +26,7 @@ const CELLS = 40;
 const CLEARANCE = 2.1;
 /** Models that move or are characters never get a grid (their colliders, if any, are written by hand). */
 /** Closed buildings whose enclosed hollow insides are made solid (open halls, pavilions and arches are not listed). */
-const CLOSED = new Set(['cathedral', 'castle', 'church', 'tower', 'treehouse', 'tavern', 'village-house', 'observatory', 'purple-house', 'round-tower', 'sunken-tavern', 'face-tree', 'head', 'world-tree']);
+const CLOSED = new Set(['cathedral', 'castle', 'church', 'treehouse', 'tavern', 'village-house', 'observatory', 'purple-house', 'round-tower', 'sunken-tavern', 'face-tree', 'head', 'world-tree']);
 const SKIP = new Set(['knight', 'archer', 'wizard', 'staff', 'greatsword', 'causeway-segment', 'chasm-bridge', 'causeway-stairs', 'checker-road', 'stepping-stone']);
 
 function transformPoint(m, x, y, z) {

@@ -8,7 +8,7 @@ import { CloudSea } from './CloudSea';
 import { HeightWorld, trunkFootprint, type Footprint } from './Colliders';
 import { PRESENT_MODELS } from '../data/colliderGrids';
 import { MODELS } from '../data/models';
-import { tealFalls, waterfall } from './Falls';
+import { waterfall } from './Falls';
 import { fire } from './Fire';
 import { cobbleSpots, floraSet, ringSpots, type Placement } from './Flora';
 import { orchardSpots } from './Footprints';
@@ -25,6 +25,30 @@ import type { PortalLink } from './Portal';
 import { deadAt, frozenAt, pathAt, riverAt, riverDistance, sandAt, streamAt, Terrain, WORLD } from './Terrain';
 import { causewayPostPoints, causewayWalk, chasmBridge, witchBridgeDeck } from './Walkways';
 import { lilyPond, river, stillWaterDisc } from './Water';
+
+/** Where the campfire skeletons sit (data/world ANCHORS) and the fire they face. */
+const CAMPFIRE = { x: -24, z: 52 };
+const CAMPFIRE_SEATS = new Set(['rattle', 'bone', 'marrow']);
+/** NPCs who sit on a barrel. */
+const SEATED = new Set(['rattle', 'bone', 'marrow', 'moss', 'sentry']);
+/** The lantern's spot on the horse rider, in horse-rider.glb's own frame (x left, y up from the hooves, z forward). */
+const RIDER_LANTERN = { x: 0.55, y: 2.2, z: 0.45 };
+/** Routes the ground walkers take: no trees grow on them. */
+const WALKER_ROUTES = [LAYOUT.logGiantPath, LAYOUT.riderPath, LAYOUT.colossusPath];
+function nearRoute(route: ReadonlyArray<readonly [number, number]>, x: number, z: number, r: number): boolean {
+  for (let i = 0; i < route.length; i++) {
+    const [ax, az] = route[i];
+    const [bx, bz] = route[(i + 1) % route.length];
+    const dx = bx - ax;
+    const dz = bz - az;
+    const l2 = dx * dx + dz * dz || 1;
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
+    const ex = x - (ax + dx * t);
+    const ez = z - (az + dz * t);
+    if (ex * ex + ez * ez < r * r) return true;
+  }
+  return false;
+}
 
 /** How far from each footprint nothing grows. */
 const plantPad = (f: Footprint): number => f.kind === 'cyl' ? f.r + 2 : f.kind === 'grid' ? f.r * 0.85 + 1 : Math.max(f.hw, f.hd) + 2;
@@ -100,7 +124,6 @@ export class World {
     this.place(modelLandmark('head', LAYOUT.head.x, LAYOUT.head.z, headY, { color: PALETTE.blood }));
     const cathY = h(LAYOUT.cathedral.x, LAYOUT.cathedral.z) - 0.5;
     this.place(modelLandmark('cathedral', LAYOUT.cathedral.x, LAYOUT.cathedral.z, cathY, { yaw: LAYOUT.cathedral.yaw }));
-    for (const w of LAYOUT.waterfalls) this.place(waterfall(w.x, w.z, h(w.x, w.z + (w.z > -57 ? 4 : -4)) - 0.5, w.width, w.height));
     const castleY = h(LAYOUT.castle.x, LAYOUT.castle.z) - 0.6;
     this.place(modelLandmark('castle', LAYOUT.castle.x, LAYOUT.castle.z, castleY, { yaw: LAYOUT.castle.yaw }));
     // Antler throne (DedGUYetKjP) on its dais in front of the castle gate, facing +z (the road).
@@ -117,6 +140,15 @@ export class World {
     const tw = LAYOUT.tower;
     const towerY = h(tw.x, tw.z) - 1.5;
     this.place(modelLandmark('tower', tw.x, tw.z, towerY));
+    // The cave in the tower's rock base (east side, under the Moon Wyrm's circuit): a faint rune glow inside.
+    {
+      const cave = glowSprite(PALETTE.rune, 5, 0.35, true);
+      cave.position.set(tw.x + 7.7, towerY + 2.2, tw.z + 4.7);
+      this.group.add(cave);
+      const caveLight = new PointLight(PALETTE.rune, 18, 12, 1.8);
+      caveLight.position.copy(cave.position);
+      this.group.add(caveLight);
+    }
     if (PRESENT_MODELS.has('floating-rock')) for (let i = 0; i < 14; i++) {
       const radius = 12 + ((i * 41) % 20);
       const height = towerY + 6 + ((i * 23) % 24);
@@ -162,12 +194,20 @@ export class World {
     // --- creatures that wander ---
     const frogR = MODELS.frogking.height * 0.5;
     this.place(modelLandmark('frogking', LAYOUT.frog.x, LAYOUT.frog.z, h(LAYOUT.frog.x, LAYOUT.frog.z) - 0.2, { clip: 'idle', collider: 'manual', footprints: [{ kind: 'cyl', x: LAYOUT.frog.x, z: LAYOUT.frog.z, r: frogR, top: h(LAYOUT.frog.x, LAYOUT.frog.z) + MODELS.frogking.height * 0.75 }] }));
-    this.place(walkerLandmark('colossus', LAYOUT.colossusPath, 0.9, hw, { lift: -0.5, clip: 'idle', trail: true }));
-    this.place(walkerLandmark('loggiant', [...LAYOUT.logGiantPath], 1.2, hw));
-    this.place(walkerLandmark('spiderchapel', [...LAYOUT.spiderPath], 1.6, hw, { lift: -0.3 }));
-    const rider = walkerLandmark('horse-rider', [...LAYOUT.riderPath], 3.2, hw);
-    const lantern = fire(2.3, 1.2, 0, 0.3, 8);
-    rider.root.add(lantern.group);
+    // Walkers follow the ground itself (never trunks or roofs); their routes are kept clear of trees (plantable).
+    this.place(walkerLandmark('colossus', LAYOUT.colossusPath, 0.9, h, { lift: -0.5, clip: 'idle', trail: true }));
+    this.place(walkerLandmark('loggiant', [...LAYOUT.logGiantPath], 1.2, h));
+    // The spider chapel flies over the west cliffs at a fixed height, well above the treetops.
+    this.place(walkerLandmark('spiderchapel', [...LAYOUT.spiderPath], 1.6, () => LAYOUT.spiderFlyHeight, { lift: 0 }));
+    const rider = walkerLandmark('horse-rider', [...LAYOUT.riderPath], 3.2, h);
+    // The lantern fire hangs from the rider's raised hand (horse-rider.glb, measured in the model's own frame).
+    const lantern = fire(0, 0, 0, 0.3, 8);
+    const riderLoad = rider.update!;
+    let lanternAttached = false;
+    rider.update = (dt, p) => {
+      riderLoad(dt, p);
+      if (!lanternAttached && rider.model) { lanternAttached = true; lantern.group.position.set(RIDER_LANTERN.x, RIDER_LANTERN.y, RIDER_LANTERN.z); rider.model.frame.add(lantern.group); }
+    };
     this.extras.push(lantern);
     this.place(rider);
     for (let i = 0; i < 7; i++) {
@@ -286,8 +326,6 @@ export class World {
     const clear = (p: Placement) => Math.hypot(p.x - ISLAND_PORTALS.galaxy.x, p.z - ISLAND_PORTALS.galaxy.z) > 11 && Math.hypot(p.x + 40, p.z + 24) > 10;
     const shroomRing = this.scatterDisc(rnd, LAYOUT.frog.x, LAYOUT.frog.z, 34, 14, 0.8, 1.5).filter((p) => Math.hypot(p.x - LAYOUT.frog.x, p.z - LAYOUT.frog.z) > 12 && clear(p));
     flora('giant-mushroom', shroomRing, { trunk: 0.09 });
-    const shroomH = MODELS['giant-mushroom'].height;
-    this.place(tealFalls(shroomRing.slice(0, 4).map((p) => ({ x: p.x + 0.31 * shroomH * p.scale, z: p.z, top: p.y + 0.7 * shroomH * p.scale, height: 0.7 * shroomH * p.scale + 1, width: 0.2 * shroomH * p.scale }))));
     flora('flower-tree', this.scatterDisc(rnd, WORLD.pond.x, WORLD.pond.z, 30, 16, 0.8, 1.3).filter((p) => Math.hypot(p.x - WORLD.pond.x, p.z - WORLD.pond.z) > WORLD.pond.r + 3));
     for (const [dx, y, dz, sc] of [[-18, 26, -10, 1.2], [14, 31, 12, 0.9], [2, 36, -22, 1.0]] as const) {
       const base = y;
@@ -328,6 +366,23 @@ export class World {
       place: (l) => this.place(l), flora, vfx, h, rnd: rrnd,
     }));
 
+    // Seats for NPCs whose only rest pose is sitting on a chair: a barrel at stool height just behind each sitter
+    // (the campfire skeletons, Old Moss on the stream bank, Sir Halvard on the cliff).
+    for (const def of NPC_DEFS) {
+      if (!SEATED.has(def.id) || def.behaviour.kind !== 'stand') continue;
+      const a = ANCHORS[def.id];
+      const facing = CAMPFIRE_SEATS.has(def.id) ? Math.atan2(CAMPFIRE.z - a.z, CAMPFIRE.x - a.x) : def.behaviour.yaw;
+      const bx = a.x - Math.cos(facing) * 0.28;
+      const bz = a.z - Math.sin(facing) * 0.28;
+      this.place(modelLandmark('barrel', bx, bz, h(bx, bz), { scale: 0.5 / MODELS.barrel.height, collider: 'none' }));
+    }
+    // The Antlered King perches on the front edge of his throne's seat (squatting, not sunk into the back).
+    {
+      const th = LAYOUT.throne;
+      const seatZ = th.z + 0.35 * (MODELS.throne.height / 3);
+      ANCHORS.king = { x: th.x, z: seatZ, y: this.heights.heightAt(th.x, seatZ) - 0.42 };
+    }
+
     // --- NPCs ---
     for (const def of NPC_DEFS) {
       const s = ANCHORS[def.id] ?? { x: 0, z: 0 };
@@ -335,6 +390,8 @@ export class World {
       if (s.y !== undefined) npc.pos.y = s.y;
       // Seated NPCs sit `dy` above the ground itself (not above the stool the tavern model already has).
       if (s.dy !== undefined) npc.pos.y = terrain.heightAt(s.x, s.z) + s.dy;
+      // The campfire skeletons face the fire from their barrels.
+      if (CAMPFIRE_SEATS.has(def.id)) npc.yaw = Math.atan2(CAMPFIRE.z - s.z, CAMPFIRE.x - s.x);
       const realm = REALMS.find((r) => Math.hypot(npc.pos.x - r.x, npc.pos.z - r.z) < r.radius);
       this.enterZone(realm ? realm.id : null);
       this.target.add(npc.object);
@@ -380,6 +437,7 @@ export class World {
     if (Math.abs(x) < 7 && z < LAYOUT.causeway.zStart + 8 && z > LAYOUT.causeway.zEnd - 8) return false;
     if (Math.abs(z - WORLD.chasmCentreZ) < WORLD.chasmHalfWidth + 14) return false;
     if (Math.abs(x - VILLAGE.x) < 24 && Math.abs(z - VILLAGE.z) < 10) return false;
+    for (const route of WALKER_ROUTES) if (nearRoute(route, x, z, 5)) return false;
     const pdx = x - WORLD.pond.x;
     const pdz = z - WORLD.pond.z;
     if (pdx * pdx + pdz * pdz < (WORLD.pond.r + 1) ** 2) return false;

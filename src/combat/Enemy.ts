@@ -64,7 +64,7 @@ export class Enemy {
   constructor(readonly def: EnemyDef, readonly spawn: { x: number; z: number }, private readonly world: WorldQuery) {
     this.brain = new EnemyBrain({ ...def.brain });
     this.hp = def.maxHp;
-    this.pos = { x: spawn.x, y: world.heightAt(spawn.x, spawn.z) + def.hover, z: spawn.z };
+    this.pos = { x: spawn.x, y: Math.max(world.heightAt(spawn.x, spawn.z), def.floatAt ?? -Infinity) + def.hover, z: spawn.z };
     this.territory = def.leash ?? (def.boss ? 30 : 22);
     this.lastX = this.pos.x;
     this.lastZ = this.pos.z;
@@ -242,7 +242,7 @@ export class Enemy {
     this.knock.x *= decay;
     this.knock.z *= decay;
     const bob = this.def.hover > 0 ? Math.sin(this.time * 2.4) * 0.25 : 0;
-    const groundY = this.world.heightAt(this.pos.x, this.pos.z, feet);
+    const groundY = Math.max(this.world.heightAt(this.pos.x, this.pos.z, feet), this.def.floatAt ?? -Infinity);
     const targetY = (flyAt ?? groundY) + this.def.hover + bob;
     this.pos.y += (targetY - this.pos.y) * Math.min(1, dt * (this.def.flying ? 2 : 12));
   }

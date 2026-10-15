@@ -8,7 +8,6 @@ import { GALAXY, ISLAND_PORTALS, LAYOUT, SUNKEN } from '../data/world';
 import { MODELS } from '../data/models';
 import { glowSprite } from '../render/Glow';
 import { PALETTE } from '../render/palette';
-import { waterfall } from './Falls';
 import { fire } from './Fire';
 import type { FloraOptions, Placement } from './Flora';
 import type { Landmark } from './Landmarks';
@@ -116,15 +115,14 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   const graves: Placement[] = [];
   for (let i = 0; i < 7; i++) {
     const a = Math.PI * 0.15 + (i / 6) * Math.PI * 0.7;
-    const x = wx + Math.cos(a) * 9;
-    const z = wz + Math.sin(a) * 9;
+    // In a ring just outside the tree's roots.
+    const x = wx + Math.cos(a) * 18;
+    const z = wz + Math.sin(a) * 18;
     graves.push({ x, y: api.h(x, z), z, yaw: face(Math.atan2(wz - z, wx - x)), scale: 0.9 + api.rnd() * 0.3 });
     if (PRESENT_MODELS.has('rune-grave')) glowAt(api, PALETTE.rune, 1.2, x, api.h(x, z) + 1.1, z, 0.35);
   }
   api.flora('rune-grave', graves);
   for (let k = 0; k < 6; k++) glowAt(api, PALETTE.electric, 3 + k * 0.4, wx + (api.rnd() - 0.5) * 3, wy + 3 + k * 3, wz + (api.rnd() - 0.5) * 3, 0.3);
-  api.place(waterfall(wx - 7, wz - 9, wy + 18, 3, 18));
-  api.place(waterfall(wx + 7, wz - 9, wy + 18, 3, 18));
 
   // ===== Island: the spire city across the water, watched by the lantern witch (DdwXCyeSsXn) =====
   api.place(modelLandmark('spire-city', -330, 20, -40, { yaw: face(0), color: PALETTE.electric }));

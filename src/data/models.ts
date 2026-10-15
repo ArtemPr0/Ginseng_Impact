@@ -31,6 +31,11 @@ export interface ModelDef {
    * skinned to the arm bones (the Horned Shade, the Gorge Troll), raised arms stretch the mesh into sheets or noodles.
    */
   armDamp?: number;
+  /**
+   * 0..1: how much of the hips' twist about the vertical to keep in every clip. Meshy's combat presets turn the whole
+   * body 45° sideways in the stance and ~100° in the Attack swing, so a monster fights side-on; 0.25 keeps a hint.
+   */
+  faceForward?: number;
   /** 0..1: how strongly the idle clip poses the body (a floating spirit should not crouch in a boxer's stance). */
   idleBlend?: number;
   /** A boneless robe/cloak model: the rig animates it procedurally (hover, sway, hem wind) instead of clips. */
@@ -81,22 +86,22 @@ export const MODELS: Record<string, ModelDef> = {
   greatsword: { file: 'greatsword.glb', height: 1.45, label: "Sir Aldric's hand-and-a-half sword (knight.png)", grip: { x: 0, y: 0.08, z: 0.02, rx: -Math.PI / 2, ry: 0, rz: 0, slide: -1.18 } },
   // Bosses and mobs
   // Meshy animate exports bundle every added preset into one GLB; clip names are the preset's English ids.
-  yeti: { file: 'yeti.glb', height: 3.2, clips: BOSS_CLIPS },
-  shade: { file: 'horned-shade.glb', height: 3.4, armDamp: 0.7, idleBlend: 0.3, clips: BOSS_CLIPS },
-  warden: { file: 'antlered-warden.glb', height: 6.5, clips: BOSS_CLIPS },
+  yeti: { file: 'yeti.glb', height: 3.2, faceForward: 0.25, clips: BOSS_CLIPS },
+  shade: { file: 'horned-shade.glb', height: 10, armDamp: 0.7, idleBlend: 0.3, faceForward: 0.25, clips: BOSS_CLIPS },
+  warden: { file: 'antlered-warden.glb', height: 6.5, faceForward: 0.25, clips: BOSS_CLIPS },
   wyrm: { file: 'moon-wyrm.glb', height: 3, yOffset: 0, clips: { idle: 'fly|idle|hover', fly: 'fly|idle', attack: 'bite|attack' } },
-  troll: { file: 'rock-troll.glb', height: 3.2, yaw: Math.PI, armDamp: 0.6, clips: BOSS_CLIPS },
-  lurker: { file: 'lake-lurker.glb', height: 2.8, yOffset: -0.3, clips: BOSS_CLIPS },
-  marshdemon: { file: 'marsh-demon.glb', height: 5, yOffset: -0.6, clips: BOSS_CLIPS },
+  troll: { file: 'rock-troll.glb', height: 3.2, yaw: Math.PI, armDamp: 0.6, faceForward: 0.25, clips: BOSS_CLIPS },
+  lurker: { file: 'lake-lurker.glb', height: 2.8, faceForward: 0.25, clips: BOSS_CLIPS },
+  marshdemon: { file: 'marsh-demon.glb', height: 5, faceForward: 0.25, clips: BOSS_CLIPS },
   hollowking: { file: 'hollow-king.glb', height: 10, clips: BOSS_CLIPS },
-  rivershade: { file: 'river-shade.glb', height: 3, yOffset: -0.7, label: 'hooded river shade with glowing eyes (DeUydbMvKqC, DeWZT3jvPCG)' },
-  passbeast: { file: 'fog-beast.glb', height: 2.4, label: 'red-eyed black beast of the mountain pass (DeXeZ7rhGVi)', clips: { idle: 'combat_stance|idle_02|idle', walk: 'monster_walk|crawl|walking', run: 'running|run', attack: 'attack', roar: 'zombie_scream|scream', hit: 'hit_reaction|hit', death: 'dying|death' } },
-  beast: { file: 'fog-beast.glb', height: 1.5, label: 'red-eyed black beast (DeXeZ7rhGVi)', clips: { idle: 'combat_stance|idle_02|idle', walk: 'monster_walk|crawl|walking', run: 'running|run', attack: 'attack', roar: 'zombie_scream|scream', hit: 'hit_reaction|hit', death: 'dying|death' } },
+  rivershade: { file: 'river-shade.glb', height: 3, faceForward: 0.3, label: 'hooded river shade with glowing eyes (DeUydbMvKqC, DeWZT3jvPCG)' },
+  passbeast: { file: 'fog-beast.glb', height: 2.4, faceForward: 0.2, label: 'red-eyed black beast of the mountain pass (DeXeZ7rhGVi)', clips: { idle: 'combat_stance|idle_02|idle', walk: 'monster_walk|crawl|walking', run: 'running|run', attack: 'attack', roar: 'zombie_scream|scream', hit: 'hit_reaction|hit', death: 'dying|death' } },
+  beast: { file: 'fog-beast.glb', height: 1.5, faceForward: 0.2, label: 'red-eyed black beast (DeXeZ7rhGVi)', clips: { idle: 'combat_stance|idle_02|idle', walk: 'monster_walk|crawl|walking', run: 'running|run', attack: 'attack', roar: 'zombie_scream|scream', hit: 'hit_reaction|hit', death: 'dying|death' } },
   croc: { file: 'crocodile.glb', height: 0.7, label: 'crocodile in the flooded ruins (DeJj8CDhL2f)' },
   // NPCs and creatures
   frogking: { file: 'frog-king.glb', height: 2.4, clips: { idle: 'idle|breath' } },
   loggiant: { file: 'log-giant.glb', height: 4.2, clips: { idle: 'combat_stance|idle|stance', walk: 'carry|walking|walk', run: 'running|run', hit: 'hit_reaction|hit', throw: 'over_shoulder_throw|throw', grab: 'grip_and_throw|grip', punch: 'punch_forward_with_both|punch_combo|punch', attack: 'punch_combo|punch' } },
-  spiderchapel: { file: 'spider-chapel.glb', height: 14, clips: { idle: 'idle', walk: 'walk|crawl|run' } },
+  spiderchapel: { file: 'spider-chapel.glb', height: 28, clips: { idle: 'idle', walk: 'walk|crawl|run' } },
   colossus: { file: 'moon-shell-colossus.glb', height: 9, clips: { idle: 'crawl' } },
   king: { file: 'antlered-king.glb', height: 1.95, label: 'the Antlered King (DedGUYetKjP)', clips: NPC_CLIPS('throne') },
   witch: { file: 'witch.glb', height: 1.85, label: 'coven witch in a pointed hat (DeWji_1PuKW)' },
@@ -177,10 +182,10 @@ export const MODELS: Record<string, ModelDef> = {
 
   // --- Round 3 (2026-10-15): the user's own images and descriptions ---
   // Yung Lean, king of the realm beyond the portal (frames/rift-king.png): sits on the throne, stands to fight.
-  'rift-king': { file: 'rift-king.glb', height: 1.85, label: 'Yung Lean in a white puffer coat with an ice crown (frames/rift-king.png)', clips: { idle: 'idle_03|idle', sit: 'chair_sit|sit', stand: 'sit_to_stand|stand', talk: 'talk_with_hands_open|talk', walk: 'walking|walk', run: 'running|run', attack: 'attack', heavy: 'charged_spell_cast|spell', cast: 'mage_s|charged_spell|cast', hit: 'hit_reaction|hit', death: 'dying|death' } },
+  'rift-king': { file: 'rift-king.glb', height: 1.85, faceForward: 0.3, label: 'Yung Lean in a white puffer coat with an ice crown (frames/rift-king.png)', clips: { idle: 'idle_03|idle', sit: 'chair_sit|sit', stand: 'sit_to_stand|stand', talk: 'talk_with_hands_open|talk', walk: 'walking|walk', run: 'running|run', attack: 'attack', heavy: 'charged_spell_cast|spell', cast: 'mage_s|charged_spell|cast', hit: 'hit_reaction|hit', death: 'dying|death' } },
   // Styro-Ghouls, the lean-chucking imps of his kingdom (the user's description); the boss is the same body, larger.
-  'styro-ghoul': { file: 'styro-ghoul.glb', height: 1.25, label: 'purple imp in baggy streetwear with a double-cup backpack', clips: { idle: 'combat_stance|idle_03|idle', walk: 'walking|walk', run: 'running|run', attack: 'over_shoulder_throw|throw', heavy: 'crouch_pull_and_throw|throw', throw: 'over_shoulder_throw|throw', sit: 'chair_sit|sit', stand: 'sit_to_stand|stand', hit: 'hit_reaction|hit', death: 'dying|death' } },
-  'lean-chucker': { file: 'styro-ghoul.glb', height: 1.9, tint: 0xd7b7ff, label: 'the Lean-Chucker, boss of the Styro-Ghouls', clips: { idle: 'combat_stance|idle_03|idle', walk: 'walking|walk', run: 'running|run', attack: 'over_shoulder_throw|throw', heavy: 'crouch_pull_and_throw|throw', throw: 'over_shoulder_throw|throw', sit: 'chair_sit|sit', stand: 'sit_to_stand|stand', hit: 'hit_reaction|hit', death: 'dying|death' } },
+  'styro-ghoul': { file: 'styro-ghoul.glb', height: 1.25, faceForward: 0.3, label: 'purple imp in baggy streetwear with a double-cup backpack', clips: { idle: 'combat_stance|idle_03|idle', walk: 'walking|walk', run: 'running|run', attack: 'over_shoulder_throw|throw', heavy: 'crouch_pull_and_throw|throw', throw: 'over_shoulder_throw|throw', sit: 'chair_sit|sit', stand: 'sit_to_stand|stand', hit: 'hit_reaction|hit', death: 'dying|death' } },
+  'lean-chucker': { file: 'styro-ghoul.glb', height: 1.9, faceForward: 0.3, tint: 0xd7b7ff, label: 'the Lean-Chucker, boss of the Styro-Ghouls', clips: { idle: 'combat_stance|idle_03|idle', walk: 'walking|walk', run: 'running|run', attack: 'over_shoulder_throw|throw', heavy: 'crouch_pull_and_throw|throw', throw: 'over_shoulder_throw|throw', sit: 'chair_sit|sit', stand: 'sit_to_stand|stand', hit: 'hit_reaction|hit', death: 'dying|death' } },
   // A double cup of lean (frames/lean-cup.png): the knight's cup, thrown cups, the giant cup islands, the signed cup.
   'lean-cup': stat('lean-cup.glb', 0.17, 'double white styrofoam cup of glowing purple lean (frames/lean-cup.png)'),
   'lean-cup-island': stat('lean-cup.glb', 22, 'giant double cup of lean, an island of the kingdom'),
@@ -233,6 +238,6 @@ export const MODELS: Record<string, ModelDef> = {
   'rune-grave': stat('rune-grave.glb', 1.6, 'runic gravestone (Ddn0A49tnW7)'),
   'robed-priest': { file: 'robed-priest.glb', height: 1.9, label: 'robed figure raising its arms to the world tree (Ddn0A49tnW7)', clips: NPC_CLIPS('idle') },
   'spire-city': stat('spire-city.glb', 90, 'city of spires and aqueduct bridges beyond the cliffs (DdwXCyeSsXn)'),
-  crystalgolem: { file: 'crystal-golem.glb', height: 2.6, label: 'golem of blue crystal shards (Dd0wR9Jh2lH)', clips: BOSS_CLIPS },
+  crystalgolem: { file: 'crystal-golem.glb', height: 2.6, faceForward: 0.3, label: 'golem of blue crystal shards (Dd0wR9Jh2lH)', clips: BOSS_CLIPS },
   emberrider: { file: 'ember-rider.glb', height: 2.7, label: 'red-eyed rider on a black horse with a burning mane (Ddn0A49tnW7)', clips: BOSS_CLIPS },
 };

@@ -82,6 +82,31 @@ const STRIKE_AT: Array<[RegExp, number]> = [
 const PIN_ROOT = /hit_reaction|hit/i;
 const pinned = new WeakSet<AnimationClip>();
 
+const faced = new WeakMap<AnimationClip, number>();
+const _q = new Quaternion();
+const _y = new Quaternion();
+const _f = new Vector3();
+const UP = new Vector3(0, 1, 0);
+
+/** Keeps only `keep` of the hips' and spine's twist about the vertical in every key of the clip (see ModelDef.faceForward). */
+function faceForward(clip: AnimationClip, keep: number): void {
+  if (faced.has(clip)) return;
+  faced.set(clip, keep);
+  for (const t of clip.tracks) {
+    // The hips carry most of the turn; the spine adds its own twist on top.
+    if (!/(hips|spine\d?)\.quaternion$/i.test(t.name)) continue;
+    const v = t.values;
+    for (let i = 0; i < v.length; i += 4) {
+      _q.set(v[i], v[i + 1], v[i + 2], v[i + 3]);
+      _f.set(0, 0, 1).applyQuaternion(_q);
+      const yaw = Math.atan2(_f.x, _f.z);
+      _y.setFromAxisAngle(UP, (keep - 1) * yaw);
+      _q.premultiply(_y);
+      v[i] = _q.x; v[i + 1] = _q.y; v[i + 2] = _q.z; v[i + 3] = _q.w;
+    }
+  }
+}
+
 function pinRoot(clip: AnimationClip): void {
   if (pinned.has(clip)) return;
   pinned.add(clip);
@@ -192,6 +217,7 @@ export class ModelRig {
     this.mixer = new AnimationMixer(scene);
     for (const clip of gltf.animations) {
       if (PIN_ROOT.test(clip.name)) pinRoot(clip);
+      if (def.faceForward !== undefined) faceForward(clip, def.faceForward);
       this.actions.set(clip.name.toLowerCase(), this.mixer.clipAction(clip));
     }
     if (def.armDamp) {
