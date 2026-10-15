@@ -13,7 +13,8 @@ npm run build                                   # also bakes colliders (npm run 
 npx vite preview --host 127.0.0.1 --port 4173 --strictPort &     # often already running
 CH="$HOME/Library/Caches/ms-playwright/chromium-1228/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
 "$CH" --headless=new --no-first-run --user-data-dir=/tmp/gi-headless --use-angle=metal --enable-gpu \
-  --ignore-gpu-blocklist --window-size=1280,720 --remote-debugging-port=9333 about:blank &
+  --ignore-gpu-blocklist --disable-gpu-vsync --disable-frame-rate-limit --autoplay-policy=no-user-gesture-required \
+  --window-size=1280,720 --remote-debugging-port=9333 about:blank &   # audio runs only with the autoplay flag
 ```
 
 `?at=x,z` spawns there and keeps the game running without pointer lock; `window.__ginseng` exposes scene, camera,
