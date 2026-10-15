@@ -5,11 +5,11 @@ import { MissingModelPlaceholder } from '../models/Placeholder';
 import { PipeSmoke } from '../render/Smoke';
 import { capeKeepAttribute, patchCape, patchRobeWind } from '../render/Materials';
 import { glowSprite } from '../render/Glow';
-import { Levitation } from '../render/Levitate';
 import { LeanCup } from '../render/LeanCup';
 import { MODELS } from '../data/models';
 import type { Mode } from '../player/CharacterController';
 import type { CharacterDef, WeaponKind } from './roster';
+import { CYCLONE, type BurstKind } from '../combat/Skills';
 
 export interface RigPose {
   mode: Mode;
@@ -23,26 +23,29 @@ export interface RigPose {
   pose?: 'sit' | 'kneel' | 'row' | 'ride' | 'carry' | 'drink' | 'fish' | 'telescope' | 'read' | 'pray' | 'stir' | 'offer' | 'bow' | 'banner' | 'sitSword' | 'lantern' | 'throne' | 'watch' | 'talk';
   /** Seconds since landing, for the landing crouch. */
   landed?: number;
-  grounded?: boolean;
   /** How long the whole swing or cast lasts, so the clip is fitted to it. */
   attackDuration?: number;
   /** Holding the heavy attack: freeze the swing at its wind-up. */
   charging?: boolean;
+  /** The hero's burst (Q) in progress: which one and seconds since it began. */
+  burst?: { kind: BurstKind; t: number };
 }
+
+
 
 /** How far the weapon's tip sits from the hand, for the swing trail. */
 const WEAPON_REACH: Record<WeaponKind, number> = { sword: 1.1, greatsword: 1.6, bow: 0.7, staff: 1.5 };
 /** Model pulled into the right hand while attacking; null when the body's own baked weapon does the job. */
 const WEAPON_MODEL: Record<WeaponKind, string | null> = { sword: null, greatsword: 'greatsword', bow: null, staff: 'staff' };
 /**
- * How each hero flies: Orlan levitates in a swirl of his colour, Wren straddles her bow and rides it, Sir Aldric
+ * How each hero flies: Orlan simply floats (his robe is enough), Wren straddles her bow and rides it, Sir Aldric
  * glides on his cape. Ride props sit in the body's own frame (x = the body's left, y up from the feet, z forward),
  * metres. Wren's bow lies lengthwise under her, string side up (archer-bow.glb: long axis y, string toward +x), so its
  * front limb rises ahead of her like a prow.
  */
 type RideProp = { model: string; x: number; y: number; z: number; rx: number; ry: number; rz: number; slide: number };
-const RIDE: Record<WeaponKind, RideProp | 'cape' | 'levitate' | null> = {
-  staff: 'levitate',
+const RIDE: Record<WeaponKind, RideProp | 'cape' | 'float' | null> = {
+  staff: 'float',
   bow: { model: 'bow', x: 0, y: 0.8, z: 0.1, rx: Math.PI / 2, ry: Math.PI / 2, rz: 0, slide: -0.75 },
   greatsword: 'cape',
   sword: 'cape',
@@ -81,12 +84,31 @@ const UP = new Vector3();
 const CUP_GRIP = { x: -0.047, y: 0.108, z: -0.043, rx: -0.56, ry: -0.426, rz: -1.931 };
 const SIP = { from: 0.3, to: 0.66, slurpAt: 0.45, weight: 30, every: [10, 16] as const };
 const SIP_BONES = /left(shoulder|arm|forearm|hand)|neck|head/i;
+const LEFT_ARM = /left(shoulder|arm|forearm|hand)/i;
+const RIGHT_ARM = /right(shoulder|arm|forearm|hand)/i;
+/** His mouth, from the head bone along the body's up and forward axes (metres): where a sip brings the rim. */
+const MOUTH = { up: 0.075, fwd: 0.13 };
+/** In flight the cup is carried at the chest, gripped as at the start of a sip (Stand_and_Drink at this fraction). */
+const CARRY_AT = 0.22;
+/**
+ * Wren's snack: a psychedelic mushroom from the pouch on her right hip to her mouth, every `every` seconds while she
+ * stands about. Points in her body frame (metres; her right side is -x). `size`: the mushroom, metres tall.
+ */
+const SHROOM = {
+  every: [7, 12] as const, size: 0.07, frame: 0,
+  /** Her right arm hanging easy between snacks (the calm frame holds it out, palm up). */
+  restElbow: [-0.23, 1.13, -0.04], restHand: [-0.25, 0.87, 0.03],
+  pouch: [-0.21, 0.93, 0.1], pouchElbow: [-0.33, 1.12, -0.05], mouth: [-0.03, 1.57, 0.14], mouthElbow: [-0.26, 1.2, 0.1],
+};
 /** Where a swimmer's hips ride above the controller's feet: just under the surface (CONTROLLER.swimFloat = 1.05). */
 const SWIM_HIPS = 0.92;
 const _t = new Vector3();
 const _a = new Vector3();
 const _b = new Vector3();
 const _ax = new Vector3();
+const _mouth = new Vector3();
+const _rim = new Vector3();
+const smooth = (x: number) => { const k = Math.max(0, Math.min(1, x)); return k * k * (3 - 2 * k); };
 
 /** Turns a bone about a world-space axis (applied on top of whatever the clip posed this frame). */
 function turnBone(bone: Object3D | null, axis: Vector3, angle: number): void {
@@ -141,11 +163,18 @@ export class Rig {
   private ride: Group | null = null;
   private rideGlow: Sprite | null = null;
   private capeLift: { value: number } | null = null;
-  private levitation: Levitation | null = null;
-  /** Wren's bow in hand for a shot, slung on her back between shots, and the spectral copy she draws while riding. */
+  /** Wren's bow in hand for a shot and slung on her back between shots (in the air she shoots off the one she rides). */
   private heldBow: Group | null = null;
   private stowedBow: Group | null = null;
-  private ghostBow: Group | null = null;
+  /** Wren's mushroom snack: the mushroom in her hand, the snack in progress, and the sparkles it leaves. */
+  private shroom: Group | null = null;
+  private snack: { t: number } | null = null;
+  private snackIn: number = SHROOM.every[0];
+  private readonly sparkles: Sprite[] = [];
+  private tripLeft = 0;
+  /** Spin of the lean cyclone (radians about the vertical) and the lean flung off the blade. */
+  private spin = 0;
+  private readonly flung: Array<{ s: Sprite; v: Vector3; age: number }> = [];
   /** Eased side-on turn of a shot (radians about the vertical). */
   private shotTurn = 0;
   private shotClip = '';
@@ -158,8 +187,14 @@ export class Rig {
   private readonly cupGripQ = new Quaternion();
   private sip: { action: AnimationAction; w: number; slurped: boolean } | null = null;
   private sipIn: number = SIP.every[0];
+  /** The carry pose (cup at the chest in flight) is playing. */
+  private carrying = false;
+  /** Lean on the blade during the cyclone. */
+  private readonly bladeGlows: Sprite[] = [];
+  /** Sir Aldric's one-armed swing from the air (the attack clip's right arm over the glide). */
+  private airSwing = false;
   /** Sounds the rig asks for (set by main). */
-  static sound: { slurp(gain: number): void } | null = null;
+  static sound: { slurp(gain: number): void; rustle?(): void; munch?(): void } | null = null;
   /** Bones turned procedurally this frame, with their clip pose (see turn). */
   private readonly turned: Array<{ bone: Object3D; q: Quaternion }> = [];
   private bones: Record<'hips' | 'spine0' | 'spine' | 'spine2' | 'neck' | 'head' | 'lArm' | 'rArm' | 'lForeArm' | 'rForeArm' | 'lUpLeg' | 'rUpLeg' | 'lLeg' | 'rLeg', Object3D | null> | null = null;
@@ -213,10 +248,17 @@ export class Rig {
       this.fx.add(this.smoke.particles);
     }
     if (id === 'knight' && this.offHand) void loadModelOrWarn('lean-cup', MODELS['lean-cup']?.label).then((g) => { if (g) this.attachCup(g); });
+    if (id === 'archer' && this.hand) void loadModelOrWarn('purple-mushroom', MODELS['purple-mushroom']?.label).then((g) => { if (g) this.attachShroom(g); });
+    if (id === 'archer') for (let i = 0; i < 14; i++) {
+      const sp = glowSprite(0xffffff, 0.05, 0, true);
+      sp.visible = false;
+      this.fx.add(sp);
+      this.sparkles.push(sp);
+    }
     if (this.model.hasClips) {
       const b = (re: RegExp) => this.model!.bone(re);
       this.bones = {
-        hips: b(/hips$/i), spine0: b(/spine$/i), spine: b(/spine1$/i), spine2: b(/spine2$/i), neck: b(/neck$/i), head: b(/:head$|^head$/i),
+        hips: b(/hips$/i), spine0: b(/spine$/i), spine: b(/spine1$/i), spine2: b(/spine2$/i), neck: b(/neck$/i), head: b(/(^|:|mixamorig)head$/i),
         lArm: b(/leftarm$/i), rArm: b(/rightarm$/i), lForeArm: b(/leftforearm$/i), rForeArm: b(/rightforearm$/i),
         lUpLeg: b(/leftupleg$/i), rUpLeg: b(/rightupleg$/i), lLeg: b(/leftleg$/i), rLeg: b(/rightleg$/i),
       };
@@ -230,9 +272,6 @@ export class Rig {
       this.model.root.traverse((o) => { if (!skinned && (o as SkinnedMesh).isSkinnedMesh) skinned = o as SkinnedMesh; });
       if (skinned) capeKeepAttribute(skinned);
       if (mat) this.capeLift = patchCape(mat, this.model.rawHeight, { shoulder: 0.79, back: -0.055, depth: 0.02, masked: !!skinned });
-    } else if (ride === 'levitate' && HEROES.has(id)) {
-      this.levitation = new Levitation(this.def.accent);
-      this.root.add(this.levitation.group);
     } else if (ride && typeof ride === 'object' && HEROES.has(id)) {
       void loadModelOrWarn(ride.model, MODELS[ride.model]?.label).then((g) => {
         if (!g) return;
@@ -265,12 +304,14 @@ export class Rig {
 
   /**
    * The lean: a sip every so often while he stands or walks (the drink clip's arm and head layered over the base
-   * clip); anything else he does (an attack, a charge, a jump, flight, swimming) fades the sip out at once and the
-   * base clip has the arm back. Between sips the wrist keeps the cup level; the liquid sloshes either way.
+   * clip, the rim brought to his mouth); anything else he does (an attack, a charge, a jump, flight, swimming) fades
+   * the sip out at once and the base clip has the arm back. Between sips the wrist keeps the cup level; in flight he
+   * carries it at his chest, the wrist turned up so the lean stays in. The liquid sloshes either way.
    */
   private animateCup(pose: RigPose, dt: number): void {
     const m = this.model;
     if (!this.cup || !this.cupPivot || !m) return;
+    const cyclone = pose.burst?.kind === 'cyclone' ? pose.burst.t : -1;
     const calm = pose.mode === 'ground' && pose.attack === undefined && !pose.charging && pose.speed < 5.5;
     if (!this.sip) {
       this.sipIn -= dt;
@@ -299,20 +340,244 @@ export class Rig {
       if (done && s.w < 0.02) { s.action.stop(); this.sip = null; }
       lead = s.w;
     }
+    // In flight: the left arm holds the opening pose of a sip (cup at the chest), frozen, while the cape glides.
+    const carry = m.layer('drink', LEFT_ARM);
+    const carryW = cyclone < 0 ? this.flight : 0;
+    if (carry) {
+      if (carryW > 0.01) {
+        if (!this.carrying) { carry.reset(); carry.play(); this.carrying = true; }
+        carry.time = carry.getClip().duration * CARRY_AT;
+        carry.paused = true;
+        carry.setEffectiveWeight(carryW * SIP.weight);
+      } else if (this.carrying) { carry.stop(); this.carrying = false; }
+    }
     this.cupPivot.quaternion.copy(this.cupGripQ);
-    LeanCup.level(this.cupPivot, 0.92 * (1 - lead));
+    if (cyclone >= 0 && cyclone < CYCLONE.pour) {
+      // Tipped over the blade: the lean pours out and runs down the sword.
+      const k = Math.min(1, cyclone / 0.25) * Math.min(1, (CYCLONE.pour - cyclone) / 0.15);
+      this.cupPivot.rotateZ(2.1 * k);
+      if (k > 0.5) this.pourDrop();
+    } else if (this.flight > 0.05 && this.offHand) {
+      // Gripped, never floating free of the fist: the wrist turns the cup most of the way upright.
+      this.cupPivot.updateWorldMatrix(true, false);
+      this.cupPivot.getWorldQuaternion(_q);
+      _a.set(0, 1, 0).applyQuaternion(_q);
+      const angle = Math.acos(Math.max(-1, Math.min(1, _a.y)));
+      if (angle > 1e-3) {
+        _ax.crossVectors(_a, _b.set(0, 1, 0)).normalize();
+        this.turn(this.offHand, _ax, Math.min(angle, 1.15) * this.flight);
+      }
+      LeanCup.level(this.cupPivot, 0.35 * this.flight);
+    } else LeanCup.level(this.cupPivot, 0.92 * (1 - lead));
+    // A sip brings the rim to his lips (the clip alone lifts it to the visor): the shoulder, then the elbow, are
+    // turned so the rim meets the mouth.
+    if (this.sip && lead > 0.02 && this.bones?.head) {
+      const bn = this.bones;
+      m.root.updateWorldMatrix(true, true);
+      m.frame.getWorldQuaternion(_fq);
+      const mouth = bn.head!.getWorldPosition(_mouth)
+        .addScaledVector(UP.set(0, 1, 0).applyQuaternion(_fq), MOUTH.up)
+        .addScaledVector(FORWARD.set(0, 0, 1).applyQuaternion(_fq), MOUTH.fwd);
+      for (let pass = 0; pass < 2; pass++) for (const b of [bn.lArm, bn.lForeArm]) this.reach(b, mouth, lead);
+    }
     this.cup.update(dt);
   }
 
-  /** Wren's bow in her left hand (on foot), plus a spectral copy for shots fired while she rides the real one. */
+  /** Turns `bone` so the cup's rim swings toward `target` (one step of a CCD reach), by `w` of the way. */
+  private reach(bone: Object3D | null, target: Vector3, w: number): void {
+    if (!bone || !this.cup) return;
+    const rim = this.cup.group.localToWorld(_rim.set(0, this.cup.height, 0));
+    const p = bone.getWorldPosition(_a);
+    const from = _b.copy(rim).sub(p).normalize();
+    const to = _t.copy(target).sub(p).normalize();
+    _q.setFromUnitVectors(from, to);
+    const angle = 2 * Math.acos(Math.min(1, _q.w));
+    if (angle < 1e-4) return;
+    const sin = Math.sqrt(Math.max(1e-9, 1 - _q.w * _q.w));
+    _ax.set(_q.x / sin, _q.y / sin, _q.z / sin);
+    this.turn(bone, _ax, angle * w);
+  }
+
+  /** A drop of lean poured from the cup's rim (it falls onto the blade below). */
+  private pourDrop(): void {
+    if (!this.cup) return;
+    const d = this.freeDrop();
+    if (!d) return;
+    this.cup.group.localToWorld(d.s.position.set(0, this.cup.height * 0.95, 0));
+    d.v.set((Math.random() - 0.5) * 0.3, -0.6, (Math.random() - 0.5) * 0.3);
+  }
+
+  private freeDrop(): { s: Sprite; v: Vector3; age: number } | null {
+    let d = this.flung.find((x) => !x.s.visible) ?? null;
+    if (!d && this.flung.length < 60) {
+      const s = glowSprite(0xb36bff, 0.07, 0.95, true);
+      this.fx.add(s);
+      d = { s, v: new Vector3(), age: 0 };
+      this.flung.push(d);
+    }
+    if (d) { d.age = 0; d.s.visible = true; }
+    return d;
+  }
+
+  /**
+   * Sir Aldric's lean cyclone (his burst): the cup tipped over the raised sword, then the spin, arms out and the
+   * blade level, flinging lean off its tip; afterwards he unwinds to face forward again.
+   */
+  private animateCyclone(pose: RigPose, dt: number): void {
+    const m = this.model;
+    const t = pose.burst?.kind === 'cyclone' ? pose.burst.t : -1;
+    for (const d of this.flung) {
+      if (!d.s.visible) continue;
+      d.age += dt;
+      if (d.age > 0.9) { d.s.visible = false; continue; }
+      d.v.y -= 9.8 * dt;
+      d.s.position.addScaledVector(d.v, dt);
+      d.s.material.opacity = 0.95 * (1 - d.age / 0.9);
+    }
+    for (const g of this.bladeGlows) g.material.opacity += ((t >= CYCLONE.pour * 0.6 ? 0.6 : 0) - g.material.opacity) * Math.min(1, dt * 6);
+    if (!m || !this.bones) return;
+    if (t < 0) {
+      // Unwind to the nearest whole turn, then rest.
+      if (this.spin !== 0) {
+        const goal = Math.round(this.spin / (Math.PI * 2)) * Math.PI * 2;
+        this.spin += (goal - this.spin) * Math.min(1, dt * 10);
+        if (Math.abs(goal - this.spin) < 0.01) this.spin = 0;
+        m.root.rotation.y = this.spin % (Math.PI * 2);
+      }
+      return;
+    }
+    const bn = this.bones;
+    m.root.updateWorldMatrix(true, true);
+    m.frame.getWorldQuaternion(_fq);
+    LATERAL.set(1, 0, 0).applyQuaternion(_fq);
+    FORWARD.set(0, 0, 1).applyQuaternion(_fq);
+    if (t < CYCLONE.pour) {
+      // The sword held out level in front, the cup raised above it.
+      const w = Math.min(1, t / 0.25) * Math.min(1, (CYCLONE.pour - t) / 0.12 + 0.3);
+      this.aim(bn.rArm, bn.rForeArm, _t.set(-0.24, 1.22, 0.22), w);
+      this.aim(bn.rForeArm, this.hand, _t.set(-0.08, 1.2, 0.5), w);
+      this.aim(bn.lArm, bn.lForeArm, _t.set(0.24, 1.36, 0.2), w);
+      this.aim(bn.lForeArm, this.offHand, _t.set(0.04, 1.5, 0.46), w);
+      return;
+    }
+    const s = t - CYCLONE.pour;
+    const ramp = Math.min(1, s / 0.35) * Math.max(0, Math.min(1, (CYCLONE.spin - s) / 0.35));
+    this.spin += dt * 15 * ramp;
+    m.root.rotation.y = this.spin % (Math.PI * 2);
+    // Arms out like a top: the sword arm level, the cup arm a little lower.
+    this.turn(bn.rArm, FORWARD, -1.25 * ramp);
+    this.turn(bn.lArm, FORWARD, 0.95 * ramp);
+    // Lean flung off the blade's tip, out along the turn.
+    if (ramp > 0.5 && Math.random() < 0.85) {
+      this.weaponTips();
+      const d = this.freeDrop();
+      if (d) {
+        d.s.position.copy(this.tipB);
+        const ox = this.tipB.x - this.root.position.x;
+        const oz = this.tipB.z - this.root.position.z;
+        d.v.set(-oz * 4 + ox * 2.5, 1.5 + Math.random() * 1.5, ox * 4 + oz * 2.5);
+      }
+    }
+  }
+
+  /** Wren's mushroom: a tiny purple one, held between her fingers (hidden until she takes it out of the pouch). */
+  private attachShroom(gltf: GLTF): void {
+    if (!this.model || !this.hand) return;
+    const rig = new ModelRig('purple-mushroom', gltf);
+    this.model.root.updateWorldMatrix(true, true);
+    const ws = new Vector3();
+    this.hand.getWorldScale(ws);
+    const holder = new Group();
+    holder.scale.setScalar(SHROOM.size / rig.height / Math.max(1e-4, ws.y));
+    holder.position.set(0, 0.09 / Math.max(1e-4, ws.y), 0.02 / Math.max(1e-4, ws.y));
+    holder.add(rig.root);
+    holder.visible = false;
+    this.hand.add(holder);
+    this.shroom = holder;
+  }
+
+  /**
+   * Wren between fights: she stands easy (the calm first frame of her idle, breathing), and every so often takes a
+   * psychedelic mushroom out of the pouch on her hip, eats it, and sparkles a little for a while after.
+   */
+  private animateSnack(pose: RigPose, dt: number): void {
+    const m = this.model;
+    if (!m || m.id !== 'archer' || !this.bones) return;
+    const bn = this.bones;
+    const calm = pose.mode === 'ground' && pose.attack === undefined && !pose.charging && pose.speed < 0.3;
+    m.root.updateWorldMatrix(true, true);
+    m.frame.getWorldQuaternion(_fq);
+    LATERAL.set(1, 0, 0).applyQuaternion(_fq);
+    FORWARD.set(0, 0, 1).applyQuaternion(_fq);
+    UP.set(0, 1, 0).applyQuaternion(_fq);
+    if (calm) {
+      // Breathing and a slow look around on the held pose; the right arm hangs (the snack takes it from there).
+      const rest = 1 - (this.snack ? Math.min(1, this.snack.t / 0.45) * Math.min(1, (3.2 - this.snack.t) / 0.55) : 0);
+      if (rest > 0.01) {
+        this.aim(bn.rArm, bn.rForeArm, _t.set(SHROOM.restElbow[0], SHROOM.restElbow[1], SHROOM.restElbow[2]), rest);
+        this.aim(bn.rForeArm, this.hand, _t.set(SHROOM.restHand[0], SHROOM.restHand[1], SHROOM.restHand[2]), rest);
+      }
+      const t = this.flightTime;
+      this.turn(bn.spine, LATERAL, Math.sin(t * 1.6) * 0.025);
+      this.turn(bn.neck, UP, Math.sin(t * 0.37) * 0.25);
+      this.turn(bn.hips, FORWARD, Math.sin(t * 0.5) * 0.03);
+    }
+    if (!this.snack) {
+      this.snackIn -= dt;
+      if (this.snackIn <= 0 && calm) { this.snack = { t: 0 }; Rig.sound?.rustle?.(); }
+      if (this.snackIn <= 0) this.snackIn = SHROOM.every[0] + Math.random() * (SHROOM.every[1] - SHROOM.every[0]);
+    }
+    if (this.snack) {
+      const sn = this.snack;
+      sn.t += dt;
+      if (!calm || sn.t > 3.2) { this.snack = null; if (this.shroom) this.shroom.visible = false; }
+      else {
+        const t = sn.t;
+        const w = Math.min(1, t / 0.45) * Math.min(1, (3.2 - t) / 0.55);
+        const up = smooth((t - 0.95) / 0.55);
+        const at = (a: readonly number[], b: readonly number[]) => _t.set(a[0] + (b[0] - a[0]) * up, a[1] + (b[1] - a[1]) * up, a[2] + (b[2] - a[2]) * up);
+        const chew = t > 1.55 && t < 2.6 ? Math.sin((t - 1.55) * 16) * 0.012 : 0;
+        // Fumbling in the pouch, then the hand comes up to the mouth and stays there while she chews.
+        const dig = t > 0.45 && t < 0.95 ? Math.sin(t * 30) * 0.015 : 0;
+        this.aim(bn.rArm, bn.rForeArm, at(SHROOM.pouchElbow, SHROOM.mouthElbow), w);
+        this.aim(bn.rForeArm, this.hand, at(SHROOM.pouch, SHROOM.mouth).add(_b.set(0, dig + chew, 0)), w);
+        if (t > 1.55 && t < 2.6) this.turn(bn.head, LATERAL, Math.sin((t - 1.55) * 16) * 0.05);
+        if (this.shroom) {
+          this.shroom.visible = t > 0.8 && t < 2.35;
+          // Bitten down as she eats.
+          const left = t < 1.6 ? 1 : Math.max(0.25, 1 - (t - 1.6) / 0.75);
+          this.shroom.scale.y = Math.abs(this.shroom.scale.x) * left;
+        }
+        if (t > 2.3 && this.tripLeft <= 0) { this.tripLeft = 6; Rig.sound?.munch?.(); }
+      }
+    }
+    // After a mushroom: little rainbow sparkles drift around her head for a while.
+    this.tripLeft = Math.max(0, this.tripLeft - dt);
+    const head = bn.head;
+    if (!head) return;
+    head.getWorldPosition(_mouth);
+    const T = this.flightTime;
+    this.sparkles.forEach((sp, i) => {
+      const on = this.tripLeft > 0;
+      sp.visible = on;
+      if (!on) return;
+      const a = T * (0.8 + (i % 3) * 0.35) + i * 0.9;
+      const r = 0.22 + (i % 4) * 0.05;
+      sp.position.set(_mouth.x + Math.cos(a) * r, _mouth.y + 0.12 + Math.sin(T * 2 + i) * 0.1, _mouth.z + Math.sin(a) * r);
+      sp.material.color.setHSL((T * 0.25 + i / 14) % 1, 0.9, 0.62);
+      sp.material.opacity = Math.min(1, this.tripLeft / 1.5) * (0.5 + 0.5 * Math.sin(T * 6 + i * 2));
+      sp.scale.setScalar(0.05 + 0.03 * Math.sin(T * 4 + i));
+    });
+  }
+
+  /** Wren's bow in her left hand (on foot); in the air she shoots off the bow she rides. */
   private attachHeldBow(id: string, gltf: GLTF): void {
     if (!this.model || !this.offHand) return;
     this.model.root.updateWorldMatrix(true, true);
     const ws = new Vector3();
     this.offHand.getWorldScale(ws);
-    const make = (ghost: boolean): Group => {
-      const rig = new ModelRig(id, gltf, { cloneMaterials: ghost });
-      if (ghost) rig.root.traverse((o) => { const m = o as Mesh; if (m.isMesh) m.material = new MeshBasicMaterial({ color: this.def.accent, transparent: true, opacity: 0.75, blending: AdditiveBlending, depthWrite: false, toneMapped: false }); });
+    const make = (): Group => {
+      const rig = new ModelRig(id, gltf);
       const pivot = new Group();
       pivot.position.set(HELD_BOW.x, HELD_BOW.y, HELD_BOW.z);
       pivot.rotation.set(HELD_BOW.rx, HELD_BOW.ry, HELD_BOW.rz);
@@ -321,12 +586,10 @@ export class Rig {
       const holder = new Group();
       holder.scale.setScalar(1 / Math.max(1e-4, ws.y));
       holder.add(pivot);
-      holder.visible = !ghost;
       this.offHand!.add(holder);
       return holder;
     };
-    this.heldBow = make(false);
-    this.ghostBow = make(true);
+    this.heldBow = make();
     // Slung across the back: mounted on the chest bone, solved from the pose it has now (upright, at load).
     const chest = this.model.bone(/spine2$/i);
     if (chest) {
@@ -395,12 +658,10 @@ export class Rig {
       this.ride.scale.setScalar(Math.min(1, f * 1.4));
       if (this.rideGlow) this.rideGlow.material.opacity = f * (0.45 + Math.sin(this.flightTime * 9) * 0.15);
     }
-    this.levitation?.update(dt, f);
-    // Wren's bow is in her hand on foot and under her in the air; shooting from the air she draws a spectral bow.
+    // Wren's bow is in her hand on foot and under her in the air (she shoots off it from there).
     const shooting = pose.attack !== undefined || Math.abs(this.shotTurn) > 0.25;
     if (this.heldBow) this.heldBow.visible = f <= 0.05 && shooting;
     if (this.stowedBow) this.stowedBow.visible = f <= 0.05 && !shooting;
-    if (this.ghostBow) this.ghostBow.visible = f > 0.05 && pose.attack !== undefined;
     if (f === 0) {
       // On foot: a clip-driven body stands upright at its origin; a static robe keeps its own bob (driveStaticModel).
       if (m.hasClips) { m.root.rotation.x = 0; m.root.position.set(0, 0, 0); }
@@ -413,8 +674,8 @@ export class Rig {
       const hip = 0.95;
       m.root.rotation.x = a;
       m.root.position.set(0, hip * (1 - Math.cos(a)) + bob, -hip * Math.sin(a));
-    } else if (ride === 'levitate') {
-      // Upright, floating a hand's breadth higher than on foot, rocking gently on the swirl.
+    } else if (ride === 'float') {
+      // Upright, floating a hand's breadth higher than on foot, rocking gently.
       m.root.rotation.x = 0.05 * f;
       m.root.rotation.z = Math.sin(this.flightTime * 1.3) * 0.035 * f;
       m.root.position.set(0, 0.28 * f + bob * 1.5, 0);
@@ -429,10 +690,11 @@ export class Rig {
     LATERAL.set(1, 0, 0).applyQuaternion(_fq);
     FORWARD.set(0, 0, 1).applyQuaternion(_fq);
     if (ride === 'cape') {
-      this.turn(bn.lArm, FORWARD, 0.95 * f);
-      this.turn(bn.rArm, FORWARD, -0.95 * f);
-      this.turn(bn.lArm, LATERAL, 0.35 * f);
-      this.turn(bn.rArm, LATERAL, 0.35 * f);
+      // Arms out to glide; the cup arm carries the cup at the chest (animateCup), the sword arm swings in a strike.
+      if (!this.cup) { this.turn(bn.lArm, FORWARD, 0.95 * f); this.turn(bn.lArm, LATERAL, 0.35 * f); }
+      const strike = pose.attack !== undefined ? 1 - smooth((pose.attack - 0.8) / 0.2) : 0;
+      this.turn(bn.rArm, FORWARD, -0.95 * f * (1 - strike));
+      this.turn(bn.rArm, LATERAL, 0.35 * f * (1 - strike));
       this.turn(bn.neck, LATERAL, -0.55 * f);
       this.turn(bn.head, LATERAL, -0.5 * f);
       // The legs trail loosely: knees a little bent, each swinging gently out of step with the other.
@@ -441,7 +703,7 @@ export class Rig {
       this.turn(bn.rUpLeg, LATERAL, (0.06 + Math.sin(t * 1.9 + 2.2) * 0.06) * f);
       this.turn(bn.lLeg, LATERAL, (0.32 + Math.sin(t * 1.9 + 0.7) * 0.1) * f);
       this.turn(bn.rLeg, LATERAL, (0.22 + Math.sin(t * 1.9 + 2.9) * 0.1) * f);
-    } else if (ride !== 'levitate') {
+    } else if (ride !== 'float') {
       if (this.shotTurn !== 0) {
         // A shot from the saddle: the twist spreads over the three spine bones.
         UP.set(0, 1, 0).applyQuaternion(_fq);
@@ -456,12 +718,13 @@ export class Rig {
       this.turn(bn.lLeg, LATERAL, s.knee * f);
       this.turn(bn.rLeg, LATERAL, s.knee * f);
       this.turn(bn.spine, LATERAL, s.lean * f);
-      if (pose.attack === undefined) {
-        for (const side of [1, -1]) {
-          const [arm, fore, hand] = side > 0 ? [bn.lArm, bn.lForeArm, this.offHand] : [bn.rArm, bn.rForeArm, this.hand];
-          this.aim(arm, fore, _t.set(s.elbow[0] * side, s.elbow[1], s.elbow[2]), f);
-          this.aim(fore, hand, _t.set(s.grip[0] * side, s.grip[1], s.grip[2]), f);
-        }
+      // Both hands on the front limb; a shot draws the string back from it (the arrow leaves the bow under her).
+      const draw = pose.attack !== undefined ? smooth(pose.attack / 0.45) * (1 - smooth((pose.attack - 0.6) / 0.3)) : 0;
+      for (const side of [1, -1]) {
+        const [arm, fore, hand] = side > 0 ? [bn.lArm, bn.lForeArm, this.offHand] : [bn.rArm, bn.rForeArm, this.hand];
+        const d = side < 0 ? draw : 0;
+        this.aim(arm, fore, _t.set(s.elbow[0] * side - 0.1 * d, s.elbow[1] + 0.18 * d, s.elbow[2] - 0.2 * d), f);
+        this.aim(fore, hand, _t.set(s.grip[0] * side - 0.1 * d, s.grip[1] + 0.22 * d, s.grip[2] - 0.32 * d), f);
       }
     }
   }
@@ -477,6 +740,15 @@ export class Rig {
     pivot.rotation.set(grip.rx, grip.ry, grip.rz);
     rig.root.position.y = grip.slide;
     pivot.add(rig.root);
+    if (id === 'greatsword') {
+      // Lean along the blade (tip at the bottom of the upright model, the guard about 1 m up), lit for the cyclone.
+      for (const y of [0.12, 0.38, 0.64, 0.9]) {
+        const g = glowSprite(0xb36bff, 0.32, 0, true);
+        g.position.y = y;
+        rig.root.add(g);
+        this.bladeGlows.push(g);
+      }
+    }
     const holder = new Group();
     holder.add(pivot);
     this.model.root.updateWorldMatrix(true, true);
@@ -519,6 +791,11 @@ export class Rig {
       this.prop.updateWorldMatrix(true, true);
       // The prop is scaled to `height` with its feet at 0; the knob sits at the top.
       return this.propRig.root.localToWorld(out.set(0, this.propRig.height * 0.97, 0));
+    }
+    // Riding her bow, Wren's arrows leave from the bow under her.
+    if (this.def.weapon === 'bow' && this.ride && this.flight > 0.5) {
+      this.ride.updateWorldMatrix(true, false);
+      return this.ride.localToWorld(out.set(0, 0, 0)).add(_b.set(0, -0.15, 0));
     }
     const hand = this.def.weapon === 'bow' ? this.offHand ?? this.hand : this.hand;
     if (hand) { hand.updateWorldMatrix(true, false); return hand.getWorldPosition(out); }
@@ -574,7 +851,20 @@ export class Rig {
     const m = this.model!;
     const v = pose.speed;
     if (!m.hasClips) { this.driveStaticModel(m, pose, dt); return; }
-    if (pose.attack !== undefined) {
+    // The cyclone is spun by hand over the walk; from the air Wren shoots off her bow and Sir Aldric swings one-armed,
+    // so the body keeps its flying pose.
+    const cyclone = pose.burst?.kind === 'cyclone';
+    const airStrike = pose.mode === 'fly' && pose.attack !== undefined && (m.id === 'archer' || m.id === 'knight');
+    const swing = m.id === 'knight' ? m.layer('attack', RIGHT_ARM) : null;
+    if (swing) {
+      if (airStrike) {
+        if (!this.airSwing) { swing.reset(); swing.play(); this.airSwing = true; }
+        swing.time = swing.getClip().duration * Math.min(0.98, pose.attack!);
+        swing.paused = true;
+        swing.setEffectiveWeight(SIP.weight * this.flight);
+      } else if (this.airSwing) { swing.stop(); this.airSwing = false; }
+    }
+    if (pose.attack !== undefined && !cyclone && !airStrike) {
       const k = pose.attackKind;
       const clip = k === 'heavy' ? 'heavy' : k === 'skill' || k === 'burst' ? 'cast' : 'attack';
       this.shotClip = clip;
@@ -612,10 +902,15 @@ export class Rig {
     }
     else if (v > 5.5) { if (!m.play('run', false, v / 7)) m.play('walk', false, v / 4); }
     else if (v > 0.3) { if (!m.play('walk', false, Math.max(0.6, v / 4))) m.play('run', false, v / 7); }
-    else m.play('idle');
+    else {
+      m.play('idle');
+      // Wren's idle clip stretches her arms up and out; she stands easy on its calm first frame (animateSnack adds
+      // the breathing and the mushrooms).
+      if (m.id === 'archer') m.freezeAt(SHROOM.frame);
+    }
     // Wren turns side-on for a shot (her whole body on foot; in the air flyPose twists only her spine).
     if (m.id === 'archer') {
-      const want = pose.attack !== undefined ? SHOT_TURN[this.shotClip] ?? 0 : 0;
+      const want = pose.attack !== undefined && !airStrike ? SHOT_TURN[this.shotClip] ?? 0 : 0;
       this.shotTurn += (want - this.shotTurn) * Math.min(1, dt * 12);
       m.root.rotation.y = this.shotTurn * (1 - this.flight);
     }
@@ -676,7 +971,14 @@ export class Rig {
   animate(pose: RigPose, dt: number): void {
     for (const t of this.turned) t.bone.quaternion.copy(t.q);
     this.turned.length = 0;
-    if (this.model) { this.driveModel(pose, dt); this.flyPose(pose, dt); this.swimPose(pose, dt); this.animateCup(pose, dt); }
+    if (this.model) {
+      this.driveModel(pose, dt);
+      this.flyPose(pose, dt);
+      this.swimPose(pose, dt);
+      this.animateCyclone(pose, dt);
+      this.animateCup(pose, dt);
+      this.animateSnack(pose, dt);
+    }
     else this.placeholder?.update(dt);
     this.animateProp(pose, dt);
     this.animateTrail(pose, dt);

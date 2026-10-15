@@ -37,6 +37,8 @@ const _w = new Vector3();
 const _q = new Quaternion();
 const _q2 = new Quaternion();
 const _a = new Vector3();
+const _pos = new Vector3();
+const _inv = new Quaternion();
 
 /**
  * Sir Aldric's cup of lean: the cup model, a glowing purple surface that stays level while the cup moves and sloshes
@@ -59,6 +61,11 @@ export class LeanCup {
   private primed = false;
   private splashCooldown = 0;
   private t = 0;
+
+  /** The cup's height, metres (its rim is at this height above `group`'s origin). */
+  get height(): number {
+    return this.h;
+  }
 
   constructor(cup: Object3D, private readonly h: number) {
     this.group.add(cup);
@@ -83,7 +90,7 @@ export class LeanCup {
     this.splashCooldown -= dt;
     // The cup's motion in the world: velocity and a smoothed acceleration.
     this.liquid.updateWorldMatrix(true, false);
-    const pos = this.liquid.getWorldPosition(_v);
+    const pos = this.liquid.getWorldPosition(_pos);
     if (!this.primed) { this.lastPos.copy(pos); this.lastVel.set(0, 0, 0); this.smoothVel.set(0, 0, 0); this.primed = true; }
     const raw = _w.copy(pos).sub(this.lastPos).divideScalar(dt);
     // Teleports and swaps (a jump of metres in a frame) are not motion.
@@ -148,7 +155,6 @@ export class LeanCup {
     _q2.slerp(_q.identity(), 1 - amount);
     // World-space correction → the pivot's parent frame.
     pivot.parent.getWorldQuaternion(_q);
-    const parentInv = _q.clone().invert();
-    pivot.quaternion.premultiply(parentInv.multiply(_q2).multiply(_q));
+    pivot.quaternion.premultiply(_inv.copy(_q).invert().multiply(_q2).multiply(_q));
   }
 }

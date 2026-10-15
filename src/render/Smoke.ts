@@ -2,7 +2,7 @@ import { CanvasTexture, Group, Mesh, MeshBasicMaterial, Object3D, Sprite, Sprite
 
 let puffTex: CanvasTexture | undefined;
 /** A soft, lumpy smoke puff (a few overlapping blobs), so the wisp reads as smoke rather than glowing dots. */
-function puffTexture(): CanvasTexture {
+export function puffTexture(): CanvasTexture {
   if (puffTex) return puffTex;
   const size = 64;
   const canvas = document.createElement('canvas');

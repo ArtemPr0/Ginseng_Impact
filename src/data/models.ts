@@ -36,6 +36,8 @@ export interface ModelDef {
    * body 45° sideways in the stance and ~100° in the Attack swing, so a monster fights side-on; 0.25 keeps a hint.
    */
   faceForward?: number;
+  /** Clip keys played left for right (the first clip named by each key's alternatives is mirrored at load). */
+  mirror?: ClipName[];
   /** 0..1: how strongly the idle clip poses the body (a floating spirit should not crouch in a boxer's stance). */
   idleBlend?: number;
   /** A boneless robe/cloak model: the rig animates it procedurally (hover, sway, hem wind) instead of clips. */
@@ -75,7 +77,7 @@ const BOSS_CLIPS: Partial<Record<ClipName, string>> = {
 export const MODELS: Record<string, ModelDef> = {
   // Party
   // Party (Meshy image-to-3D from docs/reference/frames, biped rig, preset clips)
-  knight: { file: 'knight.glb', height: 1.95, clips: { idle: 'idle_02|idle|stance', walk: 'walking|walk', run: 'running|run', jump: 'basic_jump|jump', attack: 'right_hand_sword_slash|slash|attack', heavy: 'sword_judgment|judgment|slash', cast: 'sword_shout|shout|slash', hit: 'hit_reaction|hit', death: 'dying|death', drink: 'stand_and_drink|drink', swim: 'swim_forward|swim', swimIdle: 'swim_idle|swim' } },
+  knight: { file: 'knight.glb', height: 1.95, mirror: ['idle'], clips: { idle: 'idle_02|idle|stance', walk: 'walking|walk', run: 'running|run', jump: 'basic_jump|jump', attack: 'right_hand_sword_slash|slash|attack', heavy: 'sword_judgment|judgment|slash', cast: 'sword_shout|shout|slash', hit: 'hit_reaction|hit', death: 'dying|death', drink: 'stand_and_drink|drink', swim: 'swim_forward|swim', swimIdle: 'swim_idle|swim' } },
   // Remade 2026-10-15 from frames/archer-v2.png (Meshy 7.1, A-pose, biped rig); her bow is archer-bow.glb in the left hand.
   archer: { file: 'archer.glb', height: 1.8, clips: { idle: 'idle_03|idle', walk: 'walking|walk', run: 'running|run', jump: 'regular_jump|jump', attack: 'archery_shot|shot', heavy: 'archery_shot_1|shot', cast: 'archery_aim|aim|shot', hit: 'hit_reaction|hit', death: 'dying|death', swim: 'swim_forward|swim', swimIdle: 'swim_idle|swim' } },
   wizard: { file: 'wizard.glb', height: 1.85, robe: true, smoke: { x: -0.08, y: 1.19, z: 0.29 }, hand: { x: -0.36, y: 0.98, z: 0.12 }, clips: { idle: 'idle_02|idle|stance', walk: 'walking|walk', run: 'running|run', jump: 'basic_jump|jump', attack: 'mage_soell_cast|spell|cast', heavy: 'charged_spell_cast|charged|cast', cast: 'charged_spell_cast|charged|cast', hit: 'hit_reaction|hit', death: 'dying|death' } },

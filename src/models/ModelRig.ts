@@ -1,4 +1,4 @@
-import { AnimationAction, AnimationClip, AnimationMixer, Box3, Group, LoopOnce, LoopRepeat, Mesh, type MeshStandardMaterial, Object3D, Quaternion, type SkinnedMesh, Vector3 } from 'three';
+import { AnimationAction, AnimationClip, AnimationMixer, Box3, Group, LoopOnce, LoopRepeat, Mesh, type MeshStandardMaterial, Object3D, Quaternion, QuaternionKeyframeTrack, type SkinnedMesh, Vector3, VectorKeyframeTrack } from 'three';
 import { warnMissing } from './Placeholder';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
@@ -117,6 +117,78 @@ function pinRoot(clip: AnimationClip): void {
   }
 }
 
+const mirrored = new WeakMap<AnimationClip, AnimationClip>();
+
+/**
+ * The clip played left for right (ModelDef.mirror): each bone takes its mirror twin's turn away from the rest pose,
+ * reflected across the body's centre plane (x = 0 in `frame`, the registry-yawed holder whose front is +z). Works on
+ * the bones' frame-space rotations, so it does not care how the rig's left and right local axes are set up; it needs
+ * a symmetric rest pose (Meshy rigs come from an A-pose). Baked once per clip by sampling it at 30 fps.
+ */
+function mirrorClip(clip: AnimationClip, scene: Object3D, frame: Object3D): AnimationClip {
+  const done = mirrored.get(clip);
+  if (done) return done;
+  const bones: Object3D[] = [];
+  scene.traverse((o) => { if ((o as { isBone?: boolean }).isBone) bones.push(o); });
+  const byName = new Map(bones.map((b) => [b.name, b]));
+  const twin = (b: Object3D): Object3D => byName.get(b.name.replace(/Left|Right/g, (m) => (m === 'Left' ? 'Right' : 'Left'))) ?? b;
+  const restLocal = bones.map((b) => ({ q: b.quaternion.clone(), p: b.position.clone() }));
+  const frameQ = new Quaternion();
+  const toFrame = (o: Object3D, out: Quaternion): Quaternion => out.copy(frameQ).invert().multiply(o.getWorldQuaternion(new Quaternion()));
+  frame.updateWorldMatrix(true, true);
+  frame.getWorldQuaternion(frameQ);
+  const rest = new Map(bones.map((b) => [b, toFrame(b, new Quaternion())]));
+  const parentRest = new Map(bones.map((b) => [b, b.parent ? toFrame(b.parent, new Quaternion()) : new Quaternion()]));
+  const hips = bones.find((b) => /hips$/i.test(b.name)) ?? null;
+  const hasHipsPos = clip.tracks.some((t) => /hips\.position$/i.test(t.name));
+  const mixer = new AnimationMixer(scene);
+  const action = mixer.clipAction(clip);
+  action.play();
+  const n = Math.max(2, Math.round(clip.duration * 30) + 1);
+  const times = new Float32Array(n);
+  const quats = new Map(bones.map((b) => [b, new Float32Array(n * 4)]));
+  const hipsPos = new Float32Array(n * 3);
+  const delta = new Quaternion();
+  const want = new Map<Object3D, Quaternion>();
+  for (let i = 0; i < n; i++) {
+    const t = (clip.duration * i) / (n - 1);
+    times[i] = t;
+    mixer.setTime(Math.min(t, clip.duration - 1e-4));
+    frame.updateWorldMatrix(true, true);
+    const posed = new Map(bones.map((b) => [b, toFrame(b, new Quaternion())]));
+    // Frame-space target of each bone: its twin's turn from rest, reflected (x, y, z, w) → (x, -y, -z, w).
+    for (const b of bones) {
+      const tw = twin(b);
+      delta.copy(posed.get(tw)!).multiply(rest.get(tw)!.clone().invert());
+      delta.set(delta.x, -delta.y, -delta.z, delta.w);
+      want.set(b, delta.clone().multiply(rest.get(b)!));
+    }
+    for (const b of bones) {
+      const parentQ = b.parent && want.has(b.parent) ? want.get(b.parent)! : parentRest.get(b)!;
+      const local = parentQ.clone().invert().multiply(want.get(b)!);
+      quats.get(b)!.set([local.x, local.y, local.z, local.w], i * 4);
+    }
+    if (hips && hasHipsPos && hips.parent) {
+      const w = hips.getWorldPosition(new Vector3());
+      const f = frame.worldToLocal(w);
+      f.x = -f.x;
+      const back = hips.parent.worldToLocal(frame.localToWorld(f));
+      hipsPos.set([back.x, back.y, back.z], i * 3);
+    }
+  }
+  action.stop();
+  mixer.uncacheRoot(scene);
+  bones.forEach((b, i) => { b.quaternion.copy(restLocal[i].q); b.position.copy(restLocal[i].p); });
+  const animated = new Set(clip.tracks.map((t) => t.name.split('.')[0]));
+  const tracks = bones
+    .filter((b) => animated.has(b.name) || animated.has(twin(b).name))
+    .map((b) => new QuaternionKeyframeTrack(`${b.name}.quaternion`, times, quats.get(b)!) as QuaternionKeyframeTrack | VectorKeyframeTrack);
+  if (hips && hasHipsPos) tracks.push(new VectorKeyframeTrack(`${hips.name}.position`, times, hipsPos));
+  const out = new AnimationClip(clip.name, clip.duration, tracks);
+  mirrored.set(clip, out);
+  return out;
+}
+
 /** The scale, offset and yaw that put a file at `def.height`, centred on x/z with its feet at y = 0. */
 export function normaliseTransform(scene: Object3D, def: ModelDef): { scale: number; offset: Vector3; yaw: number } {
   const box = new Box3().setFromObject(scene);
@@ -216,9 +288,13 @@ export class ModelRig {
     this.frame = holder;
     this.height = def.height;
     this.mixer = new AnimationMixer(scene);
-    for (const clip of gltf.animations) {
+    // Clips played left for right (Sir Aldric's idle: the forward, bent arm holds his cup in the left hand).
+    const flip = new Set((def.mirror ?? []).flatMap((k) => (def.clips?.[k] ?? k).toLowerCase().split('|')));
+    let flipped = false;
+    for (let clip of gltf.animations) {
       if (PIN_ROOT.test(clip.name)) pinRoot(clip);
       if (def.faceForward !== undefined) faceForward(clip, def.faceForward);
+      if (!flipped && flip.has(clip.name.toLowerCase())) { clip = mirrorClip(clip, scene, holder); flipped = true; }
       this.actions.set(clip.name.toLowerCase(), this.mixer.clipAction(clip));
     }
     if (def.armDamp) {

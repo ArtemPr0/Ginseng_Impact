@@ -123,7 +123,7 @@ function switchTo(i: number): boolean {
 }
 
 Npc.sound = { voice: (url, gain) => audio.voice(url, gain), slurp: (gain) => audio.slurp(gain) };
-Rig.sound = { slurp: (gain) => audio.slurp(gain) };
+Rig.sound = { slurp: (gain) => audio.slurp(gain), rustle: () => audio.rustle(), munch: () => audio.munch() };
 const lightBudget = new LightBudget(scene, 6);
 lightBudget.collect(scene);
 
@@ -133,6 +133,7 @@ const combat = new CombatSystem({
   onShake: (a) => tpc.shake(a),
   onKill: (kind) => adventures.quests.kill(kind),
   muzzle: () => rigs[party.activeIndex].muzzle(new Vector3()),
+  onWipe: () => { adventures.riding = null; wasLocked = false; },
   onDodge: () => {
     const axis = input.moveAxis();
     const dir = axis.x === 0 && axis.z === 0 ? { x: -Math.cos(controller.yaw), z: -Math.sin(controller.yaw) } : tpc.moveToWorld(axis);
@@ -183,7 +184,8 @@ function closePanel(): void {
   hud.close();
   talking = null;
   input.uiOpen = false;
-  void canvas.requestPointerLock();
+  // (Escape does not count as a user gesture: the lock may be refused, and the click-to-resume prompt shows.)
+  canvas.requestPointerLock()?.catch?.(() => {});
 }
 hud.bind({
   onBuy: (itemId, price) => {
@@ -295,7 +297,7 @@ game
       if (input.locked) tpc.rotate(dx, dy);
       party.update(dt);
       for (let i = 0; i < ROSTER.length; i++) {
-        if (input.justPressed(`Digit${i + 1}`)) switchTo(i);
+        if (input.locked && input.justPressed(`Digit${i + 1}`)) switchTo(i);
       }
       if (input.locked && input.justPressed('KeyF')) pressF();
       combat.update(dt, {
@@ -369,7 +371,7 @@ game
         attackDuration: combat.attackDuration,
         charging: combat.charging > 0,
         landed: performance.now() / 1000 - landedAt,
-        grounded: controller.mode === 'ground',
+        burst: combat.burstState,
       }, dt);
       // Benched party members are hidden: no need to animate them.
       combat.render(dt);

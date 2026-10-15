@@ -27,6 +27,7 @@ export class Hud {
   private readonly q = <T extends HTMLElement>(sel: string): T => this.root.querySelector(sel) as T;
   private readonly bars = new Map<number, HTMLElement>();
   private bannerTimer = 0;
+  private burstName = '';
   panel: Panel = 'none';
   private talkNpc: NpcDef | null = null;
   private talkLine = 0;
@@ -49,7 +50,7 @@ export class Hud {
       <div class="hud-party" id="hud-party"></div>
       <div class="hud-companions" id="hud-companions"></div>
       <div class="hud-skill panel" id="hud-skill"><div class="hud-skill-key">E</div><div class="hud-skill-cd" id="hud-skill-cd"></div><div class="hud-skill-name" id="hud-skill-name"></div></div>
-      <div class="hud-burst panel" id="hud-burst"><div class="hud-skill-key">Q</div><div class="hud-burst-fill" id="hud-burst-fill"></div><div class="hud-skill-name">Burst</div></div>
+      <div class="hud-burst panel" id="hud-burst"><div class="hud-skill-key">Q</div><div class="hud-burst-fill" id="hud-burst-fill"></div><div class="hud-skill-name" id="hud-burst-name">Burst</div></div>
       <div class="hud-charge" id="hud-charge"><div class="hud-charge-fill" id="hud-charge-fill"></div></div>
       <div class="hud-interact" id="hud-interact"></div>
       <div class="hud-numbers" id="hud-numbers"></div>
@@ -99,9 +100,10 @@ export class Hud {
     this.q('#hud-skill').classList.toggle('ready', ready);
   }
 
-  setBurst(fraction: number, ready: boolean): void {
+  setBurst(fraction: number, ready: boolean, name?: string): void {
     this.q('#hud-burst-fill').style.height = `${Math.round(fraction * 100)}%`;
     this.q('#hud-burst').classList.toggle('ready', ready);
+    if (name && name !== this.burstName) { this.burstName = name; this.q('#hud-burst-name').textContent = name; }
   }
 
   setCharge(fraction: number): void {

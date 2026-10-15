@@ -23,6 +23,16 @@ export interface GroundEffectDef {
   element: Element;
 }
 
+/** Each hero's burst (Q): Sir Aldric's lean cyclone, Wren's psychedelic volley, Orlan's cloud of pipe smoke. */
+export type BurstKind = 'cyclone' | 'trip' | 'smoke';
+export const BURST: Record<string, { kind: BurstKind; name: string; time: number }> = {
+  knight: { kind: 'cyclone', name: 'Lean Cyclone', time: 5.35 },
+  archer: { kind: 'trip', name: 'Trip Volley', time: 1.6 },
+  wizard: { kind: 'smoke', name: 'Pipe Dream', time: 1.4 },
+};
+/** The cyclone: the lean is poured over the blade first, then he spins (seconds). */
+export const CYCLONE = { pour: 0.75, spin: 4.6 };
+
 export interface SkillDef {
   id: string;
   name: string;

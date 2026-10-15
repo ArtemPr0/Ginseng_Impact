@@ -50,7 +50,7 @@ describe('ComboTracker', () => {
 
   it('starts hit 0 on press and reports the hit frame once', () => {
     const c = new ComboTracker(durations, 0.4);
-    expect(c.press(0)).toBe(0);
+    expect(c.press()).toBe(0);
     expect(c.swinging).toBe(true);
     const fired: number[] = [];
     for (let t = 0; t < 0.5; t += 1 / 60) {
@@ -63,22 +63,22 @@ describe('ComboTracker', () => {
 
   it('chains to the next hit when pressed late in a swing, and resets after a gap', () => {
     const c = new ComboTracker(durations, 0.4);
-    c.press(0);
+    c.press();
     for (let i = 0; i < 20; i++) c.update(1 / 60); // 0.33 s into a 0.4 s swing
-    expect(c.press(0)).toBeNull(); // buffered
+    expect(c.press()).toBeNull(); // buffered
     for (let i = 0; i < 6; i++) c.update(1 / 60);
     expect(c.currentHit).toBe(1);
     expect(c.swinging).toBe(true);
     for (let i = 0; i < 120; i++) c.update(1 / 60);
     expect(c.swinging).toBe(false);
-    expect(c.press(0)).toBe(0); // combo reset after idle
+    expect(c.press()).toBe(0); // combo reset after idle
   });
 
   it('ignores presses early in a swing', () => {
     const c = new ComboTracker(durations, 0.4);
-    c.press(0);
+    c.press();
     c.update(1 / 60);
-    expect(c.press(0)).toBeNull();
+    expect(c.press()).toBeNull();
     for (let i = 0; i < 30; i++) c.update(1 / 60);
     expect(c.currentHit).toBe(0);
     expect(c.swinging).toBe(false);

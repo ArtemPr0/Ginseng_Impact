@@ -1,7 +1,8 @@
 import { loadModelOrWarn, ModelRig, yawToRotation } from '../models/ModelRig';
 import { MissingModelPlaceholder } from '../models/Placeholder';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { Group, type Object3D, Quaternion, Vector3 } from 'three';
+import { Group, type Object3D, Quaternion, type Sprite, Vector3 } from 'three';
+import { glowSprite } from '../render/Glow';
 import type { EnemyDef } from '../data/enemies';
 import { PALETTE } from '../render/palette';
 import type { WorldQuery } from '../player/CharacterController';
@@ -9,7 +10,13 @@ import { EnemyBrain, type EnemyState } from './EnemyBrain';
 import type { BossAttack, BossAttackKind } from '../data/enemies';
 import { ELEMENT_COLOR, tickAura, type Aura } from './Elements';
 
-export type EnemyAction = { kind: 'melee' } | { kind: 'bolt' } | { kind: 'boss'; attack: BossAttackKind } | null;
+export type EnemyAction = { kind: 'melee' } | { kind: 'boss'; attack: BossAttackKind } | null;
+
+/**
+ * What the heroes' bursts do to a mob (seconds left of each): dazed on the spot, stumbling about at random (it has
+ * lost the hero), fighting another mob instead of the hero, and everything at a fraction (`slowBy`) of its pace.
+ */
+export interface Afflictions { stun: number; confuse: number; brawl: number; slow: number; slowBy: number }
 
 let nextId = 1;
 
@@ -55,6 +62,8 @@ export class Enemy {
   private orbitAngle = Math.random() * Math.PI * 2;
   /** Set by the combat system when a bolt-summoned minion should vanish for good. */
   noRespawn = false;
+  /** Called up by a boss: drops nothing, and leaves with its caster. */
+  summoned = false;
   model: ModelRig | null = null;
   private placeholder: MissingModelPlaceholder | null = null;
   private lastState: EnemyState = 'idle';
@@ -83,6 +92,13 @@ export class Enemy {
   private provoked = false;
   /** Patrol: which leg of the route it is walking. */
   private leg = 0;
+  /** The heroes' bursts on this mob, the mob it has been turned on, and its stumbling while confused. */
+  readonly status: Afflictions = { stun: 0, confuse: 0, brawl: 0, slow: 0, slowBy: 1 };
+  brawlTarget: Enemy | null = null;
+  private wanderYaw = 0;
+  private wanderIn = 0;
+  /** Little lights circling its head while it is dazed, confused or fighting its own (created on first need). */
+  private halo: Sprite[] | null = null;
   /** The fall into a heap of bones (collapse mobs): each bone's pose from → to, and the body's tip. */
   private heap: { t: number; bones: Array<{ b: Object3D; from: Quaternion; to: Quaternion; delay: number }>; tipAxis: Vector3; drop: number } | null = null;
 
@@ -121,6 +137,26 @@ export class Enemy {
     return this.brain.state !== 'dead';
   }
 
+  /** Turned on another mob (Orlan's smoke), and that mob still stands. */
+  get brawling(): boolean {
+    return this.status.brawl > 0 && !!this.brawlTarget?.alive && this.brawlTarget !== this;
+  }
+
+  /** Lays an affliction on (the longer of what it has and `seconds`); a slow keeps the stronger factor. */
+  afflict(kind: 'stun' | 'confuse' | 'brawl' | 'slow', seconds: number, slowBy = 1): void {
+    if (!this.alive) return;
+    const s = this.status;
+    s[kind] = Math.max(s[kind], seconds);
+    if (kind === 'slow') s.slowBy = Math.min(s.slow > 0 && s.slowBy < 1 ? s.slowBy : 1, slowBy);
+    // Shaken out of a seat or a calm patrol.
+    if (kind !== 'slow') { this.seatedNow = false; this.rising = 0; this.provoked = true; }
+  }
+
+  /** Pace of everything it does: 1, or the slow's fraction while slowed. */
+  get pace(): number {
+    return this.status.slow > 0 ? this.status.slowBy : 1;
+  }
+
   get state(): EnemyState {
     return this.brain.state;
   }
@@ -149,6 +185,15 @@ export class Enemy {
   update(dt: number, player: { x: number; y: number; z: number }): EnemyAction {
     this.time += dt;
     this.aura = tickAura(this.aura, dt);
+    const st = this.status;
+    st.stun = Math.max(0, st.stun - dt);
+    st.confuse = Math.max(0, st.confuse - dt);
+    st.brawl = Math.max(0, st.brawl - dt);
+    st.slow = Math.max(0, st.slow - dt);
+    if (st.slow <= 0) st.slowBy = 1;
+    if (st.brawl <= 0) this.brawlTarget = null;
+    // Slowed: it moves, winds up and recovers at a fraction of its pace.
+    dt *= this.pace;
     if (this.defDown.left > 0) {
       this.defDown.left -= dt;
       if (this.defDown.left <= 0) this.defDown = { amount: 0, left: 0 };
@@ -164,6 +209,24 @@ export class Enemy {
     const giveUp = Math.max(this.territory + this.def.brain.aggroRange * 0.75, this.def.brain.aggroRange * 1.25);
     if (this.aggro && (playerFromHome > giveUp || Math.abs(player.y - this.pos.y) > 60)) this.disengage();
     if (this.returning) return this.walkHome(dt);
+    // Dazed: stands where it is (knockback still settles).
+    if (st.stun > 0) { this.stepTo(this.pos.x, this.pos.z, dt, this.def.flying ? this.pos.y : null); return null; }
+    // Confused (and not fighting another mob): it has lost the hero and stumbles about, changing its mind often.
+    if (st.confuse > 0 && !this.brawling) {
+      this.wanderIn -= dt;
+      if (this.wanderIn <= 0) { this.wanderIn = 0.6 + Math.random() * 0.9; this.wanderYaw = Math.random() * Math.PI * 2; }
+      this.yaw += Math.atan2(Math.sin(this.wanderYaw - this.yaw), Math.cos(this.wanderYaw - this.yaw)) * Math.min(1, dt * 4);
+      const v = this.def.speed * 0.45;
+      let nx = this.pos.x + (Math.cos(this.yaw) * v + this.knock.x) * dt;
+      let nz = this.pos.z + (Math.sin(this.yaw) * v + this.knock.z) * dt;
+      const lx = nx - this.spawn.x;
+      const lz = nz - this.spawn.z;
+      const ld = Math.hypot(lx, lz);
+      if (ld > this.territory) { nx = this.spawn.x + (lx / ld) * this.territory; nz = this.spawn.z + (lz / ld) * this.territory; this.wanderIn = 0; }
+      if (this.brain.state !== 'idle' && this.brain.state !== 'chase') { this.brain.state = 'chase'; this.brain.stateTime = 0; }
+      this.stepTo(nx, nz, dt, this.def.flying ? this.pos.y : null);
+      return null;
+    }
     const dx = player.x - this.pos.x;
     const dz = player.z - this.pos.z;
     const dist = Math.hypot(dx, dz);
@@ -216,7 +279,15 @@ export class Enemy {
       }
     }
     // A neutral mob does not see the player until it has been hit.
-    const state = this.brain.update(dt, this.def.neutral && !this.provoked ? Infinity : dist);
+    const before = this.brain.state;
+    const state = this.brain.update(dt, this.def.neutral && !this.provoked && !this.brawling ? Infinity : dist);
+    // Lost the player (outran, out of sight): walk back to its spot and heal on the way, never idle where it stopped.
+    if (before === 'chase' && state === 'idle' && Math.hypot(this.pos.x - this.spawn.x, this.pos.z - this.spawn.z) > 1.5) {
+      this.provoked = false;
+      this.returning = true;
+      this.currentAttack = null;
+      return null;
+    }
     let action: EnemyAction = null;
     if (state === 'attack') {
       if (this.def.attacks && this.currentAttack) {
@@ -351,6 +422,9 @@ export class Enemy {
       this.hp = 0;
       this.brain.kill();
       this.deadFor = 0;
+      Object.assign(this.status, { stun: 0, confuse: 0, brawl: 0, slow: 0, slowBy: 1 });
+      this.brawlTarget = null;
+      if (this.halo) for (const g of this.halo) g.visible = false;
       return true;
     }
     return false;
@@ -433,10 +507,40 @@ export class Enemy {
       if (Math.floor(prev / Math.PI) !== Math.floor(this.stepPhase / Math.PI)) this.onStomp?.(this.pos.x, this.pos.y, this.pos.z);
     }
     if (!m.hasClips) this.driveStatic(m, st, dt, yawRate);
+    else {
+      // Dazed: swaying on its feet.
+      const daze = this.status.stun > 0 ? Math.sin(this.time * 5) * 0.09 : 0;
+      m.root.rotation.z += (daze - m.root.rotation.z) * Math.min(1, dt * 8);
+    }
     if (!far) this.flapWings(m, dt);
-    if (!far) m.update(dt);
+    if (!far) m.update(dt * this.pace);
     this.lunge = Math.max(0, this.lunge - dt * 2.8);
     this.flinch = Math.max(0, this.flinch - dt * 4);
+    this.animateHalo(m.height);
+  }
+
+  /** Lights circling the head: white stars when dazed, every colour when confused, red when it fights its own, lean when slowed. */
+  private animateHalo(height: number): void {
+    const s = this.status;
+    const on = s.stun > 0 || s.confuse > 0 || s.brawl > 0 || s.slow > 0;
+    if (!on && !this.halo) return;
+    if (!this.halo) {
+      this.halo = [];
+      for (let i = 0; i < 4; i++) { const g = glowSprite(0xffffff, 0.3, 0.9, true); this.object.add(g); this.halo.push(g); }
+    }
+    const t = this.time;
+    const r = Math.max(0.35, this.def.bodyRadius * 0.6);
+    this.halo.forEach((g, i) => {
+      g.visible = on;
+      if (!on) return;
+      const a = t * 3 + (i * Math.PI) / 2;
+      g.position.set(Math.cos(a) * r, height + 0.25 + Math.sin(t * 4 + i) * 0.06, Math.sin(a) * r);
+      const c = g.material.color;
+      if (s.stun > 0) c.setHex(0xdfe6ff);
+      else if (s.confuse > 0) c.setHSL((t * 0.6 + i / 4) % 1, 1, 0.6);
+      else if (s.brawl > 0) c.setHex(0xff2a2a);
+      else c.setHex(0xb36bff);
+    });
   }
 
   /**
@@ -452,6 +556,7 @@ export class Enemy {
       return;
     }
     if (st === 'dead') return;
+    if (this.status.stun > 0) { m.play('idle', false, 0.35); this.oneShot = null; return; }
     if (this.seatedNow) { m.play('sit'); return; }
     if (this.rising > 0) { if (m.playing !== 'stand' && !m.play('stand', true, 1, STAND_UP)) m.play('idle'); return; }
     if (entered && st === 'windup') {

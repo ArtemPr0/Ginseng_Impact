@@ -304,6 +304,18 @@ export class Audio {
     this.tone('sine', 180, 120, 0.12, 0.06 * gain, 0.38);
   }
 
+  /** A hand rummaging in a leather pouch. */
+  rustle(): void {
+    if (!this.ctx) return;
+    for (let i = 0; i < 4; i++) this.noise(0.07, 'bandpass', 2400 + Math.random() * 1600, 1800, 2, 0.06, i * 0.09 + Math.random() * 0.03);
+  }
+
+  /** Munching a mushroom: soft, wet crunches. */
+  munch(): void {
+    if (!this.ctx) return;
+    for (let i = 0; i < 4; i++) this.noise(0.06, 'lowpass', 1400, 500, 1, 0.12, i * 0.16 + Math.random() * 0.03, 0.004);
+  }
+
   /** Plays a recorded line from public/audio (loaded once); resolves to its length in seconds, 0 if unavailable. */
   async voice(url: string, gain = 1, rate = 1): Promise<number> {
     if (!this.ctx || gain <= 0.01) return 0;

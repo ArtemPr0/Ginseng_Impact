@@ -20,11 +20,12 @@ export class Input {
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
       this.down.add(e.code);
-      this.pressed.add(e.code);
+      // Presses only count in play: a key pressed in a dialogue or the bag must not fire once the game resumes.
+      if (this.locked && !this.uiOpen) this.pressed.add(e.code);
       if (['Space', 'Tab'].includes(e.code)) e.preventDefault();
     });
     window.addEventListener('keyup', (e) => this.down.delete(e.code));
-    window.addEventListener('blur', () => this.down.clear());
+    window.addEventListener('blur', () => this.releaseAll());
     canvas.addEventListener('mousedown', (e) => {
       if (!this.locked && !this.free) {
         if (!this.uiOpen) void canvas.requestPointerLock();
@@ -42,9 +43,18 @@ export class Input {
     document.addEventListener('pointerlockchange', () => {
       if (this.free) return;
       this.locked = document.pointerLockElement === this.canvas;
-      if (!this.locked) this.down.clear();
+      this.pressed.clear();
+      this.mousePressed.clear();
+      if (!this.locked) this.releaseAll();
     });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+
+  /** Lets go of every key and button (the window lost focus or the pointer): a held RMB must not stay charging. */
+  private releaseAll(): void {
+    this.down.clear();
+    for (const b of this.mouseDownSet) this.mouseReleased.add(b);
+    this.mouseDownSet.clear();
   }
 
   isDown(code: string): boolean {

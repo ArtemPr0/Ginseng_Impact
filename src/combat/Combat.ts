@@ -49,10 +49,6 @@ export class Cooldown {
     return this.left <= 0 ? 0 : this.left / this.duration;
   }
 
-  get remaining(): number {
-    return Math.max(0, this.left);
-  }
-
   use(): void {
     this.left = this.duration;
   }
@@ -88,12 +84,13 @@ export class ComboTracker {
   }
 
   /** Returns the hit index that started, or null if the press was buffered or ignored. */
-  press(_now: number): number | null {
+  press(): number | null {
     if (this.swinging) {
       if (this.swingTime >= this.duration * (1 - this.bufferWindow)) this.buffered = true;
       return null;
     }
-    if (this.idle > this.resetAfter) this.currentHit = 0;
+    // Pressed again soon after a swing ended: the combo goes on to the next hit; after a pause it starts over.
+    this.currentHit = this.idle > this.resetAfter ? 0 : (this.currentHit + 1) % this.durations.length;
     this.start();
     return this.currentHit;
   }
