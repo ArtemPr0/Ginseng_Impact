@@ -15,7 +15,7 @@ const BUDGET = {
   'checker-road.glb': 2000, 'stepping-stone.glb': 600, 'candle.glb': 500, 'torch-post.glb': 1200, 'lantern-post.glb': 1500,
   'mushroom-lamp.glb': 1500, 'hanging-lantern.glb': 2000, 'purple-mushroom.glb': 2500, 'round-tower.glb': 10000,
   'purple-house.glb': 12000, 'barrel.glb': 3000, 'flying-koi.glb': 3000, 'snake.glb': 6000, 'stone-throne.glb': 5000,
-  'crystal-ball.glb': 2000, 'market-stall.glb': 10000, 'causeway-stairs.glb': 12000,
+  'crystal-ball.glb': 2000, 'market-stall.glb': 10000, 'causeway-stairs.glb': 12000, 'archer-bow.glb': 6000,
   // single but far too dense
   'marsh-demon.glb': 40000, 'lake-lurker.glb': 40000, 'cathedral.glb': 50000, 'cup-gnome.glb': 30000,
 };

@@ -160,7 +160,7 @@ hud.bind({
   onHire: (npc) => {
     if (!npc.hire || companions.length >= 3 || companions.some((c) => c.def.id === npc.id)) return false;
     if (!inventory.spend(npc.hire.cost)) return false;
-    const c = new Companion(npc, new Vector3(controller.pos.x, controller.pos.y, controller.pos.z), (x, z) => world.heightAt(x, z), companions.length);
+    const c = new Companion(npc, new Vector3(controller.pos.x, controller.pos.y, controller.pos.z), (x, z, y) => world.heightAt(x, z, y), companions.length);
     companions.push(c);
     scene.add(c.rig.root, c.rig.trailObject);
     hud.setCompanions(companions.map((x) => x.def.name));
@@ -203,7 +203,7 @@ window.addEventListener('mousedown', unlockAudio);
 window.addEventListener('keydown', unlockAudio);
 
 // Title cinematic: a slow dolly up the causeway toward the head while the pointer is not locked.
-const HEAD_EYES = new Vector3(LAYOUT.head.x, Math.max(-12, terrain.heightAt(LAYOUT.head.x, LAYOUT.head.z) - 8) + LAYOUT.head.height * 0.69, LAYOUT.head.z);
+const HEAD_EYES = new Vector3(LAYOUT.head.x, terrain.heightAt(LAYOUT.head.x, LAYOUT.head.z) - 3 + LAYOUT.head.height * 0.69, LAYOUT.head.z);
 let cinematicT = 0;
 let wasLocked = false;
 
@@ -255,12 +255,17 @@ game
         dodge: input.locked && input.justPressed('KeyR'),
       });
       const move = input.locked && !combat.busy && combat.charging === 0 ? tpc.moveToWorld(input.moveAxis()) : { x: 0, z: 0 };
+      const space = input.locked && input.justPressed('Space');
       stepController(controller, {
         move,
         sprint: input.isDown('ShiftLeft') || input.isDown('ShiftRight'),
-        jump: input.locked && !combat.busy && input.justPressed('Space'),
+        jump: space && !combat.busy,
         jumpHeld: input.isDown('Space'),
-        glide: input.locked && input.justPressed('Space'),
+        // Space again in the air takes off; hold Space to climb, C to dive, X to let go (Ctrl+W would close the tab).
+        fly: space,
+        ascend: input.isDown('Space'),
+        descend: input.isDown('KeyC'),
+        stopFly: input.locked && input.justPressed('KeyX'),
         climbHeld: false,
       }, world, dt);
       // Portals: step into one to cross between the island and the realms.
@@ -275,6 +280,8 @@ game
           tpc.yaw = l.to.cameraYaw;
           wasLocked = false;
           for (const c of companions) c.teleport(controller.pos.x, controller.pos.z, world.heightAt(controller.pos.x, controller.pos.z));
+          // Nothing follows you through a portal.
+          combat.resetAggro();
           hud.announce(l.name);
           audio.cast();
           portalCooldown = 1.5;
@@ -285,6 +292,7 @@ game
         controller.pos = { x: SPAWN.x, y: SPAWN.y, z: SPAWN.z };
         controller.vel = { x: 0, y: 0, z: 0 };
         controller.mode = 'ground';
+        combat.resetAggro();
       }
       playerPos.set(controller.pos.x, controller.pos.y, controller.pos.z);
       const targets = combat.enemies.map((e) => ({ id: e.id, pos: e.pos, alive: e.alive, aggro: e.aggro }));
@@ -301,7 +309,7 @@ game
       const rig = rigs[party.activeIndex];
       rig.root.position.set(controller.pos.x, controller.pos.y, controller.pos.z);
       rig.root.rotation.y = yawToRotation(controller.yaw);
-      const airborne = controller.mode === 'air' || controller.mode === 'glide';
+      const airborne = controller.mode === 'air' || controller.mode === 'fly';
       if (wasAirborne && !airborne) landedAt = performance.now() / 1000;
       wasAirborne = airborne;
       rig.animate({

@@ -1,9 +1,33 @@
 /** Placement of everything in the first area. Units are metres; the causeway runs north (−z) along x = 0. */
 export const LAYOUT = {
   spawn: { x: 0, z: 59 },
+  /** The rope bridge over the chasm, west of the cathedral: south end on the rim, north end by the dead wood. */
+  chasmBridge: { ax: 26, az: -38, bx: 27, bz: -84 },
+  /**
+   * Footpaths worn into the ground (Terrain colours them; nothing grows on them). They tie the spawn to the village,
+   * the tavern, the bridges, the portals and every landmark, and keep clear of the mobs' camps.
+   */
+  paths: [
+    [[0, 64], [-8, 70], [-58, 70]],
+    [[2, 64], [14, 69], [32, 70], [46, 62], [56, 58]],
+    [[-4, 60], [-18, 56], [-34, 50], [-48, 40], [-56, 22], [-56, 9]],
+    [[-78, 9], [-90, -2], [-96, -12]],
+    [[6, 58], [16, 44], [34, 34], [52, 32], [66, 30], [80, 36]],
+    [[-6, 56], [-10, 30], [-10, 20]],
+    [[-10, 2], [-14, -6], [-30, -10], [-43, -17]],
+    [[6, -8], [18, -16], [30, -24], [34, -24]],
+    [[22, -20], [26, -36]],
+    [[0, -134], [0, -140]],
+    [[-2, -112], [-12, -108]],
+    [[27, -86], [44, -90], [52, -90]],
+    [[-4, -96], [-16, -88], [-36, -88]],
+  ] as Array<Array<[number, number]>>,
   causeway: { x: 0, zStart: 62, zEnd: -115, width: 6, yStart: 6, yEnd: 11, postSpacing: 8, segmentLength: 24.7 },
-  head: { x: 0, z: -139, height: 52 },
-  cathedral: { x: 76, z: -28 },
+  head: { x: 0, z: -146, height: 26 },
+  /** The cathedral's long axis runs east–west; its west front faces the river road. */
+  cathedral: { x: 64, z: -24, yaw: Math.PI / 2 },
+  /** The flooded ruin's still pool east of the cathedral, home of the Marsh Sovereign. */
+  floodedRuin: { x: 106, z: -18, r: 11 },
   forest: { innerRadius: 72, outerRadius: 119, count: 420 },
   flowerMeadows: [
     { x: 24, z: 42, r: 20, count: 220 },
@@ -17,12 +41,27 @@ export const LAYOUT = {
   ],
   frog: { x: -52, z: -32 },
   coven: { streamX: -67, zMin: -42, zMax: 48, bridgeZ: 9 },
-  castle: { x: -99, z: -42 },
+  castle: { x: -96, z: -40, yaw: 0 },
+  /** The Antlered King's throne before the castle gate, facing the road south. */
+  throne: { x: -96, z: -16 },
+  church: { x: -66, z: 57 },
+  /** The wizard's lonely tower on the east cliffs, where the Moon Wyrm circles. */
+  tower: { x: 93, z: 42 },
+  treehouse: { x: -90, z: 30 },
   orchard: { x: 60, z: 24 },
   rainZone: { x: 60, z: 24, radius: 30 },
   snowZone: { x: 72, z: -48, radius: 40 },
   frozenRect: { xFrom: 33, xTo: 114, zFrom: -105, zTo: -18 },
-  colossusPath: [[99, -90], [107, -54], [103, -18], [96, 18], [84, 54], [90, 24], [99, -24], [102, -66]] as Array<[number, number]>,
+  /** The moon-shell colossus crawls the east shore, outside every building. */
+  colossusPath: [[84, -90], [90, -110], [84, -130], [90, -110]] as Array<[number, number]>,
+  /** The world tree west of the causeway's north end (its roots must not cross the road). */
+  worldTree: { x: -30, z: -106 },
+  /** Walkers that roam among the buildings without touching them. */
+  logGiantPath: [[-12, 36], [-26, 38], [-38, 40], [-26, 38]] as Array<[number, number]>,
+  /** Pim's observatory north of the village, clear of the houses. */
+  observatory: { x: -46, z: 48 },
+  spiderPath: [[-92, -2], [-80, 4], [-82, 12], [-94, 8]] as Array<[number, number]>,
+  riderPath: [[8, 48], [24, 48], [40, 42], [24, 48]] as Array<[number, number]>,
   ruins: [
     { x: -8, z: 43, yaw: 0.3, arch: true }, { x: 9, z: 20, yaw: -0.4, arch: false }, { x: -9, z: -13, yaw: 0.9, arch: false },
     { x: 10, z: -90, yaw: 0.2, arch: true }, { x: 49, z: -37, yaw: 1.1, arch: true }, { x: 58, z: -59, yaw: -0.7, arch: false },
@@ -35,15 +74,18 @@ export const LAYOUT = {
   cloudSea: { y: -26 },
 } as const;
 
-/** Village street centre and its nine house slots: [dx, dz, width, depth, rotY]. */
+/**
+ * Village street centre and its house slots: [dx, dz, width, depth, rotY]. The street runs east–west at z = 70;
+ * the north row faces south onto it, the south row faces north (the island's edge is just behind it).
+ */
 export const VILLAGE = {
-  x: -33, z: 76,
+  x: -34, z: 70,
   houses: [
-    [-26, -9, 6, 5, 0.05], [-14, -10, 5, 5, -0.08], [-2, -9, 7, 5, 0.03], [10, -10, 5, 6, 0.1], [22, -9, 6, 5, -0.05],
-    [-22, 11, 6, 5, Math.PI + 0.05], [-8, 12, 5, 5, Math.PI - 0.06], [6, 11, 7, 5, Math.PI + 0.02], [20, 12, 5, 5, Math.PI - 0.1],
+    [-18, -6, 6, 5, 0.04], [-6, -6, 5, 5, -0.06], [6, -6, 7, 5, 0.03], [18, -6, 5, 6, 0.08],
+    [-14, 6, 6, 5, Math.PI + 0.05], [-2, 6, 5, 5, Math.PI - 0.06], [10, 6, 7, 5, Math.PI + 0.02], [22, 6, 5, 5, Math.PI - 0.08],
   ] as ReadonlyArray<readonly [number, number, number, number, number]>,
-  /** Torch posts along the street. */
-  torches: [[-28, -4], [-18, -4], [-8, -4], [2, -4], [12, -4], [22, -4], [-24, 6], [-10, 6], [8, 6], [20, 6]] as ReadonlyArray<readonly [number, number]>,
+  /** Torch posts on both edges of the street, in the gaps between the houses. */
+  torches: [[-24, -2.8], [-12, -2.8], [0, -2.8], [12, -2.8], [24, -2.8], [-20, 2.8], [-8, 2.8], [4, 2.8], [16, 2.8], [28, 2.8]] as ReadonlyArray<readonly [number, number]>,
 } as const;
 
 /**
@@ -55,20 +97,20 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   'gob-a': { x: 21.2, z: 66.8, dy: 0.5 }, 'gob-b': { x: 23.0, z: 66.0, dy: 0.5 },
   rattle: { x: -21.9, z: 53.2, dy: 0.5 }, bone: { x: -26.1, z: 53.3, dy: 0.5 }, marrow: { x: -24.1, z: 49.6, dy: 0.5 },
   vigil: { x: 32, z: 69 },
-  pim: { x: -44, z: 64.2 },
-  king: { x: -99, z: -13.3 },
+  pim: { x: -46, z: 53.5 },
+  king: { x: -96, z: -16.5 },
   croak: { x: -2, z: -22, dy: 0.5 },
   cook: { x: 25.6, z: 77 },
   moss: { x: -58, z: 19, dy: 0.5 },
   sentry: { x: -40, z: -90, dy: 0.5 },
   standard: { x: -54, z: -93 },
   'rose-knight': { x: 16, z: 34 }, maiden: { x: 18.2, z: 33 },
-  'watcher-knight': { x: -18, z: -43 }, 'watcher-mage': { x: -15, z: -44 },
+  'watcher-knight': { x: -18, z: -38 }, 'watcher-mage': { x: -15, z: -39 },
   'cup-gnome': { x: 6.5, z: 64 },
   // Fifth batch of reels.
   grumble: { x: -40, z: -24, dy: 1.0 },
-  priest: { x: -9, z: -96 },
-  'lantern-witch': { x: -114, z: 16 },
+  priest: { x: -11, z: -104 },
+  'lantern-witch': { x: -106, z: 14 },
   'skeleton-lord': { x: 1033, z: -55, dy: 0.5 }, 'blue-knight': { x: 1037, z: -55, dy: 0.5 },
   'skeleton-king': { x: 965, z: -57, dy: 0.6 },
   'skeleton-wizard': { x: 948, z: 20 },

@@ -4,7 +4,7 @@
  * Every structure and prop is a Meshy model by id; floors are stone slabs until their floor models exist.
  */
 import { Group, PointLight, Vector3 } from 'three';
-import { GALAXY, ISLAND_PORTALS, SUNKEN } from '../data/world';
+import { GALAXY, ISLAND_PORTALS, LAYOUT, SUNKEN } from '../data/world';
 import { MODELS } from '../data/models';
 import { glowSprite } from '../render/Glow';
 import { PALETTE } from '../render/palette';
@@ -13,6 +13,7 @@ import { fire } from './Fire';
 import type { FloraOptions, Placement } from './Flora';
 import type { Landmark } from './Landmarks';
 import { modelLandmark } from './ModelLandmark';
+import { PRESENT_MODELS } from '../data/colliderGrids';
 import { portal, type PortalLink } from './Portal';
 import { chasmBridge, floorSlab } from './Walkways';
 
@@ -67,8 +68,15 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   }
   api.flora('stepping-stone', stones, { shadows: false });
   api.place(portal(P.x, py + 2.6, P.z, 2.4, { vertical: true, facing: 0 }));
+  // Lanterns hang from the face tree's lower branches beside the portal.
   const lanterns: Placement[] = [];
-  for (const [dx, dz] of [[-1.5, -3.5], [-1.5, 3.5], [1.5, -5], [1.5, 5]] as const) { lanterns.push({ x: P.x + dx, y: py + 5.2, z: P.z + dz, yaw: 0, scale: 1 }); glowAt(api, PALETTE.dusk, 1.6, P.x + dx, py + 5.4, P.z + dz); }
+  const ftY = api.h(ft.x, ft.z);
+  for (const a of [-2.4, -1.7, -0.9, 2.6]) {
+    const x = ft.x + Math.cos(a) * 4.6;
+    const z = ft.z + Math.sin(a) * 4.6;
+    lanterns.push({ x, y: ftY + 3.6, z, yaw: 0, scale: 1 });
+    glowAt(api, PALETTE.dusk, 1.4, x, ftY + 3.8, z);
+  }
   api.flora('hanging-lantern', lanterns);
   links.push(link(new Vector3(P.x, py + 1, P.z), 1.8, 3, G.x, G.z + 60, -Math.PI / 2, G.name));
 
@@ -81,10 +89,11 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   const tx = -40, tz = -24;
   const tables: Placement[] = [[0, 0, 0.2], [4, -4, 1.6], [-4, -4, -1.2]].map(([dx, dz, yaw]) => ({ x: tx + dx, y: api.h(tx + dx, tz + dz), z: tz + dz, yaw, scale: 1 }));
   api.flora('tavern-table', tables);
-  for (const t of tables) api.place({ object: new Group(), footprints: [{ kind: 'box', x: t.x, z: t.z, hw: 1.6, hd: 0.6, top: t.y + 0.95, rotY: -t.yaw }] });
+  if (PRESENT_MODELS.has('tavern-table')) for (const t of tables) api.place({ object: new Group(), footprints: [{ kind: 'box', x: t.x, z: t.z, hw: 1.6, hd: 0.6, top: t.y + 0.95, rotY: -t.yaw }] });
   const lamps: Placement[] = [];
   const lampColors = [PALETTE.blood, PALETTE.rune, PALETTE.witch, PALETTE.dusk, PALETTE.moon];
-  for (let i = 0; i < 16; i++) {
+  // The lamps hang over the tavern's tables: with no tables (model not made yet) there is nothing to hang them from.
+  if (PRESENT_MODELS.has('tavern-table')) for (let i = 0; i < 16; i++) {
     const a = (i / 16) * Math.PI * 2 + api.rnd() * 0.3;
     const r = 3 + api.rnd() * 6;
     const x = tx + Math.cos(a) * r;
@@ -94,21 +103,23 @@ export function buildRealms(api: RealmApi): PortalLink[] {
     glowAt(api, lampColors[i % lampColors.length], 1.4, x, y - 0.2, z, 0.55);
   }
   api.flora('mushroom-lamp', lamps, { shadows: false });
-  const tavLight = new PointLight(PALETTE.dusk, 26, 18, 1.6);
-  tavLight.position.set(tx, api.h(tx, tz) + 4, tz - 2);
-  api.group.add(tavLight);
+  if (PRESENT_MODELS.has('tavern-table')) {
+    const tavLight = new PointLight(PALETTE.dusk, 26, 18, 1.6);
+    tavLight.position.set(tx, api.h(tx, tz) + 4, tz - 2);
+    api.group.add(tavLight);
+  }
 
   // ===== Island: the world tree in the dead wood (Ddn0A49tnW7) =====
-  const wx = -9, wz = -105;
+  const wx = LAYOUT.worldTree.x, wz = LAYOUT.worldTree.z;
   const wy = api.h(wx, wz);
-  api.place(modelLandmark('world-tree', wx, wz, wy - 0.5, { footprints: [{ kind: 'cyl', x: wx, z: wz, r: 4, top: wy + 20 }] }));
+  api.place(modelLandmark('world-tree', wx, wz, wy - 0.5));
   const graves: Placement[] = [];
   for (let i = 0; i < 7; i++) {
     const a = Math.PI * 0.15 + (i / 6) * Math.PI * 0.7;
     const x = wx + Math.cos(a) * 9;
     const z = wz + Math.sin(a) * 9;
     graves.push({ x, y: api.h(x, z), z, yaw: face(Math.atan2(wz - z, wx - x)), scale: 0.9 + api.rnd() * 0.3 });
-    glowAt(api, PALETTE.rune, 1.2, x, api.h(x, z) + 1.1, z, 0.35);
+    if (PRESENT_MODELS.has('rune-grave')) glowAt(api, PALETTE.rune, 1.2, x, api.h(x, z) + 1.1, z, 0.35);
   }
   api.flora('rune-grave', graves);
   for (let k = 0; k < 6; k++) glowAt(api, PALETTE.electric, 3 + k * 0.4, wx + (api.rnd() - 0.5) * 3, wy + 3 + k * 3, wz + (api.rnd() - 0.5) * 3, 0.3);
@@ -145,7 +156,7 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   links.push(link(new Vector3(G.x, gy + 1, G.z + 72), 1.6, 3, -49, -13, 0, 'The Island'));
   for (const [dx, dy, dz, spin] of [[-12, 9, 76, 0.3], [12, 11, 76, -0.25], [0, 16, 82, 0.2]] as const) {
     let a = 0;
-    api.place(modelLandmark('ring-portal', G.x + dx, G.z + dz, gy + dy, { yaw: face(-Math.PI / 2), update: (dt, root) => { a += dt * spin; root.rotation.z = Math.sin(a) * 0.2; root.position.y = gy + dy + Math.sin(a * 2) * 0.4; } }));
+    api.place(modelLandmark('ring-portal', G.x + dx, G.z + dz, gy + dy, { yaw: face(-Math.PI / 2), collider: 'none', update: (dt, root) => { a += dt * spin; root.rotation.z = Math.sin(a) * 0.2; root.position.y = gy + dy + Math.sin(a * 2) * 0.4; } }));
     api.place(portal(G.x + dx, gy + dy + 3.9, G.z + dz, 1.65, { vertical: true, facing: -Math.PI / 2, colors: [PALETTE.void, PALETTE.electric] }));
   }
   // The river hall of the galaxy king (Dd0wR9Jh2lH).
@@ -163,7 +174,7 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   api.place(modelLandmark('gothic-pavilion', 1035, G.z - 55, gy, { yaw: face(Math.PI) }));
   // Dragon riders circling the city (DeYtKbMh76x).
   let da = 0;
-  api.place(modelLandmark('dragon-riders', G.x + 80, G.z, gy + 42, { clip: 'fly', color: PALETTE.dusk, update: (dt, root) => {
+  api.place(modelLandmark('dragon-riders', G.x + 80, G.z, gy + 42, { clip: 'fly', color: PALETTE.dusk, collider: 'none', update: (dt, root) => {
     da += dt * 0.12;
     root.position.set(G.x + Math.cos(da) * 80, gy + 42 + Math.sin(da * 3) * 4, G.z + Math.sin(da) * 80);
     root.rotation.y = face(da + Math.PI / 2);
@@ -184,9 +195,8 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   const isles: Array<[number, number]> = [[1082, 10], [1108, -12], [1136, 14]];
   for (const [x, z] of isles) {
     const scale = 3;
-    const isle = modelLandmark('floating-island', x, z, gy - MODELS['floating-island'].height * scale, { footprints: [{ kind: 'cyl', x, z, r: 9, top: gy }] });
-    isle.root.scale.setScalar(scale);
-    api.place(isle);
+    // The stone slab is the walk surface; the island model is the rock under it.
+    api.place(modelLandmark('floating-island', x, z, gy - MODELS['floating-island'].height * scale, { scale, collider: 'none' }));
     api.place(floorSlab(x, z, gy, 13, 13));
   }
   api.flora('gnarled-tree', isles.flatMap(([x, z]) => [{ x: x - 4, y: gy, z: z + 3, yaw: api.rnd() * 6, scale: 1.2 }, { x: x + 3, y: gy, z: z - 4, yaw: api.rnd() * 6, scale: 1 }]));
@@ -208,12 +218,12 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   api.place(modelLandmark('sunken-tavern', S.x, S.z - 24, sy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'box', x: S.x, z: S.z - 28.5, hw: 10.5, hd: 1.8, top: sy + 11 }] }));
   api.place(modelLandmark('coral-throne', S.x - 4, S.z - 13, sy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'box', x: S.x - 4, z: S.z - 13.4, hw: 1.3, hd: 1, top: sy + 0.8 }] }));
   let ca = 0;
-  api.place(modelLandmark('giant-crown', S.x, S.z - 16, sy + 11, { update: (dt, root) => { ca += dt; root.rotation.y = Math.sin(ca * 0.3) * 0.2; root.position.y = sy + 11 + Math.sin(ca * 0.8) * 0.2; } }));
+  api.place(modelLandmark('giant-crown', S.x, S.z - 16, sy + 11, { collider: 'none', update: (dt, root) => { ca += dt; root.rotation.y = Math.sin(ca * 0.3) * 0.2; root.position.y = sy + 11 + Math.sin(ca * 0.8) * 0.2; } }));
   const sTables: Placement[] = [[-6, -6, 0], [6, -6, 0]].map(([dx, dz, yaw]) => ({ x: S.x + dx, y: sy, z: S.z + dz, yaw, scale: 1 }));
   api.flora('tavern-table', sTables);
-  for (const t of sTables) api.place({ object: new Group(), footprints: [{ kind: 'box', x: t.x, z: t.z, hw: 1.6, hd: 0.6, top: sy + 0.95 }] });
-  api.flora('candle', sTables.flatMap((t) => [-1, 0, 1].map((k) => ({ x: t.x + k * 0.9, y: sy + 0.95, z: t.z, yaw: 0, scale: 1 }))), { shadows: false });
-  for (const t of sTables) for (const k of [-1, 0, 1]) glowAt(api, PALETTE.dusk, 0.5, t.x + k * 0.9, sy + 1.4, t.z, 0.6);
+  if (PRESENT_MODELS.has('tavern-table')) for (const t of sTables) api.place({ object: new Group(), footprints: [{ kind: 'box', x: t.x, z: t.z, hw: 1.6, hd: 0.6, top: sy + 0.95 }] });
+  if (PRESENT_MODELS.has('tavern-table')) api.flora('candle', sTables.flatMap((t) => [-1, 0, 1].map((k) => ({ x: t.x + k * 0.9, y: sy + 0.95, z: t.z, yaw: 0, scale: 1 }))), { shadows: false });
+  if (PRESENT_MODELS.has('tavern-table')) for (const t of sTables) for (const k of [-1, 0, 1]) glowAt(api, PALETTE.dusk, 0.5, t.x + k * 0.9, sy + 1.4, t.z, 0.6);
   const barrels: Placement[] = [[-10, -14], [-11.5, -12], [10, -14], [11.6, -12.4], [-8, 4], [9, 6]].map(([dx, dz]) => ({ x: S.x + dx, y: sy, z: S.z + dz, yaw: api.rnd() * 6, scale: 1 }));
   api.flora('barrel', barrels);
   for (const b of barrels) api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: b.x, z: b.z, r: 0.5, top: sy + 1.1 }] });

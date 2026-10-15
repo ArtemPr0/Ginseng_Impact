@@ -6,8 +6,9 @@ import { AdditiveBlending, CircleGeometry, DoubleSide, Group, Mesh, MeshBasicMat
 import { PALETTE } from '../render/palette';
 import { MODELS } from '../data/models';
 import { loadModelOrWarn, ModelRig, yawToRotation } from '../models/ModelRig';
-import { MissingModelPlaceholder } from '../models/Placeholder';
-import type { Footprint } from './Colliders';
+import { MissingModelPlaceholder, SHOW_PLACEHOLDERS } from '../models/Placeholder';
+import { PRESENT_MODELS } from '../data/colliderGrids';
+import { gridFootprint, type Footprint } from './Colliders';
 import type { Landmark } from './Landmarks';
 import { RIVER_LEVEL } from './Terrain';
 import { riverPoint } from './Water';
@@ -15,7 +16,15 @@ import { riverPoint } from './Water';
 type HeightAt = (x: number, z: number) => number;
 
 export interface ModelLandmarkOptions {
+  /**
+   * Colliders. By default ('grid') the model's baked collider (scripts/collider-grids.mjs) makes it exactly as solid
+   * as it looks, and a model whose file is missing collides with nothing. 'manual' keeps `footprints` as given
+   * (walkway decks); 'none' for things that move or float.
+   */
+  collider?: 'grid' | 'manual' | 'none';
   footprints?: Footprint[];
+  /** Placement scale on top of the registry height. */
+  scale?: number;
   /** Clip to play once loaded (walkers want 'walk'); static exports breathe instead. */
   clip?: string;
   yaw?: number;
@@ -36,13 +45,22 @@ export interface ModelLandmark extends Landmark {
 /** Places model `id` at (x, y, z). Missing file → placeholder marker (and one console warning per id). */
 export function modelLandmark(id: string, x: number, z: number, y: number, opts: ModelLandmarkOptions = {}): ModelLandmark {
   const root = new Group();
+  root.name = 'lm:' + id;
   root.position.set(x, y, z);
   root.rotation.y = opts.yaw ?? 0;
+  if (opts.scale) root.scale.setScalar(opts.scale);
   const placeholder = new MissingModelPlaceholder(opts.color ?? PALETTE.rune);
   placeholder.group.visible = false;
   root.add(placeholder.group);
+  const mode = opts.collider ?? 'grid';
+  let footprints: Footprint[] = [];
+  if (mode === 'manual') footprints = opts.footprints ?? [];
+  else if (mode === 'grid' && PRESENT_MODELS.has(id)) {
+    const g = gridFootprint(id, x, y, z, opts.yaw ?? 0, opts.scale ?? 1);
+    footprints = g ? [g] : opts.footprints ?? [];
+  }
   const lm: ModelLandmark = {
-    object: root, root, model: null, footprints: opts.footprints ?? [], clip: opts.clip,
+    object: root, root, model: null, footprints, clip: opts.clip,
     update(dt, player) {
       if (lm.model) {
         lm.model.update(dt);
@@ -53,7 +71,7 @@ export function modelLandmark(id: string, x: number, z: number, y: number, opts:
   };
   let breathe = Math.random() * 10;
   void loadModelOrWarn(id, MODELS[id]?.label).then((gltf) => {
-    if (!gltf) { placeholder.group.visible = true; return; }
+    if (!gltf) { placeholder.group.visible = SHOW_PLACEHOLDERS; return; }
     lm.model = new ModelRig(id, gltf);
     root.add(lm.model.root);
     if (opts.clip) lm.model.play(opts.clip);
@@ -85,7 +103,7 @@ export function pathWalker(g: Group, path: Array<[number, number]>, speed: numbe
 
 /** A model that walks a loop (log giant, spider chapel, colossus, horse and rider). `trail` leaves glowing discs. */
 export function walkerLandmark(id: string, path: Array<[number, number]>, speed: number, heightAt: HeightAt, opts: { lift?: number; clip?: string; trail?: boolean; color?: number } = {}): ModelLandmark {
-  const lm = modelLandmark(id, path[0][0], path[0][1], 0, { clip: opts.clip ?? 'walk', color: opts.color });
+  const lm = modelLandmark(id, path[0][0], path[0][1], 0, { clip: opts.clip ?? 'walk', color: opts.color, collider: 'none' });
   const step = pathWalker(lm.root, path, speed, heightAt, opts.lift ?? 0);
   const base = lm.update!;
   const discs: Mesh[] = [];
@@ -113,7 +131,7 @@ export function walkerLandmark(id: string, path: Array<[number, number]>, speed:
 /** A model carried down the river (boats). */
 export function riverDrifter(id: string, startS: number, speed: number): ModelLandmark {
   const p0 = riverPoint(-startS);
-  const lm = modelLandmark(id, p0.x, p0.z, RIVER_LEVEL + 0.05, { clip: 'idle' });
+  const lm = modelLandmark(id, p0.x, p0.z, RIVER_LEVEL + 0.05, { clip: 'idle', collider: 'none' });
   let s = startS;
   let t = 0;
   const base = lm.update!;

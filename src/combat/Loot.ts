@@ -23,7 +23,7 @@ export class LootField {
   readonly pickups: Pickup[] = [];
   private readonly tmp = new Vector3();
 
-  constructor(private readonly scene: Scene, private readonly heightAt: (x: number, z: number) => number) {}
+  constructor(private readonly scene: Scene, private readonly heightAt: (x: number, z: number, y?: number) => number) {}
 
   spawn(drops: Drop[], at: Vector3): void {
     for (const drop of drops) {
@@ -87,7 +87,7 @@ export class LootField {
       if (!p.landed) {
         p.vel.y -= 18 * dt;
         p.pos.addScaledVector(p.vel, dt);
-        const g = this.heightAt(p.pos.x, p.pos.z) + 0.15;
+        const g = this.heightAt(p.pos.x, p.pos.z, p.pos.y) + 0.15;
         if (p.pos.y <= g && p.vel.y < 0) { p.pos.y = g; p.landed = true; }
       } else if (p.drop.kind === 'shards' && p.life > 0.6) {
         const d = this.tmp.copy(player).add(new Vector3(0, 1, 0)).sub(p.pos);

@@ -62,3 +62,42 @@ export function patchRobeWind(mat: MeshStandardMaterial, hemTop: number, strengt
       );
   };
 }
+
+/**
+ * A cape that streams behind its wearer: vertices behind the back and below the shoulders (bind pose, front = +z,
+ * model units of height `h`) swing back about the shoulder line by `lift` (0 standing … 1 gliding) and flutter.
+ * Applied before skinning, so the cape follows the body's animation. Returns the uniform to drive.
+ */
+export function patchCape(mat: MeshStandardMaterial, h: number, shape: { shoulder: number; back: number; depth: number }): { value: number } {
+  const lift = { value: 0 };
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (shader, renderer) => {
+    prev?.call(mat, shader, renderer);
+    shader.uniforms.uWind = WIND;
+    shader.uniforms.uCapeLift = lift;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uWind;\nuniform float uCapeLift;')
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        {
+          float H = ${h.toFixed(5)};
+          float sy = ${(shape.shoulder * h).toFixed(5)};
+          float back = ${(shape.back * h).toFixed(5)};
+          float w = smoothstep(back, back - ${(shape.depth * h).toFixed(5)}, transformed.z) * smoothstep(sy + 0.02 * H, sy - 0.12 * H, transformed.y);
+          if (w > 0.0) {
+            float d = max(0.0, sy - transformed.y);
+            float flutter = sin(uWind * 11.0 + d / H * 14.0 + transformed.x / H * 6.0) * (0.06 + 0.5 * uCapeLift) * (d / H + 0.2);
+            float a = (uCapeLift * 1.25 + flutter) * w;
+            float dy = transformed.y - sy;
+            float dz = transformed.z - back;
+            transformed.y = sy + dy * cos(a) - dz * sin(a);
+            transformed.z = back + dy * sin(a) + dz * cos(a);
+            transformed.x += sin(uWind * 7.0 + d / H * 9.0) * 0.015 * H * w * (0.3 + uCapeLift);
+          }
+        }`,
+      );
+  };
+  mat.needsUpdate = true;
+  return lift;
+}

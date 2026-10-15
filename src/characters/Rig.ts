@@ -1,9 +1,10 @@
-import { AdditiveBlending, BufferAttribute, BufferGeometry, DoubleSide, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, Vector3, type Object3D } from 'three';
+import { AdditiveBlending, BufferAttribute, BufferGeometry, DoubleSide, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, Quaternion, Vector3, type Object3D, type Sprite } from 'three';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { loadModelOrWarn, ModelRig } from '../models/ModelRig';
 import { MissingModelPlaceholder } from '../models/Placeholder';
 import { PipeSmoke } from '../render/Smoke';
-import { patchRobeWind } from '../render/Materials';
+import { patchCape, patchRobeWind } from '../render/Materials';
+import { glowSprite } from '../render/Glow';
 import { MODELS } from '../data/models';
 import type { Mode } from '../player/CharacterController';
 import type { CharacterDef, WeaponKind } from './roster';
@@ -31,7 +32,34 @@ export interface RigPose {
 const WEAPON_REACH: Record<WeaponKind, number> = { sword: 1.1, greatsword: 1.6, bow: 0.7, staff: 1.5 };
 /** Model pulled into the right hand while attacking; null when the body's own baked weapon does the job. */
 const WEAPON_MODEL: Record<WeaponKind, string | null> = { sword: null, greatsword: 'greatsword', bow: null, staff: 'staff' };
+/**
+ * How each hero flies: Orlan rides his staff like a broom, Wren sits on her bow, Sir Aldric glides on his cape.
+ * Ride props sit in the body's own frame (x = the body's left, y up from the feet, z forward), metres.
+ */
+const RIDE: Record<WeaponKind, { model: string; x: number; y: number; z: number; rx: number; ry: number; rz: number; slide: number } | 'cape' | null> = {
+  staff: { model: 'staff', x: 0, y: 0.74, z: 0, rx: Math.PI / 2 - 0.1, ry: 0, rz: 0, slide: -0.95 },
+  bow: { model: 'bow', x: 0, y: 0.86, z: 0.06, rx: 0, ry: 0, rz: Math.PI / 2, slide: -0.75 },
+  greatsword: 'cape',
+  sword: 'cape',
+};
 const HAND_BONE = /right.?hand|hand[_.]?r\b|righthand/i;
+const _pq = new Quaternion();
+const _bq = new Quaternion();
+const _q = new Quaternion();
+const _fq = new Quaternion();
+const LATERAL = new Vector3();
+const FORWARD = new Vector3();
+
+/** Turns a bone about a world-space axis (applied on top of whatever the clip posed this frame). */
+function turnBone(bone: Object3D | null, axis: Vector3, angle: number): void {
+  if (!bone || !bone.parent || angle === 0) return;
+  bone.parent.getWorldQuaternion(_pq);
+  _bq.copy(_pq).multiply(bone.quaternion);
+  _q.setFromAxisAngle(axis, angle);
+  _bq.premultiply(_q);
+  bone.quaternion.copy(_pq.invert().multiply(_bq));
+  bone.updateWorldMatrix(false, true);
+}
 const OFF_HAND_BONE = /left.?hand|hand[_.]?l\b|lefthand/i;
 
 /**
@@ -66,6 +94,14 @@ export class Rig {
   private readonly axis = new Vector3();
   private lastAttack: number | undefined;
   private trailAttack: number | undefined;
+  /** 0 on foot … 1 flying, eased, so take-off and landing blend. */
+  private flight = 0;
+  private flightTime = 0;
+  /** The staff or bow ridden while flying, and its exhaust glow. */
+  private ride: Group | null = null;
+  private rideGlow: Sprite | null = null;
+  private capeLift: { value: number } | null = null;
+  private bones: Record<'hips' | 'spine' | 'neck' | 'head' | 'lArm' | 'rArm' | 'lUpLeg' | 'rUpLeg' | 'lLeg' | 'rLeg', Object3D | null> | null = null;
 
   constructor(readonly def: CharacterDef, modelId: string = def.id) {
     // Weapon trail ribbon (world space).
@@ -111,6 +147,106 @@ export class Rig {
       this.smoke = new PipeSmoke();
       this.smoke.group.position.set(anchor.x, anchor.y, anchor.z);
       this.model.frame.add(this.smoke.group);
+    }
+    if (this.model.hasClips) {
+      const b = (re: RegExp) => this.model!.bone(re);
+      this.bones = {
+        hips: b(/hips$/i), spine: b(/spine1$/i), neck: b(/neck$/i), head: b(/:head$|^head$/i),
+        lArm: b(/leftarm$/i), rArm: b(/rightarm$/i), lUpLeg: b(/leftupleg$/i), rUpLeg: b(/rightupleg$/i), lLeg: b(/leftleg$/i), rLeg: b(/rightleg$/i),
+      };
+    }
+    const ride = RIDE[this.def.weapon];
+    if (ride === 'cape' && this.model.hasClips) {
+      // Sir Aldric's cape hangs behind his back from the shoulders to the shins (knight.glb, bind pose).
+      const mat = this.model.materials[0];
+      if (mat) this.capeLift = patchCape(mat, this.model.rawHeight, { shoulder: 0.79, back: -0.04, depth: 0.035 });
+    } else if (ride && ride !== 'cape') {
+      void loadModelOrWarn(ride.model, MODELS[ride.model]?.label).then((g) => { if (g) this.attachRide(ride.model, g, ride); });
+    }
+  }
+
+  /** The ridden staff or bow, hidden until the hero takes off. */
+  private attachRide(id: string, gltf: GLTF, at: { x: number; y: number; z: number; rx: number; ry: number; rz: number; slide: number }): void {
+    if (!this.model) return;
+    const rig = new ModelRig(id, gltf);
+    const pivot = new Group();
+    pivot.position.set(at.x, at.y, at.z);
+    pivot.rotation.set(at.rx, at.ry, at.rz);
+    rig.root.position.y = at.slide;
+    pivot.add(rig.root);
+    // A wisp of the hero's colour trails from the staff's back end (a bow, held crosswise, has no back end).
+    let glow: Sprite | null = null;
+    if (id === 'staff') {
+      glow = glowSprite(this.def.accent, 0.7, 0.0, true);
+      glow.position.set(0, at.slide + 0.05, 0);
+      pivot.add(glow);
+    }
+    pivot.visible = false;
+    this.model.root.add(pivot);
+    this.ride = pivot;
+    this.rideGlow = glow;
+  }
+
+  /**
+   * Flight on top of the clip: Orlan leans over his staff, Wren sits on her bow (thighs forward, shins down),
+   * Sir Aldric tips into a glide with his arms out and his cape streaming. `f` is the eased flight amount.
+   */
+  private flyPose(pose: RigPose, dt: number): void {
+    const m = this.model;
+    if (!m) return;
+    const target = pose.mode === 'fly' ? 1 : 0;
+    this.flight += (target - this.flight) * Math.min(1, dt * (target ? 5 : 7));
+    if (this.flight < 0.002) this.flight = 0;
+    const f = this.flight;
+    this.flightTime += dt;
+    const ride = RIDE[this.def.weapon];
+    // The body itself is near horizontal when gliding, so the cape only lifts a little off the back and flutters;
+    // running on foot swings it back with speed.
+    if (this.capeLift) this.capeLift.value = f > 0.05 ? 0.12 + f * 0.18 : Math.min(0.35, pose.speed * 0.045);
+    if (this.ride) {
+      this.ride.visible = f > 0.05;
+      this.ride.scale.setScalar(Math.min(1, f * 1.4));
+      if (this.rideGlow) this.rideGlow.material.opacity = f * (0.45 + Math.sin(this.flightTime * 9) * 0.15);
+    }
+    if (f === 0) {
+      // On foot: a clip-driven body stands upright at its origin; a static robe keeps its own bob (driveStaticModel).
+      if (m.hasClips) { m.root.rotation.x = 0; m.root.position.set(0, 0, 0); }
+      return;
+    }
+    const bob = Math.sin(this.flightTime * 2.2) * 0.06 * f;
+    if (ride === 'cape') {
+      // Tip forward about the hips so the feet trail behind.
+      const a = 1.32 * f;
+      const hip = 0.95;
+      m.root.rotation.x = a;
+      m.root.position.set(0, hip * (1 - Math.cos(a)) + bob, -hip * Math.sin(a));
+    } else {
+      const lean = (this.def.weapon === 'staff' ? 0.26 : 0.08) * f;
+      m.root.rotation.x = lean;
+      m.root.position.set(0, (this.def.weapon === 'bow' ? 0.18 : 0.12) * f + bob, 0);
+    }
+    if (!this.bones) return;
+    const bn = this.bones;
+    m.root.updateWorldMatrix(true, true);
+    m.frame.getWorldQuaternion(_fq);
+    LATERAL.set(1, 0, 0).applyQuaternion(_fq);
+    FORWARD.set(0, 0, 1).applyQuaternion(_fq);
+    if (ride === 'cape') {
+      turnBone(bn.lArm, FORWARD, 0.95 * f);
+      turnBone(bn.rArm, FORWARD, -0.95 * f);
+      turnBone(bn.lArm, LATERAL, 0.35 * f);
+      turnBone(bn.rArm, LATERAL, 0.35 * f);
+      turnBone(bn.neck, LATERAL, -0.55 * f);
+      turnBone(bn.head, LATERAL, -0.5 * f);
+    } else {
+      // Seated: thighs forward, shins hanging down, a little lean over the knees.
+      turnBone(bn.lUpLeg, LATERAL, -1.35 * f);
+      turnBone(bn.rUpLeg, LATERAL, -1.35 * f);
+      turnBone(bn.lLeg, LATERAL, 1.3 * f);
+      turnBone(bn.rLeg, LATERAL, 1.3 * f);
+      turnBone(bn.lArm, FORWARD, -0.35 * f);
+      turnBone(bn.rArm, FORWARD, 0.35 * f);
+      turnBone(bn.spine, LATERAL, 0.12 * f);
     }
   }
 
@@ -187,7 +323,8 @@ export class Rig {
     const tilt = 0;
     let scaleY = 1 + Math.sin(t * 0.9) * 0.008;
     if (pose.speed > 0.3) { bob = Math.abs(Math.sin(t)) * 0.07; lean = -0.12 - Math.min(0.12, pose.speed * 0.012); }
-    if (pose.mode === 'air' || pose.mode === 'glide') { bob = 0.1; lean = -0.2; }
+    if (pose.mode === 'air') { bob = 0.1; lean = -0.2; }
+    if (pose.mode === 'fly') { bob = 0; lean = 0; }
     if (pose.attack !== undefined) {
       const a = pose.attack;
       const windup = a < 0.3 ? a / 0.3 : 1 - (a - 0.3) / 0.7;
@@ -232,7 +369,7 @@ export class Rig {
       // Take off quickly, then freeze at the apex pose until the ground comes back.
       if (m.playing !== 'jump' && !m.play('jump', true, 1.6)) m.play('idle');
       m.holdAt(0.45);
-    } else if (pose.mode === 'glide') { if (!m.play('fly') && m.playing !== 'jump') m.play('jump', true, 1.6); if (m.playing === 'jump') m.holdAt(0.45); }
+    } else if (pose.mode === 'fly') { if (!m.play('fly')) m.play('idle', false, 0.6); }
     else if (pose.mode === 'climb') { if (!m.play('climb')) m.play('idle', false, 0.5); }
     else if (v > 5.5) { if (!m.play('run', false, v / 7)) m.play('walk', false, v / 4); }
     else if (v > 0.3) { if (!m.play('walk', false, Math.max(0.6, v / 4))) m.play('run', false, v / 7); }
@@ -250,7 +387,7 @@ export class Rig {
 
   /** Advance the animation. Call once per rendered frame. */
   animate(pose: RigPose, dt: number): void {
-    if (this.model) this.driveModel(pose, dt);
+    if (this.model) { this.driveModel(pose, dt); this.flyPose(pose, dt); }
     else this.placeholder?.update(dt);
     this.animateProp(pose, dt);
     this.animateTrail(pose, dt);

@@ -64,7 +64,8 @@ export const NPC_DEFS: NpcDef[] = [
     id: 'bride', name: 'The Pale Bride', title: 'Who Walks to the Sea', weapon: 'staff',
     model: 'bride', accent: PALETTE.moon,
     lines: ['He said he would meet me where the sand ends.', 'The sand does not end. I keep walking.', '...do you hear the bells?'],
-    behaviour: { kind: 'loop', path: [[56, 96], [74, 108], [90, 100], [74, 108]], speed: 0.9 },
+    // Across the desert toward the south-east shore, where the sand ends at the cliff.
+    behaviour: { kind: 'loop', path: [[40, 60], [50, 62], [58, 56], [50, 62]], speed: 0.9 },
   },
   {
     id: 'rose-knight', name: 'Sir Corvin', title: 'Who Brought a Rose', weapon: 'sword',
@@ -82,7 +83,8 @@ export const NPC_DEFS: NpcDef[] = [
     id: 'wanderer', name: 'The Lanternbearer', title: 'Who Has Seen the Burning Shore', weapon: 'staff',
     model: 'wanderer', accent: 0xff7a2a,
     lines: ['Across the water a castle burns and never falls. I stopped asking why.', 'Follow the lantern if you like. It only ever leads to the edge.'],
-    behaviour: { kind: 'loop', path: [[-48, -40], [-10, -52], [30, -66], [-10, -52]], speed: 1.1, pose: 'lantern' },
+    // Along the south rim of the chasm, lantern held out over the edge.
+    behaviour: { kind: 'loop', path: [[-40, -32], [-14, -32], [-7, -31], [-14, -32]], speed: 1.1, pose: 'lantern' },
   },
   {
     id: 'watcher-knight', name: 'Dunmar', title: 'Who Watches the Sky', weapon: 'sword',
@@ -160,7 +162,8 @@ export const NPC_DEFS: NpcDef[] = [
     id: 'grub', name: 'Grub', title: 'Ogre Woodhauler', weapon: 'sword',
     model: 'ogre', accent: PALETTE.witch,
     lines: ['Logs. Heavy. Grub carry.', 'Village pays Grub in soup. Grub likes soup.'],
-    behaviour: { kind: 'loop', path: [[-80, 120], [-30, 120], [-30, 128], [-80, 128]], speed: 1.6, pose: 'carry' },
+    // Logs from the west woods down the village street and back.
+    behaviour: { kind: 'loop', path: [[-58, 70], [-34, 70], [-8, 70], [-34, 70]], speed: 1.6, pose: 'carry' },
     scale: 1,
   },
   {
@@ -296,7 +299,7 @@ export class Npc {
   private speaking = 0;
   private lastPhase = 0;
 
-  constructor(readonly def: NpcDef, start: { x: number; z: number }, private readonly heightAt: (x: number, z: number) => number) {
+  constructor(readonly def: NpcDef, start: { x: number; z: number }, private readonly heightAt: (x: number, z: number, y?: number) => number) {
     this.rig = new Rig({ id: def.id, name: def.name, title: def.title, element: 'fog', weapon: def.weapon, maxHp: 1, atk: 1, accent: def.accent }, def.model);
     this.object = this.rig.root;
     if (def.scale && def.scale !== 1) this.object.scale.setScalar(def.scale);
@@ -385,7 +388,7 @@ export class Npc {
         }
       }
     }
-    if (moving) this.pos.y += (this.heightAt(this.pos.x, this.pos.z) - this.pos.y) * Math.min(1, dt * 8);
+    if (moving) this.pos.y += (this.heightAt(this.pos.x, this.pos.z, this.pos.y) - this.pos.y) * Math.min(1, dt * 8);
     this.object.position.copy(this.pos);
     this.object.rotation.y = yawToRotation(this.yaw);
     this.sounds(dt, Math.hypot(player.x - this.pos.x, player.z - this.pos.z));

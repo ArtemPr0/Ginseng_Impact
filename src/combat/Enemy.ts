@@ -42,11 +42,16 @@ export class Enemy {
   model: ModelRig | null = null;
   private placeholder: MissingModelPlaceholder | null = null;
   private lastState: EnemyState = 'idle';
+  /** Walking back to its spot after losing the player (it heals and ignores the player on the way). */
+  returning = false;
+  /** How far from its spot this enemy will follow (its def's leash, or a default by size). */
+  readonly territory: number;
 
   constructor(readonly def: EnemyDef, readonly spawn: { x: number; z: number }, private readonly world: WorldQuery) {
     this.brain = new EnemyBrain({ ...def.brain });
     this.hp = def.maxHp;
     this.pos = { x: spawn.x, y: world.heightAt(spawn.x, spawn.z) + def.hover, z: spawn.z };
+    this.territory = def.leash ?? (def.boss ? 30 : 22);
     if (def.scale) this.object.scale.setScalar(def.scale);
     this.object.position.set(this.pos.x, this.pos.y, this.pos.z);
     void loadModelOrWarn(def.kind, def.name).then((g) => { if (g) this.useModel(def.kind, g); else this.showPlaceholder(); });
@@ -78,7 +83,16 @@ export class Enemy {
 
   get aggro(): boolean {
     const s = this.brain.state;
-    return s === 'chase' || s === 'windup' || s === 'attack' || s === 'recover';
+    return !this.returning && (s === 'chase' || s === 'windup' || s === 'attack' || s === 'recover');
+  }
+
+  /** Gives up the chase: back to its spot, healing on the way (portals, leaving its territory, the player dying). */
+  disengage(): void {
+    if (!this.alive || this.returning) return;
+    if (this.aggro) this.returning = true;
+    this.brain.state = 'idle';
+    this.brain.stateTime = 0;
+    this.currentAttack = null;
   }
 
   /** Advance AI + movement. Returns an action the combat system must resolve this step. */
@@ -94,6 +108,10 @@ export class Enemy {
       if (this.deadFor >= this.def.respawn) this.respawn();
       return null;
     }
+    // Out of its territory (or out of this world, through a portal): walk home and heal.
+    const playerFromHome = Math.hypot(player.x - this.spawn.x, player.z - this.spawn.z);
+    if (this.aggro && (playerFromHome > this.territory + this.def.brain.aggroRange * 0.5 || Math.abs(player.y - this.pos.y) > 60)) this.disengage();
+    if (this.returning) return this.walkHome(dt);
     const dx = player.x - this.pos.x;
     const dz = player.z - this.pos.z;
     const dist = Math.hypot(dx, dz);
@@ -162,26 +180,71 @@ export class Enemy {
     }
     let nx = this.pos.x + (mx * this.def.speed + this.knock.x) * dt;
     let nz = this.pos.z + (mz * this.def.speed + this.knock.z) * dt;
-    if (this.def.leash) {
+    {
       const lx = nx - this.spawn.x;
       const lz = nz - this.spawn.z;
       const ld = Math.hypot(lx, lz);
-      if (ld > this.def.leash) { nx = this.spawn.x + (lx / ld) * this.def.leash; nz = this.spawn.z + (lz / ld) * this.def.leash; }
+      if (ld > this.territory) { nx = this.spawn.x + (lx / ld) * this.territory; nz = this.spawn.z + (lz / ld) * this.territory; }
     }
-    const gNow = this.world.heightAt(this.pos.x, this.pos.z);
-    const gNext = this.world.heightAt(nx, nz);
-    if (this.def.flying || Math.abs(gNext - gNow) < 2.5 + (this.def.boss ? 4 : 0)) {
+    this.stepTo(nx, nz, dt, this.def.flying ? Math.max(this.world.heightAt(this.pos.x, this.pos.z, this.pos.y), player.y) : null);
+    return action;
+  }
+
+  /** Moves to (nx, nz) unless a wall or a drop is in the way (ground walkers never climb onto roofs), then settles. */
+  private stepTo(nx: number, nz: number, dt: number, flyAt: number | null): void {
+    const feet = this.pos.y - this.def.hover;
+    const gNow = this.world.heightAt(this.pos.x, this.pos.z, feet);
+    const ok = (x: number, z: number) => {
+      const rise = this.world.heightAt(x, z, feet) - gNow;
+      return rise < 1.2 && rise > -(2.5 + (this.def.boss ? 2 : 0));
+    };
+    if (this.def.flying || ok(nx, nz)) {
       this.pos.x = nx;
       this.pos.z = nz;
+    } else {
+      // Something in the way (a trunk, a wall, a drop): steer around it instead of pushing into it.
+      const dx = nx - this.pos.x;
+      const dz = nz - this.pos.z;
+      for (const a of [0.7, -0.7, 1.4, -1.4]) {
+        const c = Math.cos(a);
+        const sn = Math.sin(a);
+        const tx = this.pos.x + (dx * c - dz * sn) * 0.9;
+        const tz = this.pos.z + (dx * sn + dz * c) * 0.9;
+        if (ok(tx, tz)) { this.pos.x = tx; this.pos.z = tz; break; }
+      }
     }
     const decay = Math.exp(-7 * dt);
     this.knock.x *= decay;
     this.knock.z *= decay;
     const bob = this.def.hover > 0 ? Math.sin(this.time * 2.4) * 0.25 : 0;
-    const groundY = this.world.heightAt(this.pos.x, this.pos.z);
-    const targetY = (this.def.flying ? Math.max(groundY, player.y) : groundY) + this.def.hover + bob;
+    const groundY = this.world.heightAt(this.pos.x, this.pos.z, feet);
+    const targetY = (flyAt ?? groundY) + this.def.hover + bob;
     this.pos.y += (targetY - this.pos.y) * Math.min(1, dt * (this.def.flying ? 2 : 12));
-    return action;
+  }
+
+  /** Walks back to the spawn point, ignoring the player, healing as it goes. */
+  private walkHome(dt: number): EnemyAction {
+    const hx = this.spawn.x - this.pos.x;
+    const hz = this.spawn.z - this.pos.z;
+    const d = Math.hypot(hx, hz);
+    this.hp = Math.min(this.def.maxHp, this.hp + this.def.maxHp * 0.25 * dt);
+    this.aura = null;
+    if (d < 1.2 || this.def.speed <= 0) {
+      this.returning = false;
+      this.hp = this.def.maxHp;
+      this.brain.state = 'idle';
+      return null;
+    }
+    this.yaw = Math.atan2(hz, hx);
+    const v = Math.max(this.def.speed, 2) * 1.15;
+    const step = Math.min(d, v * dt);
+    const nx = this.pos.x + (hx / d) * step;
+    const nz = this.pos.z + (hz / d) * step;
+    const before = { x: this.pos.x, z: this.pos.z };
+    this.stepTo(nx, nz, dt, null);
+    // Stuck behind something on the way home: just appear back at the spot.
+    if (this.pos.x === before.x && this.pos.z === before.z) { this.pos.x = this.spawn.x; this.pos.z = this.spawn.z; }
+    return null;
   }
 
   takeDamage(amount: number, kb: { x: number; z: number }, strength: number): boolean {
@@ -201,6 +264,7 @@ export class Enemy {
 
   private respawn(): void {
     if (this.noRespawn) return;
+    this.returning = false;
     this.hp = this.def.maxHp;
     this.aura = null;
     this.defDown = { amount: 0, left: 0 };
@@ -225,7 +289,7 @@ export class Enemy {
         else { m.emissive.set(m.userData.baseEmissive as number); m.emissiveIntensity = m.userData.baseIntensity as number; }
       }
     }
-    const st = this.brain.state;
+    const st: EnemyState = this.returning ? 'chase' : this.brain.state;
     const m = this.model;
     // State transitions first, so the death clip plays before the body shrinks away.
     if (m && st !== this.lastState) {

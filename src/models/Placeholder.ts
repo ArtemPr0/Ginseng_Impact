@@ -32,6 +32,7 @@ export class MissingModelPlaceholder {
     const halo = glowSprite(color, 1.6, 0.5, true);
     halo.position.y = 1.2;
     this.group.add(this.gem, pillar, halo);
+    this.group.visible = SHOW_PLACEHOLDERS;
   }
 
   update(dt: number): void {
@@ -45,3 +46,6 @@ export function missingModelPlaceholder(id: string, color?: number, label?: stri
   warnMissing(id, label);
   return new MissingModelPlaceholder(color);
 }
+
+/** Glowing markers for models that do not exist yet are a debugging aid: shown only with `?placeholders`. */
+export const SHOW_PLACEHOLDERS = typeof location !== 'undefined' && new URLSearchParams(location.search).has('placeholders');

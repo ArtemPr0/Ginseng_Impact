@@ -1,5 +1,5 @@
 import {
-  ACESFilmicToneMapping, Camera, HalfFloatType, PCFSoftShadowMap, Scene, Vector2, Vector3, WebGLRenderer, WebGLRenderTarget,
+  ACESFilmicToneMapping, Camera, HalfFloatType, PCFShadowMap, Scene, Vector2, Vector3, WebGLRenderer, WebGLRenderTarget,
 } from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
@@ -55,7 +55,7 @@ export class Renderer {
     this.gl.toneMapping = ACESFilmicToneMapping;
     this.gl.toneMappingExposure = 0.95;
     this.gl.shadowMap.enabled = true;
-    this.gl.shadowMap.type = PCFSoftShadowMap;
+    this.gl.shadowMap.type = PCFShadowMap;
     this.gl.setClearColor(PALETTE.fog, 1);
     // No MSAA: multisampling a half-float target roughly halved the frame rate on Apple GPUs (measured);
     // FXAA on the final image smooths edges for a fraction of the cost.

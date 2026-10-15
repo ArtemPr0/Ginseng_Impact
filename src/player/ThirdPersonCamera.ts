@@ -1,7 +1,7 @@
 import { PerspectiveCamera, Vector3 } from 'three';
 
 export interface CameraWorld {
-  heightAt(x: number, z: number): number;
+  heightAt(x: number, z: number, y?: number): number;
 }
 
 /**
@@ -64,13 +64,13 @@ export class ThirdPersonCamera {
       const x = this.focus.x + (this.desired.x - this.focus.x) * f;
       const y = this.focus.y + (this.desired.y - this.focus.y) * f;
       const z = this.focus.z + (this.desired.z - this.focus.z) * f;
-      if (y < this.world.heightAt(x, z) + 0.5) {
+      if (y < this.world.heightAt(x, z, y) + 0.5) {
         t = Math.max(0.12, (i - 1) / steps);
         break;
       }
     }
     this.camera.position.lerpVectors(this.focus, this.desired, t);
-    const floor = this.world.heightAt(this.camera.position.x, this.camera.position.z) + 0.5;
+    const floor = this.world.heightAt(this.camera.position.x, this.camera.position.z, this.camera.position.y) + 0.5;
     if (this.camera.position.y < floor) this.camera.position.y = floor;
     this.time += dt;
     // Subtle handheld breathing plus decaying impact shake.

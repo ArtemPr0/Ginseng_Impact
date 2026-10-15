@@ -21,7 +21,7 @@ export class Companion {
   private attacking = false;
   private readonly follow: Vector3;
 
-  constructor(readonly def: NpcDef, start: Vector3, private readonly heightAt: (x: number, z: number) => number, slot: number) {
+  constructor(readonly def: NpcDef, start: Vector3, private readonly heightAt: (x: number, z: number, y?: number) => number, slot: number) {
     this.rig = new Rig({ id: def.id, name: def.name, title: def.title, element: 'fog', weapon: def.weapon, maxHp: def.hire!.maxHp, atk: def.hire!.atk, accent: def.accent }, def.model);
     this.hp = def.hire!.maxHp;
     this.pos.copy(start);
@@ -66,7 +66,7 @@ export class Companion {
     }
     // Teleport if left far behind.
     if (Math.hypot(player.x - this.pos.x, player.z - this.pos.z) > 40) { this.pos.set(player.x, player.y, player.z); }
-    this.pos.y += (this.heightAt(this.pos.x, this.pos.z) - this.pos.y) * Math.min(1, dt * 10);
+    this.pos.y += (this.heightAt(this.pos.x, this.pos.z, this.pos.y) - this.pos.y) * Math.min(1, dt * 10);
     let strike: number | null = null;
     if (target && bd <= reach + 0.6) {
       this.swing -= dt;

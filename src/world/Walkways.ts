@@ -35,6 +35,9 @@ export function causewayPostPoints(cfg: CausewayConfig): Array<{ x: number; z: n
   return out;
 }
 
+/** How far below the walk surface a deck's underside is (arch crown and paving). */
+const DECK_DEPTH = 0.9;
+
 /** Span model proportions (scripts/model-measure.mjs): deck surface at this fraction of the span's height. */
 const SPAN_DECK = 0.861;
 /** Stairs model: the top landing's walk surface as a fraction of height; length/height ratio; landing share of the length. */
@@ -49,6 +52,8 @@ export interface CausewayBuild {
   spans: Array<{ x: number; y: number; z: number; yaw: number; scale: number }>;
   /** Where the `causeway-stairs` model goes: feet on the ground, scaled so its landing meets the deck. */
   stairs: { x: number; y: number; z: number; height: number };
+  /** The same stairs at the north end, turned around, down to the head's plaza. */
+  northStairs: { x: number; y: number; z: number; height: number };
 }
 
 /**
@@ -72,29 +77,36 @@ export function causewayWalk(cfg: CausewayConfig, groundAt: HeightAt, spanHeight
       const pierH = top - spanHeight - Math.max(ground, -95);
       g.add(slab(cfg.width * 0.55, pierH, segLen * 0.3, cfg.x, top - spanHeight - pierH / 2 + 0.3, zc));
     }
-    footprints.push({ kind: 'box', x: cfg.x, z: zc, hw: cfg.width / 2 + 0.3, hd: segLen / 2, top });
+    // The deck is overhead: wherever the ground is far enough below, people walk under the arches.
+    footprints.push({ kind: 'box', x: cfg.x, z: zc, hw: cfg.width / 2 + 0.3, hd: segLen / 2, top, bottom: top - DECK_DEPTH });
   }
   for (let z = cfg.zStart - 2; z > cfg.zEnd + 2; z -= cfg.postSpacing) {
     const t = (cfg.zStart - z) / length;
     const top = cfg.yStart + (cfg.yEnd - cfg.yStart) * t;
-    for (const side of [-1, 1]) footprints.push({ kind: 'box', x: cfg.x + side * (cfg.width / 2 + 0.05), z, hw: 0.35, hd: 0.35, top: top + 0.6 });
+    for (const side of [-1, 1]) footprints.push({ kind: 'box', x: cfg.x + side * (cfg.width / 2 + 0.05), z, hw: 0.35, hd: 0.35, top: top + 0.6, bottom: top - DECK_DEPTH });
   }
-  // Stairs: landing flush with the deck at zStart, steps falling south to the ground.
-  const groundS = groundAt(cfg.x, cfg.zStart + 6);
-  const rise = Math.max(0.5, cfg.yStart - groundS);
-  const height = rise / STAIRS_LANDING;
-  const len = height * STAIRS_LENGTH;
-  const z0 = cfg.zStart - 0.5;
-  const flat = len * STAIRS_FLAT;
-  footprints.push({ kind: 'box', x: cfg.x, z: z0 + flat / 2, hw: cfg.width / 2 + 1, hd: flat / 2, top: cfg.yStart });
-  const steps = Math.max(1, Math.ceil(rise / 0.45));
-  const run = (len * 0.92 - flat) / steps;
-  for (let i = 1; i <= steps; i++) {
-    const top = cfg.yStart - i * (rise / steps);
-    const zc = z0 + flat + (i - 0.5) * run;
-    footprints.push({ kind: 'box', x: cfg.x, z: zc, hw: cfg.width / 2 + 1, hd: run / 2, top });
-  }
-  return { landmark: { object: g, footprints }, spans, stairs: { x: cfg.x, y: groundS - 0.05, z: z0 + len / 2, height } };
+  // Stairs at both ends: a landing flush with the deck, then steps down to the ground (south end falls south,
+  // north end falls north).
+  const stairsAt = (zEdge: number, deckY: number, dir: 1 | -1) => {
+    const ground = groundAt(cfg.x, zEdge + dir * 6);
+    const rise = Math.max(0.5, deckY - ground);
+    const height = rise / STAIRS_LANDING;
+    const len = height * STAIRS_LENGTH;
+    const z0 = zEdge - dir * 0.5;
+    const flat = len * STAIRS_FLAT;
+    footprints.push({ kind: 'box', x: cfg.x, z: z0 + dir * flat / 2, hw: cfg.width / 2 + 1, hd: flat / 2, top: deckY });
+    const steps = Math.max(1, Math.ceil(rise / 0.45));
+    const run = (len * 0.92 - flat) / steps;
+    for (let i = 1; i <= steps; i++) {
+      const top = deckY - i * (rise / steps);
+      const zc = z0 + dir * (flat + (i - 0.5) * run);
+      footprints.push({ kind: 'box', x: cfg.x, z: zc, hw: cfg.width / 2 + 1, hd: run / 2, top });
+    }
+    return { x: cfg.x, y: ground - 0.05, z: z0 + dir * len / 2, height };
+  };
+  const stairs = stairsAt(cfg.zStart, cfg.yStart, 1);
+  const northStairs = stairsAt(cfg.zEnd, cfg.yEnd, -1);
+  return { landmark: { object: g, footprints }, spans, stairs, northStairs };
 }
 
 /** Rope-bridge tile model: width (x) of the file in metres once scaled to its registry height, and its deck height. */
@@ -143,8 +155,8 @@ export function witchBridgeDeck(streamX: number, bridgeZ: number, heightAt: Heig
     const t = (k + 0.5) / slices;
     const x = streamX - WITCH_BRIDGE.length / 2 + t * WITCH_BRIDGE.length;
     const top = surface(t);
-    footprints.push({ kind: 'box', x, z: bridgeZ, hw: WITCH_BRIDGE.length / slices / 2 + 0.02, hd: WITCH_BRIDGE.halfWidth, top });
-    for (const side of [-1, 1]) footprints.push({ kind: 'box', x, z: bridgeZ + side * (WITCH_BRIDGE.halfWidth + 0.2), hw: WITCH_BRIDGE.length / slices / 2 + 0.02, hd: 0.2, top: top + 0.9 });
+    footprints.push({ kind: 'box', x, z: bridgeZ, hw: WITCH_BRIDGE.length / slices / 2 + 0.02, hd: WITCH_BRIDGE.halfWidth, top, bottom: top - DECK_DEPTH });
+    for (const side of [-1, 1]) footprints.push({ kind: 'box', x, z: bridgeZ + side * (WITCH_BRIDGE.halfWidth + 0.2), hw: WITCH_BRIDGE.length / slices / 2 + 0.02, hd: 0.2, top: top + 0.9, bottom: top - DECK_DEPTH });
   }
   // Stand-in until the model loads: a flat slab at the crown.
   g.add(slab(WITCH_BRIDGE.length, 0.6, WITCH_BRIDGE.halfWidth * 2, streamX, surface(0.5) - 0.3, bridgeZ));

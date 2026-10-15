@@ -18,6 +18,8 @@ import { Enemy } from './Enemy';
 import { LootField, rollDrops } from './Loot';
 import { COMBO, SKILLS, type AttackDef, type GroundEffectDef } from './Skills';
 import { Vfx } from './Vfx';
+import { PRESENT_MODELS } from '../data/colliderGrids';
+import type { HeightWorld } from '../world/Colliders';
 
 interface Projectile {
   pos: Vector3; vel: Vector3; life: number; owner: 'player' | 'enemy';
@@ -73,14 +75,46 @@ export class CombatSystem {
 
   constructor(private readonly d: CombatDeps) {
     d.scene.add(this.vfx.group);
-    this.loot = new LootField(d.scene, (x, z) => d.world.heightAt(x, z));
-    for (const s of ENEMY_SPAWNS) this.spawnEnemy(ENEMY_DEFS[s.kind], s.x, s.z);
+    this.loot = new LootField(d.scene, (x, z, y) => d.world.heightAt(x, z, y));
+    for (const s of ENEMY_SPAWNS) {
+      // An enemy without its model would be an invisible attacker: it waits until the file exists.
+      if (!PRESENT_MODELS.has(s.kind)) continue;
+      const at = this.freeSpot(s.x, s.z);
+      this.spawnEnemy(ENEMY_DEFS[s.kind], at.x, at.z);
+    }
     for (const c of d.party.members) {
       const combo = COMBO[c.weapon];
       this.combos.set(c.id, new ComboTracker(combo.durations, combo.hitFraction));
       this.cooldowns.set(c.id, new Cooldown(SKILLS[c.id].cooldown));
       this.hp.set(c.id, c.maxHp);
     }
+  }
+
+  /** The nearest spot to (x, z) on open ground: never inside a building's outline or over the void. */
+  private freeSpot(x: number, z: number): { x: number; z: number } {
+    const w = this.d.world as Partial<HeightWorld> & WorldQuery;
+    const ok = (px: number, pz: number) => !(w.blocked?.(px, pz)) && (w.groundAt ? w.groundAt(px, pz) : w.heightAt(px, pz)) > -20;
+    if (ok(x, z)) return { x, z };
+    for (let r = 2; r <= 30; r += 2) {
+      for (let k = 0; k < 12; k++) {
+        const a = (k / 12) * Math.PI * 2;
+        const px = x + Math.cos(a) * r;
+        const pz = z + Math.sin(a) * r;
+        if (ok(px, pz)) return { x: px, z: pz };
+      }
+    }
+    return { x, z };
+  }
+
+  /** Every enemy gives up the chase and walks home (the player crossed a portal or respawned). */
+  resetAggro(): void {
+    for (const e of this.enemies) e.disengage();
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      if (this.projectiles[i].owner !== 'enemy') continue;
+      this.d.scene.remove(this.projectiles[i].object);
+      this.projectiles.splice(i, 1);
+    }
+    this.contact.clear();
   }
 
   private spawnEnemy(def: EnemyDef, x: number, z: number, noRespawn = false): Enemy {
@@ -349,7 +383,7 @@ export class CombatSystem {
       p.object.position.copy(p.pos);
       if (p.kind === 'arrow') p.object.lookAt(aim.copy(p.pos).add(p.vel));
       else p.object.rotation.y += dt * 12;
-      let dead = p.life <= 0 || p.pos.y < d.world.heightAt(p.pos.x, p.pos.z) - 1;
+      let dead = p.life <= 0 || p.pos.y < d.world.heightAt(p.pos.x, p.pos.z, p.pos.y) - 0.2;
       if (p.owner === 'player') {
         for (const e of this.enemies) {
           if (!e.alive || p.hit.has(e.id)) continue;

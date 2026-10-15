@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CONTROLLER, createControllerState, stepController, type ControllerInput, type WorldQuery } from './CharacterController';
 
 const flat: WorldQuery = { heightAt: () => 0 };
-const idle = (): ControllerInput => ({ move: { x: 0, z: 0 }, sprint: false, jump: false, jumpHeld: false, glide: false, climbHeld: false });
+const idle = (): ControllerInput => ({ move: { x: 0, z: 0 }, sprint: false, jump: false, jumpHeld: false, fly: false, climbHeld: false });
 
 function run(input: ControllerInput, steps: number, world = flat, s = createControllerState({ x: 0, y: 0, z: 0 })) {
   for (let i = 0; i < steps; i++) stepController(s, input, world, 1 / 60);
@@ -51,17 +51,48 @@ describe('stepController — ground', () => {
 
 describe('stepController — air', () => {
   it('jumps, rises, and lands back on the ground', () => {
-    const s = run({ ...idle(), jump: true }, 1);
+    const s = run({ ...idle(), jump: true, jumpHeld: true }, 1);
     expect(s.mode).toBe('air');
     expect(s.vel.y).toBeCloseTo(CONTROLLER.jumpSpeed);
     let peak = 0;
     for (let i = 0; i < 120; i++) {
-      stepController(s, idle(), flat, 1 / 60);
+      stepController(s, { ...idle(), jumpHeld: true }, flat, 1 / 60);
       peak = Math.max(peak, s.pos.y);
     }
-    expect(peak).toBeGreaterThan(1.3);
+    expect(peak).toBeGreaterThan(1.5);
     expect(s.mode).toBe('ground');
     expect(s.pos.y).toBeCloseTo(0);
+  });
+
+  it('a tapped jump is a shorter hop than a held one', () => {
+    const peakOf = (held: boolean) => {
+      const s = run({ ...idle(), jump: true, jumpHeld: true }, 1);
+      let peak = 0;
+      for (let i = 0; i < 90; i++) { stepController(s, { ...idle(), jumpHeld: held && i < 60 }, flat, 1 / 60); peak = Math.max(peak, s.pos.y); }
+      return peak;
+    };
+    expect(peakOf(false)).toBeLessThan(peakOf(true) * 0.8);
+  });
+
+  it('buffers a jump pressed just before landing', () => {
+    const s = createControllerState({ x: 0, y: 0.3, z: 0 });
+    s.mode = 'air';
+    s.vel.y = -2;
+    stepController(s, { ...idle(), jump: true, jumpHeld: true }, flat, 1 / 60);
+    for (let i = 0; i < 6 && s.mode === 'air'; i++) stepController(s, { ...idle(), jumpHeld: true }, flat, 1 / 60);
+    stepController(s, { ...idle(), jumpHeld: true }, flat, 1 / 60);
+    expect(s.vel.y).toBeGreaterThan(0);
+  });
+
+  it('bounces off a tall wall in mid-air instead of landing on its top', () => {
+    const block: WorldQuery = { heightAt: (x) => (x >= 1 ? 10 : 0) };
+    const s = createControllerState({ x: 0, y: 1.5, z: 0 });
+    s.mode = 'air';
+    s.vel.x = 6;
+    s.vel.y = 1;
+    run(idle(), 60, block, s);
+    expect(s.pos.y).toBeLessThan(3);
+    expect(s.pos.x).toBeLessThan(1);
   });
 
   it('does not double jump', () => {
@@ -133,46 +164,60 @@ describe('stepController — climb', () => {
   });
 });
 
-describe('stepController — glide', () => {
-  const highStart = () => createControllerState({ x: 0, y: 40, z: 0 });
+describe('stepController — fly', () => {
+  const airborne = (y = 6) => { const s = createControllerState({ x: 0, y, z: 0 }); s.mode = 'air'; s.airborneFor = 0.5; return s; };
 
-  it('cannot deploy the glider close to the ground', () => {
-    const s = createControllerState({ x: 0, y: 1.5, z: 0 });
-    s.mode = 'air';
-    stepController(s, { ...idle(), glide: true }, flat, 1 / 60);
-    expect(s.mode).toBe('air');
+  it('takes off from a jump, not from standing on the ground', () => {
+    const grounded = run({ ...idle(), fly: true }, 1);
+    expect(grounded.mode).not.toBe('fly');
+    const s = airborne(1.2);
+    stepController(s, { ...idle(), fly: true }, flat, 1 / 60);
+    expect(s.mode).toBe('fly');
   });
 
-  it('deploys in the air and descends slowly with forward control', () => {
-    const s = highStart();
-    s.mode = 'air';
-    stepController(s, { ...idle(), glide: true }, flat, 1 / 60);
-    expect(s.mode).toBe('glide');
-    run({ ...idle(), move: { x: 0, z: -1 } }, 120, flat, s);
-    expect(s.mode).toBe('glide');
-    expect(s.vel.y).toBeGreaterThan(-3);
-    expect(s.vel.y).toBeLessThan(0);
-    expect(s.pos.z).toBeLessThan(-5);
+  it('cruises forward, climbs while ascend is held and sinks gently without it', () => {
+    const s = airborne();
+    stepController(s, { ...idle(), fly: true }, flat, 1 / 60);
+    run({ ...idle(), move: { x: 0, z: -1 }, ascend: true }, 90, flat, s);
+    expect(s.mode).toBe('fly');
+    expect(s.pos.y).toBeGreaterThan(8);
+    expect(s.pos.z).toBeLessThan(-6);
+    const y = s.pos.y;
+    run({ ...idle(), move: { x: 0, z: -1 } }, 150, flat, s);
+    expect(s.pos.y).toBeLessThan(y);
+    expect(s.pos.y).toBeGreaterThan(y - 4);
+    expect(Math.hypot(s.vel.x, s.vel.z)).toBeCloseTo(CONTROLLER.flySpeed, 0);
     expect(s.stamina).toBeLessThan(CONTROLLER.maxStamina);
   });
 
-  it('cancels with a second toggle and lands', () => {
-    const s = highStart();
-    s.mode = 'air';
-    stepController(s, { ...idle(), glide: true }, flat, 1 / 60);
-    stepController(s, { ...idle(), glide: true }, flat, 1 / 60);
-    expect(s.mode).toBe('air');
-    run(idle(), 60 * 5, flat, s);
+  it('boosts with sprint and dives with descend, landing on the ground', () => {
+    const s = airborne(20);
+    stepController(s, { ...idle(), fly: true }, flat, 1 / 60);
+    run({ ...idle(), move: { x: 1, z: 0 }, sprint: true }, 90, flat, s);
+    expect(Math.hypot(s.vel.x, s.vel.z)).toBeGreaterThan(CONTROLLER.flySpeed + 2);
+    run({ ...idle(), descend: true }, 60 * 4, flat, s);
     expect(s.mode).toBe('ground');
+    expect(s.pos.y).toBeCloseTo(0);
   });
 
-  it('drops when stamina is exhausted', () => {
-    const s = highStart();
-    s.mode = 'air';
-    s.stamina = 0.2;
-    stepController(s, { ...idle(), glide: true }, flat, 1 / 60);
-    run(idle(), 20, flat, s);
+  it('stops flying on request and when stamina runs out', () => {
+    const s = airborne(30);
+    stepController(s, { ...idle(), fly: true }, flat, 1 / 60);
+    stepController(s, { ...idle(), stopFly: true }, flat, 1 / 60);
     expect(s.mode).toBe('air');
+    const t = airborne(30);
+    stepController(t, { ...idle(), fly: true }, flat, 1 / 60);
+    t.stamina = 0.05;
+    run(idle(), 10, flat, t);
+    expect(t.mode).toBe('air');
+  });
+
+  it('does not fly through walls', () => {
+    const block: WorldQuery = { heightAt: (x) => (x >= 5 ? 30 : 0) };
+    const s = airborne(6);
+    stepController(s, { ...idle(), fly: true }, block, 1 / 60);
+    run({ ...idle(), move: { x: 1, z: 0 } }, 120, block, s);
+    expect(s.pos.x).toBeLessThan(5);
   });
 });
 

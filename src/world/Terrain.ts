@@ -1,6 +1,7 @@
 import { BufferAttribute, Color, Mesh, PlaneGeometry, Vector3 } from 'three';
 import { surface } from '../render/Materials';
 import { Noise2D, lerp, smoothstep } from './noise';
+import { LAYOUT } from '../data/world';
 
 /** World layout constants (metres). The island is centred at ISLAND_CENTRE; the causeway runs along x = 0. */
 export const WORLD = {
@@ -22,7 +23,7 @@ export const WORLD = {
   /** Frozen realm: north-east quadrant. */
   frozen: { xFrom: 24, xTo: 57, zFrom: -12, zTo: -42 },
   desert: { x: 48, z: 60, r: 24 },
-  dead: { x: -17, z: -99, r: 20 },
+  dead: { x: 24, z: -102, r: 20 },
   pond: { x: -18, z: -18, r: 12 },
 } as const;
 
@@ -55,6 +56,26 @@ export function riverDistance(x: number, z: number): number {
 /** 0..1 inside the water channel. */
 export function riverAt(x: number, z: number): number {
   return 1 - smoothstep(4.8, 9.5, riverDistance(x, z));
+}
+
+/** 0..1 on a worn footpath (LAYOUT.paths): about 2.4 m wide with soft edges. */
+export function pathAt(x: number, z: number): number {
+  let best = Infinity;
+  for (const line of LAYOUT.paths) {
+    for (let i = 0; i < line.length - 1; i++) {
+      const [ax, az] = line[i];
+      const [bx, bz] = line[i + 1];
+      const dx = bx - ax;
+      const dz = bz - az;
+      const l2 = dx * dx + dz * dz;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
+      const ex = x - (ax + dx * t);
+      const ez = z - (az + dz * t);
+      const d2 = ex * ex + ez * ez;
+      if (d2 < best) best = d2;
+    }
+  }
+  return 1 - smoothstep(0.9, 2.1, Math.sqrt(best));
 }
 
 /** 0..1 desert dunes (south-east). */
@@ -146,6 +167,7 @@ export class Terrain {
     const sandColor = new Color(0xa9b2cf);
     const deadA = new Color(0x4a1430);
     const deadB = new Color(0x6a2a3c);
+    const pathColor = new Color(0x34426f);
         const c = new Color();
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
@@ -163,6 +185,7 @@ export class Terrain {
       const dead = deadAt(x, z);
       if (dead > 0) c.lerp(this.noise.noise(x * 0.09, z * 0.09) > 0 ? deadA : deadB, dead * 0.85);
       if (Math.hypot(x - WORLD.pond.x, z - WORLD.pond.z) < WORLD.pond.r) c.lerp(riverBed, 0.7);
+      c.lerp(pathColor, pathAt(x, z) * (1 - riverAt(x, z)) * (1 - smoothstep(0.4, 0.8, slope)) * 0.8);
       const mottle = 1 + this.noise.noise(x * 0.2, z * 0.2) * 0.08;
       colors[i * 3] = c.r * mottle;
       colors[i * 3 + 1] = c.g * mottle;
@@ -178,6 +201,19 @@ export class Terrain {
   heightAt(x: number, z: number): number {
     return terrainHeight(x, z, this.noise);
   }
+
+  /** slopeAt sampled once per metre and remembered (vegetation placement asks for the same spots over and over). */
+  slopeAtCached(x: number, z: number): number {
+    const N = 400;
+    const i = Math.round(x) + 200;
+    const k = Math.round(z) + 200 + 36;
+    if (i < 0 || k < 0 || i >= N || k >= N) return this.slopeAt(x, z);
+    const c = k * N + i;
+    let v = this.slopeCache[c];
+    if (Number.isNaN(v)) v = this.slopeCache[c] = this.slopeAt(Math.round(x), Math.round(z));
+    return v;
+  }
+  private readonly slopeCache = new Float32Array(400 * 400).fill(NaN);
 
   /** 0 = flat, 1 = vertical. Finite-difference gradient magnitude mapped to [0, 1]. */
   slopeAt(x: number, z: number): number {
