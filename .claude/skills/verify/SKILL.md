@@ -36,3 +36,10 @@ Gotchas
 - Fog and night make captures dark: `G.scene.fog = null; G.renderer.gl.toneMappingExposure = 2.2`; hide trees with
   `o.isInstancedMesh && o !== G.area.grass.mesh` → `visible = false`.
 - To pin the camera, replace `G.tpc.update` (the render loop calls it every frame).
+- If the Mac's display sleeps, headless Chrome stops producing frames (rAF count 0, `Page.captureScreenshot` hangs for
+  minutes). Launch with `--disable-gpu-vsync --disable-frame-rate-limit`, keep ONE page open (extra tabs starve it),
+  and grab the canvas instead of screenshotting: in a rAF queued behind the game's,
+  `G.renderer.gl.domElement.toDataURL()` (anim/stage.mjs and anim/capture.mjs do this; no DOM HUD in the image).
+- Bone tweaks on top of a clip (`turnBone`) must be undone before the next mixer update: three's PropertyMixer only
+  rewrites a bone whose track value changed, so on a frozen (`paused`) or constant track the tweak piles up each
+  frame (Rig.turn records and restores them).

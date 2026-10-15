@@ -91,12 +91,12 @@ const controller = createControllerState(SPAWN);
 const party = new Party(ROSTER);
 const rigs = ROSTER.map((def) => new Rig(def));
 for (const r of rigs) {
-  r.root.visible = false;
+  r.root.visible = r.trailObject.visible = false;
   scene.add(r.root, r.trailObject);
 }
 let landedAt = -10;
 let wasAirborne = false;
-rigs[party.activeIndex].root.visible = true;
+rigs[party.activeIndex].root.visible = rigs[party.activeIndex].trailObject.visible = true;
 const tpc = new ThirdPersonCamera(camera, world);
 const camParam = new URLSearchParams(location.search).get('cam')?.split(',').map(Number).filter((n) => Number.isFinite(n));
 // `?face=x,z` (debug) aims the camera from the spawn toward a world point.
@@ -110,8 +110,8 @@ let talking: Npc | null = null;
 function switchTo(i: number): boolean {
   const swap = party.switchTo(i);
   if (!swap) return false;
-  rigs[swap.from].root.visible = false;
-  rigs[swap.to].root.visible = true;
+  rigs[swap.from].root.visible = rigs[swap.from].trailObject.visible = false;
+  rigs[swap.to].root.visible = rigs[swap.to].trailObject.visible = true;
   hud.setParty(ROSTER, swap.to);
   combat.onSwitch();
   audio.click();
@@ -119,6 +119,7 @@ function switchTo(i: number): boolean {
 }
 
 Npc.sound = { voice: (url, gain) => audio.voice(url, gain), slurp: (gain) => audio.slurp(gain) };
+Rig.sound = { slurp: (gain) => audio.slurp(gain) };
 const lightBudget = new LightBudget(scene, 6);
 lightBudget.collect(scene);
 

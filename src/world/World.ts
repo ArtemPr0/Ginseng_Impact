@@ -22,7 +22,7 @@ import { Noise2D } from './noise';
 import { witchStream } from './Stream';
 import { buildRealms } from './Realms';
 import type { PortalLink } from './Portal';
-import { deadAt, frozenAt, pathAt, riverAt, riverDistance, sandAt, streamAt, Terrain, WORLD } from './Terrain';
+import { deadAt, frozenAt, pathAt, RIVER_LEVEL, riverAt, riverDistance, sandAt, streamAt, Terrain, WORLD } from './Terrain';
 import { causewayPostPoints, causewayWalk, chasmBridge, witchBridgeDeck } from './Walkways';
 import { lilyPond, river, stillWaterDisc } from './Water';
 
@@ -85,6 +85,8 @@ export class World {
 
   constructor(readonly terrain: Terrain) {
     this.heights = new HeightWorld(terrain);
+    // The great river is the swimmable water (the lily pond and the pools are only knee to waist deep).
+    this.heights.water = (x, z) => (riverAt(x, z) > 0.3 ? RIVER_LEVEL : null);
     this.target = this.group;
     const rnd = rng(4242);
     const h = (x: number, z: number) => terrain.heightAt(x, z);

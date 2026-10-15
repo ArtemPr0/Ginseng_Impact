@@ -148,6 +148,7 @@ export class ModelRig {
   readonly root = new Group();
   private readonly mixer: AnimationMixer;
   private readonly actions = new Map<string, AnimationAction>();
+  private readonly layers = new Map<string, AnimationAction>();
   private current: AnimationAction | null = null;
   private currentKey = '';
   readonly height: number;
@@ -249,7 +250,8 @@ export class ModelRig {
   play(key: ClipKey | string, once = false, speed = 1, fitTo?: number): boolean {
     const action = this.find(key);
     if (!action) return false;
-    if (this.current === action && !once) { action.timeScale = speed; return true; }
+    // Asking again for the clip that is playing keeps it going (and lets go of a holdAt freeze).
+    if (this.current === action && !once) { action.timeScale = speed; action.paused = false; return true; }
     action.reset();
     action.setLoop(once ? LoopOnce : LoopRepeat, Infinity);
     action.clampWhenFinished = once;
@@ -302,6 +304,33 @@ export class ModelRig {
   holdAt(fraction: number): void {
     const a = this.current;
     if (a && !a.paused && a.time >= a.getClip().duration * fraction) a.paused = true;
+  }
+
+  /**
+   * A layer: clip `key` cut down to the rotations of the bones matching `bones`, as its own action (stopped). Played
+   * with a large weight it takes those bones over from the base clip (the mixer averages by weight) and leaves the
+   * rest of the body alone: a sip of lean while walking.
+   */
+  layer(key: ClipKey | string, bones: RegExp): AnimationAction | null {
+    const base = this.find(key);
+    if (!base) return null;
+    const clip = base.getClip();
+    const id = `${clip.name}#${bones.source}`;
+    let a = this.layers.get(id);
+    if (!a) {
+      const tracks = clip.tracks.filter((t) => t.name.endsWith('.quaternion') && bones.test(t.name.slice(0, -'.quaternion'.length)));
+      a = this.mixer.clipAction(new AnimationClip(id, clip.duration, tracks));
+      this.layers.set(id, a);
+    }
+    return a;
+  }
+
+  /** Shows the current clip frozen at `fraction` of its length (a held pose). */
+  freezeAt(fraction: number): void {
+    const a = this.current;
+    if (!a) return;
+    a.time = a.getClip().duration * fraction;
+    a.paused = true;
   }
 
   /** Unfreezes the current clip and plays what is left of it in `seconds`. */

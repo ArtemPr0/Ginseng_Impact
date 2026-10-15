@@ -175,7 +175,7 @@ describe('stepController — fly', () => {
     expect(s.mode).toBe('fly');
   });
 
-  it('cruises forward, climbs while ascend is held and sinks gently without it', () => {
+  it('cruises forward, climbs while ascend is held and falls, faster and faster, without it', () => {
     const s = airborne();
     stepController(s, { ...idle(), fly: true }, flat, 1 / 60);
     run({ ...idle(), move: { x: 0, z: -1 }, ascend: true }, 90, flat, s);
@@ -183,11 +183,18 @@ describe('stepController — fly', () => {
     expect(s.pos.y).toBeGreaterThan(8);
     expect(s.pos.z).toBeLessThan(-6);
     const y = s.pos.y;
-    run({ ...idle(), move: { x: 0, z: -1 } }, 150, flat, s);
-    expect(s.pos.y).toBeLessThan(y);
-    expect(s.pos.y).toBeGreaterThan(y - 4);
+    run({ ...idle(), move: { x: 0, z: -1 } }, 60, flat, s);
+    const vy1 = s.vel.y;
+    run({ ...idle(), move: { x: 0, z: -1 } }, 60, flat, s);
+    expect(s.mode).toBe('fly');
+    expect(s.vel.y).toBeLessThan(vy1);
+    expect(s.vel.y).toBeLessThan(-5);
+    expect(s.pos.y).toBeLessThan(y - 1);
     expect(Math.hypot(s.vel.x, s.vel.z)).toBeCloseTo(CONTROLLER.flySpeed, 0);
     expect(s.stamina).toBeLessThan(CONTROLLER.maxStamina);
+    // Space again catches the fall.
+    run({ ...idle(), ascend: true }, 60, flat, s);
+    expect(s.vel.y).toBeGreaterThan(0);
   });
 
   it('boosts with sprint and dives with descend, landing on the ground', () => {
@@ -218,6 +225,36 @@ describe('stepController — fly', () => {
     stepController(s, { ...idle(), fly: true }, block, 1 / 60);
     run({ ...idle(), move: { x: 1, z: 0 } }, 120, block, s);
     expect(s.pos.x).toBeLessThan(5);
+  });
+});
+
+describe('stepController — swim', () => {
+  /** Dry land for x < 4, a bank down to a 3 m deep channel beyond, water surface at 1. */
+  const river: WorldQuery = {
+    heightAt: (x) => (x < 4 ? 0 : Math.max(-2, -(x - 4) * 0.8)),
+    waterAt: (x) => (x >= 3 ? 1 : null),
+  };
+
+  it('wades in until the water floats you, then swims at the surface', () => {
+    const s = run({ ...idle(), move: { x: 1, z: 0 } }, 60 * 3, river);
+    expect(s.mode).toBe('swim');
+    run(idle(), 120, river, s);
+    expect(s.pos.y).toBeCloseTo(1 - CONTROLLER.swimFloat, 0);
+    const x = s.pos.x;
+    run({ ...idle(), move: { x: 1, z: 0 } }, 60, river, s);
+    expect(s.pos.x - x).toBeGreaterThan(1.5);
+    expect(s.pos.x - x).toBeLessThan(CONTROLLER.swimSpeed + 0.2);
+  });
+
+  it('walks back out where it shallows, and falling in splashes down into a swim', () => {
+    const s = run({ ...idle(), move: { x: 1, z: 0 } }, 60 * 4, river);
+    run({ ...idle(), move: { x: -1, z: 0 } }, 60 * 6, river, s);
+    expect(s.mode).toBe('ground');
+    expect(s.pos.x).toBeLessThan(4);
+    const t = createControllerState({ x: 9, y: 6, z: 0 });
+    t.mode = 'air';
+    run(idle(), 120, river, t);
+    expect(t.mode).toBe('swim');
   });
 });
 

@@ -41,8 +41,9 @@ for (const [key, name] of clips) {
   for (const f of fracs) {
     await ev(`(() => { const m = window.__st.model; m.mixer.stopAllAction(); const a = m.actions.get('${name}'); a.reset(); a.setEffectiveWeight(1); a.play(); a.paused = true; a.time = a.getClip().duration * ${f}; m.update(0); return 1; })()`);
     await new Promise((r) => setTimeout(r, 260));
-    const s = await send('Page.captureScreenshot', { format: 'jpeg', quality: 72 });
-    shots.push({ label: `${name} ${Math.round(f * 100)}%`, data: s.result.data });
+    // Read the canvas right after the game renders (no compositor wait: works with the display asleep).
+    const url = await ev(`new Promise((res) => setTimeout(() => requestAnimationFrame(() => res(window.__ginseng.renderer.gl.domElement.toDataURL('image/jpeg', 0.8))), 0))`);
+    shots.push({ label: `${name} ${Math.round(f * 100)}%`, data: url.split(',')[1] });
   }
 }
 writeFileSync(out + '.json', JSON.stringify(shots.map((s) => s.label)));

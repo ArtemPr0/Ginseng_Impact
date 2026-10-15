@@ -136,7 +136,14 @@ export class HeightWorld implements WorldQuery {
   private static readonly CELL = 16;
   private static readonly NEAR_PAD = 2;
 
+  /** Where the water is (surface height at x, z, or null): the controller swims there when it is deep enough. */
+  water: ((x: number, z: number) => number | null) | null = null;
+
   constructor(private readonly terrain: WorldQuery) {}
+
+  waterAt(x: number, z: number): number | null {
+    return this.water ? this.water(x, z) : null;
+  }
 
   /** True when (x, z) lies within `pad` (≤ 2 m) of a footprint's reach — a cheap "keep clear of buildings" test. */
   near(x: number, z: number, pad: (f: Footprint) => number): boolean {

@@ -1,9 +1,9 @@
 /**
  * Kinematic third-person controller. Pure: no Three.js, no DOM. Mutates the passed state in place
  * and returns it. Modes: ground, air, climb (steep terrain and walls), fly (each hero's own way of flying:
- * Orlan rides his staff, Sir Aldric spreads his cape, Wren sits on her bow).
+ * Orlan levitates, Sir Aldric spreads his cape, Wren rides her bow), swim (water deeper than chest height).
  */
-export type Mode = 'ground' | 'air' | 'climb' | 'fly';
+export type Mode = 'ground' | 'air' | 'climb' | 'fly' | 'swim';
 
 export interface Vec3 { x: number; y: number; z: number }
 
@@ -48,6 +48,15 @@ export interface WorldQuery {
   heightAt(x: number, z: number, y?: number): number;
   /** Underside of the lowest overhang above feet at `y` (a bridge deck), or Infinity. */
   ceilingAt?(x: number, z: number, y: number): number;
+  /** Height of the water surface at (x, z), or null where there is no water. */
+  waterAt?(x: number, z: number): number | null;
+}
+
+/** True when (x, z) is water deep enough to swim in for feet at `y`; returns the surface height (else null). */
+function swimmable(world: WorldQuery, x: number, z: number, y: number): number | null {
+  const w = world.waterAt?.(x, z);
+  if (w === undefined || w === null) return null;
+  return w - world.heightAt(x, z, y) >= CONTROLLER.swimDepth ? w : null;
 }
 
 /** Height of a hero's head above the feet (for ceilings). */
@@ -91,13 +100,15 @@ export const CONTROLLER = {
   /** A rise taller than this within one step is a wall, whatever the sampled gradient says. */
   stepHeight: 0.5,
   climbProbe: 0.6,
-  /** Flight: cruise and boosted speed, climb and dive rates, the gentle sink with no input. */
+  /** Flight: cruise and boosted speed, climb and dive rates. */
   flySpeed: 9,
   flyBoostSpeed: 14,
   flyAccel: 10,
   flyClimbSpeed: 5.5,
-  flyDiveSpeed: 10,
-  flySink: 1.1,
+  flyDiveSpeed: 14,
+  /** Letting go of the climb key: the hero drops, faster and faster, up to this speed (Space catches the fall). */
+  flyFallSpeed: 9,
+  flyFallAccel: 7,
   flyDrain: 5,
   flyClimbDrain: 9,
   flyBoostDrain: 8,
@@ -107,6 +118,15 @@ export const CONTROLLER = {
   flyCeiling: 55,
   /** Stamina needed to take off. */
   flyMinStamina: 8,
+  /** Swimming: water at least this deep (surface over the bed) floats you; the feet hang this far under the surface. */
+  swimDepth: 1.3,
+  swimFloat: 1.05,
+  swimSpeed: 2.6,
+  swimSprintSpeed: 4.4,
+  swimAccel: 6,
+  swimSprintDrain: 12,
+  /** Jumping out at a bank: the ground just ahead must be at most this far above the surface. */
+  swimClimbOut: 0.9,
 } as const;
 
 export function createControllerState(pos: Vec3): ControllerState {
@@ -261,6 +281,9 @@ export function stepController(s: ControllerState, input: ControllerInput, world
       } else {
         setMode(s, 'air');
       }
+      // Wading in until the water is deep enough to float.
+      const surface = swimmable(world, s.pos.x, s.pos.z, s.pos.y);
+      if (surface !== null && s.pos.y <= surface - CONTROLLER.swimFloat) setMode(s, 'swim');
       break;
     }
 
@@ -300,11 +323,54 @@ export function stepController(s: ControllerState, input: ControllerInput, world
       s.pos.y += s.vel.y * dt;
       bumpCeiling(world, s, airStartY);
       const ground = world.heightAt(s.pos.x, s.pos.z, airStartY);
+      const surface = swimmable(world, s.pos.x, s.pos.z, airStartY);
+      if (surface !== null && s.vel.y <= 0 && s.pos.y <= surface - CONTROLLER.swimFloat * 0.6) {
+        // Splash down: the dive carries a little under, then the water floats you back up.
+        s.vel.y *= 0.25;
+        setMode(s, 'swim');
+        break;
+      }
       if (s.vel.y <= 0 && s.pos.y <= ground) {
         s.pos.y = ground;
         s.vel.y = 0;
         setMode(s, 'ground');
       }
+      break;
+    }
+
+    case 'swim': {
+      const surface = world.waterAt?.(s.pos.x, s.pos.z) ?? null;
+      const bed = world.heightAt(s.pos.x, s.pos.z, s.pos.y);
+      // Out of the water, or into the shallows: stand up and walk.
+      if (surface === null || surface - bed < CONTROLLER.swimDepth - 0.15) {
+        s.pos.y = Math.max(s.pos.y, bed);
+        s.vel.y = 0;
+        setMode(s, s.pos.y <= bed + 0.05 ? 'ground' : 'air');
+        break;
+      }
+      const sprinting = input.sprint && wantsMove && s.stamina > 0;
+      if (sprinting) { spendStamina(s, CONTROLLER.swimSprintDrain * dt); spent = true; }
+      const speed = wantsMove ? (sprinting ? CONTROLLER.swimSprintSpeed : CONTROLLER.swimSpeed) * moveScale : 0;
+      s.vel.x = approach(s.vel.x, mx * speed, CONTROLLER.swimAccel * dt);
+      s.vel.z = approach(s.vel.z, mz * speed, CONTROLLER.swimAccel * dt);
+      if (wantsMove) s.yaw = turnToward(s.yaw, Math.atan2(mz, mx), CONTROLLER.turnRate * 0.5 * dt);
+      // Bob up to the floating height (feet under the surface) with a gentle swell.
+      const float = surface - CONTROLLER.swimFloat + Math.sin(s.modeTime * 2.1) * 0.04;
+      s.vel.y = approach(s.vel.y, (float - s.pos.y) * 3, 12 * dt);
+      // Jump out where the bank ahead is low enough to haul yourself onto.
+      if (input.jump) {
+        const ahead = world.heightAt(s.pos.x + Math.cos(s.yaw) * 0.9, s.pos.z + Math.sin(s.yaw) * 0.9, surface);
+        if (ahead <= surface + CONTROLLER.swimClimbOut && surface - ahead < CONTROLLER.swimDepth) {
+          s.vel.y = CONTROLLER.jumpSpeed * 0.75;
+          s.pos.y = Math.max(s.pos.y, surface - 0.4);
+          setMode(s, 'air');
+          break;
+        }
+      }
+      if (blockedAhead(world, s.pos.x, s.pos.z, s.vel.x * dt, s.vel.z * dt, s.pos.y + CONTROLLER.swimFloat - 0.3)) slideAlongWall(world, s, dt);
+      s.pos.x += s.vel.x * dt;
+      s.pos.z += s.vel.z * dt;
+      s.pos.y += s.vel.y * dt;
       break;
     }
 
@@ -389,8 +455,9 @@ export function stepController(s: ControllerState, input: ControllerInput, world
       const climbing = !!input.ascend && s.pos.y - ground < CONTROLLER.flyCeiling;
       spendStamina(s, (CONTROLLER.flyDrain + (climbing ? CONTROLLER.flyClimbDrain : 0) + (boost ? CONTROLLER.flyBoostDrain : 0)) * dt);
       spent = true;
-      const targetVy = climbing ? CONTROLLER.flyClimbSpeed : input.descend ? -CONTROLLER.flyDiveSpeed : -CONTROLLER.flySink;
-      s.vel.y = approach(s.vel.y, targetVy, 12 * dt);
+      if (climbing) s.vel.y = approach(s.vel.y, CONTROLLER.flyClimbSpeed, 12 * dt);
+      else if (input.descend) s.vel.y = approach(s.vel.y, -CONTROLLER.flyDiveSpeed, 18 * dt);
+      else s.vel.y = approach(s.vel.y, -CONTROLLER.flyFallSpeed, CONTROLLER.flyFallAccel * dt);
       const speed = wantsMove ? (boost ? CONTROLLER.flyBoostSpeed : CONTROLLER.flySpeed) * moveScale : 0;
       s.vel.x = approach(s.vel.x, mx * speed, (wantsMove ? CONTROLLER.flyAccel : 4) * dt);
       s.vel.z = approach(s.vel.z, mz * speed, (wantsMove ? CONTROLLER.flyAccel : 4) * dt);

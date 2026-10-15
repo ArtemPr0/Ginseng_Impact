@@ -36,7 +36,9 @@ const log = [];
 for (let i = 0; i < Number(frames); i++) {
   const st = await ev(`(() => { const e = window.__cap; const m = e.model; const a = m.current; const r = m.root; const pose = m.hasClips ? '' : ' pose rx=' + r.rotation.x.toFixed(2) + ' rz=' + r.rotation.z.toFixed(2) + ' ry=' + r.rotation.y.toFixed(2) + ' y=' + r.position.y.toFixed(2); return e.state + (e.returning ? '/home' : '') + pose + ' | ' + m.playing + (a ? ' t=' + a.time.toFixed(2) + '/' + a.getClip().duration.toFixed(2) + ' x' + a.timeScale.toFixed(2) : '') + ' | v=' + (window.__lastPos ? Math.hypot(e.pos.x - window.__lastPos.x, e.pos.z - window.__lastPos.z).toFixed(2) : '?') + ' | hp=' + Math.round(window.__ginseng.combat.hp.get(window.__ginseng.party.active.id)); })()`);
   await ev(`(() => { window.__lastPos = { ...window.__cap.pos }; return 1; })()`);
-  const shot = await send('Page.captureScreenshot', { format: 'jpeg', quality: 70 });
+  // The canvas right after a render (no compositor wait: works with the display asleep); keeps the old shape.
+  const url = await ev(`new Promise((res) => setTimeout(() => requestAnimationFrame(() => res(window.__ginseng.renderer.gl.domElement.toDataURL('image/jpeg', 0.75))), 0))`);
+  const shot = { result: { data: String(url).split(',')[1] } };
   writeFileSync(`${prefix}-${String(i).padStart(2, '0')}.jpg`, Buffer.from(shot.result.data, 'base64'));
   log.push(st);
   await new Promise((r) => setTimeout(r, Number(interval)));

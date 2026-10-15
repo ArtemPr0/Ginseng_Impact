@@ -236,6 +236,8 @@ export class CombatSystem {
     for (const cd of this.cooldowns.values()) cd.update(dt);
     for (let i = this.delayed.length - 1; i >= 0; i--) { this.delayed[i].t -= dt; if (this.delayed[i].t <= 0) { this.delayed[i].fn(); this.delayed.splice(i, 1); } }
     const grounded = c.mode === 'ground';
+    // Only Wren can shoot from the air (riding her bow); everyone else fights on their feet.
+    const canShoot = grounded || (c.mode === 'fly' && me.weapon === 'bow');
 
     // --- dodge ---
     if (input.dodge && grounded && !this.burstCast) {
@@ -249,7 +251,7 @@ export class CombatSystem {
     }
 
     // --- light attack ---
-    if (input.attack && grounded && !this.casting && !this.heavy && !this.burstCast && this.heavyCharge === 0) {
+    if (input.attack && canShoot && !this.casting && !this.heavy && !this.burstCast && this.heavyCharge === 0) {
       this.softLock(7);
       const started = this.combo.press(0);
       if (started !== null) { this.spawnSlash(me, COMBO[me.weapon].hits[started]); d.audio.swing(false); }
@@ -264,7 +266,7 @@ export class CombatSystem {
     if (hit !== null) this.resolveAttack(me, COMBO[me.weapon].hits[hit]);
 
     // --- heavy attack (hold RMB to charge, release to swing) ---
-    if (input.heavyHeld && grounded && !this.busy) {
+    if (input.heavyHeld && canShoot && !this.busy) {
       this.heavyCharge = Math.min(1, this.heavyCharge + dt / 1.1);
       if (this.heavyCharge > 0.3 && this.heavyCharge - dt / 1.1 <= 0.3) this.vfx.impact(this.playerPos().clone().add(new Vector3(0, 1.2, 0)), ELEMENT_COLOR[this.elementOf(me)], 1.2);
     }
