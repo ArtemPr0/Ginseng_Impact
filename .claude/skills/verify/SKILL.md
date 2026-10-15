@@ -40,6 +40,10 @@ Gotchas
   minutes). Launch with `--disable-gpu-vsync --disable-frame-rate-limit`, keep ONE page open (extra tabs starve it),
   and grab the canvas instead of screenshotting: in a rAF queued behind the game's,
   `G.renderer.gl.domElement.toDataURL()` (anim/stage.mjs and anim/capture.mjs do this; no DOM HUD in the image).
+- A mob whose skin tears into sheets or streaks when a limb moves: `node run.mjs "<url near it>" 22 anim/stretch.js`
+  (after `window.__stretchKind = '<kind>'`) lists triangles stretched far past their bind size; cut the web with
+  `node scripts/model-tools.mjs cut-triangles in.glb out.glb list.json`, and damp arm swings that drag fused fur
+  (`armDamp` in data/models.ts).
 - Bone tweaks on top of a clip (`turnBone`) must be undone before the next mixer update: three's PropertyMixer only
   rewrites a bone whose track value changed, so on a frozen (`paused`) or constant track the tweak piles up each
   frame (Rig.turn records and restores them).

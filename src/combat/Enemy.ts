@@ -1,7 +1,7 @@
 import { loadModelOrWarn, ModelRig, yawToRotation } from '../models/ModelRig';
 import { MissingModelPlaceholder } from '../models/Placeholder';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { Group } from 'three';
+import { Group, type Object3D, Quaternion, Vector3 } from 'three';
 import type { EnemyDef } from '../data/enemies';
 import { PALETTE } from '../render/palette';
 import type { WorldQuery } from '../player/CharacterController';
@@ -16,6 +16,22 @@ let nextId = 1;
 /** Seconds the body stays before it shrinks away, when the death clip gives no better answer. */
 const DEATH_HOLD = 1.4;
 const DEATH_HOLD_MAX = 4;
+/** A heap of bones lies a while before it crumbles away. */
+const HEAP_HOLD = 6;
+/** Getting up off a seat. */
+const STAND_UP = 1.4;
+
+/** Where an enemy lives: its spot (which moves along a patrol route), facing, and route. */
+export interface EnemyHome { x: number; z: number; yaw?: number; patrol?: ReadonlyArray<readonly [number, number]> }
+
+/** Turns `bone` about a world axis from its pose now, returning the local rotation that results (not applied). */
+function turnedAbout(bone: Object3D, axis: Vector3, angle: number): Quaternion {
+  const pq = new Quaternion();
+  bone.parent?.getWorldQuaternion(pq);
+  const world = pq.clone().multiply(bone.quaternion);
+  world.premultiply(new Quaternion().setFromAxisAngle(axis, angle));
+  return pq.invert().multiply(world);
+}
 
 /** Scene-side enemy: a Meshy model (or a placeholder marker), movement, hit reactions, aura and defence debuff bookkeeping. */
 export class Enemy {
@@ -60,14 +76,24 @@ export class Enemy {
   returning = false;
   /** How far from its spot this enemy will follow (its def's leash, or a default by size). */
   readonly territory: number;
+  /** Sitting at its spot (seated mobs), and seconds left of getting up. */
+  private seatedNow = false;
+  private rising = 0;
+  /** Neutral mobs fight only once hit. */
+  private provoked = false;
+  /** Patrol: which leg of the route it is walking. */
+  private leg = 0;
+  /** The fall into a heap of bones (collapse mobs): each bone's pose from → to, and the body's tip. */
+  private heap: { t: number; bones: Array<{ b: Object3D; from: Quaternion; to: Quaternion; delay: number }>; tipAxis: Vector3; drop: number } | null = null;
 
-  constructor(readonly def: EnemyDef, readonly spawn: { x: number; z: number }, private readonly world: WorldQuery) {
+  constructor(readonly def: EnemyDef, readonly spawn: EnemyHome, private readonly world: WorldQuery) {
     this.brain = new EnemyBrain({ ...def.brain });
     this.hp = def.maxHp;
     this.pos = { x: spawn.x, y: Math.max(world.heightAt(spawn.x, spawn.z), def.floatAt ?? -Infinity) + def.hover, z: spawn.z };
     this.territory = def.leash ?? (def.boss ? 30 : 22);
     this.lastX = this.pos.x;
     this.lastZ = this.pos.z;
+    if (spawn.yaw !== undefined) this.yaw = spawn.yaw;
     if (def.scale) this.object.scale.setScalar(def.scale);
     this.object.position.set(this.pos.x, this.pos.y, this.pos.z);
     void loadModelOrWarn(def.kind, def.name).then((g) => { if (g) this.useModel(def.kind, g); else this.showPlaceholder(); });
@@ -110,6 +136,7 @@ export class Enemy {
   /** Gives up the chase: back to its spot, healing on the way (portals, leaving its territory, the player dying). */
   disengage(): void {
     if (!this.alive || this.returning) return;
+    this.provoked = false;
     if (this.aggro) this.returning = true;
     this.brain.state = 'idle';
     this.brain.stateTime = 0;
@@ -138,6 +165,40 @@ export class Enemy {
     const dx = player.x - this.pos.x;
     const dz = player.z - this.pos.z;
     const dist = Math.hypot(dx, dz);
+    // Seated at home: it sits facing its fire until the player comes near, then takes a moment to get up.
+    if (this.def.seated && this.brain.state === 'idle') {
+      if (!this.seatedNow && Math.hypot(this.pos.x - this.spawn.x, this.pos.z - this.spawn.z) < 1.3) { this.seatedNow = true; this.pos.x = this.spawn.x; this.pos.z = this.spawn.z; }
+      if (this.seatedNow) {
+        this.yaw = this.spawn.yaw ?? this.yaw;
+        if (dist > this.brain.p.aggroRange) return null;
+        this.seatedNow = false;
+        this.rising = STAND_UP;
+        this.brain.state = 'chase';
+        this.brain.stateTime = 0;
+      }
+    }
+    if (this.rising > 0) {
+      this.rising -= dt;
+      this.yaw += Math.atan2(Math.sin(Math.atan2(dz, dx) - this.yaw), Math.cos(Math.atan2(dz, dx) - this.yaw)) * Math.min(1, dt * 3);
+      return null;
+    }
+    // Walking its route while nobody bothers it (its home moves with it).
+    const calm = this.brain.state === 'idle' && !(this.def.neutral && this.provoked);
+    if (calm && this.spawn.patrol && this.spawn.patrol.length > 1) {
+      const [tx, tz] = this.spawn.patrol[this.leg % this.spawn.patrol.length];
+      const hx = tx - this.pos.x;
+      const hz = tz - this.pos.z;
+      const hd = Math.hypot(hx, hz);
+      if (hd < 0.8) this.leg++;
+      else {
+        this.yaw = Math.atan2(hz, hx);
+        const step = Math.min(hd, this.def.speed * 0.55 * dt);
+        this.stepTo(this.pos.x + (hx / hd) * step, this.pos.z + (hz / hd) * step, dt, null);
+        this.spawn.x = this.pos.x;
+        this.spawn.z = this.pos.z;
+      }
+      if (this.def.neutral && !this.provoked) return null;
+    }
     // Bosses choose their next attack before the brain enters windup, so the windup length matches it.
     if (this.def.attacks && this.brain.state === 'chase' && this.brain.cooldownLeft <= 0) {
       const usable = this.def.attacks.filter((a) => a.range >= dist);
@@ -152,7 +213,8 @@ export class Enemy {
         this.brain.p.recover = pick.recover;
       }
     }
-    const state = this.brain.update(dt, dist);
+    // A neutral mob does not see the player until it has been hit.
+    const state = this.brain.update(dt, this.def.neutral && !this.provoked ? Infinity : dist);
     let action: EnemyAction = null;
     if (state === 'attack') {
       if (this.def.attacks && this.currentAttack) {
@@ -274,6 +336,9 @@ export class Enemy {
 
   takeDamage(amount: number, kb: { x: number; z: number }, strength: number): boolean {
     if (!this.alive) return false;
+    // Hit: a neutral mob turns on you, a seated one jumps up at once.
+    if (this.def.neutral && !this.provoked) { this.provoked = true; if (this.brain.state === 'idle') { this.brain.state = 'chase'; this.brain.stateTime = 0; } }
+    if (this.seatedNow) { this.seatedNow = false; this.rising = STAND_UP * 0.6; this.brain.state = 'chase'; this.brain.stateTime = 0; }
     this.hp -= amount;
     this.knock.x += kb.x * strength;
     this.knock.z += kb.z * strength;
@@ -292,6 +357,12 @@ export class Enemy {
   private respawn(): void {
     if (this.noRespawn) return;
     this.returning = false;
+    this.provoked = false;
+    this.seatedNow = false;
+    this.rising = 0;
+    // The bones were posed by hand: put them back before the clips take over (the mixer only rewrites changes).
+    if (this.heap) for (const x of this.heap.bones) x.b.quaternion.copy(x.from);
+    this.heap = null;
     this.oneShot = null;
     this.wantFlinch = false;
     this.lunge = this.flinch = 0;
@@ -340,14 +411,16 @@ export class Enemy {
     if (m && m.hasClips) this.driveClips(m, st, entered);
     this.lastState = st;
     if (!this.alive) {
+      if (this.heap) this.fallApart(dt);
       // Hold the corpse while the death clip runs (or a short beat without one), then shrink it away.
       const clipRunning = !!m && m.playing === 'death' && !m.finished && this.deadFor < DEATH_HOLD_MAX;
-      const hold = clipRunning || this.deadFor < DEATH_HOLD;
+      const hold = clipRunning || this.deadFor < (this.heap ? HEAP_HOLD : DEATH_HOLD);
       const s = hold ? (m ? 1 : this.def.scale ?? 1) : Math.max(0, 1 - (this.deadFor - DEATH_HOLD) * 2.2);
       this.object.scale.setScalar(m ? s : s * (this.def.scale ?? 1));
       this.object.visible = s > 0;
       if (m && !m.hasClips) this.driveStatic(m, st, dt, yawRate);
-      if (!far) m?.update(dt);
+      if (m) this.flapWings(m, dt);
+      if (!far && !this.heap) m?.update(dt);
       return;
     }
     this.object.rotation.y = yawToRotation(this.yaw);
@@ -358,6 +431,7 @@ export class Enemy {
       if (Math.floor(prev / Math.PI) !== Math.floor(this.stepPhase / Math.PI)) this.onStomp?.(this.pos.x, this.pos.y, this.pos.z);
     }
     if (!m.hasClips) this.driveStatic(m, st, dt, yawRate);
+    if (!far) this.flapWings(m, dt);
     if (!far) m.update(dt);
     this.lunge = Math.max(0, this.lunge - dt * 2.8);
     this.flinch = Math.max(0, this.flinch - dt * 4);
@@ -369,8 +443,15 @@ export class Enemy {
    * planted, backwards when retreating); standing still shows the stance, never a walk in place.
    */
   private driveClips(m: ModelRig, st: EnemyState, entered: boolean): void {
-    if (entered && st === 'dead') { if (!m.play('death', true)) m.play('idle'); this.oneShot = 'death'; return; }
+    if (entered && st === 'dead') {
+      if (this.def.collapse) { this.startHeap(m); return; }
+      if (!m.play('death', true)) m.play('idle');
+      this.oneShot = 'death';
+      return;
+    }
     if (st === 'dead') return;
+    if (this.seatedNow) { m.play('sit'); return; }
+    if (this.rising > 0) { if (m.playing !== 'stand' && !m.play('stand', true, 1, STAND_UP)) m.play('idle'); return; }
     if (entered && st === 'windup') {
       const windup = this.brain.p.windup;
       for (const key of attackClips(this.currentAttack?.kind)) if (m.playStrike(key, windup)) { this.oneShot = 'attack'; return; }
@@ -411,6 +492,92 @@ export class Enemy {
     const along = (this.moveDirX * fx + this.moveDirZ * fz) / len;
     const speed = Math.min(2.4, Math.max(0.45, bestScale)) * (along < -0.35 ? -1 : 1);
     m.play(best, false, speed);
+  }
+
+  /**
+   * Death for a skeleton: the clip stops and the bones let go. The legs buckle and the hips drop, the spine slumps,
+   * the arms and the skull flop loose, and the whole frame tips over onto the ground with a little bounce: a heap.
+   */
+  private startHeap(m: ModelRig): void {
+    m.stopAll();
+    m.root.updateWorldMatrix(true, true);
+    const fq = m.frame.getWorldQuaternion(new Quaternion());
+    const lat = new Vector3(1, 0, 0).applyQuaternion(fq);
+    const fwd = new Vector3(0, 0, 1).applyQuaternion(fq);
+    const rand = (a: number, b: number) => a + Math.random() * (b - a);
+    const bones: Array<{ b: Object3D; from: Quaternion; to: Quaternion; delay: number }> = [];
+    const add = (re: RegExp, axis: Vector3, angle: number, delay: number) => {
+      const b = m.bone(re);
+      if (b) bones.push({ b, from: b.quaternion.clone(), to: turnedAbout(b, axis, angle), delay });
+    };
+    add(/leftupleg$/i, lat, rand(-1.4, -0.9), 0);
+    add(/rightupleg$/i, lat, rand(-1.4, -0.9), 0);
+    add(/leftleg$/i, lat, rand(1.6, 2.2), 0);
+    add(/rightleg$/i, lat, rand(1.6, 2.2), 0);
+    add(/spine$/i, lat, rand(0.3, 0.6), 0.08);
+    add(/spine1$/i, lat, rand(0.2, 0.5), 0.1);
+    add(/spine2$/i, fwd, rand(-0.5, 0.5), 0.12);
+    add(/neck$/i, new Vector3(rand(-1, 1), 0, rand(-1, 1)).normalize(), rand(0.6, 1.2), 0.2);
+    add(/head$/i, new Vector3(rand(-1, 1), rand(-0.3, 0.3), rand(-1, 1)).normalize(), rand(0.8, 1.6), 0.25);
+    for (const side of ['left', 'right']) {
+      add(new RegExp(side + 'arm$', 'i'), new Vector3(rand(-1, 1), 0, rand(-1, 1)).normalize(), rand(0.8, 1.6), 0.15);
+      add(new RegExp(side + 'forearm$', 'i'), new Vector3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize(), rand(0.6, 1.4), 0.22);
+      add(new RegExp(side + 'hand$', 'i'), new Vector3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize(), rand(0.5, 1.2), 0.3);
+    }
+    // Tip over sideways or backwards, whichever way it was going.
+    const a = Math.random() * Math.PI * 2;
+    this.heap = { t: 0, bones, tipAxis: new Vector3(Math.cos(a), 0, Math.sin(a)), drop: m.height * 0.32 };
+    this.onCollapse?.(this.pos.x, this.pos.y, this.pos.z);
+  }
+
+  private fallApart(dt: number): void {
+    const h = this.heap!;
+    const m = this.model;
+    if (!m) return;
+    h.t += dt;
+    for (const x of h.bones) {
+      const k = Math.min(1, Math.max(0, (h.t - x.delay) / 0.45));
+      // Gravity: slow to start, fast at the end, a small rebound once it lands.
+      const e = k < 1 ? k * k : 1;
+      const settle = k >= 1 ? Math.max(0, 1 - (h.t - x.delay - 0.45) / 0.25) * 0.06 * Math.sin((h.t - x.delay) * 30) : 0;
+      x.b.quaternion.slerpQuaternions(x.from, x.to, Math.min(1, e + settle));
+    }
+    // The frame sinks as the legs give, then topples about its feet onto the ground.
+    const sink = Math.min(1, h.t / 0.35);
+    const tip = Math.min(1, Math.max(0, (h.t - 0.2) / 0.5));
+    const te = tip * tip;
+    const bounce = tip >= 1 ? Math.exp(-(h.t - 0.7) * 9) * Math.sin((h.t - 0.7) * 28) * 0.06 : 0;
+    // (Sunk while the legs give; lifted back as it tips, so the heap lies on the ground, not under it.)
+    m.root.position.y = -h.drop * sink * sink * (1 - te) + 0.06 * te;
+    m.root.quaternion.setFromAxisAngle(h.tipAxis, (1.1 + bounce) * te);
+  }
+
+  /** Set by the combat system: the clatter of a skeleton falling apart. */
+  onCollapse?: (x: number, y: number, z: number) => void;
+
+  private wingBones: Array<{ b: Object3D; bind: Quaternion; side: number }> | null = null;
+  private wingBeat = 0;
+
+  /** Beating wings for a clip-less flyer: each wing's root rocks about the body's forward axis (slower when dying). */
+  private flapWings(m: ModelRig, dt: number): void {
+    const w = this.def.wings;
+    if (!w) return;
+    if (!this.wingBones) {
+      this.wingBones = [];
+      for (const [name, side] of [[w.right, 1], [w.left, -1]] as const) {
+        const b = m.bone(new RegExp('^' + name + '$'));
+        if (b) this.wingBones.push({ b, bind: b.quaternion.clone(), side });
+      }
+    }
+    this.wingBeat += dt * w.rate * (this.alive ? 1 : 0.3) * Math.PI * 2;
+    const a = Math.sin(this.wingBeat) * w.amp * (this.alive ? 1 : 0.4);
+    m.root.updateWorldMatrix(true, true);
+    const fwd = new Vector3(0, 0, 1).applyQuaternion(m.frame.getWorldQuaternion(new Quaternion()));
+    for (const x of this.wingBones) {
+      x.b.quaternion.copy(x.bind);
+      x.b.quaternion.copy(turnedAbout(x.b, fwd, a * x.side));
+      x.b.updateWorldMatrix(false, true);
+    }
   }
 
   /**
@@ -499,6 +666,9 @@ function attackClips(kind: BossAttackKind | undefined): string[] {
     case 'breath': case 'roar': return ['zombie_scream', 'shouting', 'roar', 'attack'];
     // A swing or a throw: the plain Attack clip, which boss bodies list under 'heavy' ('attack' is their slam).
     case 'sweep': case 'bite': case 'boulder': case 'charge': return ['heavy', 'attack'];
+    case 'logthrow': return ['throw', 'heavy', 'attack'];
+    case 'punch': return ['punch', 'attack'];
+    case 'grab': return ['grab', 'attack'];
     default: return ['attack', 'heavy'];
   }
 }

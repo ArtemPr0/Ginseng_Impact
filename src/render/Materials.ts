@@ -107,6 +107,41 @@ export function patchCape(mat: MeshStandardMaterial, h: number, shape: { shoulde
   return lift;
 }
 
+/**
+ * Wings that flap, for a static mesh with no bones (the kingdom dragon): every vertex beyond `x0` of the body's
+ * centre line (mesh units, wings spread along ±x) swings up and down about the wing root, more toward the tip and a
+ * beat behind it, so the stroke ripples out along the wing. Returns nothing; the shared WIND clock drives it.
+ */
+export function patchWingFlap(mat: MeshStandardMaterial, opts: { x0: number; rootY: number; rate: number; amp: number }): void {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (shader, renderer) => {
+    prev?.call(mat, shader, renderer);
+    shader.uniforms.uWind = WIND;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uWind;')
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        {
+          float ax = abs(transformed.x);
+          float span = max(0.0, ax - ${opts.x0.toFixed(4)});
+          if (span > 0.0) {
+            float a = sin(uWind * ${opts.rate.toFixed(3)} - span * 2.4) * ${opts.amp.toFixed(3)} * smoothstep(0.0, 0.25, span);
+            float dy = transformed.y - ${opts.rootY.toFixed(4)};
+            // Rotate about the wing root line (along z): up and down, the far side mirrored.
+            float sx = sign(transformed.x);
+            float ca = cos(a), sa = sin(a);
+            float lx = span * ca - dy * sa;
+            float ly = span * sa + dy * ca;
+            transformed.x = sx * (${opts.x0.toFixed(4)} + lx);
+            transformed.y = ${opts.rootY.toFixed(4)} + ly;
+          }
+        }`,
+      );
+  };
+  mat.needsUpdate = true;
+}
+
 /** Bones whose vertices never belong to the cape: shins, feet, toes, arms and hands (thighs carry the cape's hem). */
 const NOT_CAPE = /(?<!up)leg$|foot|toe|arm$|forearm|hand/i;
 

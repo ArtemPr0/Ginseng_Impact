@@ -136,6 +136,9 @@ export class HeightWorld implements WorldQuery {
   private static readonly CELL = 16;
   private static readonly NEAR_PAD = 2;
 
+  /** Footprints that move every frame (the snail): checked everywhere, not bucketed. Mutate their x/z/rotY/top. */
+  readonly moving: Footprint[] = [];
+
   /** Where the water is (surface height at x, z, or null): the controller swims there when it is deep enough. */
   water: ((x: number, z: number) => number | null) | null = null;
 
@@ -205,6 +208,12 @@ export class HeightWorld implements WorldQuery {
       const s = surfaceOf(f, x, z, y);
       if (s > h) h = s;
     }
+    for (let i = 0; i < this.moving.length; i++) {
+      const f = this.moving[i];
+      if (f.top <= h) continue;
+      const s = surfaceOf(f, x, z, y);
+      if (s > h) h = s;
+    }
     return h;
   }
 
@@ -236,6 +245,7 @@ export class HeightWorld implements WorldQuery {
   blocked(x: number, z: number): boolean {
     const list = this.grid.get(HeightWorld.key(Math.floor(x / HeightWorld.CELL), Math.floor(z / HeightWorld.CELL)));
     if (list) for (const f of list) if (footprintContains(f, x, z)) return true;
+    for (const f of this.moving) if (footprintContains(f, x, z)) return true;
     return false;
   }
 }

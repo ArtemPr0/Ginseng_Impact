@@ -35,6 +35,8 @@ export interface AdventureDeps {
   teleport: Teleport;
   /** The active hero's body (the sack hangs on it). */
   activeRig(): Rig;
+  /** Seconds of poison left on the hero (shown with the buffs). */
+  poisoned(): number;
 }
 
 export class Adventures {
@@ -194,7 +196,11 @@ export class Adventures {
   }
 
   private refreshHud(): void {
-    this.d.hud.setQuests(this.quests.tracker(), this.aleLeft > 0 ? [{ name: "Rowers' Ale", left: this.aleLeft }] : []);
+    const buffs: Array<{ name: string; left: number }> = [];
+    if (this.aleLeft > 0) buffs.push({ name: "Rowers' Ale", left: this.aleLeft });
+    const poison = this.d.poisoned();
+    if (poison > 0) buffs.push({ name: 'Poisoned', left: poison });
+    this.d.hud.setQuests(this.quests.tracker(), buffs);
     this.d.hud.setTimer(this.dreamLeft > 0 ? this.dreamLeft : null, 'The dream lasts');
   }
 }

@@ -154,8 +154,10 @@ function teleport(x: number, y: number, z: number, yaw: number, name?: string): 
   portalCooldown = 1.5;
 }
 combat.loot.onAbsorbed = () => audio.absorb();
-const adventures = new Adventures({ controller, world: area, hud, audio, inventory, teleport, activeRig: () => rigs[party.activeIndex] });
+const adventures = new Adventures({ controller, world: area, hud, audio, inventory, teleport, activeRig: () => rigs[party.activeIndex], poisoned: () => combat.poisoned });
 area.hooks.teleport = teleport;
+area.hooks.shoot = (from, s) => combat.hostileShot(from, s);
+area.hooks.hurt = (atk, poison) => combat.hazard(atk, poison);
 area.hooks.board = (boat) => { adventures.riding = boat; audio.footstep(); hud.announce('Aboard · F talk · SPACE jump off'); };
 adventures.openRowers = () => {
   const node = adventures.talk('rowers');
@@ -300,6 +302,8 @@ game
       const space = input.locked && input.justPressed('Space');
       adventures.update(dt);
       if (adventures.riding) { if (space) adventures.leaveBoat(); }
+      // In a giant's fist: no moving until thrown.
+      else if (combat.held) { /* the combat system carries the hero */ }
       else stepController(controller, {
         move,
         sprint: input.isDown('ShiftLeft') || input.isDown('ShiftRight'),

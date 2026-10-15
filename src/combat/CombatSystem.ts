@@ -1,4 +1,4 @@
-import { BoxGeometry, Group, Mesh, PerspectiveCamera, Scene, Vector3, ConeGeometry, CylinderGeometry } from 'three';
+import { BoxGeometry, Group, Mesh, PerspectiveCamera, Scene, Vector3, ConeGeometry, CylinderGeometry, TorusGeometry, MeshBasicMaterial, AdditiveBlending, DoubleSide } from 'three';
 import type { Audio } from '../audio/Audio';
 import type { CharacterDef } from '../characters/roster';
 import type { Game } from '../core/Game';
@@ -14,7 +14,7 @@ import type { Hud } from '../ui/Hud';
 import { glowSprite } from '../render/Glow';
 import { ComboTracker, Cooldown, computeDamage, inCone, inRadius } from './Combat';
 import { ELEMENT_COLOR, REACTIONS, applyElement, type Element, type ReactionId } from './Elements';
-import { Enemy } from './Enemy';
+import { Enemy, type EnemyHome } from './Enemy';
 import { LootField, rollDrops } from './Loot';
 import { COMBO, SKILLS, type AttackDef, type GroundEffectDef } from './Skills';
 import { Vfx } from './Vfx';
@@ -25,9 +25,19 @@ interface Projectile {
   pos: Vector3; vel: Vector3; life: number; owner: 'player' | 'enemy';
   atk: number; mult: number; element: Element | null; radius: number; object: Group;
   chains: number; chainRange: number; hit: Set<number>; knockback: number; hitStop: number;
-  /** Arrows fly point-first; bolts tumble. */
-  kind: 'bolt' | 'arrow';
+  /** Arrows fly point-first; bolts tumble; logs tumble end over end under gravity; rings fly face-on; fire flickers. */
+  kind: ProjectileKind;
+  /** Falls (m/s²): thrown logs arc. */
+  gravity: number;
+  /** A hit also poisons (witch orbs, the snail's rings). */
+  poison: { dps: number; seconds: number } | null;
+  color: number;
 }
+
+type ProjectileKind = 'bolt' | 'arrow' | 'log' | 'ring' | 'fire';
+
+/** A shot from something that is not an enemy (witches, the snail, the dragon), aimed at the hero. */
+export interface HostileShot { speed: number; color: number; atk: number; kind?: ProjectileKind; size?: number; radius?: number; poison?: { dps: number; seconds: number }; spread?: number }
 
 interface GroundZone { pos: Vector3; def: GroundEffectDef; left: number; tick: number; atk: number; remove: () => void }
 
@@ -66,6 +76,11 @@ export class CombatSystem {
   private casting: { def: CharacterDef; t: number; fired: boolean } | null = null;
   private heavy: { t: number; fired: boolean; charge: number } | null = null;
   private heavyCharge = 0;
+  private poisonLeft = 0;
+  private poisonDps = 0;
+  private poisonTick = 0;
+  /** A giant's grab: who holds the hero and for how long so far. */
+  private grab: { e: Enemy; t: number } | null = null;
   private burstCast: { t: number; fired: boolean } | null = null;
   burstEnergy = 0;
   private iframes = 0;
@@ -81,8 +96,8 @@ export class CombatSystem {
     for (const s of ENEMY_SPAWNS) {
       // An enemy without its model would be an invisible attacker: it waits until the file exists.
       if (!PRESENT_MODELS.has(s.kind)) continue;
-      const at = this.freeSpot(s.x, s.z);
-      this.spawnEnemy(ENEMY_DEFS[s.kind], at.x, at.z);
+      const at = s.exact ? { x: s.x, z: s.z } : this.freeSpot(s.x, s.z);
+      this.spawnEnemy(ENEMY_DEFS[s.kind], at.x, at.z, false, { yaw: s.yaw, patrol: s.patrol });
     }
     for (const c of d.party.members) {
       const combo = COMBO[c.weapon];
@@ -119,9 +134,10 @@ export class CombatSystem {
     this.contact.clear();
   }
 
-  private spawnEnemy(def: EnemyDef, x: number, z: number, noRespawn = false): Enemy {
-    const e = new Enemy(def, { x, z }, this.d.world);
+  private spawnEnemy(def: EnemyDef, x: number, z: number, noRespawn = false, home: Partial<EnemyHome> = {}): Enemy {
+    const e = new Enemy(def, { ...home, x, z }, this.d.world);
     e.noRespawn = noRespawn;
+    e.onCollapse = () => this.d.audio.clatter();
     e.onStomp = (sx, sy, sz) => {
       this.vfx.burst(new Vector3(sx, sy + 0.2, sz), 0x5a6aa8, 14, 3.5, 0.45);
       const dist = Math.hypot(sx - this.d.controller.pos.x, sz - this.d.controller.pos.z);
@@ -237,6 +253,45 @@ export class CombatSystem {
     this.frenzyLeft = Math.max(0, this.frenzyLeft - dt);
     for (const cd of this.cooldowns.values()) cd.update(dt);
     for (let i = this.delayed.length - 1; i >= 0; i--) { this.delayed[i].t -= dt; if (this.delayed[i].t <= 0) { this.delayed[i].fn(); this.delayed.splice(i, 1); } }
+    // Poison: a tick every half second, through any dodge.
+    if (this.poisonLeft > 0) {
+      this.poisonLeft -= dt;
+      this.poisonTick -= dt;
+      if (this.poisonTick <= 0) {
+        this.poisonTick = 0.5;
+        const hp = Math.max(0, this.hp.get(me.id)! - this.poisonDps * 0.5);
+        this.hp.set(me.id, hp);
+        this.showNumber(this.playerPos().clone().add(new Vector3(0, 1.8, 0)), Math.round(this.poisonDps * 0.5), PALETTE.witch, false);
+        if (hp <= 0) { this.poisonLeft = 0; this.onCharacterDown(); }
+      }
+    }
+    // Held in a giant's fist: lifted, shaken, then thrown.
+    if (this.grab) {
+      const g = this.grab;
+      g.t += dt;
+      const e = g.e;
+      const fx = Math.cos(e.yaw);
+      const fz = Math.sin(e.yaw);
+      const reach = e.def.bodyRadius * (e.def.scale ?? 1) + 1.1;
+      const lift = Math.min(1, g.t / 0.4);
+      c.pos.x = e.pos.x + fx * reach;
+      c.pos.z = e.pos.z + fz * reach;
+      c.pos.y = e.pos.y + e.def.height * (0.35 + 0.25 * lift) + Math.sin(g.t * 26) * 0.06;
+      c.vel.x = c.vel.y = c.vel.z = 0;
+      c.mode = 'air';
+      if (g.t >= 0.85 || !e.alive) {
+        this.grab = null;
+        // Thrown about twelve metres the way the giant faces.
+        c.vel.x = fx * 16;
+        c.vel.z = fz * 16;
+        c.vel.y = 9.5;
+        c.flung = 1.5;
+        this.iframes = 0;
+        if (e.alive) this.damagePlayer(e.def.atk * 1.2, e.def.element);
+        this.d.onShake?.(0.7);
+        this.d.audio.roar();
+      }
+    }
     const grounded = c.mode === 'ground';
     // Only Wren can shoot from the air (riding her bow); everyone else fights on their feet.
     const canShoot = grounded || (c.mode === 'fly' && me.weapon === 'bow');
@@ -383,9 +438,12 @@ export class CombatSystem {
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
       p.life -= dt;
+      if (p.gravity) p.vel.y -= p.gravity * dt;
       p.pos.addScaledVector(p.vel, dt);
       p.object.position.copy(p.pos);
-      if (p.kind === 'arrow') p.object.lookAt(aim.copy(p.pos).add(p.vel));
+      if (p.kind === 'arrow' || p.kind === 'ring') p.object.lookAt(aim.copy(p.pos).add(p.vel));
+      else if (p.kind === 'log') { p.object.rotation.x += dt * 7; p.object.rotation.y += dt * 1.3; }
+      else if (p.kind === 'fire') p.object.scale.setScalar(1 + (2.5 - p.life) * 0.6);
       else p.object.rotation.y += dt * 12;
       let dead = p.life <= 0 || p.pos.y < d.world.heightAt(p.pos.x, p.pos.z, p.pos.y) - 0.2;
       if (p.owner === 'player') {
@@ -408,10 +466,12 @@ export class CombatSystem {
         }
       } else if (Math.hypot(c.pos.x - p.pos.x, c.pos.z - p.pos.z) < p.radius + 0.5 && Math.abs(c.pos.y + 1 - p.pos.y) < 1.6 + p.radius) {
         this.damagePlayer(p.atk * p.mult, p.element);
+        if (p.poison) this.poisonPlayer(p.poison.dps, p.poison.seconds);
         dead = true;
       }
       if (dead) {
-        this.vfx.impact(p.pos, p.owner === 'player' ? ELEMENT_COLOR[p.element ?? 'lunar'] : PALETTE.rune, 1.6);
+        this.vfx.impact(p.pos, p.owner === 'player' ? ELEMENT_COLOR[p.element ?? 'lunar'] : p.color, p.kind === 'log' ? 3.5 : 1.6);
+        if (p.kind === 'log') { this.vfx.burst(p.pos.clone(), 0x5a6aa8, 18, 5, 0.5); this.d.onShake?.(0.4); this.d.audio.stomp(); }
         d.scene.remove(p.object);
         this.projectiles.splice(i, 1);
       }
@@ -555,6 +615,44 @@ export class CombatSystem {
         if (inCone({ x: e.pos.x, z: e.pos.z }, e.yaw, { x: c.pos.x, z: c.pos.z }, 26, 0.4)) this.damagePlayer(e.def.atk * 0.9, e.def.element);
         break;
       }
+      case 'logthrow': {
+        // A log pulled off his back, lobbed over the shoulder to land where the hero stands.
+        const from = new Vector3(e.pos.x - Math.cos(e.yaw) * 0.4, e.pos.y + e.def.height * sc * 0.95, e.pos.z - Math.sin(e.yaw) * 0.4);
+        const to = new Vector3(c.pos.x + c.vel.x * 0.3, c.pos.y + 0.6, c.pos.z + c.vel.z * 0.3);
+        const T = Math.max(0.7, Math.min(1.7, 0.55 + dist / 22));
+        const g = 18;
+        const vel = to.clone().sub(from).divideScalar(T);
+        vel.y += 0.5 * g * T;
+        this.spawnProjectile(from, vel, 'enemy', e.def.atk, 1.3, 'stone', 1.3, 0x8a96c8, 0, 0, 0, 0, 1, 'log', { gravity: g });
+        this.d.audio.swing(true);
+        break;
+      }
+      case 'punch': {
+        const range = (e.currentAttack?.range ?? 4) + e.def.bodyRadius * sc * 0.5;
+        this.vfx.slash(at.clone().add(new Vector3(0, e.def.height * sc * 0.5, 0)), e.yaw, color, range, 0.8);
+        this.d.onShake?.(0.6);
+        this.d.audio.stomp();
+        if (inCone({ x: e.pos.x, z: e.pos.z }, e.yaw, { x: c.pos.x, z: c.pos.z }, range, 0.8)) {
+          this.damagePlayer(e.def.atk * 1.1, e.def.element);
+          const dx = c.pos.x - e.pos.x;
+          const dz = c.pos.z - e.pos.z;
+          const l = Math.hypot(dx, dz) || 1;
+          c.vel.x += (dx / l) * 9;
+          c.vel.z += (dz / l) * 9;
+          c.vel.y = Math.max(c.vel.y, 4);
+          c.mode = 'air';
+        }
+        break;
+      }
+      case 'grab': {
+        const range = (e.currentAttack?.range ?? 3.4) + e.def.bodyRadius * sc;
+        if (!this.grab && inCone({ x: e.pos.x, z: e.pos.z }, e.yaw, { x: c.pos.x, z: c.pos.z }, range, 0.9)) {
+          this.grab = { e, t: 0 };
+          this.damagePlayer(e.def.atk * 0.4, e.def.element);
+          this.d.hud.announce('Grabbed!');
+        }
+        break;
+      }
       case 'charge':
       case 'bite':
         this.contact.set(e.id, kind === 'charge' ? 0.9 : 0.4);
@@ -675,9 +773,30 @@ export class CombatSystem {
     this.zones.push({ pos, def, left: def.duration, tick: 0.05, atk, remove });
   }
 
-  private spawnProjectile(from: Vector3, vel: Vector3, owner: 'player' | 'enemy', atk: number, mult: number, element: Element | null, radius: number, color: number, chains: number, chainRange: number, knockback: number, hitStop: number, size = 0.24, kind: 'bolt' | 'arrow' = 'bolt'): void {
+  private spawnProjectile(from: Vector3, vel: Vector3, owner: 'player' | 'enemy', atk: number, mult: number, element: Element | null, radius: number, color: number, chains: number, chainRange: number, knockback: number, hitStop: number, size = 0.24, kind: ProjectileKind = 'bolt', extra: { gravity?: number; poison?: { dps: number; seconds: number } } = {}): void {
     const object = new Group();
-    if (kind === 'arrow') {
+    if (kind === 'log') {
+      // A log off the giant's back: rough bark, pale cut ends, tumbling end over end.
+      const bark = new Mesh(new CylinderGeometry(0.28 * size, 0.32 * size, 2.4 * size, 9), surface({ color: PALETTE.bark, roughness: 1 }));
+      bark.rotation.z = Math.PI / 2;
+      for (const sx of [-1, 1]) {
+        const end = new Mesh(new CylinderGeometry(0.27 * size, 0.27 * size, 0.04, 9), surface({ color: 0x8a7a66 }));
+        end.rotation.z = Math.PI / 2;
+        end.position.x = sx * 1.21 * size;
+        object.add(end);
+      }
+      object.add(bark);
+      object.position.copy(from);
+    } else if (kind === 'ring') {
+      // A glowing ring flying face-on (the snail's tentacle shots).
+      const ring = new Mesh(new TorusGeometry(0.45 * size, 0.07 * size, 8, 28), new MeshBasicMaterial({ color, transparent: true, opacity: 0.9, blending: AdditiveBlending, side: DoubleSide, depthWrite: false, toneMapped: false }));
+      object.add(ring, glowSprite(color, 1.6 * size, 0.5, true));
+      object.position.copy(from);
+    } else if (kind === 'fire') {
+      // A gout of fire: a few overlapping glows that swell as they fly.
+      for (let i = 0; i < 4; i++) { const g = glowSprite(i % 2 ? color : PALETTE.moon, (0.9 - i * 0.12) * size, 0.85 - i * 0.12, true); g.position.set((Math.random() - 0.5) * 0.3 * size, (Math.random() - 0.5) * 0.3 * size, -i * 0.25 * size); object.add(g); }
+      object.position.copy(from);
+    } else if (kind === 'arrow') {
       // A real arrow: shaft along +z (the direction lookAt points), glowing head, two fletching vanes.
       // Sized to read at play distance: a thick pale shaft, a glowing head and a short light trail behind it.
       const shaft = new Mesh(new CylinderGeometry(0.032, 0.032, 1.15, 6), surface({ color: PALETTE.cloth, emissive: PALETTE.moon, emissiveIntensity: 0.6 }));
@@ -706,7 +825,43 @@ export class CombatSystem {
       object.position.copy(from);
     }
     this.d.scene.add(object);
-    this.projectiles.push({ pos: from.clone(), vel, life: 2.5, owner, atk, mult, element, radius, object, chains, chainRange, hit: new Set(), knockback, hitStop, kind });
+    this.projectiles.push({ pos: from.clone(), vel, life: kind === 'log' ? 3.5 : 2.5, owner, atk, mult, element, radius, object, chains, chainRange, hit: new Set(), knockback, hitStop, kind, gravity: extra.gravity ?? 0, poison: extra.poison ?? null, color });
+  }
+
+  /** A shot at the hero from something in the world (witches' orbs, the snail's rings, dragon fire). */
+  hostileShot(from: Vector3, s: HostileShot): void {
+    const c = this.d.controller;
+    const dir = new Vector3(c.pos.x, c.pos.y + 1, c.pos.z).sub(from).normalize();
+    if (s.spread) {
+      const cs = Math.cos(s.spread);
+      const sn = Math.sin(s.spread);
+      const x = dir.x * cs - dir.z * sn;
+      dir.z = dir.x * sn + dir.z * cs;
+      dir.x = x;
+    }
+    this.spawnProjectile(from.clone(), dir.multiplyScalar(s.speed), 'enemy', s.atk, 1, 'rot', s.radius ?? 0.6, s.color, 0, 0, 0, 0, s.size ?? 1, s.kind ?? 'bolt', { poison: s.poison });
+  }
+
+  /** Damage from the world itself (the toxic stream): a hit and, if given, poison. */
+  hazard(atk: number, poison?: { dps: number; seconds: number }): void {
+    this.damagePlayer(atk, 'rot');
+    if (poison) this.poisonPlayer(poison.dps, poison.seconds);
+  }
+
+  /** Poison: damage every half second for a while (refreshed, never stacked). */
+  poisonPlayer(dps: number, seconds: number): void {
+    this.poisonDps = Math.max(this.poisonDps * (this.poisonLeft > 0 ? 1 : 0), dps);
+    this.poisonLeft = Math.max(this.poisonLeft, seconds);
+  }
+
+  /** Seconds of poison left (the HUD shows it as a buff). */
+  get poisoned(): number {
+    return this.poisonLeft;
+  }
+
+  /** True while a giant holds the hero (no moving until thrown). */
+  get held(): boolean {
+    return this.grab !== null;
   }
 
   private damagePlayer(atk: number, _element: Element | null): void {

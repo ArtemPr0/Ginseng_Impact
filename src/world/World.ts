@@ -24,12 +24,57 @@ import { stoneHeadEyes } from './StoneHead';
 import { buildTreeHouse } from './TreeHouse';
 import { buildDream } from './Dream';
 import type { Interactable, Teleport } from './Interact';
+import type { HostileShot } from '../combat/CombatSystem';
 
 import { buildRealms, type RealmApi } from './Realms';
 import type { PortalLink } from './Portal';
 import { deadAt, frozenAt, pathAt, RIVER_LEVEL, riverAt, riverDistance, sandAt, streamAt, Terrain, WORLD } from './Terrain';
 import { causewayPostPoints, causewayWalk, chasmBridge, witchBridgeDeck } from './Walkways';
 import { lilyPond, river, stillWaterDisc } from './Water';
+
+/**
+ * The moon-shell snail (moon-shell-colossus.glb, 16.6 m long, head toward +z; measured): solid as it crawls (two
+ * boxes that move with it: the shell and the head), and when the hero stands before its head, within 45° of straight
+ * ahead and 30 m, it shoots a pair of green rings from its two tentacle tips.
+ */
+function snailBehaviour(root: Group, heights: HeightWorld, shoot: (from: Vector3, s: HostileShot) => void): { group: Group; update(dt: number): void } {
+  const shell: Footprint & { kind: 'box' } = { kind: 'box', x: 0, z: 0, hw: 4, hd: 5, top: 0 };
+  const head: Footprint & { kind: 'box' } = { kind: 'box', x: 0, z: 0, hw: 2.4, hd: 2.4, top: 0 };
+  heights.moving.push(shell, head);
+  const TIPS = [new Vector3(2.1, 4.8, 8.1), new Vector3(-2.1, 4.8, 8.1)];
+  const RING: HostileShot = { speed: 14, color: PALETTE.witch, atk: 85, kind: 'ring', size: 1.4, radius: 0.9 };
+  let wait = 1.5;
+  const tip = new Vector3();
+  const player = new Vector3();
+  return {
+    group: new Group(),
+    update: (dt) => {
+      const th = root.rotation.y;
+      const at = (zc: number, f: { x: number; z: number; rotY?: number }) => { f.x = root.position.x + Math.sin(th) * zc; f.z = root.position.z + Math.cos(th) * zc; f.rotY = -th; };
+      at(-1.5, shell);
+      shell.top = root.position.y + 8.4;
+      at(5.6, head);
+      head.top = root.position.y + 4.6;
+      // Facing the hero? (`snailTarget` is the player's position, set by main through the hooks each frame.)
+      if (!snailTarget) return;
+      player.copy(snailTarget);
+      const hx = root.position.x + Math.sin(th) * 7;
+      const hz = root.position.z + Math.cos(th) * 7;
+      const dx = player.x - hx;
+      const dz = player.z - hz;
+      const d = Math.hypot(dx, dz);
+      const ahead = (dx * Math.sin(th) + dz * Math.cos(th)) / (d || 1);
+      wait -= dt;
+      if (d < 30 && ahead > Math.cos(Math.PI / 4) && wait <= 0) {
+        wait = 2.6;
+        root.updateWorldMatrix(true, false);
+        for (const t of TIPS) shoot(root.localToWorld(tip.copy(t)), RING);
+      }
+    },
+  };
+}
+/** The hero's position for things that aim at it (set every frame in World.update). */
+let snailTarget: Vector3 | null = null;
 
 /** A river boat (its moving root) and the two knights rowing it. */
 export interface Boat { root: Group; rowers: Rig[] }
@@ -109,7 +154,7 @@ export class World {
   /** Things to use with F (doors, boats); main.ts offers the nearest one in the player's zone. */
   readonly interactables: Interactable[] = [];
   /** What main.ts lets the world do to the player: move them, sit them in a boat. */
-  readonly hooks: { teleport?: Teleport; board?: (boat: Boat) => void } = {};
+  readonly hooks: { teleport?: Teleport; board?: (boat: Boat) => void; shoot?: (from: Vector3, s: HostileShot) => void; hurt?: (atk: number, poison?: { dps: number; seconds: number }) => void } = {};
   /** The river boats with their two rowers each. */
   readonly boats: Boat[] = [];
   private readonly landmarks: Landmark[] = [];
@@ -238,8 +283,10 @@ export class World {
     // The Frog King is an NPC now (he has a son to find); his bulk stays solid.
     this.heights.add({ kind: 'cyl', x: LAYOUT.frog.x, z: LAYOUT.frog.z, r: MODELS.frogking.height * 0.4, top: h(LAYOUT.frog.x, LAYOUT.frog.z) + MODELS.frogking.height * 0.75 });
     // Walkers follow the ground itself (never trunks or roofs); their routes are kept clear of trees (plantable).
-    this.place(walkerLandmark('colossus', LAYOUT.colossusPath, 0.9, h, { lift: -0.5, clip: 'idle', trail: true }));
-    this.place(walkerLandmark('loggiant', [...LAYOUT.logGiantPath], 1.2, h));
+    const snail = walkerLandmark('colossus', LAYOUT.colossusPath, 0.9, h, { lift: -0.5, clip: 'idle', trail: true });
+    this.place(snail);
+    vfx(snailBehaviour(snail.root, this.heights, (from, s) => this.hooks.shoot?.(from, s)));
+    // (The log giant is an enemy now: he walks his road and fights back when hit; see data/enemies.)
     // The spider chapel flies over the west cliffs at a fixed height, well above the treetops.
     this.place(walkerLandmark('spiderchapel', [...LAYOUT.spiderPath], 1.6, () => LAYOUT.spiderFlyHeight, { lift: 0 }));
     const rider = walkerLandmark('horse-rider', [...LAYOUT.riderPath], 3.2, h);
@@ -291,7 +338,10 @@ export class World {
       const at = new Vector3();
       this.interactables.push({ pos: at, range: 3.6, zone: null, label: () => { at.copy(boat.root.position); return 'Climb into the boat'; }, act: () => this.hooks.board?.(b) });
     }
-    this.place(witchStream(LAYOUT.coven.streamX, LAYOUT.coven.zMin, LAYOUT.coven.zMax, LAYOUT.coven.bridgeZ, deck.deckY, h));
+    this.place(witchStream((z) => terrain.streamCentre(z), LAYOUT.coven.zMin, LAYOUT.coven.zMax, LAYOUT.coven.bridgeZ, deck.deckY, h, {
+      shoot: (from, s) => this.hooks.shoot?.(from, s),
+      hurt: (atk, poison) => this.hooks.hurt?.(atk, poison),
+    }));
     this.place(modelLandmark('cauldron', LAYOUT.coven.streamX, LAYOUT.coven.bridgeZ, deck.deckY + 0.45, { color: PALETTE.witch }));
 
     // --- settlements ---
@@ -412,6 +462,7 @@ export class World {
       get group() { return world.target; },
       realm: (id) => this.enterZone(id),
       place: (l) => this.place(l), flora, vfx, h, rnd: rrnd,
+      shoot: (from, s) => this.hooks.shoot?.(from, s),
     };
     this.portals.push(...buildRealms(realmApi));
     // The tree house's round door and the room behind it; the frog's dream.
@@ -422,10 +473,11 @@ export class World {
 
     // Seats for NPCs whose only rest pose is sitting on a chair: a barrel at stool height just behind each sitter
     // (the campfire skeletons, Old Moss on the stream bank, Sir Halvard on the cliff).
-    for (const def of NPC_DEFS) {
-      if (!SEATED.has(def.id) || def.behaviour.kind !== 'stand') continue;
-      const a = ANCHORS[def.id];
-      const facing = CAMPFIRE_SEATS.has(def.id) ? Math.atan2(CAMPFIRE.z - a.z, CAMPFIRE.x - a.x) : def.behaviour.yaw;
+    for (const id of SEATED) {
+      const def = NPC_DEFS.find((d) => d.id === id);
+      const a = ANCHORS[id];
+      // The campfire seats belong to the skeletons (enemies now): they face the fire; NPCs face their own way.
+      const facing = CAMPFIRE_SEATS.has(id) ? Math.atan2(CAMPFIRE.z - a.z, CAMPFIRE.x - a.x) : def?.behaviour.kind === 'stand' ? def.behaviour.yaw : 0;
       const bx = a.x - Math.cos(facing) * 0.28;
       const bz = a.z - Math.sin(facing) * 0.28;
       this.place(modelLandmark('barrel', bx, bz, h(bx, bz), { scale: 0.5 / MODELS.barrel.height, collider: 'none' }));
@@ -444,8 +496,6 @@ export class World {
       if (s.y !== undefined) npc.pos.y = s.y;
       // Seated NPCs sit `dy` above the ground itself (not above the stool the tavern model already has).
       if (s.dy !== undefined) npc.pos.y = terrain.heightAt(s.x, s.z) + s.dy;
-      // The campfire skeletons face the fire from their barrels.
-      if (CAMPFIRE_SEATS.has(def.id)) npc.yaw = Math.atan2(CAMPFIRE.z - s.z, CAMPFIRE.x - s.x);
       const realm = REALMS.find((r) => Math.hypot(npc.pos.x - r.x, npc.pos.z - r.z) < r.radius);
       this.enterZone(realm ? realm.id : null);
       this.target.add(npc.object);
@@ -554,6 +604,7 @@ export class World {
   }
 
   update(dt: number, cameraPos: Vector3, playerPos: Vector3, talkingNpc: Npc | null): void {
+    snailTarget = playerPos;
     const here = REALMS.find((r) => Math.hypot(playerPos.x - r.x, playerPos.z - r.z) < r.radius)?.id ?? null;
     if (here !== this.here) this.showZone(here);
     // Only the place you are in is updated; elsewhere nothing moves until you get there.

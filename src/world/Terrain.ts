@@ -93,11 +93,15 @@ export function frozenAt(x: number, z: number): number {
   return smoothstep(WORLD.frozen.xFrom, WORLD.frozen.xTo, x) * smoothstep(WORLD.frozen.zFrom, WORLD.frozen.zTo, z);
 }
 
+/** The witch stream's centre line at `z` (it winds a little). */
+export function streamCentre(z: number, noise: Noise2D): number {
+  return WORLD.streamX + noise.noise(z * 0.02, 7) * 6;
+}
+
 /** 0..1 inside the stream channel. */
 export function streamAt(x: number, z: number, noise: Noise2D): number {
-  const wobble = noise.noise(z * 0.02, 7) * 6;
   const band = smoothstep(WORLD.streamZ.min - 10, WORLD.streamZ.min, z) * (1 - smoothstep(WORLD.streamZ.max, WORLD.streamZ.max + 10, z));
-  return (1 - smoothstep(3.5, 7, Math.abs(x - (WORLD.streamX + wobble)))) * band;
+  return (1 - smoothstep(3.5, 7, Math.abs(x - streamCentre(z, noise)))) * band;
 }
 
 /** Pure height function. Plateau island with a wobbly cliff edge and a chasm band across it. */
@@ -160,6 +164,11 @@ export function terrainHeight(x: number, z: number, noise: Noise2D): number {
 export class Terrain {
   readonly mesh: Mesh;
   private readonly noise: Noise2D;
+
+  /** The witch stream's centre line at `z`. */
+  streamCentre(z: number): number {
+    return streamCentre(z, this.noise);
+  }
 
   constructor(seed = 1337) {
     this.noise = new Noise2D(seed);

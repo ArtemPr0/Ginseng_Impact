@@ -325,6 +325,13 @@ export class ModelRig {
     return a;
   }
 
+  /** Stops every clip: the bones keep the pose they have (the caller moves them by hand). */
+  stopAll(): void {
+    this.mixer.stopAllAction();
+    this.current = null;
+    this.currentKey = '';
+  }
+
   /** Shows the current clip frozen at `fraction` of its length (a held pose). */
   freezeAt(fraction: number): void {
     const a = this.current;

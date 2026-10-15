@@ -1,9 +1,9 @@
 import type { BrainParams } from '../combat/EnemyBrain';
 import type { Element } from '../combat/Elements';
 
-export type EnemyKind = 'beast' | 'bucket' | 'crystalgolem' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking';
+export type EnemyKind = 'beast' | 'bucket' | 'crystalgolem' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant';
 
-export type BossAttackKind = 'slam' | 'boulder' | 'roar' | 'volley' | 'summon' | 'blink' | 'roots' | 'sweep' | 'breath' | 'charge' | 'bite';
+export type BossAttackKind = 'slam' | 'boulder' | 'roar' | 'volley' | 'summon' | 'blink' | 'roots' | 'sweep' | 'breath' | 'charge' | 'bite' | 'logthrow' | 'punch' | 'grab';
 
 export interface BossAttack { kind: BossAttackKind; range: number; windup: number; recover: number; weight: number }
 
@@ -35,9 +35,30 @@ export interface EnemyDef {
   stomp?: boolean;
   /** Wading: the feet never sink below this world height (stands in water with its body above it). */
   floatAt?: number;
+  /** Sits at its spot (its spawn's yaw) until the player comes near, then gets up to fight; sits back down at home. */
+  seated?: boolean;
+  /** Falls apart into a heap of bones when it dies (instead of a death clip). */
+  collapse?: boolean;
+  /** Ignores the player until hit (then fights until it loses them). */
+  neutral?: boolean;
+  /** Wings that beat (a clip-less flyer): the root bone of each wing, how far (radians) and how often (Hz). */
+  wings?: { right: string; left: string; amp: number; rate: number };
 }
 
 export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
+  // DdjlyzyOcnK: the skeletons warming their bones at the campfire; they get up when you come close.
+  skeleton: {
+    kind: 'skeleton', name: 'Campfire Skeleton', maxHp: 560, def: 22, atk: 72, speed: 3.2, element: 'fog', hover: 0, bodyRadius: 0.45, height: 1.75,
+    brain: { aggroRange: 10, attackRange: 1.9, windup: 0.55, recover: 0.9, attackCooldown: 0.6 }, respawn: 90, leash: 16, shards: [6, 12],
+    drops: [{ itemId: 'old-bone', chance: 1 }, { itemId: 'old-bone', chance: 0.5 }], seated: true, collapse: true,
+  },
+  // The giant who hauls logs on his back: leave him be and he walks his road; hit him and he throws the logs.
+  loggiant: {
+    kind: 'loggiant', stomp: true, name: 'The Log Giant', title: 'Who Carries the Forest', maxHp: 5400, def: 80, atk: 135, speed: 2.1, element: 'stone', hover: 0, bodyRadius: 1.2, height: 4.2, boss: true,
+    brain: { aggroRange: 24, attackRange: 4, windup: 0.8, recover: 1.2, attackCooldown: 0.9 }, respawn: 180, leash: 34, shards: [120, 180], neutral: true,
+    attacks: [{ kind: 'logthrow', range: 26, windup: 1.0, recover: 1.3, weight: 3 }, { kind: 'punch', range: 4.4, windup: 0.6, recover: 1.0, weight: 3 }, { kind: 'grab', range: 3.4, windup: 0.7, recover: 1.7, weight: 2 }],
+    drops: [{ itemId: 'moon-dew', chance: 1 }, { itemId: 'rune-shard', chance: 1 }],
+  },
   // DeaqHWJBBPw: white buckets with grinning faces, full of blue crystals, scuttling on skeletal legs.
   bucket: {
     kind: 'bucket', name: 'Bucket Mimic', maxHp: 520, def: 25, atk: 62, speed: 3.4, element: 'stone', hover: 0, bodyRadius: 0.5, height: 1.0,
@@ -90,6 +111,8 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     drops: [{ itemId: 'warden-bough', chance: 1 }, { itemId: 'warden-antler', chance: 1 }, { itemId: 'moon-dew', chance: 1 }],
   },
   wyrm: {
+    // moon-wyrm.glb's smart rig has no clips: its wings (the upper side chains, measured) beat by hand.
+    wings: { right: 'Bone_035', left: 'Bone_037', amp: 0.55, rate: 1.1 },
     kind: 'wyrm', name: 'The Moon Wyrm', title: 'That Circles the Lonely Towers', maxHp: 8000, def: 70, atk: 150, speed: 9, element: 'lunar', hover: 14, bodyRadius: 2.2, height: 3, boss: true, flying: true,
     brain: { aggroRange: 30, attackRange: 22, windup: 0.9, recover: 1.4, attackCooldown: 1.0, preferredRange: 13 }, respawn: 300, leash: 45, shards: [240, 340],
     attacks: [{ kind: 'breath', range: 20, windup: 1.1, recover: 1.5, weight: 3 }, { kind: 'charge', range: 30, windup: 0.8, recover: 1.6, weight: 2 }],
@@ -130,7 +153,13 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
  * hold their own arenas off the roads, apart from each other; small mobs come in pairs at camps. Every enemy is
  * leashed to its spot and walks home (healing) once the player leaves (Enemy.update).
  */
-export const ENEMY_SPAWNS: ReadonlyArray<{ kind: EnemyKind; x: number; z: number }> = [
+/**
+ * `yaw`: facing at the spot (seated mobs face their fire); `exact`: placed exactly there (a seat), not at the nearest
+ * free ground; `patrol`: a route walked while not fighting (its home moves along it).
+ */
+export interface EnemySpawn { kind: EnemyKind; x: number; z: number; yaw?: number; exact?: boolean; patrol?: ReadonlyArray<readonly [number, number]> }
+
+export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   // Bosses
   { kind: 'yeti', x: 72, z: -94 },          // frozen grove, north-east
   { kind: 'shade', x: 66, z: -130 },        // the drowned stones on the north shore
@@ -143,6 +172,12 @@ export const ENEMY_SPAWNS: ReadonlyArray<{ kind: EnemyKind; x: number; z: number
   { kind: 'marshdemon', x: 106, z: -18 },   // the flooded ruin's pool, east of the cathedral
   { kind: 'hollowking', x: 36, z: -146 },   // seated on the north shore, east of the head
   { kind: 'emberrider', x: 16, z: -122 },   // the dead wood east of the causeway's end
+  // The log giant walks the old haul road by the skeleton camp, minding his own business until someone hits him.
+  { kind: 'loggiant', x: -12, z: 36, patrol: [[-12, 36], [-26, 38], [-38, 40], [-26, 38]] },
+  // The skeletons around the campfire by the village (DdjlyzyOcnK): seated on their barrels, facing the fire at (-24, 52).
+  { kind: 'skeleton', x: -21.6, z: 53.4, yaw: Math.atan2(52 - 53.4, -24 + 21.6), exact: true },
+  { kind: 'skeleton', x: -26.4, z: 53.4, yaw: Math.atan2(52 - 53.4, -24 + 26.4), exact: true },
+  { kind: 'skeleton', x: -24, z: 49.2, yaw: Math.atan2(52 - 49.2, 0), exact: true },
   // Camps (pairs)
   { kind: 'croc', x: 108, z: 10 }, { kind: 'croc', x: 118, z: 6 }, { kind: 'croc', x: 100, z: 15 }, // the river mouth, east
   { kind: 'beast', x: -62, z: 36 }, { kind: 'beast', x: -66, z: 30 },      // west meadow, by the stream

@@ -31,6 +31,19 @@ describe('HeightWorld — overhangs', () => {
   });
 });
 
+describe('HeightWorld — moving footprints', () => {
+  it('a moving body is solid where it is now, not where it was', () => {
+    const w = new HeightWorld(flat);
+    const snail = { kind: 'box' as const, x: 0, z: 0, hw: 2, hd: 4, top: 6 };
+    w.moving.push(snail);
+    expect(w.heightAt(0, 0, 0)).toBe(6);
+    expect(w.blocked(0, 3)).toBe(true);
+    snail.x = 20;
+    expect(w.heightAt(0, 0, 0)).toBe(0);
+    expect(w.blocked(20, 0)).toBe(true);
+  });
+});
+
 describe('baked model colliders', () => {
   it('only exist for models whose file is present', () => {
     for (const id of Object.keys(COLLIDER_GRIDS)) expect(PRESENT_MODELS.has(id)).toBe(true);

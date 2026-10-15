@@ -239,6 +239,19 @@ describe('stepController — stamina', () => {
   });
 });
 
+describe('stepController — thrown', () => {
+  it('flies where it was thrown, unsteered, then lands and takes control back', () => {
+    const s = createControllerState({ x: 0, y: 3, z: 0 });
+    s.mode = 'air';
+    s.vel = { x: 16, y: 9.5, z: 0 };
+    s.flung = 1.5;
+    run(idle(), 120, flat, s);
+    expect(s.mode).toBe('ground');
+    expect(s.pos.x).toBeGreaterThan(10);
+    expect(s.flung).toBe(0);
+  });
+});
+
 describe('stepController — swim', () => {
   /** Dry land for x < 4, a bank down to a 3 m deep channel beyond, water surface at 1. */
   const river: WorldQuery = {

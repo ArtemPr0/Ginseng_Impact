@@ -26,6 +26,8 @@ export interface ControllerState {
   jumpBuffer: number;
   /** Multiplier on every stamina cost (the rowers' ale halves it). */
   drainScale: number;
+  /** Seconds of being thrown (a giant's throw): no steering in the air until it runs out or you land. */
+  flung: number;
 }
 
 export interface ControllerInput {
@@ -145,6 +147,7 @@ export function createControllerState(pos: Vec3): ControllerState {
     climbDir: { x: 1, z: 0 },
     jumpBuffer: 0,
     drainScale: 1,
+    flung: 0,
   };
 }
 
@@ -291,11 +294,14 @@ export function stepController(s: ControllerState, input: ControllerInput, world
     }
 
     case 'air': {
-      // Keep the speed you jumped with (a sprint jump carries), steer toward the stick.
-      const carried = Math.max(CONTROLLER.walkSpeed, Math.hypot(s.vel.x, s.vel.z));
-      s.vel.x = approach(s.vel.x, mx * carried * moveScale, CONTROLLER.airAccel * dt);
-      s.vel.z = approach(s.vel.z, mz * carried * moveScale, CONTROLLER.airAccel * dt);
-      if (wantsMove) s.yaw = turnToward(s.yaw, Math.atan2(mz, mx), CONTROLLER.turnRate * dt);
+      // Keep the speed you jumped with (a sprint jump carries), steer toward the stick; thrown, you just fly.
+      if (s.flung > 0) s.flung -= dt;
+      else {
+        const carried = Math.max(CONTROLLER.walkSpeed, Math.hypot(s.vel.x, s.vel.z));
+        s.vel.x = approach(s.vel.x, mx * carried * moveScale, CONTROLLER.airAccel * dt);
+        s.vel.z = approach(s.vel.z, mz * carried * moveScale, CONTROLLER.airAccel * dt);
+        if (wantsMove) s.yaw = turnToward(s.yaw, Math.atan2(mz, mx), CONTROLLER.turnRate * dt);
+      }
       const groundHere = world.heightAt(s.pos.x, s.pos.z, s.pos.y);
       if (input.jump && s.airborneFor <= CONTROLLER.coyoteTime && s.vel.y <= 0) {
         s.vel.y = CONTROLLER.jumpSpeed;
@@ -336,6 +342,7 @@ export function stepController(s: ControllerState, input: ControllerInput, world
       if (s.vel.y <= 0 && s.pos.y <= ground) {
         s.pos.y = ground;
         s.vel.y = 0;
+        s.flung = 0;
         setMode(s, 'ground');
       }
       break;

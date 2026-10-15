@@ -23,6 +23,14 @@
  *       Meshy sometimes generates hands welded to the thighs (claws resting on fur): triangles joining a hand to
  *       anything outside its arm, or an arm to a leg, stretch into fans and streaks as soon as the limbs move. Those
  *       triangles are deleted (robes spanning both legs are left alone).
+ *   node scripts/model-tools.mjs fix-arm-flank <in.glb> <out.glb> [--dry]
+ *       A body whose arms hang against its sides in the bind pose (the yeti) gets flank fur weighted to the upper
+ *       arms, so raising an arm drags a sheet of torso up with it. Every vertex an arm pulls on that lies nearer the
+ *       spine (hips→neck) than that arm's bone (shoulder→elbow), in bind pose, gives its arm weight to the spine
+ *       bone at its height.
+ *   node scripts/model-tools.mjs cut-triangles <in.glb> <out.glb> <triangles.json>
+ *       Deletes the listed triangles (indices into the first primitive, as the game loads it): the webs a stretch
+ *       survey in the running game finds between limbs that the mesh fused (see .claude/skills/verify).
  *   node scripts/model-tools.mjs clip <in.glb> <out.glb>
  *       Keeps only the node hierarchy and animations (drops meshes, skins, materials, textures), so one
  *       animation export becomes a ~100 KB file the game layers onto the base model (see models.ts clipFiles).
@@ -270,6 +278,117 @@ async function cutFusedLimbs(inPath, outPath, dry) {
   await io.write(outPath, doc);
 }
 
+/** Where a joint sits in bind pose: the translation of the inverse of its (column-major, affine) inverse bind matrix. */
+function invertTranslation(m) {
+  // Rows of the 3×3 part (glTF stores columns), then inverse = adjugate / det, and t' = -R⁻¹ t.
+  const [a, b, c, d, e, f, g, h, i] = [m[0], m[4], m[8], m[1], m[5], m[9], m[2], m[6], m[10]];
+  const A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g;
+  const det = a * A + b * B + c * C;
+  const r = [A, -(b * i - c * h), b * f - c * e, B, a * i - c * g, -(a * f - c * d), C, -(a * h - b * g), a * e - b * d].map((v) => v / det);
+  const tx = m[12], ty = m[13], tz = m[14];
+  return [-(r[0] * tx + r[1] * ty + r[2] * tz), -(r[3] * tx + r[4] * ty + r[5] * tz), -(r[6] * tx + r[7] * ty + r[8] * tz)];
+}
+
+/** Closest point to p on segment a→b. */
+function closestOn(p, a, b) {
+  const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+  const l2 = ab[0] * ab[0] + ab[1] * ab[1] + ab[2] * ab[2] || 1;
+  const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * ab[0] + (p[1] - a[1]) * ab[1] + (p[2] - a[2]) * ab[2]) / l2));
+  return [a[0] + ab[0] * t, a[1] + ab[1] * t, a[2] + ab[2] * t];
+}
+
+async function fixArmFlank(inPath, outPath, dry) {
+  const doc = await io.read(inPath);
+  const skin = doc.getRoot().listSkins()[0];
+  if (!skin) { console.log(`${inPath}: no skin`); return; }
+  const names = skin.listJoints().map((j) => (j.getName() ?? '').toLowerCase());
+  const ibm = skin.getInverseBindMatrices().getArray();
+  const at = (k) => invertTranslation(Array.from(ibm.slice(k * 16, k * 16 + 16)));
+  const find = (re) => names.findIndex((n) => re.test(n));
+  const hips = find(/hips$/), neck = find(/neck$/);
+  const spines = names.map((n, k) => (/hips$|spine\d?$/.test(n) ? k : -1)).filter((k) => k >= 0).map((k) => ({ k, y: at(k)[1] }));
+  if (hips < 0 || neck < 0) { console.log(`${inPath}: not a humanoid skeleton`); return; }
+  const H = at(hips), N = at(neck);
+  const prims = doc.getRoot().listMeshes().flatMap((m) => m.listPrimitives());
+  let moved = 0, total = 0;
+  for (const s of ['left', 'right']) {
+    const ks = { arm: find(new RegExp(s + 'arm$')), fore: find(new RegExp(s + 'forearm$')), hand: find(new RegExp(s + 'hand$')) };
+    if (ks.arm < 0 || ks.fore < 0 || ks.hand < 0) continue;
+    const S = at(ks.arm), E = at(ks.fore), W0 = at(ks.hand);
+    const armBones = new Set(names.map((n, k) => (new RegExp(s + '(arm|forearm|hand|thumb|index|middle|ring|pinky)').test(n) ? k : -1)).filter((k) => k >= 0));
+    // The arm's thickness: how far forearm-dominated vertices sit from the forearm bone (median).
+    const radii = [];
+    const p = [0, 0, 0], j = [0, 0, 0, 0], w = [0, 0, 0, 0];
+    for (const prim of prims) {
+      const P = prim.getAttribute('POSITION'), J = prim.getAttribute('JOINTS_0'), Wt = prim.getAttribute('WEIGHTS_0');
+      if (!P || !J || !Wt) continue;
+      for (let i = 0; i < J.getCount(); i++) {
+        J.getElement(i, j); Wt.getElement(i, w);
+        let top = 0; for (let k = 1; k < 4; k++) if (w[k] > w[top]) top = k;
+        if (j[top] !== ks.fore || w[top] < 0.6) continue;
+        P.getElement(i, p);
+        const c = closestOn(p, E, W0);
+        radii.push(Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2]));
+      }
+    }
+    radii.sort((x, y) => x - y);
+    const rArm = (radii[Math.floor(radii.length * 0.75)] ?? 0.1) * 1.15;
+    for (const prim of prims) {
+      const P = prim.getAttribute('POSITION'), J = prim.getAttribute('JOINTS_0'), Wt = prim.getAttribute('WEIGHTS_0');
+      if (!P || !J || !Wt) continue;
+      for (let i = 0; i < J.getCount(); i++) {
+        J.getElement(i, j); Wt.getElement(i, w);
+        let armW = 0;
+        for (let k = 0; k < 4; k++) if (w[k] > 0 && armBones.has(j[k])) armW += w[k];
+        if (armW <= 0.01) continue;
+        P.getElement(i, p);
+        total++;
+        // Below the shoulder joint, between the arm and the spine, and further in than the arm is thick: flank.
+        if (p[1] > S[1] - 0.04 || p[1] < Math.min(W0[1], H[1]) - 0.05) continue;
+        const c1 = closestOn(p, S, E), c2 = closestOn(p, E, W0);
+        const d1 = Math.hypot(p[0] - c1[0], p[1] - c1[1], p[2] - c1[2]);
+        const d2 = Math.hypot(p[0] - c2[0], p[1] - c2[1], p[2] - c2[2]);
+        const c = d1 < d2 ? c1 : c2;
+        const sp = closestOn(p, H, N);
+        const inward = [sp[0] - c[0], 0, sp[2] - c[2]];
+        const il = Math.hypot(inward[0], inward[2]) || 1;
+        const depth = ((p[0] - c[0]) * inward[0] + (p[2] - c[2]) * inward[2]) / il;
+        if (depth < rArm) continue;
+        let best = spines[0];
+        for (const q of spines) if (Math.abs(q.y - p[1]) < Math.abs(best.y - p[1])) best = q;
+        let slot = -1;
+        for (let k = 0; k < 4; k++) if (j[k] === best.k) slot = k;
+        for (let k = 0; k < 4; k++) {
+          if (!(w[k] > 0 && armBones.has(j[k]))) continue;
+          if (slot < 0) { slot = k; j[k] = best.k; }
+          else { w[slot] += w[k]; w[k] = 0; }
+        }
+        J.setElement(i, j); Wt.setElement(i, w);
+        moved++;
+      }
+    }
+    console.log(`  ${s} arm: thickness ${rArm.toFixed(3)}`);
+  }
+  console.log(`fix-arm-flank ${inPath}: ${moved} of ${total} arm-weighted vertices were flank, moved to the spine${dry ? ' (dry run)' : ''}`);
+  if (dry) return;
+  await io.write(outPath, doc);
+}
+
+async function cutTriangles(inPath, outPath, listPath) {
+  const { readFileSync } = await import('node:fs');
+  const drop = new Set(JSON.parse(readFileSync(listPath, 'utf8')));
+  const doc = await io.read(inPath);
+  const prim = doc.getRoot().listMeshes()[0]?.listPrimitives()[0];
+  const acc = prim?.getIndices();
+  if (!acc) { console.log(`${inPath}: no indexed primitive`); return; }
+  const idx = acc.getArray();
+  const keep = [];
+  for (let t = 0; t < idx.length / 3; t++) if (!drop.has(t)) keep.push(idx[t * 3], idx[t * 3 + 1], idx[t * 3 + 2]);
+  acc.setArray(new Uint32Array(keep));
+  await io.write(outPath, doc);
+  console.log(`cut-triangles ${inPath}: ${idx.length / 3 - keep.length / 3} of ${idx.length / 3} triangles removed`);
+}
+
 async function clip(inPath, outPath) {
   const doc = await io.read(inPath);
   const root = doc.getRoot();
@@ -292,6 +411,8 @@ async function main() {
   if (cmd === 'fix-limb-skin') return fixLimbSkin(a, b, c === '--dry');
   if (cmd === 'fix-skin-branches') return fixSkinBranches(a, b, c === '--dry');
   if (cmd === 'cut-fused-limbs') return cutFusedLimbs(a, b, c === '--dry');
+  if (cmd === 'fix-arm-flank') return fixArmFlank(a, b, c === '--dry');
+  if (cmd === 'cut-triangles') return cutTriangles(a, b, c);
   if (cmd === 'clip') return clip(a, b);
   if (cmd === 'import') {
     const name = b;

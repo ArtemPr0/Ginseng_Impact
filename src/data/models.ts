@@ -86,7 +86,7 @@ export const MODELS: Record<string, ModelDef> = {
   greatsword: { file: 'greatsword.glb', height: 1.45, label: "Sir Aldric's hand-and-a-half sword (knight.png)", grip: { x: 0, y: 0.08, z: 0.02, rx: -Math.PI / 2, ry: 0, rz: 0, slide: -1.18 } },
   // Bosses and mobs
   // Meshy animate exports bundle every added preset into one GLB; clip names are the preset's English ids.
-  yeti: { file: 'yeti.glb', height: 3.2, faceForward: 0.25, clips: BOSS_CLIPS },
+  yeti: { file: 'yeti.glb', height: 3.2, faceForward: 0.25, armDamp: 0.45, clips: BOSS_CLIPS },
   shade: { file: 'horned-shade.glb', height: 10, armDamp: 0.7, idleBlend: 0.3, faceForward: 0.25, clips: BOSS_CLIPS },
   warden: { file: 'antlered-warden.glb', height: 6.5, faceForward: 0.25, clips: BOSS_CLIPS },
   wyrm: { file: 'moon-wyrm.glb', height: 3, yOffset: 0, clips: { idle: 'fly|idle|hover', fly: 'fly|idle', attack: 'bite|attack' } },

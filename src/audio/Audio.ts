@@ -115,6 +115,16 @@ export class Audio {
     this.tone('sine', 2093, 2093, 0.25, 0.07, 0.24, 0.003, 0.2);
   }
 
+  /** A skeleton falling apart: dry bones clattering down, a couple of hollow knocks. */
+  clatter(): void {
+    for (let i = 0; i < 9; i++) {
+      const at = Math.pow(i / 9, 1.4) * 0.75 + Math.random() * 0.04;
+      this.noise(0.05, 'bandpass', 1800 + Math.random() * 1600, 2600, 5, 0.26 * (1 - i / 12), at, 0.002);
+    }
+    this.tone('sine', 220, 160, 0.08, 0.1, 0.1);
+    this.tone('sine', 190, 140, 0.08, 0.08, 0.42);
+  }
+
   /** Coin clinks. */
   coins(n = 3): void {
     for (let i = 0; i < n; i++) {

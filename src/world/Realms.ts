@@ -15,6 +15,8 @@ import { modelLandmark } from './ModelLandmark';
 import { PRESENT_MODELS } from '../data/colliderGrids';
 import { portal, type PortalLink } from './Portal';
 import { chasmBridge, floorSlab } from './Walkways';
+import { patchWingFlap } from '../render/Materials';
+import type { HostileShot } from '../combat/CombatSystem';
 
 export interface RealmApi {
   /** Where new objects go: the island, or the realm last selected with `realm()`. */
@@ -24,6 +26,8 @@ export interface RealmApi {
   place(l: Landmark): void;
   flora(id: string, placements: Placement[], opts?: FloraOptions): void;
   vfx(f: { group: Group; update(dt: number): void }): void;
+  /** A shot at the hero from something in this world (the dragon's fire). */
+  shoot?(from: Vector3, s: HostileShot): void;
   /** Terrain height on the island. */
   h(x: number, z: number): number;
   rnd(): number;
@@ -170,14 +174,33 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   api.flora('purple-crystal', crystals, { shadows: false });
   // The skeleton lord's pavilion, east (DeXn5rSPxR8).
   api.place(modelLandmark('gothic-pavilion', 1035, G.z - 55, gy, { yaw: face(Math.PI) }));
-  // Dragon riders circling the city (DeYtKbMh76x).
+  // Dragon riders circling the city (DeYtKbMh76x): wings beating (the mesh has no bones: a vertex flap), and purple
+  // fire for anyone who flies up close.
   let da = 0;
-  api.place(modelLandmark('dragon-riders', G.x + 80, G.z, gy + 42, { clip: 'fly', color: PALETTE.dusk, collider: 'none', update: (dt, root) => {
-    da += dt * 0.12;
-    root.position.set(G.x + Math.cos(da) * 80, gy + 42 + Math.sin(da * 3) * 4, G.z + Math.sin(da) * 80);
-    root.rotation.y = face(da + Math.PI / 2);
-    root.rotation.z = -0.25;
-  } }));
+  let breath = 0;
+  let cool = 2;
+  const mouth = new Vector3();
+  const DRAGON_FIRE = { speed: 24, color: PALETTE.dusk, atk: 105, kind: 'fire' as const, size: 1.7, radius: 1.1 };
+  api.place(modelLandmark('dragon-riders', G.x + 80, G.z, gy + 42, { clip: 'fly', color: PALETTE.dusk, collider: 'none',
+    onLoad: (m) => { for (const mat of m.materials) patchWingFlap(mat, { x0: 0.22, rootY: 0.45, rate: 3.4, amp: 0.75 }); },
+    update: (dt, root, _m, player) => {
+      da += dt * 0.12;
+      root.position.set(G.x + Math.cos(da) * 80, gy + 42 + Math.sin(da * 3) * 4, G.z + Math.sin(da) * 80);
+      root.rotation.y = face(da + Math.PI / 2);
+      root.rotation.z = -0.25;
+      // A hero in the air near it gets a gout of fire (bursts of bolts from the jaws, then a breath).
+      const near = player.distanceTo(root.position) < 28 && player.y > gy + 4;
+      cool -= dt;
+      if (near && cool <= 0 && breath <= 0) { breath = 1.1; cool = 4; }
+      if (breath > 0) {
+        const before = breath;
+        breath -= dt;
+        if (Math.floor(before / 0.14) !== Math.floor(Math.max(0, breath) / 0.14)) {
+          root.updateWorldMatrix(true, false);
+          api.shoot?.(root.localToWorld(mouth.set(0, 2.2, 2.8)), { ...DRAGON_FIRE, spread: (Math.random() - 0.5) * 0.12 });
+        }
+      }
+    } }));
   // The bucket mimics' street, west at z = 20 (DeaqHWJBBPw).
   for (const x of [986, 970, 954]) {
     for (const [z, yaw] of [[9, Math.PI / 2], [31, -Math.PI / 2]] as const) {

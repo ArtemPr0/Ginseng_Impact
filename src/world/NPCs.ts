@@ -127,25 +127,6 @@ export const NPC_DEFS: NpcDef[] = [
     hire: { cost: 200, atk: 85, maxHp: 1900, ranged: false },
   },
   {
-    id: 'rattle', name: 'Rattle', title: 'Skeleton by the Fire', weapon: 'sword',
-    model: 'skeleton', accent: PALETTE.witch,
-    lines: ['We died in the last war. Nobody told us which one.', 'The kettle never boils. We keep waiting anyway.', 'Sixty shards and I will rattle at your enemies.'],
-    behaviour: { kind: 'stand', pose: 'sit', yaw: Math.PI * 0.5 },
-    hire: { cost: 60, atk: 40, maxHp: 500, ranged: false },
-  },
-  {
-    id: 'bone', name: 'Bone', title: 'Skeleton by the Fire', weapon: 'sword',
-    model: 'skeleton', accent: PALETTE.witch,
-    lines: ['Rattle talks too much.', 'The fire is warm. That is all we remember about warm.'],
-    behaviour: { kind: 'stand', pose: 'sit', yaw: Math.PI * 1.1 },
-  },
-  {
-    id: 'marrow', name: 'Marrow', title: 'Skeleton by the Fire', weapon: 'sword',
-    model: 'skeleton', accent: PALETTE.witch,
-    lines: ['...', 'The kettle. Watch the kettle.'],
-    behaviour: { kind: 'stand', pose: 'sit', yaw: -Math.PI * 0.2 },
-  },
-  {
     id: 'croak', name: 'Brother Croak', title: 'Frog Monk of the Lotus Pond', weapon: 'staff',
     model: 'frog-monk', accent: PALETTE.rune,
     lines: ['The lotus opens for the moon, not for you. Sit anyway.', 'Lotus tea steadies the blade hand. Thirty shards.', 'The Frog King dreams in the hollow. Do not wake him with iron.'],
