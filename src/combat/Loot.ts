@@ -1,4 +1,4 @@
-import { AdditiveBlending, BoxGeometry, Color, Group, Mesh, MeshBasicMaterial, OctahedronGeometry, Scene, Vector3 } from 'three';
+import { BoxGeometry, Color, Group, Mesh, MeshBasicMaterial, OctahedronGeometry, Scene, type Sprite, Vector3 } from 'three';
 import { ITEMS, RARITY_COLOR } from '../items/Items';
 import { PALETTE } from '../render/palette';
 import { surface } from '../render/Materials';
@@ -18,10 +18,20 @@ export function rollDrops(table: DropEntry[] | undefined, shards: [number, numbe
 
 interface Pickup { drop: Drop; object: Group; pos: Vector3; vel: Vector3; life: number; spin: number; landed: boolean }
 
+/** A taken item on its way into the hero: lifts, spirals in, shrinks to a spark. */
+interface Absorbing { object: Group; from: Vector3; t: number; turn: number }
+
+/** A little starburst where something was absorbed. */
+interface Sparkle { sprites: Sprite[]; t: number; at: Vector3 }
+
 /** World pickups: shard motes that fly to the player, item crystals that are taken with F. */
 export class LootField {
   readonly pickups: Pickup[] = [];
   private readonly tmp = new Vector3();
+  private readonly absorbing: Absorbing[] = [];
+  private readonly sparkles: Sparkle[] = [];
+  /** Called when a taken item reaches the hero (its rarity, 0 for shards): the whoosh and chime. */
+  onAbsorbed: ((rarity: number) => void) | null = null;
 
   constructor(private readonly scene: Scene, private readonly heightAt: (x: number, z: number, y?: number) => number) {}
 
@@ -46,10 +56,8 @@ export class LootField {
       const color = RARITY_COLOR[def.rarity];
       const core = new Mesh(def.kind === 'weapon' ? new BoxGeometry(0.12, 0.9, 0.05) : new OctahedronGeometry(0.28, 0), surface({ color: PALETTE.void, emissive: color, emissiveIntensity: 2.5 }));
       core.position.y = 0.5;
-      object.add(core, glowSprite(color, 2.2 + def.rarity * 0.5, 0.6, true));
-      const pillar = new Mesh(new BoxGeometry(0.3, 6, 0.3), new MeshBasicMaterial({ color, transparent: true, opacity: 0.12, blending: AdditiveBlending, depthWrite: false }));
-      pillar.position.y = 3;
-      object.add(pillar);
+      // Just the crystal itself in a soft glow (no beam of light).
+      object.add(core, glowSprite(color, 1.1 + def.rarity * 0.2, 0.45, true));
     }
     object.position.copy(at);
     this.scene.add(object);
@@ -72,15 +80,57 @@ export class LootField {
     return best;
   }
 
+  /** Takes an item pickup: it is yours at once, and flies into you over the next half second. */
   take(p: Pickup): Drop {
-    this.scene.remove(p.object);
     this.pickups.splice(this.pickups.indexOf(p), 1);
+    this.absorbing.push({ object: p.object, from: p.object.position.clone(), t: 0, turn: Math.random() < 0.5 ? 1 : -1 });
     return p.drop;
+  }
+
+  private sparkle(at: Vector3, color: number): void {
+    const sprites: Sprite[] = [];
+    for (let i = 0; i < 6; i++) { const s = glowSprite(i % 2 ? color : PALETTE.moon, 0.3, 0.9, true); s.position.copy(at); this.scene.add(s); sprites.push(s); }
+    this.sparkles.push({ sprites, t: 0, at: at.clone() });
   }
 
   /** Physics + shard magnet. Returns shards collected this step. */
   update(dt: number, player: Vector3): number {
     let collected = 0;
+    // Taken items: up off the ground, then a tightening spiral into the hero's chest, shrinking to a spark.
+    const chest = this.tmp.copy(player).add(new Vector3(0, 1.15, 0));
+    for (let i = this.absorbing.length - 1; i >= 0; i--) {
+      const a = this.absorbing[i];
+      a.t += dt / 0.6;
+      const k = Math.min(1, a.t);
+      const ease = k * k * (3 - 2 * k);
+      const lift = Math.sin(Math.min(1, k * 2) * Math.PI) * 0.7;
+      const r = (1 - ease) * 0.9;
+      const ang = k * Math.PI * 3 * a.turn;
+      a.object.position.set(
+        a.from.x + (chest.x - a.from.x) * ease + Math.cos(ang) * r,
+        a.from.y + (chest.y - a.from.y) * ease + lift,
+        a.from.z + (chest.z - a.from.z) * ease + Math.sin(ang) * r,
+      );
+      a.object.rotation.y += dt * 14;
+      a.object.scale.setScalar(Math.max(0.05, 1 - ease * 0.95));
+      if (k >= 1) {
+        this.scene.remove(a.object);
+        this.absorbing.splice(i, 1);
+        this.sparkle(chest, PALETTE.rune);
+        this.onAbsorbed?.(1);
+      }
+    }
+    for (let i = this.sparkles.length - 1; i >= 0; i--) {
+      const s = this.sparkles[i];
+      s.t += dt / 0.4;
+      s.sprites.forEach((sp, j) => {
+        const a = (j / s.sprites.length) * Math.PI * 2;
+        sp.position.set(s.at.x + Math.cos(a) * s.t * 0.7, s.at.y + Math.sin(a * 2) * s.t * 0.3, s.at.z + Math.sin(a) * s.t * 0.7);
+        sp.material.opacity = 0.9 * (1 - s.t);
+        sp.scale.setScalar(0.3 * (1 - s.t * 0.6));
+      });
+      if (s.t >= 1) { for (const sp of s.sprites) this.scene.remove(sp); this.sparkles.splice(i, 1); }
+    }
     for (let i = this.pickups.length - 1; i >= 0; i--) {
       const p = this.pickups[i];
       p.life += dt;
@@ -94,7 +144,7 @@ export class LootField {
         const dist = d.length();
         if (dist < 4.5) {
           p.pos.addScaledVector(d.normalize(), (14 + (4.5 - dist) * 8) * dt);
-          if (dist < 0.6) { collected += p.drop.amount; this.scene.remove(p.object); this.pickups.splice(i, 1); continue; }
+          if (dist < 0.6) { collected += p.drop.amount; this.scene.remove(p.object); this.pickups.splice(i, 1); this.sparkle(p.pos, PALETTE.electric); continue; }
         }
       }
       p.object.position.copy(p.pos);

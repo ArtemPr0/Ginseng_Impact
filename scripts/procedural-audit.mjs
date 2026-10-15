@@ -12,6 +12,8 @@ const ALLOW = new Set([
   'world/Terrain.ts', 'world/Water.ts', 'world/Grass.ts', 'world/CloudSea.ts', 'world/Walkways.ts', 'world/ModelLandmark.ts', 'world/Falls.ts', 'world/Stream.ts', 'world/Fire.ts', 'world/Portal.ts',
   'models/Placeholder.ts', 'models/ModelRig.ts', 'combat/Vfx.ts', 'combat/Loot.ts', 'combat/CombatSystem.ts',
   'characters/Rig.ts', // the weapon-trail ribbon only; the humanoid body comes from a GLB
+  'world/Dream.ts', // the dream's sky dome and fractal floor (sky and terrain); everything in it is a GLB
+  'world/StoneHead.ts', // the glowing irises over the stone head's carved eyes (VFX); the head is a GLB
 ]);
 const ALLOW_PREFIX = ['render/'];
 const PATTERNS = [/\bnew\s+[A-Z]\w*Geometry\s*\(/, /\bnew\s+Mesh\s*\(/, /\bmergeGeometries\b/, /\brockify\b|\btintRock\b/];

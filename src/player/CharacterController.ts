@@ -24,6 +24,8 @@ export interface ControllerState {
   climbDir: { x: number; z: number };
   /** Seconds left of a buffered jump press (pressed just before landing). */
   jumpBuffer: number;
+  /** Multiplier on every stamina cost (the rowers' ale halves it). */
+  drainScale: number;
 }
 
 export interface ControllerInput {
@@ -142,6 +144,7 @@ export function createControllerState(pos: Vec3): ControllerState {
     staminaIdle: 0,
     climbDir: { x: 1, z: 0 },
     jumpBuffer: 0,
+    drainScale: 1,
   };
 }
 
@@ -186,7 +189,7 @@ function onSteepSlope(world: WorldQuery, x: number, z: number, y?: number): bool
 }
 
 function spendStamina(s: ControllerState, amount: number): void {
-  s.stamina = Math.max(0, s.stamina - amount);
+  s.stamina = Math.max(0, s.stamina - amount * s.drainScale);
   s.staminaIdle = 0;
 }
 

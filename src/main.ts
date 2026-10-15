@@ -28,6 +28,7 @@ import { Companion } from './world/Companion';
 import { Npc } from './world/NPCs';
 import { Terrain } from './world/Terrain';
 import { World } from './world/World';
+import { Adventures } from './game/Adventures';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const game = new Game();
@@ -127,6 +128,7 @@ const combat = new CombatSystem({
   scene, world, sky, hud, camera, game, audio, inventory, controller, party, spawn: SPAWN,
   onForceSwitch: (i) => { party.update(Party.cooldown); switchTo(i); },
   onShake: (a) => tpc.shake(a),
+  onKill: (kind) => adventures.quests.kill(kind),
   muzzle: () => rigs[party.activeIndex].muzzle(new Vector3()),
   onDodge: () => {
     const axis = input.moveAxis();
@@ -135,6 +137,30 @@ const combat = new CombatSystem({
     controller.vel.z += dir.z * 11;
   },
 });
+
+/** Moves the hero (portals, doors, the frog's dream): everything that was chasing stays behind. */
+function teleport(x: number, y: number, z: number, yaw: number, name?: string): void {
+  adventures.riding = null;
+  controller.pos = { x, y: y + 0.05, z };
+  controller.vel = { x: 0, y: 0, z: 0 };
+  controller.mode = 'ground';
+  controller.yaw = yaw;
+  tpc.yaw = Math.atan2(-Math.cos(yaw), -Math.sin(yaw));
+  wasLocked = false;
+  for (const c of companions) c.teleport(x, z, world.heightAt(x, z, y));
+  combat.resetAggro();
+  if (name) hud.announce(name);
+  audio.cast();
+  portalCooldown = 1.5;
+}
+combat.loot.onAbsorbed = () => audio.absorb();
+const adventures = new Adventures({ controller, world: area, hud, audio, inventory, teleport, activeRig: () => rigs[party.activeIndex] });
+area.hooks.teleport = teleport;
+area.hooks.board = (boat) => { adventures.riding = boat; audio.footstep(); hud.announce('Aboard · F talk · SPACE jump off'); };
+adventures.openRowers = () => {
+  const node = adventures.talk('rowers');
+  if (node) openPanel(() => hud.dialogue({ name: 'The Rowers', title: 'Two Knights and a Boat' }, node, adventures.onLine));
+};
 
 // --- panels ---
 function openPanel(fn: () => void): void {
@@ -215,21 +241,40 @@ window.addEventListener('resize', () => {
 });
 
 /** What F would do right now: loot first, then talk. */
-function interactTarget(): { kind: 'loot'; take: () => void; label: string } | { kind: 'talk'; npc: Npc; label: string } | null {
+function interactTarget(): { kind: 'loot'; take: () => void; label: string } | { kind: 'use'; act: () => void; label: string } | { kind: 'talk'; npc: Npc; label: string } | null {
   const p = new Vector3(controller.pos.x, controller.pos.y, controller.pos.z);
   const pickup = combat.loot.nearest(p, 2.8);
   if (pickup && pickup.drop.kind === 'item') {
     const def = ITEMS[pickup.drop.itemId];
     return { kind: 'loot', label: `Take ${def.name}`, take: () => { combat.loot.take(pickup); inventory.add(def.id, 1); audio.loot(def.rarity); hud.announce(`${def.name}`); } };
   }
+  const zone = REALMS.find((r) => Math.hypot(p.x - r.x, p.z - r.z) < r.radius)?.id ?? null;
+  const use = adventures.interact(zone);
+  if (use) return { kind: 'use', label: use.label, act: use.act };
   let best: Npc | null = null;
   let bd = Infinity;
   for (const n of area.npcs) {
+    if (n.hidden) continue;
     const d = Math.hypot(n.pos.x - p.x, n.pos.z - p.z);
     if (d < n.talkRange && d < bd && Math.abs(n.pos.y - p.y) < 6) { bd = d; best = n; }
   }
   if (best) return { kind: 'talk', npc: best, label: `Talk to ${best.def.name}` };
   return null;
+}
+
+/** F: take the loot, use the door or boat (or put the sack down), or talk to whoever is near. */
+function pressF(): void {
+  const t = interactTarget();
+  if (t?.kind === 'loot') t.take();
+  else if (t?.kind === 'use') t.act();
+  else if (t?.kind === 'talk') {
+    talking = t.npc;
+    audio.talk();
+    // A conversation with choices (quests) when the NPC has one; otherwise its ordinary lines.
+    const node = adventures.talk(t.npc.def.id);
+    if (node) openPanel(() => hud.dialogue(t.npc.def, node, adventures.onLine));
+    else { t.npc.speak(); openPanel(() => hud.talk(t.npc.def)); }
+  }
 }
 
 const focus = new Vector3();
@@ -242,11 +287,7 @@ game
       for (let i = 0; i < ROSTER.length; i++) {
         if (input.justPressed(`Digit${i + 1}`)) switchTo(i);
       }
-      if (input.locked && input.justPressed('KeyF')) {
-        const t = interactTarget();
-        if (t?.kind === 'loot') t.take();
-        else if (t?.kind === 'talk') { talking = t.npc; audio.talk(); t.npc.speak(); openPanel(() => hud.talk(t.npc.def)); }
-      }
+      if (input.locked && input.justPressed('KeyF')) pressF();
       combat.update(dt, {
         attack: input.locked && input.mouseJustPressed(0),
         heavyHeld: input.locked && input.mouseDown(2),
@@ -257,7 +298,9 @@ game
       });
       const move = input.locked && !combat.busy && combat.charging === 0 ? tpc.moveToWorld(input.moveAxis()) : { x: 0, z: 0 };
       const space = input.locked && input.justPressed('Space');
-      stepController(controller, {
+      adventures.update(dt);
+      if (adventures.riding) { if (space) adventures.leaveBoat(); }
+      else stepController(controller, {
         move,
         sprint: input.isDown('ShiftLeft') || input.isDown('ShiftRight'),
         jump: space && !combat.busy,
@@ -274,18 +317,10 @@ game
       if (portalCooldown <= 0) {
         for (const l of area.portals) {
           if (Math.hypot(controller.pos.x - l.at.x, controller.pos.z - l.at.z) > l.radius || Math.abs(controller.pos.y - l.at.y) > l.height) continue;
-          controller.pos = { x: l.to.x, y: world.heightAt(l.to.x, l.to.z) + 0.05, z: l.to.z };
-          controller.vel = { x: 0, y: 0, z: 0 };
-          controller.mode = 'ground';
-          controller.yaw = l.to.yaw;
+          // No portal works inside the frog's dream (there are none there) — nor out of it.
+          if (adventures.dreamLeft > 0) break;
+          teleport(l.to.x, world.heightAt(l.to.x, l.to.z), l.to.z, l.to.yaw, l.name);
           tpc.yaw = l.to.cameraYaw;
-          wasLocked = false;
-          for (const c of companions) c.teleport(controller.pos.x, controller.pos.z, world.heightAt(controller.pos.x, controller.pos.z));
-          // Nothing follows you through a portal.
-          combat.resetAggro();
-          hud.announce(l.name);
-          audio.cast();
-          portalCooldown = 1.5;
           break;
         }
       }
@@ -349,6 +384,8 @@ game
       // Realm fog and the sunken city's bubbles.
       const realm = REALMS.find((r) => Math.hypot(playerPos.x - r.x, playerPos.z - r.z) < r.radius);
       fogTarget.set(realm ? realm.fog.color : islandFog.color);
+      // The frog's dream: the fog drifts through every hue.
+      if (realm?.cycle) fogTarget.setHSL((performance.now() / 1000 * 0.035) % 1, 0.7, 0.24);
       fog.color.lerp(fogTarget, Math.min(1, dt * 3));
       fog.density += ((realm ? realm.fog.density : islandFog.density) - fog.density) * Math.min(1, dt * 3);
       bubbles.group.visible = !!realm?.underwater;
@@ -374,7 +411,9 @@ declare global {
       scene: Scene; camera: PerspectiveCamera; terrain: Terrain; world: World['heights']; area: World; sky: Sky; controller: typeof controller;
       party: Party<(typeof ROSTER)[number]>; tpc: ThirdPersonCamera; input: Input; game: Game; renderer: Renderer; combat: CombatSystem;
       inventory: Inventory; hud: Hud; companions: Companion[]; audio: Audio;
+      /** Quests and side adventures; F and its current target (headless checks press F without pointer lock). */
+      adventures: Adventures; pressF: () => void; interactTarget: typeof interactTarget;
     };
   }
 }
-window.__ginseng = { scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, inventory, hud, companions, audio };
+window.__ginseng = { scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, inventory, hud, companions, audio, adventures, pressF, interactTarget };

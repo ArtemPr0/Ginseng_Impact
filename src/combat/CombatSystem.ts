@@ -42,6 +42,8 @@ export interface CombatDeps {
   onShake?: (amount: number) => void;
   /** Dodge roll accepted: the caller applies the dash. */
   onDodge?: () => void;
+  /** An enemy of this kind died (quests listen). */
+  onKill?: (kind: string) => void;
   /** Where the active character's projectiles leave from (staff tip, bow hand); null → in front of the chest. */
   muzzle?: (me: CharacterDef) => Vector3 | null;
 }
@@ -634,6 +636,7 @@ export class CombatSystem {
     this.vfx.shockwave(new Vector3(e.pos.x, e.pos.y, e.pos.z), ELEMENT_COLOR[e.def.element], e.def.boss ? 14 : 5);
     this.d.hud.removeEnemyBar(e.id);
     this.d.audio.kill(!!e.def.boss);
+    this.d.onKill?.(e.def.kind);
     this.burstEnergy = Math.min(BURST_MAX, this.burstEnergy + 18);
     const drops = rollDrops(e.def.drops, e.def.shards);
     this.loot.spawn(drops, new Vector3(e.pos.x, this.d.world.heightAt(e.pos.x, e.pos.z) + 1, e.pos.z));

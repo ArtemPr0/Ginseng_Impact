@@ -104,6 +104,7 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   pim: { x: -46, z: 53.5 },
   king: { x: -94, z: -4 },
   croak: { x: -36, z: -20 },
+  frogking: { x: -54, z: -26 },
   cook: { x: 25.6, z: 77 },
   moss: { x: -56, z: 19, dy: 0.02 },
   sentry: { x: -40, z: -90, dy: 0.02 },
@@ -141,13 +142,19 @@ export interface RealmDef {
   fog: { color: number; density: number };
   /** Bubbles and murk (the sunken city). */
   underwater?: boolean;
+  /** The fog colour cycles through the hues (the frog's dream). */
+  cycle?: boolean;
 }
 
 /** The galaxy city beyond the portal (DeOemU1BOZF, DeaqHWJBBPw, DeXn5rSPxR8, DeQ-NnpvqF6, Dd0wR9Jh2lH, DdyN2PNyIxb, DdnJDwBMUoj). */
 export const GALAXY: RealmDef = { id: 'galaxy', name: 'The Galaxy City', x: 1000, z: 0, y: 24, radius: 190, fog: { color: 0x1d1650, density: 0.0075 } };
 /** The sunken city under the lake (DeVj-Z8POjl). */
 export const SUNKEN: RealmDef = { id: 'sunken', name: 'The Sunken City', x: -1000, z: 0, y: -48, radius: 90, fog: { color: 0x07304a, density: 0.034 }, underwater: true };
-export const REALMS: readonly RealmDef[] = [GALAXY, SUNKEN];
+/** The round room inside the tree house trunk (Goldgrin's brother). */
+export const TREEHOUSE_ROOM: RealmDef = { id: 'treehouse', name: 'Inside the Tree House', x: -1000, z: 700, y: 0, radius: 30, fog: { color: 0x120a26, density: 0.02 } };
+/** The Frog King's dream: two minutes you cannot leave (licking a DMT frog). */
+export const DREAM: RealmDef = { id: 'dream', name: "The Frog King's Dream", x: 0, z: 2600, y: 0, radius: 170, fog: { color: 0x3a0f6b, density: 0.0035 }, cycle: true };
+export const REALMS: readonly RealmDef[] = [GALAXY, SUNKEN, TREEHOUSE_ROOM, DREAM];
 
 /** Portal ends on the island. */
 export const ISLAND_PORTALS = {

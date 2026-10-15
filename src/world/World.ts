@@ -1,5 +1,5 @@
-import { Group, Vector3 } from 'three';
-import { ANCHORS, ISLAND_PORTALS, LAYOUT, REALMS, VILLAGE } from '../data/world';
+import { Group, type Object3D, Vector3 } from 'three';
+import { ANCHORS, ISLAND_PORTALS, LAYOUT, REALMS, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
 import { PALETTE } from '../render/palette';
 import { glowSprite } from '../render/Glow';
@@ -20,11 +20,45 @@ import { Rig } from '../characters/Rig';
 import { yawToRotation } from '../models/ModelRig';
 import { Noise2D } from './noise';
 import { witchStream } from './Stream';
-import { buildRealms } from './Realms';
+import { stoneHeadEyes } from './StoneHead';
+import { buildTreeHouse } from './TreeHouse';
+import { buildDream } from './Dream';
+import type { Interactable, Teleport } from './Interact';
+
+import { buildRealms, type RealmApi } from './Realms';
 import type { PortalLink } from './Portal';
 import { deadAt, frozenAt, pathAt, RIVER_LEVEL, riverAt, riverDistance, sandAt, streamAt, Terrain, WORLD } from './Terrain';
 import { causewayPostPoints, causewayWalk, chasmBridge, witchBridgeDeck } from './Walkways';
 import { lilyPond, river, stillWaterDisc } from './Water';
+
+/** A river boat (its moving root) and the two knights rowing it. */
+export interface Boat { root: Group; rowers: Rig[] }
+
+/** Glints on Goldgrin's brother's diamond grills: a few sharp twinkles at his mouth, livelier while he talks. */
+function grillSparkle(npc: Npc): { group: Group; update(dt: number): void } {
+  const group = new Group();
+  const stars = [0, 1, 2, 3].map(() => { const s = glowSprite(0xffffff, 0.09, 0, true); group.add(s); return { s, phase: Math.random() * 10, rate: 3 + Math.random() * 4 }; });
+  let head: Object3D | null = null;
+  let t = 0;
+  const at = new Vector3();
+  return {
+    group,
+    update: (dt) => {
+      t += dt;
+      if (!head && npc.rig.model) head = npc.rig.model.bone(/head$/i);
+      if (!head) return;
+      head.getWorldPosition(at);
+      // The mouth: a little in front of and below the head joint, along his facing.
+      at.x += Math.cos(npc.yaw) * 0.1;
+      at.z += Math.sin(npc.yaw) * 0.1;
+      at.y += 0.02;
+      stars.forEach((st, i) => {
+        st.s.position.set(at.x + Math.sin(npc.yaw) * (i - 1.5) * 0.025, at.y, at.z - Math.cos(npc.yaw) * (i - 1.5) * 0.025);
+        st.s.material.opacity = Math.pow(Math.max(0, Math.sin(t * st.rate + st.phase)), 12) * 0.95;
+      });
+    },
+  };
+}
 
 /** Where the campfire skeletons sit (data/world ANCHORS) and the fire they face. */
 const CAMPFIRE = { x: -24, z: 52 };
@@ -72,6 +106,12 @@ export class World {
   readonly auroraCentre = new Vector3();
   /** Portals between the island and the realms (main.ts teleports the player through them). */
   readonly portals: PortalLink[] = [];
+  /** Things to use with F (doors, boats); main.ts offers the nearest one in the player's zone. */
+  readonly interactables: Interactable[] = [];
+  /** What main.ts lets the world do to the player: move them, sit them in a boat. */
+  readonly hooks: { teleport?: Teleport; board?: (boat: Boat) => void } = {};
+  /** The river boats with their two rowers each. */
+  readonly boats: Boat[] = [];
   private readonly landmarks: Landmark[] = [];
   /** Build target and zone: the island (null) or a realm id; objects in a realm group are drawn and updated only there. */
   private target!: Group;
@@ -124,6 +164,7 @@ export class World {
     // Every building below collides exactly as its model looks (baked grids, see Colliders.ts).
     const headY = h(LAYOUT.head.x, LAYOUT.head.z) - 3;
     this.place(modelLandmark('head', LAYOUT.head.x, LAYOUT.head.z, headY, { color: PALETTE.blood }));
+    this.place(stoneHeadEyes());
     const cathY = h(LAYOUT.cathedral.x, LAYOUT.cathedral.z) - 0.5;
     this.place(modelLandmark('cathedral', LAYOUT.cathedral.x, LAYOUT.cathedral.z, cathY, { yaw: LAYOUT.cathedral.yaw }));
     const castleY = h(LAYOUT.castle.x, LAYOUT.castle.z) - 0.6;
@@ -194,8 +235,8 @@ export class World {
     flora('pinnacle', pinSpots, { shadows: false });
 
     // --- creatures that wander ---
-    const frogR = MODELS.frogking.height * 0.5;
-    this.place(modelLandmark('frogking', LAYOUT.frog.x, LAYOUT.frog.z, h(LAYOUT.frog.x, LAYOUT.frog.z) - 0.2, { clip: 'idle', collider: 'manual', footprints: [{ kind: 'cyl', x: LAYOUT.frog.x, z: LAYOUT.frog.z, r: frogR, top: h(LAYOUT.frog.x, LAYOUT.frog.z) + MODELS.frogking.height * 0.75 }] }));
+    // The Frog King is an NPC now (he has a son to find); his bulk stays solid.
+    this.heights.add({ kind: 'cyl', x: LAYOUT.frog.x, z: LAYOUT.frog.z, r: MODELS.frogking.height * 0.4, top: h(LAYOUT.frog.x, LAYOUT.frog.z) + MODELS.frogking.height * 0.75 });
     // Walkers follow the ground itself (never trunks or roofs); their routes are kept clear of trees (plantable).
     this.place(walkerLandmark('colossus', LAYOUT.colossusPath, 0.9, h, { lift: -0.5, clip: 'idle', trail: true }));
     this.place(walkerLandmark('loggiant', [...LAYOUT.logGiantPath], 1.2, h));
@@ -244,6 +285,11 @@ export class World {
       const base = boat.update!;
       boat.update = (dt, player) => { base(dt, player); for (const r of rowers) r.animate({ mode: 'ground', speed: 0, pose: 'row' }, dt); };
       this.place(boat);
+      const b: Boat = { root: boat.root, rowers };
+      this.boats.push(b);
+      // Swim or wade up to a boat and climb in (main.ts seats you between the rowers).
+      const at = new Vector3();
+      this.interactables.push({ pos: at, range: 3.6, zone: null, label: () => { at.copy(boat.root.position); return 'Climb into the boat'; }, act: () => this.hooks.board?.(b) });
     }
     this.place(witchStream(LAYOUT.coven.streamX, LAYOUT.coven.zMin, LAYOUT.coven.zMax, LAYOUT.coven.bridgeZ, deck.deckY, h));
     this.place(modelLandmark('cauldron', LAYOUT.coven.streamX, LAYOUT.coven.bridgeZ, deck.deckY + 0.45, { color: PALETTE.witch }));
@@ -362,11 +408,17 @@ export class World {
     // --- the fifth batch of reels: realms beyond the portals and the new island sites ---
     const rrnd = rng(5150);
     const world = this;
-    this.portals.push(...buildRealms({
+    const realmApi: RealmApi = {
       get group() { return world.target; },
       realm: (id) => this.enterZone(id),
       place: (l) => this.place(l), flora, vfx, h, rnd: rrnd,
-    }));
+    };
+    this.portals.push(...buildRealms(realmApi));
+    // The tree house's round door and the room behind it; the frog's dream.
+    const treeHouse = buildTreeHouse(realmApi, (x, y, z, yaw, name) => this.hooks.teleport?.(x, y, z, yaw, name));
+    this.interactables.push(...treeHouse.interactables);
+    ANCHORS.brother = { ...treeHouse.brotherAt, y: treeHouse.floorY };
+    buildDream(realmApi);
 
     // Seats for NPCs whose only rest pose is sitting on a chair: a barrel at stool height just behind each sitter
     // (the campfire skeletons, Old Moss on the stream bank, Sir Halvard on the cliff).
@@ -400,6 +452,9 @@ export class World {
       this.zoneOf.set(npc, this.zone);
       this.npcs.push(npc);
     }
+    // Goldgrin's brother's diamond grills catch the lamplight.
+    const brother = this.npcs.find((n) => n.def.id === 'brother');
+    if (brother) { this.enterZone(TREEHOUSE_ROOM.id); vfx(grillSparkle(brother)); }
     this.enterZone(null);
   }
 

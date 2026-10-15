@@ -5,6 +5,7 @@ import { ITEMS, RARITY_NAME } from '../items/Items';
 import type { Inventory } from '../items/Inventory';
 import type { NpcDef } from '../world/NPCs';
 import { glyph } from './glyphs';
+import type { DialogueNode } from '../game/Dialogue';
 
 const hex = (n: number) => '#' + n.toString(16).padStart(6, '0');
 
@@ -54,7 +55,29 @@ export class Hud {
       <div class="hud-numbers" id="hud-numbers"></div>
       <div class="hud-banner" id="hud-banner"></div>
       <div class="hud-hint">LMB attack · RMB heavy · E skill · Q burst · R dodge · F interact · I bag</div>
+      <div class="hud-quests" id="hud-quests"></div>
+      <div class="hud-timer panel" id="hud-timer"><div class="hud-timer-label" id="hud-timer-label"></div><div class="hud-timer-time" id="hud-timer-time"></div></div>
       <div class="hud-panel panel" id="hud-dialog"></div>`;
+  }
+
+  // ---------- quests, buffs, the countdown ----------
+  /** The quest tracker under the shard counter, and active buffs with their time left (seconds). */
+  setQuests(quests: Array<{ title: string; objective: string }>, buffs: Array<{ name: string; left: number }> = []): void {
+    const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+    const html = quests.map((q) => `<div class="hud-quest panel"><div class="hud-quest-title">${q.title}</div><div class="hud-quest-obj">${q.objective}</div></div>`).join('')
+      + buffs.map((b) => `<div class="hud-buff panel">${b.name} <span>${mmss(b.left)}</span></div>`).join('');
+    const el = this.q('#hud-quests');
+    if (el.innerHTML !== html) el.innerHTML = html;
+  }
+
+  /** A countdown in the top-right corner (the frog's dream), or null to hide it. */
+  setTimer(seconds: number | null, label = ''): void {
+    const el = this.q('#hud-timer');
+    el.style.display = seconds === null ? 'none' : 'block';
+    if (seconds === null) return;
+    const s = Math.max(0, Math.ceil(seconds));
+    this.q('#hud-timer-label').textContent = label;
+    this.q('#hud-timer-time').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   }
 
   bind(actions: HudActions, inventory: Inventory): void {
@@ -235,6 +258,33 @@ export class Hud {
       if (act === 'next') { this.talkLine++; this.renderTalk(); }
       else if (act === 'shop') this.renderShop();
       else if (act === 'hire') { if (this.actions!.onHire(npc)) { this.renderTalkResult('“Lead on. I follow.”'); } else this.renderTalkResult('“Come back when your purse is heavier.”'); }
+      else this.actions!.onClose();
+    });
+  }
+
+  /**
+   * A conversation with choices (game/Dialogue). `head` names the speaker (an NPC def, so Trade and its ordinary
+   * lines are reachable). `onLine` runs as each line opens (its voice).
+   */
+  dialogue(head: NpcDef | { name: string; title: string }, node: DialogueNode, onLine?: (node: DialogueNode) => void): void {
+    this.talkNpc = 'lines' in head ? head : null;
+    this.open('talk');
+    this.renderNode(head, node, onLine);
+  }
+
+  private renderNode(head: { name: string; title: string }, node: DialogueNode, onLine?: (node: DialogueNode) => void): void {
+    onLine?.(node);
+    const el = this.q('#hud-dialog');
+    el.innerHTML = `<div class="dlg-head"><div class="dlg-name">${head.name}</div><div class="dlg-title">${head.title}</div></div>
+      <div class="dlg-line">“${node.line}”</div>
+      <div class="dlg-choices">${node.choices.map((c, i) => `<button data-act="c${i}"><span class="dlg-choice-n">${i + 1}</span>${c.label}</button>`).join('')}</div>`;
+    this.wire(el, (act) => {
+      const choice = node.choices[Number(act.slice(1))];
+      const step = choice?.run ? choice.run() : 'close';
+      if (step === 'close') this.actions!.onClose();
+      else if (step === 'trade' && this.talkNpc) this.renderShop();
+      else if (step === 'more' && this.talkNpc) this.talk(this.talkNpc);
+      else if (typeof step === 'object') this.renderNode(head, step, onLine);
       else this.actions!.onClose();
     });
   }

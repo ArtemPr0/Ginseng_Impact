@@ -64,6 +64,8 @@ export const ITEMS: Record<string, ItemDef> = {
   'wyrm-fang-blade': { id: 'wyrm-fang-blade', name: 'Wyrm Fang', kind: 'weapon', weaponClass: 'sword', desc: 'A fang the length of a sword. +60 attack, Lunar element.', value: 900, rarity: 4, atk: 60, element: 'lunar', color: 0xdfe6ff },
   // Charms and keys
   'hollow-crown': { id: 'hollow-crown', name: 'Hollow Crown', kind: 'charm', desc: 'The King\'s crown. All damage +30% while carried.', value: 1200, rarity: 4, dmgMult: 1.3 },
+  'antler-signet': { id: 'antler-signet', name: 'Antlered Signet', kind: 'charm', desc: 'The Antlered King\'s own seal, for the usurper\'s death. All damage +25% while carried.', value: 600, rarity: 4, dmgMult: 1.25 },
+  'signed-cup': { id: 'signed-cup', name: 'Signed Cup', kind: 'key', desc: 'A double styrofoam cup with Yung Lean\'s signature in purple marker. Goldgrin\'s brother wants it.', value: 0, rarity: 3 },
   'lunar-charm': { id: 'lunar-charm', name: 'Lunar Charm', kind: 'charm', desc: 'All damage +15% while carried.', value: 90, rarity: 2, dmgMult: 1.15 },
   'star-chart': { id: 'star-chart', name: 'Star Chart', kind: 'key', desc: 'Pim\'s drawing of where the great ones sleep. Marks bosses on the minimap.', value: 100, rarity: 2, reveals: true },
 };

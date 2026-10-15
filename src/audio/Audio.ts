@@ -108,6 +108,13 @@ export class Audio {
     if (rarity >= 3) { this.tone('sine', base * 2.5, base * 2.5, 0.6, 0.2, 0.27, 0.005, 0.4); this.noise(0.4, 'highpass', 6000, 9000, 0.5, 0.12, 0.2); }
   }
 
+  /** Something flying into you: a quick rising whoosh with a glint at the top. */
+  absorb(): void {
+    this.noise(0.28, 'bandpass', 500, 3200, 2.5, 0.16, 0, 0.02);
+    this.tone('sine', 420, 1600, 0.26, 0.08, 0, 0.01, 0.06);
+    this.tone('sine', 2093, 2093, 0.25, 0.07, 0.24, 0.003, 0.2);
+  }
+
   /** Coin clinks. */
   coins(n = 3): void {
     for (let i = 0; i < n; i++) {

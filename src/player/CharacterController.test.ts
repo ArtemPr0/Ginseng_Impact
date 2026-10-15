@@ -228,6 +228,17 @@ describe('stepController — fly', () => {
   });
 });
 
+describe('stepController — stamina', () => {
+  it('drains at the drain scale (the rowers\' ale halves it)', () => {
+    const sprint = { ...idle(), move: { x: 1, z: 0 }, sprint: true };
+    const a = run(sprint, 60);
+    const b = createControllerState({ x: 0, y: 0, z: 0 });
+    b.drainScale = 0.5;
+    run(sprint, 60, flat, b);
+    expect(CONTROLLER.maxStamina - b.stamina).toBeCloseTo((CONTROLLER.maxStamina - a.stamina) / 2, 1);
+  });
+});
+
 describe('stepController — swim', () => {
   /** Dry land for x < 4, a bank down to a 3 m deep channel beyond, water surface at 1. */
   const river: WorldQuery = {

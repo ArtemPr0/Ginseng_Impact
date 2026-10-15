@@ -120,3 +120,21 @@ body { font-family: var(--font-body); color: var(--moon); }
 .r1 { color: var(--moon); } .r2 { color: var(--electric); } .r3 { color: var(--dusk); } .r4 { color: var(--blood); }
 .empty { font-size: 12px; color: var(--cloth); padding: 8px 0; }
 #hud.panel-open .hud-interact, #hud.panel-open .hud-prompt { display: none !important; }
+
+/* Dialogue choices: a column of answers, numbered. */
+.dlg-choices { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
+.dlg-choices button { text-align: left; padding: 8px 12px; }
+.dlg-choice-n { display: inline-block; width: 18px; margin-right: 10px; color: var(--rune); font-family: var(--font-title); }
+
+/* Quest tracker and buffs, under the shard counter. */
+.hud-quests { position: absolute; left: 24px; top: 236px; width: 240px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+.hud-quest { padding: 6px 10px; }
+.hud-quest-title { font-family: var(--font-title); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--rune); }
+.hud-quest-obj { font-size: 12px; line-height: 1.35; color: var(--moon); margin-top: 2px; }
+.hud-buff { padding: 4px 10px; font-family: var(--font-title); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--moon); }
+.hud-buff span { color: var(--rune); margin-left: 6px; }
+
+/* The countdown (the frog's dream), top right. */
+.hud-timer { position: absolute; right: 24px; top: 24px; padding: 8px 16px; display: none; text-align: center; pointer-events: none; }
+.hud-timer-label { font-family: var(--font-title); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--dusk, #8b3dff); }
+.hud-timer-time { font-family: var(--font-title); font-weight: 700; font-size: 32px; letter-spacing: 0.08em; color: var(--moon); }

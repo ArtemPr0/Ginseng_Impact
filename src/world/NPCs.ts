@@ -153,6 +153,18 @@ export const NPC_DEFS: NpcDef[] = [
     shop: [{ itemId: 'lotus-tea', price: 30 }, { itemId: 'moon-dew', price: 40 }],
   },
   {
+    id: 'frogking', name: 'The Frog King', title: 'Who Dreams in the Hollow', weapon: 'sword',
+    model: 'frogking', accent: PALETTE.dusk,
+    lines: ['Ribbit. The hollow is mine, and the dreams in it.', 'My skin remembers colours you have never seen.', 'Croak was such a good tadpole.'],
+    behaviour: { kind: 'stand', yaw: Math.PI / 2 },
+  },
+  {
+    id: 'brother', name: 'Glintgrin', title: "Goldgrin's Brother", weapon: 'sword',
+    model: 'gnome-brother', accent: PALETTE.rune,
+    lines: ['These grills? Real diamonds. Mostly.', 'Goldgrin got the cup. I got the teeth. Fair split.', 'Close the round door on your way out. Draughts.'],
+    behaviour: { kind: 'stand', yaw: Math.PI },
+  },
+  {
     id: 'pim', name: 'Pim', title: 'Gnome Astronomer', weapon: 'staff',
     model: 'gnome', accent: PALETTE.rune,
     lines: ['The galaxy turns once every age. I have counted three turns. I am very old, or very bored.', 'A star chart shows the hunters of this land on your map. Mirren sells them; I draw them.', 'Do not look at the moon when it smiles.'],
@@ -298,6 +310,8 @@ export class Npc {
   private voiceWait = 4;
   private speaking = 0;
   private lastPhase = 0;
+  /** Out of the world for now (Croak in the sack): not drawn, not talked to. */
+  hidden = false;
 
   constructor(readonly def: NpcDef, start: { x: number; z: number }, private readonly heightAt: (x: number, z: number, y?: number) => number) {
     this.rig = new Rig({ id: def.id, name: def.name, title: def.title, element: 'fog', weapon: def.weapon, maxHp: 1, atk: 1, accent: def.accent }, def.model);
