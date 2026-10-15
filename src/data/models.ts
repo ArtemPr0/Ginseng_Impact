@@ -4,7 +4,7 @@
  *
  * Clip names are matched case-insensitively and by substring, so "Idle", "idle_01" and "Armature|Idle" all work.
  */
-export type ClipName = 'idle' | 'walk' | 'run' | 'jump' | 'attack' | 'heavy' | 'cast' | 'hit' | 'death' | 'sit' | 'kneel' | 'roar' | 'fly' | 'drink' | 'bow' | 'lantern' | 'offer' | 'talk';
+export type ClipName = 'idle' | 'walk' | 'run' | 'jump' | 'attack' | 'heavy' | 'cast' | 'hit' | 'death' | 'sit' | 'kneel' | 'roar' | 'fly' | 'drink' | 'bow' | 'lantern' | 'offer' | 'talk' | 'swim' | 'swimIdle' | 'throw' | 'punch' | 'grab' | 'stand';
 
 export interface ModelDef {
   file: string;
@@ -70,8 +70,9 @@ const BOSS_CLIPS: Partial<Record<ClipName, string>> = {
 export const MODELS: Record<string, ModelDef> = {
   // Party
   // Party (Meshy image-to-3D from docs/reference/frames, biped rig, preset clips)
-  knight: { file: 'knight.glb', height: 1.95, clips: { idle: 'idle_02|idle|stance', walk: 'walking|walk', run: 'running|run', jump: 'basic_jump|jump', attack: 'right_hand_sword_slash|slash|attack', heavy: 'sword_judgment|judgment|slash', cast: 'sword_shout|shout|slash', hit: 'hit_reaction|hit', death: 'dying|death' } },
-  archer: { file: 'archer.glb', height: 1.8, clips: { idle: 'idle_02|idle|stance', walk: 'walking|walk', run: 'running|run', jump: 'basic_jump|jump', attack: 'archery_shot|shot', heavy: 'archery_shot_1|shot', cast: 'archery_aim|aim|shot', hit: 'hit_reaction|hit', death: 'dying|death' } },
+  knight: { file: 'knight.glb', height: 1.95, clips: { idle: 'idle_02|idle|stance', walk: 'walking|walk', run: 'running|run', jump: 'basic_jump|jump', attack: 'right_hand_sword_slash|slash|attack', heavy: 'sword_judgment|judgment|slash', cast: 'sword_shout|shout|slash', hit: 'hit_reaction|hit', death: 'dying|death', drink: 'stand_and_drink|drink', swim: 'swim_forward|swim', swimIdle: 'swim_idle|swim' } },
+  // Remade 2026-10-15 from frames/archer-v2.png (Meshy 7.1, A-pose, biped rig); her bow is archer-bow.glb in the left hand.
+  archer: { file: 'archer.glb', height: 1.8, clips: { idle: 'idle_03|idle', walk: 'walking|walk', run: 'running|run', jump: 'regular_jump|jump', attack: 'archery_shot|shot', heavy: 'archery_shot_1|shot', cast: 'archery_aim|aim|shot', hit: 'hit_reaction|hit', death: 'dying|death', swim: 'swim_forward|swim', swimIdle: 'swim_idle|swim' } },
   wizard: { file: 'wizard.glb', height: 1.85, robe: true, smoke: { x: 0.2, y: 1.12, z: 0.1 }, hand: { x: -0.36, y: 0.98, z: 0.12 }, clips: { idle: 'idle_02|idle|stance', walk: 'walking|walk', run: 'running|run', jump: 'basic_jump|jump', attack: 'mage_soell_cast|spell|cast', heavy: 'charged_spell_cast|charged|cast', cast: 'charged_spell_cast|charged|cast', hit: 'hit_reaction|hit', death: 'dying|death' } },
   // Weapons the heroes pull out while attacking (the models' own baked weapons stay where they are)
   staff: { file: 'staff.glb', height: 1.75, label: "Orlan's plain wooden walking staff (wizard-full.png)", grip: { x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0, slide: -1.05 } },
@@ -94,7 +95,7 @@ export const MODELS: Record<string, ModelDef> = {
   croc: { file: 'crocodile.glb', height: 0.7, label: 'crocodile in the flooded ruins (DeJj8CDhL2f)' },
   // NPCs and creatures
   frogking: { file: 'frog-king.glb', height: 2.4, clips: { idle: 'idle|breath' } },
-  loggiant: { file: 'log-giant.glb', height: 4.2, clips: { idle: 'idle|stance', walk: 'carry|walking|walk' } },
+  loggiant: { file: 'log-giant.glb', height: 4.2, clips: { idle: 'combat_stance|idle|stance', walk: 'carry|walking|walk', run: 'running|run', hit: 'hit_reaction|hit', throw: 'over_shoulder_throw|throw', grab: 'grip_and_throw|grip', punch: 'punch_forward_with_both|punch_combo|punch', attack: 'punch_combo|punch' } },
   spiderchapel: { file: 'spider-chapel.glb', height: 14, clips: { idle: 'idle', walk: 'walk|crawl|run' } },
   colossus: { file: 'moon-shell-colossus.glb', height: 9, clips: { idle: 'crawl' } },
   king: { file: 'antlered-king.glb', height: 1.95, label: 'the Antlered King (DedGUYetKjP)', clips: NPC_CLIPS('throne') },
@@ -144,7 +145,7 @@ export const MODELS: Record<string, ModelDef> = {
   'knight-npc': { file: 'knight-npc.glb', height: 1.9, label: 'armoured knight: tavern, rowing, kneeling, watching (DdfKgLsBmoA, DdjlyzyOcnK, DdKl7fKMO75)', clips: NPC_CLIPS('idle') },
   'knight-seated': { file: 'knight-seated.glb', height: 1.95, label: 'caped greatsword knight sitting on the cliff (Sir Halvard)', clips: NPC_CLIPS('sit') },
   'knight-rose': { file: 'knight-rose.glb', height: 1.95, label: 'black knight offering a rose (Sir Corvin)', clips: NPC_CLIPS('offer') },
-  skeleton: { file: 'skeleton.glb', height: 1.75, label: 'skeletons at the campfire (DdjlyzyOcnK)', clips: NPC_CLIPS('sit') },
+  skeleton: { file: 'skeleton.glb', height: 1.75, label: 'skeletons at the campfire (DdjlyzyOcnK)', clips: { ...NPC_CLIPS('sit'), attack: 'attack', hit: 'hit_reaction|hit', stand: 'sit_to_stand|stand', death: 'dying|death' } },
   'skeleton-banner': { file: 'skeleton-banner.glb', height: 1.85, label: 'skeleton standard-bearer with banner and trident (Hollow Jack)', clips: NPC_CLIPS('banner') },
   'witch-cook': { file: 'witch-cook.glb', height: 1.8, label: 'skeleton cook in a chef hat with a spoon (Mother Marrow)', clips: NPC_CLIPS('stir') },
   bride: { file: 'bride.glb', height: 1.8, label: 'the Pale Bride', clips: NPC_CLIPS('walk') },
@@ -173,6 +174,22 @@ export const MODELS: Record<string, ModelDef> = {
 
   // The user's own frames (docs/reference/frames/cup-gnome.png): Meshy 6 Lite draft, Meshy 7 image-guided texture, biped rig.
   'cup-gnome': { file: 'cup-gnome.glb', height: 1.25, label: 'gnome with a gold grill, gold chain and a purple cup (frames/cup-gnome.png)', clips: { idle: 'stand_and_drink|idle_03|idle_02', drink: 'stand_and_drink', talk: 'talk_with_hands_open', walk: 'walking', run: 'running' } },
+
+  // --- Round 3 (2026-10-15): the user's own images and descriptions ---
+  // Yung Lean, king of the realm beyond the portal (frames/rift-king.png): sits on the throne, stands to fight.
+  'rift-king': { file: 'rift-king.glb', height: 1.85, label: 'Yung Lean in a white puffer coat with an ice crown (frames/rift-king.png)', clips: { idle: 'idle_03|idle', sit: 'chair_sit|sit', stand: 'sit_to_stand|stand', talk: 'talk_with_hands_open|talk', walk: 'walking|walk', run: 'running|run', attack: 'attack', heavy: 'charged_spell_cast|spell', cast: 'mage_s|charged_spell|cast', hit: 'hit_reaction|hit', death: 'dying|death' } },
+  // Styro-Ghouls, the lean-chucking imps of his kingdom (the user's description); the boss is the same body, larger.
+  'styro-ghoul': { file: 'styro-ghoul.glb', height: 1.25, label: 'purple imp in baggy streetwear with a double-cup backpack', clips: { idle: 'combat_stance|idle_03|idle', walk: 'walking|walk', run: 'running|run', attack: 'over_shoulder_throw|throw', heavy: 'crouch_pull_and_throw|throw', throw: 'over_shoulder_throw|throw', sit: 'chair_sit|sit', stand: 'sit_to_stand|stand', hit: 'hit_reaction|hit', death: 'dying|death' } },
+  'lean-chucker': { file: 'styro-ghoul.glb', height: 1.9, tint: 0xd7b7ff, label: 'the Lean-Chucker, boss of the Styro-Ghouls', clips: { idle: 'combat_stance|idle_03|idle', walk: 'walking|walk', run: 'running|run', attack: 'over_shoulder_throw|throw', heavy: 'crouch_pull_and_throw|throw', throw: 'over_shoulder_throw|throw', sit: 'chair_sit|sit', stand: 'sit_to_stand|stand', hit: 'hit_reaction|hit', death: 'dying|death' } },
+  // A double cup of lean (frames/lean-cup.png): the knight's cup, thrown cups, the giant cup islands, the signed cup.
+  'lean-cup': stat('lean-cup.glb', 0.17, 'double white styrofoam cup of glowing purple lean (frames/lean-cup.png)'),
+  'lean-cup-island': stat('lean-cup.glb', 22, 'giant double cup of lean, an island of the kingdom'),
+  // Goldgrin's brother in the tree house: diamond grills, a job for the player.
+  'gnome-brother': { file: 'gnome-brother.glb', height: 1.2, label: "Goldgrin's diamond-grilled brother", clips: { idle: 'idle_03|idle', talk: 'talk_with_hands_open|talk', offer: 'scheming_hand_rub|hand_rub', walk: 'walking|walk', run: 'running|run' } },
+  'croak-bag': stat('croak-bag.glb', 1.1, 'burlap sack with Brother Croak inside'),
+  'treehouse-door': { ...stat('treehouse-door.glb', 2.3, 'round plank door of the tree house'), tint: 0x5a3c26 },
+  'treehouse-interior': stat('treehouse-interior.glb', 7, 'round room inside the tree house trunk'),
+  'stone-lotus': { ...stat('stone-lotus.glb', 1.6, 'stone-carved lotus drifting on the green-tea streams'), tint: 0xb8b2c8 },
 
   // --- Fifth batch of reels (2026-10-14 evening). Every id names its reel. ---
   // The galaxy city beyond the portal (DeOemU1BOZF, DeaqHWJBBPw, DeXn5rSPxR8, DeQ-NnpvqF6, Dd0wR9Jh2lH, DdyN2PNyIxb, DdnJDwBMUoj)

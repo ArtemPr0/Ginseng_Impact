@@ -11,6 +11,18 @@
  *       moon sphere over buildings and stairs).
  *   node scripts/model-tools.mjs strip-skin <in.glb> <out.glb>
  *       Drops JOINTS_1+/WEIGHTS_1+ (Meshy rigs store 12 influences; three.js skins with the first 4 but uploads all).
+ *   node scripts/model-tools.mjs fix-limb-skin <in.glb> <out.glb> [--dry]
+ *       Meshy's auto-skin gives hands that hang beside the thighs (yeti claws, troll knuckles) some leg weight, and
+ *       thighs some hand weight, so they smear into streaks whenever arms and legs move apart. For every vertex this
+ *       keeps only the dominant limb group (an arm, or a leg) when both pull on it, and renormalises.
+ *   node scripts/model-tools.mjs fix-skin-branches <in.glb> <out.glb> [--dry]
+ *       Keeps each vertex on the limb its strongest bone belongs to: a forearm/hand/shin/foot vertex loses every
+ *       influence outside its own limb (a claw pulled by the spine fans into a sheet when the arm swings); an upper
+ *       arm/thigh vertex may still blend with the torso; a torso vertex may blend with upper limbs but not hands/feet.
+ *   node scripts/model-tools.mjs cut-fused-limbs <in.glb> <out.glb> [--dry]
+ *       Meshy sometimes generates hands welded to the thighs (claws resting on fur): triangles joining a hand to
+ *       anything outside its arm, or an arm to a leg, stretch into fans and streaks as soon as the limbs move. Those
+ *       triangles are deleted (robes spanning both legs are left alone).
  *   node scripts/model-tools.mjs clip <in.glb> <out.glb>
  *       Keeps only the node hierarchy and animations (drops meshes, skins, materials, textures), so one
  *       animation export becomes a ~100 KB file the game layers onto the base model (see models.ts clipFiles).
@@ -126,6 +138,138 @@ async function stripSkin(inPath, outPath) {
   console.log(`strip-skin ${inPath}: dropped ${dropped} extra influence attributes → ${outPath} (${mb(outPath)})`);
 }
 
+/** Which limb a joint belongs to: 'armL' | 'armR' | 'legL' | 'legR' | null (spine, head, extra bones). */
+function limbOf(name) {
+  const n = name.toLowerCase();
+  const side = /left/.test(n) ? 'L' : /right/.test(n) ? 'R' : '';
+  if (!side) return null;
+  if (/shoulder|arm|hand|thumb|index|middle|ring|pinky/.test(n)) return 'arm' + side;
+  if (/upleg|leg|foot|toe/.test(n)) return 'leg' + side;
+  return null;
+}
+
+async function fixLimbSkin(inPath, outPath, dry) {
+  const doc = await io.read(inPath);
+  const skin = doc.getRoot().listSkins()[0];
+  if (!skin) { console.log(`${inPath}: no skin`); return; }
+  const limbs = skin.listJoints().map((j) => limbOf(j.getName() ?? ''));
+  let fixed = 0, total = 0;
+  for (const mesh of doc.getRoot().listMeshes()) for (const prim of mesh.listPrimitives()) {
+    const J = prim.getAttribute('JOINTS_0');
+    const W = prim.getAttribute('WEIGHTS_0');
+    if (!J || !W) continue;
+    const j = [0, 0, 0, 0];
+    const w = [0, 0, 0, 0];
+    for (let i = 0; i < J.getCount(); i++) {
+      total++;
+      J.getElement(i, j);
+      W.getElement(i, w);
+      const sum = { arm: 0, leg: 0 };
+      for (let k = 0; k < 4; k++) { const l = limbs[j[k]]; if (l && w[k] > 0) sum[l.slice(0, 3)] += w[k]; }
+      if (sum.arm <= 0.002 || sum.leg <= 0.002) continue;
+      const drop = sum.arm >= sum.leg ? 'leg' : 'arm';
+      let kept = 0;
+      for (let k = 0; k < 4; k++) { const l = limbs[j[k]]; if (l && l.startsWith(drop)) w[k] = 0; kept += w[k]; }
+      if (kept <= 1e-6) continue;
+      for (let k = 0; k < 4; k++) w[k] /= kept;
+      W.setElement(i, w);
+      fixed++;
+    }
+  }
+  console.log(`fix-limb-skin ${inPath}: ${fixed} of ${total} vertices had both arm and leg weights${dry ? ' (dry run)' : ''}`);
+  if (dry) return;
+  await io.write(outPath, doc);
+}
+
+/** Branch and level of a Mixamo-style joint: limb ('armL'…'legR') or 'core', and whether it is distal. */
+function branchOf(name) {
+  const n = name.toLowerCase();
+  const limb = limbOf(name);
+  if (!limb) return { branch: 'core', distal: false };
+  const distal = limb.startsWith('arm') ? /forearm|hand|thumb|index|middle|ring|pinky/.test(n) : /(^|:|_)(left|right)leg$|foot|toe/.test(n) || (/leg/.test(n) && !/upleg/.test(n));
+  return { branch: limb, distal };
+}
+
+async function fixSkinBranches(inPath, outPath, dry) {
+  const doc = await io.read(inPath);
+  const skin = doc.getRoot().listSkins()[0];
+  if (!skin) { console.log(`${inPath}: no skin`); return; }
+  const info = skin.listJoints().map((jn) => branchOf(jn.getName() ?? ''));
+  let fixed = 0, total = 0;
+  for (const mesh of doc.getRoot().listMeshes()) for (const prim of mesh.listPrimitives()) {
+    const J = prim.getAttribute('JOINTS_0');
+    const W = prim.getAttribute('WEIGHTS_0');
+    if (!J || !W) continue;
+    const j = [0, 0, 0, 0];
+    const w = [0, 0, 0, 0];
+    for (let i = 0; i < J.getCount(); i++) {
+      total++;
+      J.getElement(i, j);
+      W.getElement(i, w);
+      let top = 0;
+      for (let k = 1; k < 4; k++) if (w[k] > w[top]) top = k;
+      const t = info[j[top]];
+      let changed = false, kept = 0;
+      for (let k = 0; k < 4; k++) {
+        if (w[k] <= 0) continue;
+        const o = info[j[k]];
+        const allowed = t.branch === 'core' ? !o.distal : t.distal ? o.branch === t.branch : o.branch === t.branch || o.branch === 'core';
+        if (!allowed) { w[k] = 0; changed = true; }
+        kept += w[k];
+      }
+      if (!changed || kept <= 1e-6) continue;
+      for (let k = 0; k < 4; k++) w[k] /= kept;
+      W.setElement(i, w);
+      fixed++;
+    }
+  }
+  console.log(`fix-skin-branches ${inPath}: ${fixed} of ${total} vertices pulled by another limb${dry ? ' (dry run)' : ''}`);
+  if (dry) return;
+  await io.write(outPath, doc);
+}
+
+async function cutFusedLimbs(inPath, outPath, dry) {
+  const doc = await io.read(inPath);
+  const skin = doc.getRoot().listSkins()[0];
+  if (!skin) { console.log(`${inPath}: no skin`); return; }
+  const info = skin.listJoints().map((jn) => branchOf(jn.getName() ?? ''));
+  let cut = 0, total = 0;
+  for (const mesh of doc.getRoot().listMeshes()) for (const prim of mesh.listPrimitives()) {
+    const J = prim.getAttribute('JOINTS_0');
+    const W = prim.getAttribute('WEIGHTS_0');
+    const idxAcc = prim.getIndices();
+    if (!J || !W || !idxAcc) continue;
+    const j = [0, 0, 0, 0];
+    const w = [0, 0, 0, 0];
+    const dom = [];
+    for (let i = 0; i < J.getCount(); i++) {
+      J.getElement(i, j); W.getElement(i, w);
+      let top = 0; for (let k = 1; k < 4; k++) if (w[k] > w[top]) top = k;
+      dom.push(info[j[top]]);
+    }
+    const idx = idxAcc.getArray();
+    const keep = [];
+    for (let t = 0; t < idx.length; t += 3) {
+      total++;
+      const v = [dom[idx[t]], dom[idx[t + 1]], dom[idx[t + 2]]];
+      let bad = false;
+      for (let a = 0; a < 3 && !bad; a++) for (let b = 0; b < 3 && !bad; b++) {
+        const x = v[a], y = v[b];
+        if (x.branch === y.branch) continue;
+        if (x.branch.startsWith('arm') && x.distal) bad = true;                       // a hand/forearm joined to something else
+        else if (x.branch.startsWith('arm') && y.branch.startsWith('leg')) bad = true; // any arm joined to a leg
+        else if (x.branch.startsWith('arm') && y.branch.startsWith('arm')) bad = true; // left arm joined to right arm
+      }
+      if (bad) { cut++; continue; }
+      keep.push(idx[t], idx[t + 1], idx[t + 2]);
+    }
+    if (!dry) idxAcc.setArray(new Uint32Array(keep));
+  }
+  console.log(`cut-fused-limbs ${inPath}: ${cut} of ${total} triangles joined a hand or arm to another limb${dry ? ' (dry run)' : ''}`);
+  if (dry) return;
+  await io.write(outPath, doc);
+}
+
 async function clip(inPath, outPath) {
   const doc = await io.read(inPath);
   const root = doc.getRoot();
@@ -145,6 +289,9 @@ async function main() {
   if (cmd === 'optimize') return optimize(a, b, c ? Number(c) : 1024, d ? Number(d) : 0);
   if (cmd === 'strip-floaters') return stripFloaters(a, b, c ? Number(c) : 0.45);
   if (cmd === 'strip-skin') return stripSkin(a, b);
+  if (cmd === 'fix-limb-skin') return fixLimbSkin(a, b, c === '--dry');
+  if (cmd === 'fix-skin-branches') return fixSkinBranches(a, b, c === '--dry');
+  if (cmd === 'cut-fused-limbs') return cutFusedLimbs(a, b, c === '--dry');
   if (cmd === 'clip') return clip(a, b);
   if (cmd === 'import') {
     const name = b;
