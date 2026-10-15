@@ -1,4 +1,4 @@
-import { BufferAttribute, Color, MeshStandardMaterial, type MeshStandardMaterialParameters, type SkinnedMesh } from 'three';
+import { BufferAttribute, Color, type Matrix4, MeshStandardMaterial, type MeshStandardMaterialParameters, type SkinnedMesh } from 'three';
 
 /** Shared time uniform for wind/sway shaders. Updated once per frame by the renderer. */
 export const WIND = { value: 0 };
@@ -139,6 +139,54 @@ export function patchWingFlap(mat: MeshStandardMaterial, opts: { x0: number; roo
         }`,
       );
   };
+  mat.needsUpdate = true;
+}
+
+/**
+ * A four-beat walk for a horse without a skeleton (horse-rider.glb is one static mesh): every vertex below the hip
+ * line within `radius` of a leg's column swings about that leg's hip, the hoof lifting as it comes forward. Legs are
+ * columns (x, z) in the model frame (`rel` maps the mesh's geometry into it; forward is the frame's -x), each with
+ * its phase of the stride (0..1); `rate` strides per second, `amp` radians. Nothing else of the mesh moves.
+ */
+export function patchGait(mat: MeshStandardMaterial, opts: { legs: Array<{ x: number; z: number; phase: number }>; hipY: number; radius: number; rate: number; amp: number; rel: Matrix4 }): void {
+  const prev = mat.onBeforeCompile;
+  const rel = { value: opts.rel.clone() };
+  const inv = { value: opts.rel.clone().invert() };
+  const f = (v: number) => v.toFixed(4);
+  const legs = opts.legs.map((l, i) => `{ float d = length(p.xz - vec2(${f(l.x)}, ${f(l.z)})); if (d < best) { best = d; leg = ${i}; lx = ${f(l.x)}; ph = ${f(l.phase)}; } }`).join('\n');
+  mat.onBeforeCompile = (shader, renderer) => {
+    prev?.call(mat, shader, renderer);
+    shader.uniforms.uWind = WIND;
+    shader.uniforms.uGaitRel = rel;
+    shader.uniforms.uGaitInv = inv;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uWind;\nuniform mat4 uGaitRel;\nuniform mat4 uGaitInv;')
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        {
+          vec3 p = (uGaitRel * vec4(transformed, 1.0)).xyz;
+          const float HIP = ${f(opts.hipY)};
+          if (p.y < HIP) {
+            float best = ${f(opts.radius)}; int leg = -1; float lx = 0.0; float ph = 0.0;
+            ${legs}
+            if (leg >= 0) {
+              float w = smoothstep(HIP, HIP - 0.25, p.y);
+              float t = (uWind * ${f(opts.rate)} + ph) * 6.2832;
+              float a = sin(t) * ${f(opts.amp)} * w;
+              vec2 q = vec2(p.x - lx, p.y - HIP);
+              float ca = cos(a), sa = sin(a);
+              p.x = lx + q.x * ca - q.y * sa;
+              p.y = HIP + q.x * sa + q.y * ca;
+              // The hoof comes up off the ground as the leg swings forward (toward -x).
+              p.y += max(0.0, cos(t)) * 0.08 * w * (1.0 - clamp(p.y / HIP, 0.0, 1.0));
+              transformed = (uGaitInv * vec4(p, 1.0)).xyz;
+            }
+          }
+        }`,
+      );
+  };
+  mat.customProgramCacheKey = () => 'gait:' + opts.legs.map((l) => `${f(l.x)},${f(l.z)}`).join(';');
   mat.needsUpdate = true;
 }
 

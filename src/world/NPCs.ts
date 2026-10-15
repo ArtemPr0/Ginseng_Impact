@@ -5,11 +5,17 @@ import type { CharacterDef } from '../characters/roster';
 import { MODELS } from '../data/models';
 import { PALETTE } from '../render/palette';
 import { SpeechBubble } from './SpeechBubble';
+import { voiceUrl, VOICES } from '../data/voices';
 
 export type NpcBehaviour =
   | { kind: 'stand'; pose?: RigPose['pose']; yaw: number }
   | { kind: 'loop'; path: Array<[number, number]>; speed: number; pose?: RigPose['pose'] }
-  | { kind: 'wander'; x: number; z: number; radius: number; speed: number };
+  | { kind: 'wander'; x: number; z: number; radius: number; speed: number }
+  /**
+   * A guard in a doorway: he blocks it, facing out (`yaw`), until the player comes within `trigger` metres; then he
+   * says his line (a data/voices id), steps `aside` to that spot and turns to `asideYaw`, and the way is open.
+   */
+  | { kind: 'guard'; yaw: number; aside: [number, number]; asideYaw: number; trigger: number; line: string; pose?: RigPose['pose'] };
 
 export interface ShopEntry { itemId: string; price: number }
 
@@ -82,21 +88,23 @@ export const NPC_DEFS: NpcDef[] = [
   {
     id: 'wanderer', name: 'The Lanternbearer', title: 'Who Has Seen the Burning Shore', weapon: 'staff',
     model: 'wanderer', accent: 0xff7a2a,
-    lines: ['Across the water a castle burns and never falls. I stopped asking why.', 'Follow the lantern if you like. It only ever leads to the edge.'],
-    // Along the south rim of the chasm, lantern held out over the edge.
-    behaviour: { kind: 'loop', path: [[-40, -32], [-14, -32], [-7, -31], [-14, -32]], speed: 1.1, pose: 'lantern' },
+    lines: ['Across the water a castle burns and never falls. I stopped asking why.', 'Follow the lantern if you like. It only ever leads back down this street.'],
+    // Up and down the street of the village in the forest, lantern held out.
+    behaviour: { kind: 'loop', path: [[-52, 70], [-30, 70.4], [-12, 70], [-30, 69.6]], speed: 1.1, pose: 'lantern' },
   },
   {
-    id: 'watcher-knight', name: 'Dunmar', title: 'Who Watches the Sky', weapon: 'sword',
+    id: 'watcher-knight', name: 'Dunmar', title: 'Guard of the Porcelain Hall', weapon: 'sword',
     model: 'knight-npc', accent: PALETTE.electric,
-    lines: ['It came out of the storm with a face. We have not moved since.', 'If it blinks, run.'],
-    behaviour: { kind: 'stand', pose: 'watch', yaw: -Math.PI / 2 },
+    lines: ['The King is inside. Mind the porcelain.', 'I stand here so the snow stays out. Mostly it does not.'],
+    // In the doorway of Yung Lean's hall (its opening is x 997-1003 at z -53.5), stepping aside for the hero.
+    behaviour: { kind: 'guard', yaw: Math.PI / 2, aside: [1004.6, -51.8], asideYaw: Math.PI, trigger: 7, line: 'guard-cool', pose: 'watch' },
   },
   {
-    id: 'watcher-mage', name: 'Sel', title: 'Who Watches the Sky', weapon: 'staff',
+    id: 'watcher-mage', name: 'Sel', title: 'Who Watches the Snow', weapon: 'staff',
     model: 'wizard-npc', accent: PALETTE.rune,
-    lines: ['Dunmar thinks it is a god. I think it is weather. We are both afraid.', 'The gorge river feeds the stream. The stream feeds the coven. Everything flows into the witches.'],
-    behaviour: { kind: 'stand', pose: 'watch', yaw: -Math.PI / 2 + 0.3 },
+    lines: ['The snow here falls in little squares. I came to study it and forgot to leave.', 'Dunmar guards the hall now. I watch the houses breathe.'],
+    // At the east end of the street of purple houses, looking down it.
+    behaviour: { kind: 'stand', pose: 'watch', yaw: Math.PI },
   },
   {
     id: 'cook', name: 'Mother Marrow', title: 'Who Stirs the Sea', weapon: 'staff',
@@ -244,14 +252,15 @@ export const NPC_DEFS: NpcDef[] = [
     id: 'market-a', name: 'Snaggle', title: 'Goblin Merchant of the Kingdom', weapon: 'sword',
     model: 'goblin', accent: PALETTE.witch,
     lines: ['Crystal ball, slightly used, shows mostly next Tuesday.', 'Everything here is porcelain. Prices too: they crack.', 'Mind the lean waves. They have opinions.'],
-    behaviour: { kind: 'stand', pose: 'offer', yaw: Math.PI },
+    // Behind his stall between two of the purple houses, facing the street.
+    behaviour: { kind: 'stand', pose: 'offer', yaw: Math.PI / 2 },
     shop: [{ itemId: 'moon-dew', price: 32 }, { itemId: 'rot-salve', price: 28 }],
   },
   {
     id: 'market-b', name: 'Grizzle', title: 'Goblin Merchant of the Kingdom', weapon: 'sword',
     model: 'goblin', accent: PALETTE.blood,
     lines: ['Lanterns! Lanterns that remember where you left them!', 'Snaggle overcharges. I overcharge less.'],
-    behaviour: { kind: 'stand', pose: 'offer', yaw: Math.PI },
+    behaviour: { kind: 'stand', pose: 'offer', yaw: -Math.PI / 2 },
     shop: [{ itemId: 'lotus-tea', price: 26 }],
   },
   {
@@ -280,8 +289,22 @@ export class Npc {
   private voiceWait = 4;
   private speaking = 0;
   private lastPhase = 0;
-  /** Out of the world for now (Croak in the sack): not drawn, not talked to. */
-  hidden = false;
+  private gone = false;
+  /** A guard's moment: in the doorway, stepping aside, or stood aside. */
+  private guard: 'block' | 'step' | 'aside' = 'block';
+  /** Set by the world: the doorway is free (its barrier comes down). */
+  onStepAside?: () => void;
+  /** Out of the world for now (Croak in the sack, Yung Lean off his throne to fight): not drawn, not talked to, silent. */
+  get hidden(): boolean {
+    return this.gone;
+  }
+
+  set hidden(v: boolean) {
+    this.gone = v;
+    this.object.visible = !v;
+    // (World.showZone shows a zone's things again when the player returns; it leaves this one alone.)
+    this.object.userData.hidden = v;
+  }
 
   constructor(readonly def: NpcDef, start: { x: number; z: number }, private readonly heightAt: (x: number, z: number, y?: number) => number) {
     this.rig = new Rig({ id: def.id, name: def.name, title: def.title, element: 'fog', weapon: def.weapon, maxHp: 1, atk: 1, accent: def.accent }, def.model);
@@ -333,6 +356,7 @@ export class Npc {
   }
 
   update(dt: number, player: Vector3, talking: boolean, animate = true): void {
+    if (this.gone) return;
     const b = this.def.behaviour;
     let moving = false;
     if (talking) {
@@ -350,6 +374,31 @@ export class Npc {
       this.yaw += Math.atan2(Math.sin(target - this.yaw), Math.cos(target - this.yaw)) * Math.min(1, dt * 5);
       moving = true;
       this.speed = b.speed;
+    } else if (b.kind === 'guard') {
+      const d = Math.hypot(player.x - this.pos.x, player.z - this.pos.z);
+      if (this.guard === 'block') {
+        this.yaw = b.yaw;
+        if (d < b.trigger) {
+          this.guard = 'step';
+          const v = VOICES[b.line];
+          if (v) { this.bubble?.say(v.text, 3); this.speaking = 2.4; void Npc.sound?.voice(voiceUrl(b.line), 1); }
+          this.onStepAside?.();
+        }
+      } else if (this.guard === 'step') {
+        const dx = b.aside[0] - this.pos.x;
+        const dz = b.aside[1] - this.pos.z;
+        const dd = Math.hypot(dx, dz);
+        if (dd < 0.1) { this.guard = 'aside'; }
+        else {
+          const step = Math.min(dd, 1.6 * dt);
+          this.pos.x += (dx / dd) * step;
+          this.pos.z += (dz / dd) * step;
+          const target = Math.atan2(dz, dx);
+          this.yaw += Math.atan2(Math.sin(target - this.yaw), Math.cos(target - this.yaw)) * Math.min(1, dt * 6);
+          moving = true;
+          this.speed = 1.6;
+        }
+      } else this.yaw += Math.atan2(Math.sin(b.asideYaw - this.yaw), Math.cos(b.asideYaw - this.yaw)) * Math.min(1, dt * 4);
     } else if (b.kind === 'wander') {
       if (!this.wanderTarget) {
         this.wanderWait -= dt;
@@ -377,7 +426,7 @@ export class Npc {
     this.object.position.copy(this.pos);
     this.object.rotation.y = yawToRotation(this.yaw);
     this.sounds(dt, Math.hypot(player.x - this.pos.x, player.z - this.pos.z));
-    const pose = this.speaking > 0 ? 'talk' : talking ? (this.def.voice ? b.kind === 'stand' ? b.pose : undefined : undefined) : b.kind === 'stand' ? b.pose : b.kind === 'loop' ? b.pose : undefined;
+    const pose = b.kind === 'guard' && moving ? undefined : this.speaking > 0 ? 'talk' : talking ? (this.def.voice ? b.kind === 'stand' ? b.pose : undefined : undefined) : b.kind === 'stand' || b.kind === 'guard' || b.kind === 'loop' ? b.pose : undefined;
     if (animate) this.rig.animate({ mode: 'ground', speed: moving ? this.speed : 0, pose }, dt);
   }
 }

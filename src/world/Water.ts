@@ -1,6 +1,6 @@
 import {
   AdditiveBlending, BufferAttribute, BufferGeometry, CircleGeometry, Color, DoubleSide, Float32BufferAttribute, Group,
-  Mesh, MeshBasicMaterial, Points, PointsMaterial, ShaderMaterial, Vector3,
+  Mesh, MeshBasicMaterial, Points, PointsMaterial, ShaderMaterial, Vector3, Vector4,
 } from 'three';
 import { surface } from '../render/Materials';
 import { PALETTE } from '../render/palette';
@@ -17,6 +17,7 @@ void main() {
 }`;
 const WATER_FRAG = /* glsl */ `
 uniform float uTime; uniform vec3 uDeep; uniform vec3 uShallow; uniform vec3 uFoam; uniform vec3 uCam; uniform vec3 uMoonDir; uniform float uFlow;
+uniform vec4 uDisc;
 varying vec2 vUv; varying vec3 vWorld; varying vec3 vNormalW;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vnoise(vec2 p) { vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
@@ -33,7 +34,12 @@ void main() {
   vec3 H = normalize(V + uMoonDir);
   float spec = pow(max(dot(H, normalize(vNormalW + vec3(n2 - 0.5, 0.0, n - 0.5) * 0.4)), 0.0), 60.0);
   c += vec3(0.75, 0.82, 1.0) * spec * 1.6 + uShallow * fres * 0.5;
-  float edge = smoothstep(0.0, 0.12, vUv.y) * smoothstep(1.0, 0.88, vUv.y);
+  // A ribbon fades at its banks (uv.y); a pond (uDisc: centre x, z, then the radii where it starts and ends fading)
+  // ends in a soft circle just inside its shore, never in the zigzag where the coarse terrain crosses the surface.
+  float edge = uDisc.w > 0.0
+    ? 1.0 - smoothstep(uDisc.z, uDisc.w, distance(vWorld.xz, uDisc.xy))
+    : smoothstep(0.0, 0.12, vUv.y) * smoothstep(1.0, 0.88, vUv.y);
+  if (edge <= 0.002) discard;
   gl_FragColor = vec4(c, 0.92 * edge + 0.08);
 }`;
 
@@ -42,6 +48,7 @@ export function waterMaterial(deep: number, shallow: number, foam: number, flow 
     uniforms: {
       uTime: { value: 0 }, uDeep: { value: new Color(deep) }, uShallow: { value: new Color(shallow) }, uFoam: { value: new Color(foam) },
       uCam: { value: new Vector3() }, uMoonDir: { value: new Vector3(0.15, 0.42, -1).normalize() }, uFlow: { value: flow },
+      uDisc: { value: new Vector4(0, 0, 0, 0) },
     },
     vertexShader: WATER_VERT, fragmentShader: WATER_FRAG, transparent: true, depthWrite: false, side: DoubleSide, forceSinglePass: true,
   });
@@ -65,9 +72,11 @@ export function riverSamples(step = 3): Array<{ x: number; z: number; tx: number
   return out;
 }
 
+let riverLength = 0;
 /** Position along the river at arc length `s` (wraps). */
 export function riverPoint(s: number): { x: number; z: number; yaw: number } {
-  const total = riverSamples(3).at(-1)!.u;
+  // (Measured once: boats ask every frame.)
+  const total = riverLength || (riverLength = riverSamples(3).at(-1)!.u);
   let d = ((s % total) + total) % total;
   for (let i = 0; i < RIVER.length - 1; i++) {
     const [ax, az] = RIVER[i];
@@ -181,7 +190,9 @@ export function lilyPond(cx: number, cz: number, radius: number, rnd: () => numb
   const g = new Group();
   const level = 1.0;
   const mat = waterMaterial(0x0a1a66, 0x2a55e8, 0x9fc4ff, 4);
-  const water = new Mesh(new CircleGeometry(radius + 2, 40), mat);
+  // The bowl (Terrain.ts) meets the water about 1.4 m beyond `radius`: fade out just inside that shore.
+  (mat.uniforms.uDisc.value as Vector4).set(cx, cz, radius - 0.4, radius + 1.0);
+  const water = new Mesh(new CircleGeometry(radius + 2, 64), mat);
   water.rotation.x = -Math.PI / 2;
   water.position.set(cx, level, cz);
   water.renderOrder = 2;

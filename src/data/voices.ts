@@ -34,6 +34,7 @@ export const VOICES: Record<string, VoiceLine> = {
   'frog-reward': { text: 'My boy, home in a sack! You have my thanks, stranger. As a sign of respect... you may lick me.', voice: 'Grandpa (English (UK))', rate: 145, pitch: 0.82, fx: CROAK },
   'frog-declined': { text: 'Suit yourself. Here, take some shards instead.', voice: 'Grandpa (English (UK))', rate: 150, pitch: 0.82, fx: CROAK },
   'frog-licked': { text: 'Hold still. This will only take about two minutes.', voice: 'Grandpa (English (UK))', rate: 140, pitch: 0.82, fx: CROAK },
+  'frog-anytime': { text: 'Ah, my friend. You can lick me any time you want.', voice: 'Grandpa (English (UK))', rate: 145, pitch: 0.82, fx: CROAK },
   'croak-busted': { text: "Ribbit. Whatever my dad told you, it's not mine.", voice: 'Junior', rate: 190, pitch: 1.2, fx: CROAK },
   'croak-bagged': { text: 'Hey! Hey! Not the sack again!', voice: 'Junior', rate: 200, pitch: 1.25, fx: CROAK },
   // The rowers on the river boats.
@@ -41,6 +42,8 @@ export const VOICES: Record<string, VoiceLine> = {
   'rower-sober': { text: 'More for us, then!', voice: 'Reed (English (UK))', rate: 175, pitch: 0.9 },
   'rower-wife': { text: 'Ha! Mine already did. Twice.', voice: 'Reed (English (UK))', rate: 170, pitch: 0.9 },
   'rower-yeah': { text: "That's the spirit! Drink up. You'll row forever.", voice: 'Daniel', rate: 175, pitch: 0.95 },
+  // Dunmar, the knight at the door of Yung Lean's hall, stepping aside (the user's line, verbatim).
+  'guard-cool': { text: "I didn't know you were cool like that.", voice: 'Daniel', rate: 160, pitch: 0.86, fx: HALL },
   // Yung Lean on his porcelain throne: slow, monotone, a little melancholy, Swedish (the user's lines, verbatim).
   'lean-greet': { text: 'Welcome to the palace. Keep your boots clean, the porcelain cracks easily... What brings you to the sad side of the world?', voice: 'Alva', rate: 128, pitch: 0.93, fx: LEAN },
   'lean-quest': { text: 'The world is getting quiet, stranger. The silence is creeping into the neon valleys. Take this blade, go into the mist, and bring back the sound.', voice: 'Alva', rate: 125, pitch: 0.93, fx: LEAN },

@@ -138,3 +138,8 @@ body { font-family: var(--font-body); color: var(--moon); }
 .hud-timer { position: absolute; right: 24px; top: 24px; padding: 8px 16px; display: none; text-align: center; pointer-events: none; }
 .hud-timer-label { font-family: var(--font-title); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--dusk, #8b3dff); }
 .hud-timer-time { font-family: var(--font-title); font-weight: 700; font-size: 32px; letter-spacing: 0.08em; color: var(--moon); }
+
+/* Doors and portals: black, then a stepped fade back in. */
+.hud-curtain { position: fixed; inset: 0; background: var(--void, #05060f); opacity: 0; pointer-events: none; z-index: 5; }
+.hud-curtain.down { opacity: 1; transition: none; }
+.hud-curtain.lift { opacity: 0; transition: opacity 600ms steps(6, end); }

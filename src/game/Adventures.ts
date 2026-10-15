@@ -25,8 +25,10 @@ const DREAM_SECONDS = 120;
 const ALE_SECONDS = 180;
 /** Croak is home when the sack is put down this close to his father. */
 const HOME_RANGE = 8;
-/** Where a passenger stands in a boat (between the rowers, boat frame). */
-const SEAT = new Vector3(0, 0.32, 0.05);
+/** Where a passenger stands in a boat: in the bow, ahead of the rowers (boat frame). */
+const SEAT = new Vector3(0, 0.36, -1.45);
+/** The way the boat goes, in its own frame (riverDrifter moves it along its -z; the rowers face that way). */
+const BOW = new Vector3(0, 0, -1);
 
 export interface AdventureDeps {
   controller: ControllerState;
@@ -130,6 +132,7 @@ export class Adventures {
 
   private wake(): void {
     this.dreamLeft = 0;
+    this.quests.set('trip', 'done');
     const f = LAYOUT.frog;
     const x = f.x + 3.5;
     const z = f.z + 2;
@@ -178,6 +181,25 @@ export class Adventures {
     this.kingFight = null;
   }
 
+  /**
+   * Riding: the hero stands in the bow, ahead of the rowers, looking where the boat goes. Called every step and every
+   * rendered frame too (a conversation pauses the game, but the river keeps carrying the boat).
+   */
+  pinToBoat(): void {
+    const b = this.riding;
+    if (!b) return;
+    b.root.updateWorldMatrix(true, false);
+    const at = b.root.localToWorld(this.seat.copy(SEAT));
+    const c = this.d.controller;
+    c.pos.x = at.x; c.pos.y = at.y; c.pos.z = at.z;
+    c.vel.x = c.vel.y = c.vel.z = 0;
+    c.mode = 'ground';
+    const ahead = this.seat.copy(BOW).applyQuaternion(b.root.quaternion);
+    c.yaw = Math.atan2(ahead.z, ahead.x);
+  }
+
+  private readonly seat = new Vector3();
+
   /** Steps out of the boat over the side (into the river: swim to a bank). */
   leaveBoat(): void {
     const b = this.riding;
@@ -221,16 +243,7 @@ export class Adventures {
     if (this.aleLeft > 0) this.aleLeft = Math.max(0, this.aleLeft - dt);
     this.updateKingFight(dt);
     this.d.controller.drainScale = this.aleLeft > 0 ? 0.5 : 1;
-    // Riding: the hero stands between the rowers and goes where the boat goes.
-    const b = this.riding;
-    if (b) {
-      b.root.updateWorldMatrix(true, false);
-      const at = b.root.localToWorld(SEAT.clone());
-      const c = this.d.controller;
-      c.pos.x = at.x; c.pos.y = at.y; c.pos.z = at.z;
-      c.vel.x = c.vel.y = c.vel.z = 0;
-      c.mode = 'ground';
-    }
+    this.pinToBoat();
     // The sack rides on whoever is in front, swaying with the walk.
     const rig = this.d.activeRig();
     const carrying = this.quests.stage('croak') === 'bagged';

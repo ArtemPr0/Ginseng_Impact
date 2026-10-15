@@ -23,10 +23,12 @@ const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 const BINS = 128;
 /** Cells along the model's longest horizontal side. */
 const CELLS = 40;
+/** Finer grids for buildings people walk into (the cathedral's nave, entered through the arch at its east end). */
+const CELLS_FOR = { cathedral: 120 };
 const CLEARANCE = 2.1;
 /** Models that move or are characters never get a grid (their colliders, if any, are written by hand). */
 /** Closed buildings whose enclosed hollow insides are made solid (open halls, pavilions and arches are not listed). */
-const CLOSED = new Set(['cathedral', 'castle', 'church', 'treehouse', 'tavern', 'village-house', 'observatory', 'purple-house', 'round-tower', 'sunken-tavern', 'face-tree', 'head', 'world-tree']);
+const CLOSED = new Set(['castle', 'church', 'treehouse', 'tavern', 'village-house', 'observatory', 'purple-house', 'round-tower', 'sunken-tavern', 'face-tree', 'head', 'world-tree']);
 const SKIP = new Set(['knight', 'archer', 'wizard', 'staff', 'greatsword', 'causeway-segment', 'chasm-bridge', 'causeway-stairs', 'checker-road', 'stepping-stone']);
 
 function transformPoint(m, x, y, z) {
@@ -81,7 +83,7 @@ function bake(id, def, raw) {
     pts[i] = xr; pts[i + 1] = Y; pts[i + 2] = zr;
     if (xr < bx0) bx0 = xr; if (xr > bx1) bx1 = xr; if (zr < bz0) bz0 = zr; if (zr > bz1) bz1 = zr; if (Y > yMax) yMax = Y;
   }
-  const cell = Math.max(bx1 - bx0, bz1 - bz0) / CELLS;
+  const cell = Math.max(bx1 - bx0, bz1 - bz0) / (CELLS_FOR[id] ?? CELLS);
   const nx = Math.max(1, Math.ceil((bx1 - bx0) / cell)), nz = Math.max(1, Math.ceil((bz1 - bz0) / cell));
   const words = BINS / 32;
   const mask = new Uint32Array(nx * nz * words);

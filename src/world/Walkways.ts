@@ -23,37 +23,65 @@ function slab(w: number, h: number, d: number, x: number, y: number, z: number, 
   return m;
 }
 
-/** Deck tops along the causeway where the balustrade posts stand (lanterns and candles use these). */
-export function causewayPostPoints(cfg: CausewayConfig): Array<{ x: number; z: number; y: number }> {
+/**
+ * The tops of the raised edge stones along the causeway, one each side at the middle of every span (lanterns and
+ * candles stand on these, on the bridge itself).
+ */
+export function causewayPostPoints(cfg: CausewayConfig, spanHeight: number): Array<{ x: number; z: number; y: number }> {
   const out: Array<{ x: number; z: number; y: number }> = [];
-  const length = cfg.zStart - cfg.zEnd;
-  for (let z = cfg.zStart - 2; z > cfg.zEnd + 2; z -= cfg.postSpacing) {
-    const t = (cfg.zStart - z) / length;
-    const top = cfg.yStart + (cfg.yEnd - cfg.yStart) * t;
-    for (const side of [-1, 1]) out.push({ x: cfg.x + side * (cfg.width / 2 - 0.4), z, y: top });
+  for (const s of causewaySegments(cfg)) {
+    for (let k = 0; k < 3; k++) {
+      const z = s.zc + (k - 1) * (s.len / 3);
+      for (const side of [-1, 1]) out.push({ x: cfg.x + side * SPAN_POST.x, z, y: s.top + spanHeight * SPAN_POST.rise });
+    }
   }
   return out;
+}
+
+/** The causeway's collider segments: centre z, length and deck top of each. */
+function causewaySegments(cfg: CausewayConfig): Array<{ zc: number; len: number; top: number }> {
+  const length = cfg.zStart - cfg.zEnd;
+  const n = Math.ceil(length / cfg.segmentLength);
+  const len = length / n;
+  return Array.from({ length: n }, (_, i) => ({ zc: cfg.zStart - (i + 0.5) * len, len, top: cfg.yStart + ((cfg.yEnd - cfg.yStart) * (i + 0.5)) / n }));
 }
 
 /** How far below the walk surface a deck's underside is (arch crown and paving). */
 const DECK_DEPTH = 0.9;
 
-/** Span model proportions (scripts/model-measure.mjs): deck surface at this fraction of the span's height. */
+/**
+ * Span model (causeway-segment.glb, measured with scripts/model-measure.mjs and downward rays in the game): the deck's
+ * crown at this fraction of the span's height; the paving reaches SPAN_HALF metres either side of the centre line
+ * (the edge stones overhang a little further); a raised edge stone at the middle of each span, `x` out from the
+ * centre, its top `rise` × height above the crown.
+ */
 const SPAN_DECK = 0.861;
-/** Stairs model: the top landing's walk surface as a fraction of height; length/height ratio; landing share of the length. */
-const STAIRS_LANDING = 0.59;
-const STAIRS_LENGTH = 1.9 / 1.295;
-const STAIRS_FLAT = 4 / 12;
+const SPAN_HALF = 2.3;
+const SPAN_WIDTH = 5.93;
+const SPAN_POST = { x: 2.1, rise: (0.985 - SPAN_DECK) };
+/**
+ * Stairs model (causeway-stairs.glb, scripts/model-profile.mjs): the landing's walk surface at 0.825 of the height
+ * over the first 27% of the length, steps down to 87% of it; length = 2.07 × height, width = 1.98 × height before the
+ * width is fitted to the bridge.
+ */
+const STAIRS_LANDING = 0.825;
+const STAIRS_LENGTH = 1.899 / 0.918;
+const STAIRS_FLAT = 0.27;
+const STAIRS_END = 0.87;
+const STAIRS_WIDE = 1.818 / 0.918;
 
 export interface CausewayBuild {
   /** Colliders and the stand-in piers over the chasm. */
   landmark: Landmark;
   /** Instances of the `causeway-segment` model (arched bridge span, registry height = span height). */
   spans: Array<{ x: number; y: number; z: number; yaw: number; scale: number }>;
-  /** Where the `causeway-stairs` model goes: feet on the ground, scaled so its landing meets the deck. */
-  stairs: { x: number; y: number; z: number; height: number };
+  /**
+   * Where the `causeway-stairs` model goes: feet on the ground, scaled so its landing meets the deck, and squeezed
+   * across (`widthScale`, on top of the uniform scale) to the bridge's own width.
+   */
+  stairs: { x: number; y: number; z: number; height: number; widthScale: number };
   /** The same stairs at the north end, turned around, down to the head's plaza. */
-  northStairs: { x: number; y: number; z: number; height: number };
+  northStairs: { x: number; y: number; z: number; height: number; widthScale: number };
 }
 
 /**
@@ -65,44 +93,44 @@ export function causewayWalk(cfg: CausewayConfig, groundAt: HeightAt, spanHeight
   const g = new Group();
   const footprints: Footprint[] = [];
   const spans: CausewayBuild['spans'] = [];
-  const length = cfg.zStart - cfg.zEnd;
-  const n = Math.ceil(length / cfg.segmentLength);
-  const segLen = length / n;
-  for (let i = 0; i < n; i++) {
-    const zc = cfg.zStart - (i + 0.5) * segLen;
-    const top = cfg.yStart + ((cfg.yEnd - cfg.yStart) * (i + 0.5)) / n;
+  for (const { zc, len: segLen, top } of causewaySegments(cfg)) {
     for (let k = 0; k < 3; k++) spans.push({ x: cfg.x, y: top - spanHeight * SPAN_DECK, z: zc + (k - 1) * (segLen / 3), yaw: 0, scale: 1 });
     const ground = groundAt(cfg.x, zc);
     if (ground < top - 4) {
       const pierH = top - spanHeight - Math.max(ground, -95);
       g.add(slab(cfg.width * 0.55, pierH, segLen * 0.3, cfg.x, top - spanHeight - pierH / 2 + 0.3, zc));
     }
-    // The deck is overhead: wherever the ground is far enough below, people walk under the arches.
-    footprints.push({ kind: 'box', x: cfg.x, z: zc, hw: cfg.width / 2 + 0.3, hd: segLen / 2, top, bottom: top - DECK_DEPTH });
-  }
-  for (let z = cfg.zStart - 2; z > cfg.zEnd + 2; z -= cfg.postSpacing) {
-    const t = (cfg.zStart - z) / length;
-    const top = cfg.yStart + (cfg.yEnd - cfg.yStart) * t;
-    for (const side of [-1, 1]) footprints.push({ kind: 'box', x: cfg.x + side * (cfg.width / 2 + 0.05), z, hw: 0.35, hd: 0.35, top: top + 0.6, bottom: top - DECK_DEPTH });
+    // The deck is overhead: wherever the ground is far enough below, people walk under the arches. Only as wide as
+    // the paving (no walking on air beside it).
+    footprints.push({ kind: 'box', x: cfg.x, z: zc, hw: SPAN_HALF, hd: segLen / 2, top, bottom: top - DECK_DEPTH });
+    // The raised edge stones at the middle of each span.
+    for (let k = 0; k < 3; k++) for (const side of [-1, 1]) {
+      footprints.push({ kind: 'box', x: cfg.x + side * SPAN_POST.x, z: zc + (k - 1) * (segLen / 3), hw: 0.3, hd: 0.7, top: top + spanHeight * SPAN_POST.rise, bottom: top - DECK_DEPTH });
+    }
   }
   // Stairs at both ends: a landing flush with the deck, then steps down to the ground (south end falls south,
   // north end falls north).
   const stairsAt = (zEdge: number, deckY: number, dir: 1 | -1) => {
-    const ground = groundAt(cfg.x, zEdge + dir * 6);
+    const z0 = zEdge - dir * 0.5;
+    // The foot of the flight lands where the ground is; its length depends on the rise, so settle the two together.
+    let ground = groundAt(cfg.x, zEdge + dir * 6);
+    for (let k = 0; k < 3; k++) ground = groundAt(cfg.x, z0 + dir * ((Math.max(0.5, deckY - ground) / STAIRS_LANDING) * STAIRS_LENGTH * STAIRS_END));
     const rise = Math.max(0.5, deckY - ground);
     const height = rise / STAIRS_LANDING;
     const len = height * STAIRS_LENGTH;
-    const z0 = zEdge - dir * 0.5;
     const flat = len * STAIRS_FLAT;
-    footprints.push({ kind: 'box', x: cfg.x, z: z0 + dir * flat / 2, hw: cfg.width / 2 + 1, hd: flat / 2, top: deckY });
+    const hw = SPAN_WIDTH / 2 - 0.35;
+    // The landing, the steps, and the balustrade either side (solid all the way down: no walking into the flight).
+    footprints.push({ kind: 'box', x: cfg.x, z: z0 + dir * flat / 2, hw, hd: flat / 2, top: deckY });
+    for (const side of [-1, 1]) footprints.push({ kind: 'box', x: cfg.x + side * (SPAN_WIDTH / 2 - 0.17), z: z0 + dir * (len * STAIRS_END) / 2, hw: 0.17, hd: (len * STAIRS_END) / 2, top: deckY + 1 });
     const steps = Math.max(1, Math.ceil(rise / 0.45));
-    const run = (len * 0.92 - flat) / steps;
+    const run = (len * STAIRS_END - flat) / steps;
     for (let i = 1; i <= steps; i++) {
       const top = deckY - i * (rise / steps);
       const zc = z0 + dir * (flat + (i - 0.5) * run);
-      footprints.push({ kind: 'box', x: cfg.x, z: zc, hw: cfg.width / 2 + 1, hd: run / 2, top });
+      footprints.push({ kind: 'box', x: cfg.x, z: zc, hw, hd: run / 2, top });
     }
-    return { x: cfg.x, y: ground - 0.05, z: z0 + dir * len / 2, height };
+    return { x: cfg.x, y: ground - 0.05, z: z0 + dir * len / 2, height, widthScale: SPAN_WIDTH / (height * STAIRS_WIDE) };
   };
   const stairs = stairsAt(cfg.zStart, cfg.yStart, 1);
   const northStairs = stairsAt(cfg.zEnd, cfg.yEnd, -1);
@@ -127,7 +155,7 @@ export function chasmBridge(ax: number, az: number, bx: number, bz: number, y: n
     const t = (i + 0.5) / n;
     tiles.push({ x: ax + (bx - ax) * t, y: y - tileHeight * BRIDGE_DECK, z: az + (bz - az) * t, yaw: Math.atan2(bx - ax, bz - az), scale: step / BRIDGE_TILE });
   }
-  return { object: new Group(), tiles, footprints: [{ kind: 'box', x: (ax + bx) / 2, z: (az + bz) / 2, hw: len / 2, hd: 1.4, top: y, rotY: -yaw, bottom: y - 0.6 }] };
+  return { object: new Group(), tiles, footprints: [{ kind: 'box', x: (ax + bx) / 2, z: (az + bz) / 2, hw: len / 2, hd: 1.4, top: y, rotY: yaw, bottom: y - 0.6 }] };
 }
 
 /** Deck, parapets and piers of the bridge over the witch stream. */

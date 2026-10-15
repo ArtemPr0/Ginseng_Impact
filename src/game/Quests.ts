@@ -2,7 +2,7 @@
  * Quest state: each quest is at one named stage ('none' until it is given, 'done' once rewarded); the tracker shows
  * the objective of every quest in between. Pure: no DOM, no Three.js. Kills and items move quests along.
  */
-export type QuestId = 'throne' | 'croak' | 'lean' | 'sound';
+export type QuestId = 'throne' | 'croak' | 'lean' | 'sound' | 'trip';
 
 export interface QuestDef {
   id: QuestId;
@@ -34,6 +34,8 @@ export const QUESTS: Record<QuestId, QuestDef> = {
       found: 'Bring the sound back to Yung Lean',
     },
   },
+  // Not a quest you are given: 'done' once you have woken from the Frog King's dream (he lets you back in after).
+  trip: { id: 'trip', title: "The Frog King's Dream", objectives: {} },
   lean: {
     id: 'lean', title: 'Find Yung Lean',
     objectives: {

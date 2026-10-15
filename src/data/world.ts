@@ -41,10 +41,13 @@ export const LAYOUT = {
   ],
   frog: { x: -54, z: -26 },
   coven: { streamX: -67, zMin: -42, zMax: 48, bridgeZ: 9 },
-  /** On the plateau north-west of the chasm (it used to hang half over the abyss). */
-  castle: { x: -94, z: -24, yaw: 0 },
+  /**
+   * On the plateau north-west of the chasm, its whole rock base on land (castle.glb is 29 × 31 m: at z = -24 its north
+   * wall hung over the chasm's cliff, which begins around z = -34).
+   */
+  castle: { x: -94, z: -12, yaw: 0 },
   /** The Antlered King's throne before the castle gate, facing the road south. */
-  throne: { x: -94, z: -4 },
+  throne: { x: -94, z: 8 },
   church: { x: -66, z: 57 },
   /** The wizard's lonely tower on the east cliffs, where the Moon Wyrm circles. */
   tower: { x: 93, z: 42 },
@@ -102,15 +105,17 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   rattle: { x: -21.6, z: 53.4, dy: 0.02 }, bone: { x: -26.4, z: 53.4, dy: 0.02 }, marrow: { x: -24, z: 49.2, dy: 0.02 },
   vigil: { x: 32, z: 69 },
   pim: { x: -46, z: 53.5 },
-  king: { x: -94, z: -4 },
-  croak: { x: -36, z: -20 },
+  king: { x: -94, z: 8 },
+  // Hidden in the castle's shadow, off its west wall, far from his father (he likes the shady places).
+  croak: { x: -112, z: 2 },
   frogking: { x: -54, z: -26 },
   cook: { x: 25.6, z: 77 },
   moss: { x: -56, z: 19, dy: 0.02 },
   sentry: { x: -40, z: -90, dy: 0.02 },
   standard: { x: -61, z: -86 },
   'rose-knight': { x: 16, z: 34 }, maiden: { x: 18.2, z: 33 },
-  'watcher-knight': { x: -18, z: -31 }, 'watcher-mage': { x: -15, z: -32 },
+  // Dunmar guards the door of Yung Lean's hall; Sel watches the street of purple houses (both in the kingdom).
+  'watcher-knight': { x: 1000, z: -51.8 }, 'watcher-mage': { x: 994, z: 21 },
   'cup-gnome': { x: 6.5, z: 64 },
   // Fifth batch of reels.
   grumble: { x: -40, z: -24 },
@@ -121,7 +126,8 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   'galaxy-wizard': { x: 952, z: -20 },
   yunglean: { x: 1000, z: -74, dy: 0.8 },
   'void-monk': { x: 1008, z: 66 },
-  'market-a': { x: 1020.4, z: 20 }, 'market-b': { x: 1020.4, z: 32 },
+  // Behind their stalls between the purple houses of the bucket street (Realms.ts places the stalls).
+  'market-a': { x: 978, z: 10.4 }, 'market-b': { x: 962, z: 29.6 },
   'fish-king': { x: -1000, z: -10 },
 };
 
@@ -153,7 +159,8 @@ export const GALAXY: RealmDef = { id: 'galaxy', name: "Yung Lean's Kingdom", x: 
 /** The sunken city under the lake (DeVj-Z8POjl). */
 export const SUNKEN: RealmDef = { id: 'sunken', name: 'The Sunken City', x: -1000, z: 0, y: -48, radius: 90, fog: { color: 0x07304a, density: 0.034 }, underwater: true };
 /** The round room inside the tree house trunk (Goldgrin's brother). */
-export const TREEHOUSE_ROOM: RealmDef = { id: 'treehouse', name: 'Inside the Tree House', x: -1000, z: 700, y: 0, radius: 30, fog: { color: 0x120a26, density: 0.02 } };
+/** (Its own sky: the trunk is open at the top, and above the room there is only the dark of the hollow, no moon.) */
+export const TREEHOUSE_ROOM: RealmDef = { id: 'treehouse', name: 'Inside the Tree House', x: -1000, z: 700, y: 0, radius: 30, fog: { color: 0x120a26, density: 0.02 }, ownSky: true };
 /** The Frog King's dream: two minutes you cannot leave (licking a DMT frog). */
 export const DREAM: RealmDef = { id: 'dream', name: "The Frog King's Dream", x: 0, z: 2600, y: 0, radius: 170, fog: { color: 0x3a0f6b, density: 0.0035 }, cycle: true, ownSky: true };
 export const REALMS: readonly RealmDef[] = [GALAXY, SUNKEN, TREEHOUSE_ROOM, DREAM];
@@ -171,16 +178,15 @@ export const ISLAND_PORTALS = {
  * big creatures stand. `solid` pads are land even where the island would end (only under the castle).
  */
 export const PADS: ReadonlyArray<{ x: number; z: number; r: number; y: number; blend: number; solid?: boolean }> = [
-  { x: -94, z: -24, r: 18, y: 4.4, blend: 8, solid: true }, // castle (land even over the chasm's lip) and its terrace
-  { x: -94, z: -4, r: 6, y: 4.4, blend: 5 },
+  { x: -94, z: -12, r: 21, y: 4.4, blend: 8, solid: true }, // castle (its whole rock base) and its terrace
+  { x: -94, z: 8, r: 6, y: 4.4, blend: 5 },
   { x: 68, z: 38, r: 13, y: 2.5, blend: 8 },      // the Antlered Warden's clearing in the east forest
   { x: 44, z: -104, r: 17, y: 1.2, blend: 8 },    // the world tree
   { x: 66, z: -130, r: 13, y: 0.8, blend: 8 },    // the Horned Shade's drowned stones
   { x: -54, z: -26, r: 6, y: 1.8, blend: 5 },     // the Frog King's hollow
-  { x: -36, z: -20, r: 4, y: 2.0, blend: 4 },     // Brother Croak by the mushroom tavern
+  { x: -112, z: 2, r: 3, y: 4.4, blend: 4 },      // Brother Croak hiding in the castle's shadow
   { x: -61, z: -86, r: 2.5, y: 40.3, blend: 3 },  // Hollow Jack's ledge on the peak
   { x: 16, z: -122, r: 7, y: 4.6, blend: 5 },     // the Ember Rider
   { x: -40, z: -90, r: 1.6, y: 28.4, blend: 2.5 }, // Sir Halvard's seat on the cliff
-  { x: -16.5, z: -31.5, r: 4, y: 1.0, blend: 4 },  // Dunmar and Sel watching the sky
   { x: -56, z: 19, r: 2, y: 0.9, blend: 2.5 },     // Old Moss fishing the stream
 ];

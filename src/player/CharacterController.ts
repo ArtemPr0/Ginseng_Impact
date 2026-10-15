@@ -65,8 +65,9 @@ function swimmable(world: WorldQuery, x: number, z: number, y: number): number |
   return w - world.heightAt(x, z, y) >= CONTROLLER.swimDepth ? w : null;
 }
 
-/** Height of a hero's head above the feet (for ceilings). */
-const HEAD = 1.8;
+/** Height of a hero's head above the feet (for ceilings): more than Colliders.CLEARANCE (1.9), or a head held against a
+ * deck's underside would count as standing on it and the hero would pop up onto the deck. */
+const HEAD = 1.95;
 
 /** Stops a rise into an overhang: the head meets the deck's underside instead of passing through it. */
 function bumpCeiling(world: WorldQuery, s: ControllerState, startY: number): void {

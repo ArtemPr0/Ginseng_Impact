@@ -206,15 +206,18 @@ export function buildRealms(api: RealmApi): PortalLink[] {
       api.place(modelLandmark('purple-house', x, G.z + z, gy, { yaw: face(yaw), footprints: [{ kind: 'box', x, z: G.z + z, hw: 4.2, hd: 4.2, top: gy + 9 }] }));
     }
   }
+  // The goblin market: two stalls in the gaps between the houses, facing the street (not out by the towers).
+  const STALLS = [{ x: 978, z: 12.6, yaw: Math.PI / 2 }, { x: 962, z: 27.4, yaw: -Math.PI / 2 }];
+  for (const st of STALLS) api.place(modelLandmark('market-stall', st.x, G.z + st.z, gy, { yaw: face(st.yaw), footprints: [{ kind: 'box', x: st.x, z: G.z + st.z, hw: 1.8, hd: 1.2, top: gy + 1.1 }] }));
+  api.place(modelLandmark('crystal-ball', STALLS[0].x - 0.6, G.z + STALLS[0].z + 0.3, gy + 1.1, { color: PALETTE.dusk }));
+  glowAt(api, PALETTE.dusk, 1.6, STALLS[0].x - 0.6, gy + 1.5, G.z + STALLS[0].z + 0.3, 0.6);
   const shrooms: Placement[] = [];
-  for (let x = 990; x > 945; x -= 6) for (const z of [14, 26]) { shrooms.push({ x, y: gy, z: G.z + z, yaw: api.rnd() * 6, scale: 0.8 + api.rnd() * 0.5 }); glowAt(api, PALETTE.dusk, 1.8, x, gy + 2, G.z + z, 0.45); }
+  for (let x = 990; x > 945; x -= 6) for (const z of [14, 26]) {
+    if (STALLS.some((st) => Math.hypot(st.x - x, st.z - z) < 3)) continue;
+    shrooms.push({ x, y: gy, z: G.z + z, yaw: api.rnd() * 6, scale: 0.8 + api.rnd() * 0.5 }); glowAt(api, PALETTE.dusk, 1.8, x, gy + 2, G.z + z, 0.45); }
   api.flora('purple-mushroom', shrooms, { shadows: false });
   // The star brewer's tower at the street's end (DeQ-NnpvqF6).
   api.place(modelLandmark('round-tower', 945, G.z - 20, gy, { yaw: face(0), footprints: [{ kind: 'cyl', x: 945, z: G.z - 20, r: 3.6, top: gy + 22 }] }));
-  // The goblin market, on the plaza between the towers and the east tea stream (it used to be out on the isles).
-  for (const z of [20, 32]) api.place(modelLandmark('market-stall', 1018, z, gy, { yaw: face(Math.PI), footprints: [{ kind: 'box', x: 1018, z, hw: 1.2, hd: 1.8, top: gy + 1.1 }] }));
-  api.place(modelLandmark('crystal-ball', 1017.6, 20.4, gy + 1.1, { color: PALETTE.dusk }));
-  glowAt(api, PALETTE.dusk, 1.6, 1017.6, gy + 1.5, 20.4, 0.6);
 
   // ===== The sunken city =====
   api.realm(S.id);

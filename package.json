@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "colliders": "node --experimental-strip-types --no-warnings scripts/collider-grids.mjs"
+    "colliders": "node --experimental-strip-types --no-warnings scripts/collider-grids.mjs",
+    "voices": "node --experimental-strip-types --no-warnings scripts/voices.mjs"
   },
   "dependencies": {
     "three": "^0.186.1"

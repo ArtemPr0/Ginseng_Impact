@@ -1,6 +1,7 @@
 /**
- * The tree house (DdKl7fKMO75): its round door opens with F and you step inside, into a round room in the trunk
- * (a small realm of its own) where Goldgrin's diamond-grilled brother keeps shop.
+ * Goldgrin's brother's home: a round room in a trunk (a small realm of its own) where his diamond-grilled brother
+ * keeps shop. Two doors lead in: the tree house's (DdKl7fKMO75), which opens with F and lets you walk through, and
+ * the round plank door in the face tree's mouth by the portal (the one people take for his house).
  */
 import { Group, PointLight, Vector3 } from 'three';
 import { TREEHOUSE_ROOM } from '../data/world';
@@ -24,6 +25,9 @@ export const TREEHOUSE_DOOR = { x: -86.9, z: 30.08, bottom: 4.0, w: 2.2, h: 3.6 
 const FLOOR = 1.0;
 const ROOM_R = 2.3;
 
+/** The face tree's round door (its own planks, in its mouth): a spot in front of it and the way it faces. */
+export interface FaceDoor { x: number; z: number; y: number; yaw: number }
+
 export interface TreeHouse {
   interactables: Interactable[];
   /** Floor height inside, and the brother's spot (by the shelves, across the table from the door). */
@@ -31,7 +35,7 @@ export interface TreeHouse {
   brotherAt: { x: number; z: number };
 }
 
-export function buildTreeHouse(api: RealmApi, teleport: Teleport): TreeHouse {
+export function buildTreeHouse(api: RealmApi, teleport: Teleport, faceDoor: FaceDoor): TreeHouse {
   const D = TREEHOUSE_DOOR;
   // --- the door: a hinged plank door at the north edge of the opening, swinging inward ---
   const hinge = new Group();
@@ -45,20 +49,19 @@ export function buildTreeHouse(api: RealmApi, teleport: Teleport): TreeHouse {
   hinge.add(door.object);
   let open = 0;
   let opening = false;
+  // Which door you came in by (you leave by the same one).
+  let cameIn: 'tree' | 'face' = 'tree';
   api.place({
     object: hinge, footprints: [],
-    update: (dt) => {
+    update: (dt, player) => {
       if (opening && open < 1) open = Math.min(1, open + dt / 0.9);
       // Eased swing, a little overshoot settling back.
       const k = open < 1 ? 1 - Math.pow(1 - open, 3) : 1;
       hinge.rotation.y = 1.75 * k;
+      // Once it is open, walking into the doorway takes you in.
+      if (open >= 1 && player && Math.abs(player.x - D.x) < 0.7 && Math.abs(player.z - D.z) < D.w / 2 && Math.abs(player.y - D.bottom) < 1.5) enter('tree');
     },
   });
-  // A warm-coloured glow would break the palette: the room inside shows dusk light through the open door.
-  const spill = glowSprite(PALETTE.dusk, 3.2, 0, true);
-  spill.position.set(D.x - 0.6, D.bottom + 1.6, D.z);
-  api.group.add(spill);
-  api.vfx({ group: new Group(), update: () => { spill.material.opacity = 0.5 * open; } });
 
   // --- the room inside the trunk ---
   const R = TREEHOUSE_ROOM;
@@ -66,11 +69,13 @@ export function buildTreeHouse(api: RealmApi, teleport: Teleport): TreeHouse {
   const room = modelLandmark('treehouse-interior', R.x, R.z, R.y, { collider: 'none', yaw: Math.PI / 2 });
   const floorY = R.y + FLOOR;
   const walls: Footprint[] = [{ kind: 'cyl', x: R.x, z: R.z, r: ROOM_R + 0.6, top: floorY }];
-  // An unseen ring keeps you inside the round room, and the table stands in the middle.
+  // An unseen ring keeps you inside the round room (all the way up: the trunk is open at the top), a ceiling under
+  // the rafters stops you jumping or flying out over the wall, and the table stands in the middle.
   for (let i = 0; i < 16; i++) {
     const a = (i / 16) * Math.PI * 2;
-    walls.push({ kind: 'box', x: R.x + Math.cos(a) * (ROOM_R + 0.25), z: R.z + Math.sin(a) * (ROOM_R + 0.25), hw: 0.25, hd: 0.55, top: floorY + 5, rotY: -a });
+    walls.push({ kind: 'box', x: R.x + Math.cos(a) * (ROOM_R + 0.25), z: R.z + Math.sin(a) * (ROOM_R + 0.25), hw: 0.25, hd: 0.55, top: floorY + 80, rotY: -a });
   }
+  walls.push({ kind: 'cyl', x: R.x, z: R.z, r: ROOM_R + 1, top: floorY + 80, bottom: floorY + 4.6 });
   walls.push({ kind: 'cyl', x: R.x, z: R.z, r: 0.6, top: floorY + 0.7 });
   api.place({ ...room, footprints: walls });
   const lamp = new PointLight(PALETTE.dusk, 30, 12, 1.6);
@@ -87,19 +92,34 @@ export function buildTreeHouse(api: RealmApi, teleport: Teleport): TreeHouse {
   api.realm(null);
 
   const outside = { x: D.x + 2.4, z: D.z };
+  // In front of the face tree's door, a step out from it.
+  const faceOut = { x: faceDoor.x + Math.cos(faceDoor.yaw) * 1.6, z: faceDoor.z + Math.sin(faceDoor.yaw) * 1.6 };
+  function enter(by: 'tree' | 'face'): void {
+    cameIn = by;
+    teleport(exitAt.x + 1.0, floorY, exitAt.z, 0, R.name);
+  }
   const interactables: Interactable[] = [
     {
       pos: new Vector3(D.x + 1.2, D.bottom, D.z), range: 3.2, zone: null,
       label: () => (open === 0 && !opening ? 'Open the round door' : open >= 1 ? 'Step inside' : null),
       act: () => {
         if (!opening) { opening = true; return; }
-        if (open >= 1) teleport(exitAt.x + 1.0, floorY, exitAt.z, 0, R.name);
+        if (open >= 1) enter('tree');
       },
+    },
+    {
+      // The face tree's door (its planks are part of the tree): a knock, and you are let in.
+      pos: new Vector3(faceDoor.x, faceDoor.y, faceDoor.z), range: 3.4, zone: null,
+      label: () => "Knock on Glintgrin's door",
+      act: () => enter('face'),
     },
     {
       pos: exitAt, range: 0.9, zone: R.id,
       label: () => 'Leave the tree house',
-      act: () => teleport(outside.x, api.h(outside.x, outside.z), outside.z, 0),
+      act: () => {
+        if (cameIn === 'face') teleport(faceOut.x, api.h(faceOut.x, faceOut.z), faceOut.z, faceDoor.yaw);
+        else teleport(outside.x, api.h(outside.x, outside.z), outside.z, 0);
+      },
     },
   ];
   return { interactables, floorY, brotherAt: { x: R.x + 1.45, z: R.z + 0.35 } };

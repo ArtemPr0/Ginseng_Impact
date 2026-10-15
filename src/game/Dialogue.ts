@@ -97,6 +97,13 @@ export function dialogueFor(npcId: string, w: DialogueWorld): DialogueNode | nul
           { label: 'Uhh... sure', run: () => { q.set('croak', 'done'); w.announce('The Prodigal Croak · complete'); return say('frog-licked', [{ label: '*lick*', run: () => { w.lick(); return 'close'; } }]); } },
         ]);
       }
+      // Once you have been to the dream and back, the door stays open.
+      if (s === 'done' && q.stage('trip') === 'done') {
+        return say('frog-anytime', [
+          { label: '*lick*', run: () => { w.lick(); return 'close'; } },
+          { label: 'Not today.' },
+        ]);
+      }
       return null;
     }
     case 'croak': {

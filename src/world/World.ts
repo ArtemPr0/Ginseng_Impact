@@ -1,15 +1,16 @@
-import { Group, type Object3D, Vector3 } from 'three';
+import { Group, type Mesh, type MeshStandardMaterial, type Object3D, Vector3 } from 'three';
 import { ANCHORS, ISLAND_PORTALS, LAYOUT, REALMS, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
 import { PALETTE } from '../render/palette';
 import { glowSprite } from '../render/Glow';
+import { patchGait } from '../render/Materials';
 import { PointLight } from 'three';
 import { CloudSea } from './CloudSea';
 import { HeightWorld, trunkFootprint, type Footprint } from './Colliders';
 import { PRESENT_MODELS } from '../data/colliderGrids';
 import { MODELS } from '../data/models';
 import { waterfall } from './Falls';
-import { fire } from './Fire';
+import { FIRE, fire } from './Fire';
 import { cobbleSpots, floraSet, ringSpots, type Placement } from './Flora';
 import { orchardSpots } from './Footprints';
 import { Grass } from './Grass';
@@ -111,8 +112,21 @@ const CAMPFIRE = { x: -24, z: 52 };
 const CAMPFIRE_SEATS = new Set(['rattle', 'bone', 'marrow']);
 /** NPCs who sit on a barrel. */
 const SEATED = new Set(['rattle', 'bone', 'marrow', 'moss', 'sentry']);
-/** The lantern's spot on the horse rider, in horse-rider.glb's own frame (x left, y up from the hooves, z forward). */
-const RIDER_LANTERN = { x: 0.55, y: 2.2, z: 0.45 };
+/**
+ * The lantern in the rider's right hand, in horse-rider.glb's own frame (forward is -x, the rider's right -z, y up
+ * from the hooves): the centre of its lit glass (the texels of the flame, averaged), less the fire's own lift.
+ */
+const RIDER_LANTERN = { x: 0.32, y: 1.71, z: -0.23 };
+/** The horse's legs (columns in the same frame, measured at the hooves, knees and forearms) and their beat in the walk. */
+const HORSE_LEGS = [{ x: 0.5, z: 0.13, phase: 0 }, { x: -0.56, z: 0.11, phase: 0.25 }, { x: 0.52, z: -0.18, phase: 0.5 }, { x: -0.5, z: -0.15, phase: 0.75 }];
+/** The round door in the face tree's mouth (it faces the way the tree looks: Realms.ts places it), just outside the trunk (its collider ends 5.2 m out). */
+const FACE_DOOR = (h: (x: number, z: number) => number) => {
+  const ft = ISLAND_PORTALS.galaxy.faceTree;
+  const yaw = Math.atan2(-15, 4);
+  const x = ft.x + Math.cos(yaw) * 5.6;
+  const z = ft.z + Math.sin(yaw) * 5.6;
+  return { x, z, y: h(x, z), yaw };
+};
 /** Routes the ground walkers take: no trees grow on them. */
 const WALKER_ROUTES = [LAYOUT.logGiantPath, LAYOUT.riderPath, LAYOUT.colossusPath];
 function nearRoute(route: ReadonlyArray<readonly [number, number]>, x: number, z: number, r: number): boolean {
@@ -197,9 +211,12 @@ export class World {
     this.place(causeway.landmark);
     flora('causeway-segment', causeway.spans);
     // The stairs' colliders come from causewayWalk (the model only shows them).
-    this.place(modelLandmark('causeway-stairs', causeway.stairs.x, causeway.stairs.z, causeway.stairs.y, { collider: 'none', scale: causeway.stairs.height / MODELS['causeway-stairs'].height }));
-    const ns = causeway.northStairs;
-    this.place(modelLandmark('causeway-stairs', ns.x, ns.z, ns.y, { collider: 'none', yaw: Math.PI, scale: ns.height / MODELS['causeway-stairs'].height }));
+    // (Squeezed across to the bridge's width: a flight scaled up to meet the high north end would be 27 m wide.)
+    for (const [st, yaw] of [[causeway.stairs, 0], [causeway.northStairs, Math.PI]] as const) {
+      const lm = modelLandmark('causeway-stairs', st.x, st.z, st.y, { collider: 'none', yaw, scale: st.height / MODELS['causeway-stairs'].height });
+      lm.root.scale.x *= st.widthScale;
+      this.place(lm);
+    }
     const cb = LAYOUT.chasmBridge;
     const bridge = chasmBridge(cb.ax, cb.az, cb.bx, cb.bz, Math.max(h(cb.ax, cb.az), h(cb.bx, cb.bz)) + 0.6, MODELS['chasm-bridge'].height);
     this.place(bridge);
@@ -208,7 +225,7 @@ export class World {
     this.place(deck);
     // The witches' bridge (DeWji_1PuKW): the stone slab keeps the colliders and hides once the model is in.
     // The slab's measured, stepped deck stays the collider (the model's grid would add its abutments too).
-    this.place(modelLandmark('witch-bridge', LAYOUT.coven.streamX, LAYOUT.coven.bridgeZ, deck.baseY, { collider: 'none', onLoad: () => { deck.object.visible = false; } }));
+    this.place(modelLandmark('witch-bridge', LAYOUT.coven.streamX, LAYOUT.coven.bridgeZ, deck.baseY, { collider: 'none', onLoad: () => { deck.object.visible = false; deck.object.userData.hidden = true; } }));
 
     // --- the skyline ---
     // Every building below collides exactly as its model looks (baked grids, see Colliders.ts).
@@ -217,6 +234,28 @@ export class World {
     this.place(stoneHeadEyes());
     const cathY = h(LAYOUT.cathedral.x, LAYOUT.cathedral.z) - 0.5;
     this.place(modelLandmark('cathedral', LAYOUT.cathedral.x, LAYOUT.cathedral.z, cathY, { yaw: LAYOUT.cathedral.yaw }));
+    // Its nave is open to walk in through the arch at the east end (scripts/collider-grids.mjs): two rows of candles
+    // down the aisle and a cold light under the vault so the inside reads.
+    {
+      const cat = LAYOUT.cathedral;
+      const nave: Placement[] = [];
+      for (let x = cat.x - 18; x <= cat.x + 20; x += 6) for (const side of [-1, 1]) {
+        const z = cat.z + side * 3.2;
+        const y = this.heights.heightAt(x, z, cathY + 1);
+        nave.push({ x, y, z, yaw: 0, scale: 1.4 });
+        vfx(fire(x, y + 0.42, z, 0.12, 1.2));
+      }
+      flora('candle', nave, { shadows: false });
+      for (const x of [cat.x - 8, cat.x + 12]) {
+        const y = this.heights.heightAt(x, cat.z, cathY + 1) + 7;
+        const light = new PointLight(PALETTE.rune, 40, 26, 1.6);
+        light.position.set(x, y, cat.z);
+        this.group.add(light);
+        const glow = glowSprite(PALETTE.rune, 4, 0.25, true);
+        glow.position.copy(light.position);
+        this.group.add(glow);
+      }
+    }
     const castleY = h(LAYOUT.castle.x, LAYOUT.castle.z) - 0.6;
     this.place(modelLandmark('castle', LAYOUT.castle.x, LAYOUT.castle.z, castleY, { yaw: LAYOUT.castle.yaw }));
     // Antler throne (DedGUYetKjP) on its dais in front of the castle gate, facing +z (the road).
@@ -286,7 +325,10 @@ export class World {
 
     // --- creatures that wander ---
     // The Frog King is an NPC now (he has a son to find); his bulk stays solid.
-    this.heights.add({ kind: 'cyl', x: LAYOUT.frog.x, z: LAYOUT.frog.z, r: MODELS.frogking.height * 0.4, top: h(LAYOUT.frog.x, LAYOUT.frog.z) + MODELS.frogking.height * 0.75 });
+    // (He stands on the ground: his NPC is placed after this collider exists, so it is given the ground height.)
+    const frogY = h(LAYOUT.frog.x, LAYOUT.frog.z);
+    this.heights.add({ kind: 'cyl', x: LAYOUT.frog.x, z: LAYOUT.frog.z, r: MODELS.frogking.height * 0.4, top: frogY + MODELS.frogking.height * 0.75 });
+    ANCHORS.frogking = { ...ANCHORS.frogking, x: LAYOUT.frog.x, z: LAYOUT.frog.z, y: frogY };
     // Walkers follow the ground itself (never trunks or roofs); their routes are kept clear of trees (plantable).
     const snail = walkerLandmark('colossus', LAYOUT.colossusPath, 0.9, h, { lift: -0.5, clip: 'idle', trail: true });
     this.place(snail);
@@ -297,11 +339,29 @@ export class World {
     const rider = walkerLandmark('horse-rider', [...LAYOUT.riderPath], 3.2, h);
     // The lantern fire hangs from the rider's raised hand (horse-rider.glb, measured in the model's own frame).
     const lantern = fire(0, 0, 0, 0.3, 8);
+    // Bright enough to find him by in the trees: a lamp that reaches 22 m and a halo around the flame.
+    const lamp = new PointLight(FIRE, 32, 22, 1.4);
+    // (Up and out from the horse's flank, so the lamp lights the clearing rather than burning a spot on the coat.)
+    lamp.position.set(0, 0.6, -0.4);
+    const halo = glowSprite(FIRE, 2.2, 0.35, true);
+    halo.position.set(0, 0.2, 0);
+    lantern.group.add(lamp, halo);
     const riderLoad = rider.update!;
     let lanternAttached = false;
     rider.update = (dt, p) => {
       riderLoad(dt, p);
-      if (!lanternAttached && rider.model) { lanternAttached = true; lantern.group.position.set(RIDER_LANTERN.x, RIDER_LANTERN.y, RIDER_LANTERN.z); rider.model.frame.add(lantern.group); }
+      if (!lanternAttached && rider.model) {
+        lanternAttached = true;
+        lantern.group.position.set(RIDER_LANTERN.x, RIDER_LANTERN.y, RIDER_LANTERN.z);
+        rider.model.frame.add(lantern.group);
+        // The horse walks (the mesh has no skeleton: its legs swing in the vertex shader).
+        rider.model.root.updateWorldMatrix(true, true);
+        const toFrame = rider.model.frame.matrixWorld.clone().invert();
+        rider.model.root.traverse((o) => {
+          const mesh = o as Mesh;
+          if (mesh.isMesh) patchGait(mesh.material as MeshStandardMaterial, { legs: HORSE_LEGS, hipY: 0.95, radius: 0.2, rate: 1.6, amp: 0.42, rel: mesh.matrixWorld.clone().premultiply(toFrame) });
+        });
+      }
     };
     this.extras.push(lantern);
     this.place(rider);
@@ -387,7 +447,7 @@ export class World {
     this.place(modelLandmark('cauldron', 24, 77, potY, { color: PALETTE.witch }));
     vfx(fire(24, potY - 0.1, 77, 0.7, 14));
     // Lanterns and candles along the causeway.
-    const posts = causewayPostPoints(LAYOUT.causeway);
+    const posts = causewayPostPoints(LAYOUT.causeway, MODELS['causeway-segment'].height);
     const lanternSpots: Placement[] = [];
     const candleSpots: Placement[] = [];
     posts.forEach((p, i) => {
@@ -426,7 +486,9 @@ export class World {
     flora('pod-tree', frozenPick(14, 0.9, 1.4, -0.3).filter((p) => p.x > 72 && p.z < -72));
     flora('mushroom', [...this.scatterDisc(rnd, LAYOUT.frog.x, LAYOUT.frog.z, 22, 70, 0.7, 1.3), ...this.scatterRing(rnd, 66, 114, 80, 0.6, 1.2)], { shadows: false });
     // Keep the portal clearing (DeQ-NnpvqF6) and the mushroom tavern (DaIqFavJWbd) open under the sky.
-    const clear = (p: Placement) => Math.hypot(p.x - ISLAND_PORTALS.galaxy.x, p.z - ISLAND_PORTALS.galaxy.z) > 11 && Math.hypot(p.x + 40, p.z + 24) > 10;
+    // ...and the face tree's doorstep (the mushrooms used to crowd its round door).
+    const door = FACE_DOOR(h);
+    const clear = (p: Placement) => Math.hypot(p.x - ISLAND_PORTALS.galaxy.x, p.z - ISLAND_PORTALS.galaxy.z) > 11 && Math.hypot(p.x + 40, p.z + 24) > 10 && Math.hypot(p.x - door.x, p.z - door.z) > 11;
     const shroomRing = this.scatterDisc(rnd, LAYOUT.frog.x, LAYOUT.frog.z, 34, 14, 0.8, 1.5).filter((p) => Math.hypot(p.x - LAYOUT.frog.x, p.z - LAYOUT.frog.z) > 12 && clear(p));
     flora('giant-mushroom', shroomRing, { trunk: 0.09 });
     flora('flower-tree', this.scatterDisc(rnd, WORLD.pond.x, WORLD.pond.z, 30, 16, 0.8, 1.3).filter((p) => Math.hypot(p.x - WORLD.pond.x, p.z - WORLD.pond.z) > WORLD.pond.r + 3));
@@ -471,7 +533,7 @@ export class World {
     };
     this.portals.push(...buildRealms(realmApi));
     // The tree house's round door and the room behind it; the frog's dream.
-    const treeHouse = buildTreeHouse(realmApi, (x, y, z, yaw, name) => this.hooks.teleport?.(x, y, z, yaw, name));
+    const treeHouse = buildTreeHouse(realmApi, (x, y, z, yaw, name) => this.hooks.teleport?.(x, y, z, yaw, name), FACE_DOOR(h));
     this.interactables.push(...treeHouse.interactables);
     ANCHORS.brother = { ...treeHouse.brotherAt, y: treeHouse.floorY };
     buildDream(realmApi);
@@ -507,6 +569,12 @@ export class World {
         const ground = terrain.heightAt(s.x, s.z);
         npc.pos.y = (ground < -20 ? this.heights.heightAt(s.x, s.z, ground) : ground) + s.dy;
       }
+      // A guard bars the doorway behind him (a box across it, 6 m wide) until he steps aside.
+      if (def.behaviour.kind === 'guard') {
+        const gate: Footprint = { kind: 'box', x: s.x, z: s.z - 1.6, hw: 3.2, hd: 0.4, top: npc.pos.y + 3, rotY: 0 };
+        this.heights.add(gate);
+        npc.onStepAside = () => this.heights.remove(gate);
+      }
       const realm = REALMS.find((r) => Math.hypot(npc.pos.x - r.x, npc.pos.z - r.z) < r.radius);
       this.enterZone(realm ? realm.id : null);
       this.target.add(npc.object);
@@ -535,8 +603,9 @@ export class World {
       // Point lights belong to the light budget, which keeps them hidden and reads them as sources.
       if (child.userData.budgeted) continue;
       const realm = child.name.startsWith('realm:') ? child.name.slice(6) : null;
+      // (Things that hid themselves, like a stand-in under its model or Croak in the sack, stay hidden.)
       if (realm !== null) child.visible = realm === id;
-      else if (child !== this.clouds.group) child.visible = id === null;
+      else if (child !== this.clouds.group) child.visible = id === null && !child.userData.hidden;
     }
   }
 
@@ -636,7 +705,8 @@ export class World {
 function churchGlow(scene: Group, x: number, y: number, z: number): (dt: number) => void {
   const glow = glowSprite(PALETTE.witch, 9, 0.55, true);
   glow.position.set(x, y + 4, z);
-  const light = new PointLight(PALETTE.witch, 120, 40, 1.6);
+  // (Within the churchyard: at 40 m it reached the tree house and tinted its door green.)
+  const light = new PointLight(PALETTE.witch, 120, 26, 1.6);
   light.position.set(x + 2, y + 5, z);
   scene.add(glow, light);
   let t = 0;

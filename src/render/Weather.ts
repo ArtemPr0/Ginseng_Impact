@@ -82,24 +82,37 @@ export class Weather {
     this.snowMat = make(2200, 80, 26, 1.6, 1.2, PALETTE.moon, flakeTexture(), 0.8, AdditiveBlending);
   }
 
-  /** Returns a lightning flash strength (0 most frames). */
-  update(dt: number, player: Vector3): number {
+  /**
+   * Returns a lightning flash strength (0 most frames). `covered`: the player is under a roof (the cathedral's nave,
+   * a bridge's arch), where no rain or snow falls.
+   */
+  update(dt: number, player: Vector3, covered = false): number {
     this.time += dt;
-    const zoneFade = (z: WeatherZone) => 1 - Math.min(1, Math.max(0, (Math.hypot(player.x - z.x, player.z - z.z) - z.radius) / 40));
-    const rainF = zoneFade(this.rain);
-    const snowF = zoneFade(this.snow);
+    this.cover += ((covered ? 1 : 0) - this.cover) * Math.min(1, dt * 3);
+    const open = 1 - this.cover;
+    const rainF = this.zoneFade(this.rain, player) * open;
+    const snowF = this.zoneFade(this.snow, player) * open;
     this.inRain = rainF > 0.5;
-    for (const [mat, f] of [[this.rainMat, rainF], [this.snowMat, snowF]] as const) {
-      mat.uniforms.uTime.value = this.time;
-      (mat.uniforms.uCenter.value as Vector3).copy(player);
-      mat.uniforms.uOpacity.value = (mat === this.rainMat ? 0.55 : 0.8) * f;
-      mat.visible = f > 0.01;
-    }
+    this.fall(this.rainMat, rainF, 0.55, player);
+    this.fall(this.snowMat, snowF, 0.8, player);
     this.lightningIn -= dt * (this.inRain ? 1 : 0.15);
     if (this.lightningIn <= 0) {
       this.lightningIn = this.inRain ? 9 + Math.random() * 16 : 40 + Math.random() * 60;
       return 1;
     }
     return 0;
+  }
+
+  private cover = 0;
+
+  private zoneFade(z: WeatherZone, player: Vector3): number {
+    return 1 - Math.min(1, Math.max(0, (Math.hypot(player.x - z.x, player.z - z.z) - z.radius) / 40));
+  }
+
+  private fall(mat: ShaderMaterial, f: number, opacity: number, player: Vector3): void {
+    mat.uniforms.uTime.value = this.time;
+    (mat.uniforms.uCenter.value as Vector3).copy(player);
+    mat.uniforms.uOpacity.value = opacity * f;
+    mat.visible = f > 0.01;
   }
 }

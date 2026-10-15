@@ -55,6 +55,7 @@ export class Hud {
       <div class="hud-interact" id="hud-interact"></div>
       <div class="hud-numbers" id="hud-numbers"></div>
       <div class="hud-banner" id="hud-banner"></div>
+      <div class="hud-curtain" id="hud-curtain"></div>
       <div class="hud-hint">LMB attack · RMB heavy · E skill · Q burst · R dodge · F interact · I bag</div>
       <div class="hud-quests" id="hud-quests"></div>
       <div class="hud-timer panel" id="hud-timer"><div class="hud-timer-label" id="hud-timer-label"></div><div class="hud-timer-time" id="hud-timer-time"></div></div>
@@ -181,6 +182,16 @@ export class Hud {
     el.style.top = `${Math.round(y)}px`;
     this.q('#hud-numbers').appendChild(el);
     window.setTimeout(() => el.remove(), big ? 900 : 650);
+  }
+
+  /** A moment of black that fades away (a door or a portal: the jump to the other side happens behind it). */
+  curtain(): void {
+    const c = this.q('#hud-curtain');
+    c.classList.remove('lift');
+    c.classList.add('down');
+    void c.offsetWidth;
+    c.classList.remove('down');
+    c.classList.add('lift');
   }
 
   flashDamage(): void {

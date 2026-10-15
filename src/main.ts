@@ -144,6 +144,7 @@ const combat = new CombatSystem({
 
 /** Moves the hero (portals, doors, the frog's dream): everything that was chasing stays behind. */
 function teleport(x: number, y: number, z: number, yaw: number, name?: string): void {
+  hud.curtain();
   adventures.riding = null;
   controller.pos = { x, y: y + 0.05, z };
   controller.vel = { x: 0, y: 0, z: 0 };
@@ -339,11 +340,12 @@ game
           break;
         }
       }
-      if (controller.pos.y < -70) {
-        controller.pos = { x: SPAWN.x, y: SPAWN.y, z: SPAWN.z };
-        controller.vel = { x: 0, y: 0, z: 0 };
-        controller.mode = 'ground';
-        combat.resetAggro();
+      // Fallen out of the world: back on the island's spawn, or, out of a realm, back in the middle of that realm.
+      const fallRealm = REALMS.find((r) => Math.hypot(controller.pos.x - r.x, controller.pos.z - r.z) < r.radius);
+      if (controller.pos.y < (fallRealm ? fallRealm.y - 30 : -70)) {
+        const to = fallRealm ? { x: fallRealm.x, z: fallRealm.z, y: world.heightAt(fallRealm.x, fallRealm.z, fallRealm.y + 60) } : SPAWN;
+        teleport(to.x, to.y, to.z, controller.yaw);
+        controller.flung = 0;
       }
       playerPos.set(controller.pos.x, controller.pos.y, controller.pos.z);
       const targets = combat.enemies.map((e) => ({ id: e.id, pos: e.pos, alive: e.alive, aggro: e.aggro }));
@@ -357,6 +359,8 @@ game
       input.endStep();
     },
     render(_alpha, dt) {
+      // In a boat the river carries you even while a conversation pauses the game.
+      adventures.pinToBoat();
       const rig = rigs[party.activeIndex];
       rig.root.position.set(controller.pos.x, controller.pos.y, controller.pos.z);
       rig.root.rotation.y = yawToRotation(controller.yaw);
@@ -413,7 +417,7 @@ game
       const inKingdom = realm?.id === 'galaxy';
       if (inKingdom !== wasInKingdom) { audio.kingdom(inKingdom); wasInKingdom = inKingdom; }
       bubbles.update(dt, camera.position);
-      if (weather.update(dt, playerPos) > 0) sky.flash = 1;
+      if (weather.update(dt, playerPos, world.ceilingAt(playerPos.x, playerPos.z, playerPos.y) < playerPos.y + 40) > 0) sky.flash = 1;
       hemi.intensity = 0.7 + sky.flash * 2.2;
       moon.intensity = 1.5 + sky.flash * 1.5;
       moon.position.copy(playerPos).addScaledVector(sky.moonDir, 240);
