@@ -28,6 +28,8 @@ export interface ControllerState {
   drainScale: number;
   /** Seconds of being thrown (a giant's throw): no steering in the air until it runs out or you land. */
   flung: number;
+  /** Multiplier on every travel speed (a puddle of lean slows you to 0.6). */
+  speedScale: number;
 }
 
 export interface ControllerInput {
@@ -148,6 +150,7 @@ export function createControllerState(pos: Vec3): ControllerState {
     jumpBuffer: 0,
     drainScale: 1,
     flung: 0,
+    speedScale: 1,
   };
 }
 
@@ -238,7 +241,7 @@ export function stepController(s: ControllerState, input: ControllerInput, world
         tx = (-here.gx / here.g) * CONTROLLER.slideSpeed;
         tz = (-here.gz / here.g) * CONTROLLER.slideSpeed;
       } else if (wantsMove) {
-        const speed = (canSprint ? CONTROLLER.sprintSpeed : CONTROLLER.walkSpeed) * moveScale;
+        const speed = (canSprint ? CONTROLLER.sprintSpeed : CONTROLLER.walkSpeed) * moveScale * s.speedScale;
         tx = mx * speed;
         tz = mz * speed;
       }
@@ -360,7 +363,7 @@ export function stepController(s: ControllerState, input: ControllerInput, world
       }
       const sprinting = input.sprint && wantsMove && s.stamina > 0;
       if (sprinting) { spendStamina(s, CONTROLLER.swimSprintDrain * dt); spent = true; }
-      const speed = wantsMove ? (sprinting ? CONTROLLER.swimSprintSpeed : CONTROLLER.swimSpeed) * moveScale : 0;
+      const speed = wantsMove ? (sprinting ? CONTROLLER.swimSprintSpeed : CONTROLLER.swimSpeed) * moveScale * s.speedScale : 0;
       s.vel.x = approach(s.vel.x, mx * speed, CONTROLLER.swimAccel * dt);
       s.vel.z = approach(s.vel.z, mz * speed, CONTROLLER.swimAccel * dt);
       if (wantsMove) s.yaw = turnToward(s.yaw, Math.atan2(mz, mx), CONTROLLER.turnRate * 0.5 * dt);
@@ -468,7 +471,7 @@ export function stepController(s: ControllerState, input: ControllerInput, world
       if (climbing) s.vel.y = approach(s.vel.y, CONTROLLER.flyClimbSpeed, 12 * dt);
       else if (input.descend) s.vel.y = approach(s.vel.y, -CONTROLLER.flyDiveSpeed, 18 * dt);
       else s.vel.y = approach(s.vel.y, -CONTROLLER.flyFallSpeed, CONTROLLER.flyFallAccel * dt);
-      const speed = wantsMove ? (boost ? CONTROLLER.flyBoostSpeed : CONTROLLER.flySpeed) * moveScale : 0;
+      const speed = wantsMove ? (boost ? CONTROLLER.flyBoostSpeed : CONTROLLER.flySpeed) * moveScale * s.speedScale : 0;
       s.vel.x = approach(s.vel.x, mx * speed, (wantsMove ? CONTROLLER.flyAccel : 4) * dt);
       s.vel.z = approach(s.vel.z, mz * speed, (wantsMove ? CONTROLLER.flyAccel : 4) * dt);
       if (wantsMove) s.yaw = turnToward(s.yaw, Math.atan2(mz, mx), CONTROLLER.turnRate * 0.6 * dt);

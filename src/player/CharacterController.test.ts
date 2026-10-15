@@ -239,6 +239,16 @@ describe('stepController — stamina', () => {
   });
 });
 
+describe('stepController — slowed', () => {
+  it('walks at the speed scale (a puddle of lean)', () => {
+    const s = createControllerState({ x: 0, y: 0, z: 0 });
+    s.speedScale = 0.6;
+    run({ ...idle(), move: { x: 1, z: 0 } }, 60, flat, s);
+    expect(s.pos.x).toBeLessThan(CONTROLLER.walkSpeed * 0.65);
+    expect(s.pos.x).toBeGreaterThan(CONTROLLER.walkSpeed * 0.5);
+  });
+});
+
 describe('stepController — thrown', () => {
   it('flies where it was thrown, unsteered, then lands and takes control back', () => {
     const s = createControllerState({ x: 0, y: 3, z: 0 });

@@ -89,7 +89,9 @@ export class Enemy {
   constructor(readonly def: EnemyDef, readonly spawn: EnemyHome, private readonly world: WorldQuery) {
     this.brain = new EnemyBrain({ ...def.brain });
     this.hp = def.maxHp;
-    this.pos = { x: spawn.x, y: Math.max(world.heightAt(spawn.x, spawn.z), def.floatAt ?? -Infinity) + def.hover, z: spawn.z };
+    // On the ground under any roof or deck (a seat inside a pavilion, not its dome).
+    const ground = 'groundAt' in world ? (world as { groundAt(x: number, z: number): number }).groundAt(spawn.x, spawn.z) : undefined;
+    this.pos = { x: spawn.x, y: Math.max(world.heightAt(spawn.x, spawn.z, ground), def.floatAt ?? -Infinity) + def.hover, z: spawn.z };
     this.territory = def.leash ?? (def.boss ? 30 : 22);
     this.lastX = this.pos.x;
     this.lastZ = this.pos.z;
@@ -669,6 +671,8 @@ function attackClips(kind: BossAttackKind | undefined): string[] {
     case 'logthrow': return ['throw', 'heavy', 'attack'];
     case 'punch': return ['punch', 'attack'];
     case 'grab': return ['grab', 'attack'];
+    case 'cupmortar': case 'cupvolley': return ['throw', 'heavy', 'attack'];
+    case 'snowstorm': return ['heavy', 'cast', 'attack'];
     default: return ['attack', 'heavy'];
   }
 }

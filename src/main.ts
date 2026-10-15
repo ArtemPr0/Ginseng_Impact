@@ -96,6 +96,9 @@ for (const r of rigs) {
   scene.add(r.root, r.trailObject);
 }
 let landedAt = -10;
+/** Camera roll while slowed by a puddle of lean. */
+let tilt = 0;
+let wasInKingdom = false;
 let wasAirborne = false;
 rigs[party.activeIndex].root.visible = rigs[party.activeIndex].trailObject.visible = true;
 const tpc = new ThirdPersonCamera(camera, world);
@@ -154,7 +157,12 @@ function teleport(x: number, y: number, z: number, yaw: number, name?: string): 
   portalCooldown = 1.5;
 }
 combat.loot.onAbsorbed = () => audio.absorb();
-const adventures = new Adventures({ controller, world: area, hud, audio, inventory, teleport, activeRig: () => rigs[party.activeIndex], poisoned: () => combat.poisoned });
+const adventures = new Adventures({
+  controller, world: area, hud, audio, inventory, teleport, activeRig: () => rigs[party.activeIndex], debuffs: () => combat.debuffs,
+  fight: { spawnBoss: (kind, x, z, yaw) => combat.spawnBoss(kind, x, z, yaw), despawn: (e) => combat.despawn(e) },
+});
+area.hooks.soundWanted = () => adventures.quests.stage('sound') === 'active';
+area.hooks.foundSound = () => adventures.foundSound();
 area.hooks.teleport = teleport;
 area.hooks.shoot = (from, s) => combat.hostileShot(from, s);
 area.hooks.hurt = (atk, poison) => combat.hazard(atk, poison);
@@ -301,6 +309,7 @@ game
       const move = input.locked && !combat.busy && combat.charging === 0 ? tpc.moveToWorld(input.moveAxis()) : { x: 0, z: 0 };
       const space = input.locked && input.justPressed('Space');
       adventures.update(dt);
+      controller.speedScale = combat.slowed > 0 ? 0.6 : 1;
       if (adventures.riding) { if (space) adventures.leaveBoat(); }
       // In a giant's fist: no moving until thrown.
       else if (combat.held) { /* the combat system carries the hero */ }
@@ -377,6 +386,9 @@ game
         tpc.update(focus, dt);
         // `?cam=x,y,z` (debug) pins the camera at a world position looking at the `face` point.
         if (camParam) { camera.position.set(camParam[0], camParam[1], camParam[2]); const fx = faceParam ? faceParam[0] : SPAWN.x; const fz = faceParam ? faceParam[1] : SPAWN.z; camera.lookAt(fx, world.heightAt(fx, fz) + 1.2, fz); }
+        // Sizzlin' Slowness: the world leans a little and sways while the lean has hold of you.
+        tilt += ((combat.slowed > 0 ? 0.07 + Math.sin(performance.now() / 700) * 0.025 : 0) - tilt) * Math.min(1, dt * 3);
+        if (Math.abs(tilt) > 1e-4) camera.rotateZ(tilt);
       }
       playerPos.set(controller.pos.x, controller.pos.y, controller.pos.z);
       sky.update(dt, camera.position);
@@ -393,6 +405,11 @@ game
       fog.color.lerp(fogTarget, Math.min(1, dt * 3));
       fog.density += ((realm ? realm.fog.density : islandFog.density) - fog.density) * Math.min(1, dt * 3);
       bubbles.group.visible = !!realm?.underwater;
+      // A realm with a sky of its own (the kingdom, the frog's dream) hides the island's moon, stars and aurora.
+      sky.group.visible = skyEvents.group.visible = !realm?.ownSky;
+      // Yung Lean's kingdom has its own music (an underwater arrival, a hum, a slow beat).
+      const inKingdom = realm?.id === 'galaxy';
+      if (inKingdom !== wasInKingdom) { audio.kingdom(inKingdom); wasInKingdom = inKingdom; }
       bubbles.update(dt, camera.position);
       if (weather.update(dt, playerPos) > 0) sky.flash = 1;
       hemi.intensity = 0.7 + sky.flash * 2.2;

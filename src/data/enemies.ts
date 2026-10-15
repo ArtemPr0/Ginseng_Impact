@@ -1,9 +1,9 @@
 import type { BrainParams } from '../combat/EnemyBrain';
 import type { Element } from '../combat/Elements';
 
-export type EnemyKind = 'beast' | 'bucket' | 'crystalgolem' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant';
+export type EnemyKind = 'beast' | 'bucket' | 'crystalgolem' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king';
 
-export type BossAttackKind = 'slam' | 'boulder' | 'roar' | 'volley' | 'summon' | 'blink' | 'roots' | 'sweep' | 'breath' | 'charge' | 'bite' | 'logthrow' | 'punch' | 'grab';
+export type BossAttackKind = 'slam' | 'boulder' | 'roar' | 'volley' | 'summon' | 'blink' | 'roots' | 'sweep' | 'breath' | 'charge' | 'bite' | 'logthrow' | 'punch' | 'grab' | 'cupmortar' | 'cupvolley' | 'snowstorm';
 
 export interface BossAttack { kind: BossAttackKind; range: number; windup: number; recover: number; weight: number }
 
@@ -43,9 +43,40 @@ export interface EnemyDef {
   neutral?: boolean;
   /** Wings that beat (a clip-less flyer): the root bone of each wing, how far (radians) and how often (Hz). */
   wings?: { right: string; left: string; amp: number; rate: number };
+  /** Lines it says (ids in data/voices): when it spots you, as it throws, as it dies, and when you fall. */
+  voices?: { aggro: string[]; attack: string[]; death: string[]; win: string[] };
 }
 
+/** The Styro-Ghouls' high, autotuned lines (the user's script). */
+const GHOUL_VOICES = {
+  aggro: ['ghoul-aggro-1', 'ghoul-aggro-2'],
+  attack: ['ghoul-attack-1', 'ghoul-attack-2', 'ghoul-attack-3'],
+  death: ['ghoul-death-1', 'ghoul-death-2'],
+  win: ['ghoul-win-1', 'ghoul-win-2'],
+};
+
 export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
+  // Yung Lean's kingdom: short purple imps with leaking double cups on their backs, lobbing cups like mortar shells.
+  'styro-ghoul': {
+    kind: 'styro-ghoul', name: 'Styro-Ghoul', maxHp: 640, def: 28, atk: 66, speed: 3.6, element: 'astral', hover: 0, bodyRadius: 0.5, height: 1.25,
+    brain: { aggroRange: 16, attackRange: 15, windup: 0.9, recover: 1.0, attackCooldown: 0.8, preferredRange: 9 }, respawn: 60, leash: 18, shards: [8, 14],
+    attacks: [{ kind: 'cupmortar', range: 16, windup: 0.9, recover: 1.1, weight: 1 }],
+    drops: [{ itemId: 'moon-dew', chance: 0.25 }], voices: GHOUL_VOICES,
+  },
+  // Their boss, enthroned in the domed pavilion: gets up when you come in and fills the room with exploding cups.
+  'lean-chucker': {
+    kind: 'lean-chucker', name: 'The Lean-Chucker', title: 'Who Holds the Pavilion', maxHp: 5200, def: 70, atk: 120, speed: 3.2, element: 'astral', hover: 0, bodyRadius: 0.8, height: 1.9, boss: true,
+    brain: { aggroRange: 14, attackRange: 18, windup: 1.0, recover: 1.2, attackCooldown: 0.8, preferredRange: 8 }, respawn: 200, leash: 22, shards: [150, 220], seated: true,
+    attacks: [{ kind: 'cupvolley', range: 20, windup: 1.0, recover: 1.3, weight: 3 }, { kind: 'cupmortar', range: 20, windup: 0.8, recover: 1.0, weight: 2 }, { kind: 'sweep', range: 3, windup: 0.6, recover: 1.0, weight: 1 }],
+    drops: [{ itemId: 'rune-shard', chance: 1 }, { itemId: 'moon-dew', chance: 1 }], voices: GHOUL_VOICES,
+  },
+  // Yung Lean himself, off his throne when you challenge him: digital snow, cups, his ghouls.
+  'rift-king': {
+    kind: 'rift-king', name: 'Yung Lean', title: 'King of the Sad Side of the World', maxHp: 9000, def: 80, atk: 135, speed: 3.6, element: 'astral', hover: 0, bodyRadius: 0.7, height: 1.85, boss: true,
+    brain: { aggroRange: 34, attackRange: 14, windup: 1.0, recover: 1.2, attackCooldown: 0.7, preferredRange: 7 }, respawn: 1e9, leash: 45, shards: [300, 400],
+    attacks: [{ kind: 'snowstorm', range: 24, windup: 1.2, recover: 1.0, weight: 3 }, { kind: 'cupmortar', range: 20, windup: 0.8, recover: 1.0, weight: 2 }, { kind: 'summon', range: 30, windup: 1.3, recover: 1.5, weight: 1 }, { kind: 'volley', range: 18, windup: 0.9, recover: 1.0, weight: 2 }],
+    drops: [{ itemId: 'moon-dew', chance: 1 }],
+  },
   // DdjlyzyOcnK: the skeletons warming their bones at the campfire; they get up when you come close.
   skeleton: {
     kind: 'skeleton', name: 'Campfire Skeleton', maxHp: 560, def: 22, atk: 72, speed: 3.2, element: 'fog', hover: 0, bodyRadius: 0.45, height: 1.75,
@@ -182,6 +213,11 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'croc', x: 108, z: 10 }, { kind: 'croc', x: 118, z: 6 }, { kind: 'croc', x: 100, z: 15 }, // the river mouth, east
   { kind: 'beast', x: -62, z: 36 }, { kind: 'beast', x: -66, z: 30 },      // west meadow, by the stream
   { kind: 'crystalgolem', x: 44, z: 62 }, { kind: 'crystalgolem', x: 52, z: 66 }, // deep in the desert
-  // The bucket mimics' street in the galaxy city beyond the portal (see GALAXY in data/world.ts).
+  // Yung Lean's kingdom: Styro-Ghouls on the lean cups and round the plaza; the Lean-Chucker on the pavilion's throne.
+  { kind: 'styro-ghoul', x: 1084, z: 12, exact: true }, { kind: 'styro-ghoul', x: 1106, z: -10, exact: true }, { kind: 'styro-ghoul', x: 1134, z: 12, exact: true },
+  { kind: 'styro-ghoul', x: 1138, z: 17, exact: true },
+  { kind: 'styro-ghoul', x: 978, z: -32 }, { kind: 'styro-ghoul', x: 1022, z: -30 }, { kind: 'styro-ghoul', x: 1045, z: 48 },
+  { kind: 'lean-chucker', x: 1035, z: -55, yaw: Math.PI, exact: true },
+  // The bucket mimics' street in the kingdom's west quarter (see GALAXY in data/world.ts).
   { kind: 'bucket', x: 975, z: 20 }, { kind: 'bucket', x: 966, z: 22 }, { kind: 'bucket', x: 958, z: 18 }, { kind: 'bucket', x: 984, z: 18 },
 ];

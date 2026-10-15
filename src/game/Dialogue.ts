@@ -26,6 +26,8 @@ export interface DialogueWorld {
   lick(): void;
   /** The rowers' beer: stamina drains slower for a while. */
   drinkAle(): void;
+  /** Yung Lean gets up from his throne to fight. */
+  challengeKing(): void;
   announce(text: string): void;
 }
 
@@ -105,6 +107,41 @@ export function dialogueFor(npcId: string, w: DialogueWorld): DialogueNode | nul
         bag,
         LEAVE,
       ]);
+    }
+    case 'yunglean': {
+      const s = q.stage('sound');
+      const challenge: DialogueChoice = {
+        label: 'Challenge the King',
+        run: () => say('lean-warlord', [{ label: 'Fight!', run: () => { w.challengeKing(); return 'close'; } }, { label: 'Maybe later.' }]),
+      };
+      if (s === 'none') {
+        const choices: DialogueChoice[] = [{
+          label: 'Why is it the sad side?',
+          run: () => say('lean-quest', [
+            { label: "I'll bring it back.", run: () => { q.set('sound', 'active'); w.give('mist-blade'); w.announce('Quest · The Lost Sound'); return { line: 'The mist is over the cups, east of here. Do not drink the waves.', choices: [LEAVE] }; } },
+            { label: 'Not my problem.' },
+          ]),
+        }];
+        if (q.active('lean')) choices.push({ label: 'Can you sign a cup?', run: () => ({ line: 'Sign a cup? Bring back the sound first. Then I sign anything.', choices: [LEAVE] }) });
+        choices.push({ label: 'Trade', run: () => 'trade' }, LEAVE);
+        return say('lean-greet', choices);
+      }
+      if (s === 'active') return { line: 'The silence is still creeping. Over the cups, in the mist.', choices: [LEAVE] };
+      if (s === 'found') {
+        return say('lean-sound', [{
+          label: 'Take the signed cup',
+          run: () => {
+            w.take('lost-sound');
+            w.give('signed-cup');
+            w.pay(800);
+            q.set('sound', 'done');
+            if (q.active('lean')) q.set('lean', 'signed');
+            w.announce('The Lost Sound · complete');
+            return { line: 'Now go. Or stay. The throne is always here.', choices: [challenge, LEAVE] };
+          },
+        }]);
+      }
+      return { line: 'Bittersweet... you came back.', choices: [challenge, LEAVE] };
     }
     case 'rowers':
       return say('rower-offer', [

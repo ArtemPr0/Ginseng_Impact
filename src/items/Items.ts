@@ -64,6 +64,8 @@ export const ITEMS: Record<string, ItemDef> = {
   'wyrm-fang-blade': { id: 'wyrm-fang-blade', name: 'Wyrm Fang', kind: 'weapon', weaponClass: 'sword', desc: 'A fang the length of a sword. +60 attack, Lunar element.', value: 900, rarity: 4, atk: 60, element: 'lunar', color: 0xdfe6ff },
   // Charms and keys
   'hollow-crown': { id: 'hollow-crown', name: 'Hollow Crown', kind: 'charm', desc: 'The King\'s crown. All damage +30% while carried.', value: 1200, rarity: 4, dmgMult: 1.3 },
+  'mist-blade': { id: 'mist-blade', name: 'Bittersweet Blade', kind: 'weapon', weaponClass: 'sword', desc: 'Yung Lean\'s blade, for going into the mist. It hums when it is quiet.', value: 300, rarity: 4, atk: 150, element: 'astral' },
+  'lost-sound': { id: 'lost-sound', name: 'The Lost Sound', kind: 'key', desc: 'A hum in a glass of mist. The kingdom has been quiet without it.', value: 0, rarity: 4 },
   'old-bone': { id: 'old-bone', name: 'Old Bone', kind: 'material', desc: 'A campfire skeleton\'s thighbone, still warm on one side. Someone will buy it.', value: 14, rarity: 1 },
   'antler-signet': { id: 'antler-signet', name: 'Antlered Signet', kind: 'charm', desc: 'The Antlered King\'s own seal, for the usurper\'s death. All damage +25% while carried.', value: 600, rarity: 4, dmgMult: 1.25 },
   'signed-cup': { id: 'signed-cup', name: 'Signed Cup', kind: 'key', desc: 'A double styrofoam cup with Yung Lean\'s signature in purple marker. Goldgrin\'s brother wants it.', value: 0, rarity: 3 },

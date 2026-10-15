@@ -14,6 +14,7 @@ const ALLOW = new Set([
   'characters/Rig.ts', // the weapon-trail ribbon only; the humanoid body comes from a GLB
   'world/Dream.ts', // the dream's sky dome and fractal floor (sky and terrain); everything in it is a GLB
   'world/StoneHead.ts', // the glowing irises over the stone head's carved eyes (VFX); the head is a GLB
+  'world/Kingdom.ts', // the kingdom's sky (aurora, horizon grid, line-drawn computers, moons), floor, tea, lean surfaces and waves, fog, snow; cups, lotus and buildings are GLBs
 ]);
 const ALLOW_PREFIX = ['render/'];
 const PATTERNS = [/\bnew\s+[A-Z]\w*Geometry\s*\(/, /\bnew\s+Mesh\s*\(/, /\bmergeGeometries\b/, /\brockify\b|\btintRock\b/];

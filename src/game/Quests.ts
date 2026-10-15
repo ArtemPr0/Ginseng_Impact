@@ -2,7 +2,7 @@
  * Quest state: each quest is at one named stage ('none' until it is given, 'done' once rewarded); the tracker shows
  * the objective of every quest in between. Pure: no DOM, no Three.js. Kills and items move quests along.
  */
-export type QuestId = 'throne' | 'croak' | 'lean';
+export type QuestId = 'throne' | 'croak' | 'lean' | 'sound';
 
 export interface QuestDef {
   id: QuestId;
@@ -25,6 +25,13 @@ export const QUESTS: Record<QuestId, QuestDef> = {
       active: 'Find Croak, the Frog King\'s son',
       bagged: 'Carry Croak back to the Frog King (F to drop the bag)',
       returned: 'Speak with the Frog King',
+    },
+  },
+  sound: {
+    id: 'sound', title: 'The Lost Sound',
+    objectives: {
+      active: 'Go into the mist over the lean cups and bring back the sound',
+      found: 'Bring the sound back to Yung Lean',
     },
   },
   lean: {

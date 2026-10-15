@@ -7,6 +7,10 @@ export class Audio {
   private master: GainNode | null = null;
   private noiseBuf: AudioBuffer | null = null;
   private readonly clips = new Map<string, Promise<AudioBuffer | null>>();
+  /** A low-pass the whole mix runs through (wide open, except for the kingdom's underwater arrival). */
+  private muffle: BiquadFilterNode | null = null;
+  /** The kingdom's music while it plays: its bus, the hum, the step scheduler. */
+  private kingdomMusic: { bus: GainNode; timer: number; next: number; step: number; started: number } | null = null;
   volume = 0.6;
 
   /** Call from a user gesture (click / keydown). */
@@ -20,7 +24,10 @@ export class Audio {
     const comp = this.ctx.createDynamicsCompressor();
     comp.threshold.value = -14;
     comp.ratio.value = 6;
-    this.master.connect(comp).connect(this.ctx.destination);
+    this.muffle = this.ctx.createBiquadFilter();
+    this.muffle.type = 'lowpass';
+    this.muffle.frequency.value = 20000;
+    this.master.connect(this.muffle).connect(comp).connect(this.ctx.destination);
     const len = this.ctx.sampleRate * 2;
     this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
     const d = this.noiseBuf.getChannelData(0);
@@ -123,6 +130,97 @@ export class Audio {
     }
     this.tone('sine', 220, 160, 0.08, 0.1, 0.1);
     this.tone('sine', 190, 140, 0.08, 0.08, 0.42);
+  }
+
+  /**
+   * Yung Lean's kingdom: arriving, everything is muffled as if underwater and clears; a distant autotuned hum drifts
+   * in and fades into a slow cloud-rap beat (70 BPM: kick and 808, a half-time snare, hats with rolls, a dreamy pad
+   * over Am–F–C–G). `false` fades the music away.
+   */
+  kingdom(on: boolean): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.master) return;
+    if (!on) {
+      const m = this.kingdomMusic;
+      if (!m) return;
+      this.kingdomMusic = null;
+      m.bus.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.6);
+      window.setTimeout(() => { window.clearInterval(m.timer); m.bus.disconnect(); }, 3000);
+      return;
+    }
+    if (this.kingdomMusic) return;
+    const t0 = ctx.currentTime;
+    if (this.muffle) {
+      this.muffle.frequency.cancelScheduledValues(t0);
+      this.muffle.frequency.setValueAtTime(320, t0);
+      this.muffle.frequency.exponentialRampToValueAtTime(20000, t0 + 2.8);
+    }
+    const bus = ctx.createGain();
+    bus.gain.value = 0.9;
+    bus.connect(this.master);
+    // The hum: two detuned saws through "oo" formants, snapping from note to note like autotune.
+    const hum = ctx.createGain();
+    hum.gain.setValueAtTime(0.0001, t0);
+    hum.gain.exponentialRampToValueAtTime(0.06, t0 + 1.2);
+    hum.gain.setValueAtTime(0.06, t0 + 6);
+    hum.gain.exponentialRampToValueAtTime(0.0001, t0 + 11);
+    const f1 = ctx.createBiquadFilter(); f1.type = 'bandpass'; f1.frequency.value = 330; f1.Q.value = 5;
+    const f2 = ctx.createBiquadFilter(); f2.type = 'bandpass'; f2.frequency.value = 880; f2.Q.value = 7;
+    const mix = ctx.createGain(); mix.gain.value = 1;
+    f1.connect(mix); f2.connect(mix); mix.connect(hum).connect(bus);
+    const notes = [220, 261.6, 293.7, 329.6, 293.7, 261.6, 196, 220, 261.6, 329.6, 392, 329.6];
+    for (const det of [-6, 7]) {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.detune.value = det;
+      notes.forEach((f, i) => { const t = t0 + 0.4 + i * 0.85; o.frequency.setValueAtTime(o.frequency.value || f, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.035); });
+      o.connect(f1); o.connect(f2);
+      o.start(t0);
+      o.stop(t0 + 12);
+    }
+    const m = { bus, timer: 0, next: t0 + 4, step: 0, started: t0 };
+    const sixteenth = 60 / 70 / 4;
+    const chords = [[220, 261.6, 329.6], [174.6, 220, 261.6], [261.6, 329.6, 392], [196, 246.9, 293.7]];
+    const fadeIn = (t: number) => Math.min(1, Math.max(0, (t - (t0 + 4)) / 6));
+    m.timer = window.setInterval(() => {
+      if (this.kingdomMusic !== m || !this.ctx) return;
+      while (m.next < this.ctx.currentTime + 0.25) {
+        const t = m.next;
+        const at = t - this.ctx.currentTime;
+        const step = m.step % 16;
+        const bar = Math.floor(m.step / 16) % 4;
+        const v = fadeIn(t);
+        if (v > 0) {
+          if (step === 0 || step === 7 || step === 10) { this.tone('sine', 120, 42, 0.3, 0.32 * v, at, 0.002, 0.08); this.tone('sine', chords[bar][0] / 4, chords[bar][0] / 4.4, 0.9, 0.16 * v, at, 0.01, 0.3); }
+          if (step === 8) { this.noise(0.22, 'bandpass', 1800, 1200, 1.2, 0.2 * v, at, 0.002); this.tone('triangle', 200, 160, 0.08, 0.06 * v, at); }
+          const roll = bar === 3 && step >= 13;
+          if (step % 2 === 0 || roll) { this.noise(0.03, 'highpass', 8000, 9000, 1, (roll ? 0.05 : 0.07) * v, at, 0.001); if (roll) this.noise(0.03, 'highpass', 8000, 9000, 1, 0.04 * v, at + sixteenth / 3, 0.001); }
+          if (step === 0) for (const f of chords[bar]) for (const det of [-8, 8]) this.padNote(f, det, t, sixteenth * 16, 0.022 * v, m.bus);
+        }
+        m.next += sixteenth;
+        m.step++;
+      }
+    }, 60);
+    this.kingdomMusic = m;
+  }
+
+  /** A soft detuned saw through a dark low-pass, swelling in and out over `dur` (the kingdom's pad). */
+  private padNote(f: number, detune: number, t: number, dur: number, peak: number, out: AudioNode): void {
+    const ctx = this.ctx!;
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.value = f;
+    o.detune.value = detune;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 900;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + dur * 0.4);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(lp).connect(g).connect(out);
+    o.start(t);
+    o.stop(t + dur + 0.05);
   }
 
   /** Coin clinks. */

@@ -23,6 +23,7 @@ import { witchStream } from './Stream';
 import { stoneHeadEyes } from './StoneHead';
 import { buildTreeHouse } from './TreeHouse';
 import { buildDream } from './Dream';
+import { buildKingdom } from './Kingdom';
 import type { Interactable, Teleport } from './Interact';
 import type { HostileShot } from '../combat/CombatSystem';
 
@@ -154,7 +155,11 @@ export class World {
   /** Things to use with F (doors, boats); main.ts offers the nearest one in the player's zone. */
   readonly interactables: Interactable[] = [];
   /** What main.ts lets the world do to the player: move them, sit them in a boat. */
-  readonly hooks: { teleport?: Teleport; board?: (boat: Boat) => void; shoot?: (from: Vector3, s: HostileShot) => void; hurt?: (atk: number, poison?: { dps: number; seconds: number }) => void } = {};
+  readonly hooks: {
+    teleport?: Teleport; board?: (boat: Boat) => void; shoot?: (from: Vector3, s: HostileShot) => void; hurt?: (atk: number, poison?: { dps: number; seconds: number }) => void;
+    /** Yung Lean's quest: is the lost sound there to find, and the hero took it. */
+    soundWanted?: () => boolean; foundSound?: () => void;
+  } = {};
   /** The river boats with their two rowers each. */
   readonly boats: Boat[] = [];
   private readonly landmarks: Landmark[] = [];
@@ -470,6 +475,8 @@ export class World {
     this.interactables.push(...treeHouse.interactables);
     ANCHORS.brother = { ...treeHouse.brotherAt, y: treeHouse.floorY };
     buildDream(realmApi);
+    const kingdom = buildKingdom(realmApi, { soundWanted: () => this.hooks.soundWanted?.() ?? false, foundSound: () => this.hooks.foundSound?.() });
+    this.interactables.push(...kingdom.interactables);
 
     // Seats for NPCs whose only rest pose is sitting on a chair: a barrel at stool height just behind each sitter
     // (the campfire skeletons, Old Moss on the stream bank, Sir Halvard on the cliff).
@@ -495,7 +502,11 @@ export class World {
       const npc = new Npc(def, s, hw);
       if (s.y !== undefined) npc.pos.y = s.y;
       // Seated NPCs sit `dy` above the ground itself (not above the stool the tavern model already has).
-      if (s.dy !== undefined) npc.pos.y = terrain.heightAt(s.x, s.z) + s.dy;
+      if (s.dy !== undefined) {
+        // Out in a realm the island terrain is the void far below: sit on the realm's own floor instead.
+        const ground = terrain.heightAt(s.x, s.z);
+        npc.pos.y = (ground < -20 ? this.heights.heightAt(s.x, s.z, ground) : ground) + s.dy;
+      }
       const realm = REALMS.find((r) => Math.hypot(npc.pos.x - r.x, npc.pos.z - r.z) < r.radius);
       this.enterZone(realm ? realm.id : null);
       this.target.add(npc.object);

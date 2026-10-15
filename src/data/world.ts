@@ -116,13 +116,12 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   grumble: { x: -40, z: -24 },
   priest: { x: 36, z: -96 },
   'lantern-witch': { x: -106, z: 14 },
-  'skeleton-lord': { x: 1033, z: -55, dy: 0.5 }, 'blue-knight': { x: 1037, z: -55, dy: 0.5 },
   'skeleton-king': { x: 965, z: -57, dy: 0.6 },
   'skeleton-wizard': { x: 948, z: 20 },
   'galaxy-wizard': { x: 952, z: -20 },
-  'galaxy-king': { x: 1000, z: -74, dy: 0.8 },
+  yunglean: { x: 1000, z: -74, dy: 0.8 },
   'void-monk': { x: 1008, z: 66 },
-  'market-a': { x: 1137, z: 11 }, 'market-b': { x: 1143, z: 19 },
+  'market-a': { x: 1020.4, z: 20 }, 'market-b': { x: 1020.4, z: 32 },
   'fish-king': { x: -1000, z: -10 },
 };
 
@@ -144,16 +143,19 @@ export interface RealmDef {
   underwater?: boolean;
   /** The fog colour cycles through the hues (the frog's dream). */
   cycle?: boolean;
+  /** Has its own sky dome: the island's moon, stars and aurora are switched off there. */
+  ownSky?: boolean;
 }
 
 /** The galaxy city beyond the portal (DeOemU1BOZF, DeaqHWJBBPw, DeXn5rSPxR8, DeQ-NnpvqF6, Dd0wR9Jh2lH, DdyN2PNyIxb, DdnJDwBMUoj). */
-export const GALAXY: RealmDef = { id: 'galaxy', name: 'The Galaxy City', x: 1000, z: 0, y: 24, radius: 190, fog: { color: 0x1d1650, density: 0.0075 } };
+/** Beyond the portal: Yung Lean's kingdom (it was the galaxy city; the id stays). */
+export const GALAXY: RealmDef = { id: 'galaxy', name: "Yung Lean's Kingdom", x: 1000, z: 0, y: 24, radius: 190, fog: { color: 0x3a1a52, density: 0.0055 }, ownSky: true };
 /** The sunken city under the lake (DeVj-Z8POjl). */
 export const SUNKEN: RealmDef = { id: 'sunken', name: 'The Sunken City', x: -1000, z: 0, y: -48, radius: 90, fog: { color: 0x07304a, density: 0.034 }, underwater: true };
 /** The round room inside the tree house trunk (Goldgrin's brother). */
 export const TREEHOUSE_ROOM: RealmDef = { id: 'treehouse', name: 'Inside the Tree House', x: -1000, z: 700, y: 0, radius: 30, fog: { color: 0x120a26, density: 0.02 } };
 /** The Frog King's dream: two minutes you cannot leave (licking a DMT frog). */
-export const DREAM: RealmDef = { id: 'dream', name: "The Frog King's Dream", x: 0, z: 2600, y: 0, radius: 170, fog: { color: 0x3a0f6b, density: 0.0035 }, cycle: true };
+export const DREAM: RealmDef = { id: 'dream', name: "The Frog King's Dream", x: 0, z: 2600, y: 0, radius: 170, fog: { color: 0x3a0f6b, density: 0.0035 }, cycle: true, ownSky: true };
 export const REALMS: readonly RealmDef[] = [GALAXY, SUNKEN, TREEHOUSE_ROOM, DREAM];
 
 /** Portal ends on the island. */

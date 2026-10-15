@@ -32,7 +32,7 @@ export interface NpcDef {
    * A recorded line the NPC says by itself when the player is near (between sips for the cup gnome): the file
    * under public/audio, the caption shown in a speech bubble, the pause between repeats and the hearing range.
    */
-  voice?: { url: string; caption: string; every: number; range: number };
+  voice?: { url: string; caption: string; every: number; range: number; firstAfter?: number };
   /** Slurp at this fraction of the drink clip (the moment the cup meets the mouth). */
   sipAt?: number;
   /** Scale multiplier applied to the rig (ogres, trolls). */
@@ -207,19 +207,6 @@ export const NPC_DEFS: NpcDef[] = [
     behaviour: { kind: 'stand', pose: 'lantern', yaw: Math.PI },
   },
   {
-    id: 'skeleton-lord', name: 'The Skeleton Lord', title: 'Of the Domed Pavilion', weapon: 'sword',
-    model: 'skeleton-lord', accent: PALETTE.dusk,
-    lines: ['Sit. The wine is purple because the grapes were.', 'We ride the black dragon when the moon is full. Tonight it is merely large.', 'Gold teeth. One should smile at eternity.'],
-    behaviour: { kind: 'stand', pose: 'sit', yaw: Math.PI / 2 },
-  },
-  {
-    id: 'blue-knight', name: 'Sir Cobalt', title: 'The Blue Knight', weapon: 'sword',
-    model: 'blue-knight', accent: PALETTE.electric,
-    lines: ['To the city beyond the portal. To the galaxy over it.', 'My lord does not drink. He holds the goblet for the company.', 'For four hundred shards my sword is yours until the wine runs out.'],
-    behaviour: { kind: 'stand', pose: 'drink', yaw: -Math.PI / 2 },
-    hire: { cost: 400, atk: 105, maxHp: 2400, ranged: false },
-  },
-  {
     id: 'skeleton-king', name: 'The Skeleton King', title: 'Counter of Coins', weapon: 'sword',
     model: 'skeleton-king', accent: PALETTE.moon,
     lines: ['Every coin on these stones was paid to cross the portal. Some paid twice.', 'Bring me what the great ones drop. I pay better than the antlered fool on the island.', 'The crystals grow from the ceiling because the ceiling is the sky.'],
@@ -240,10 +227,12 @@ export const NPC_DEFS: NpcDef[] = [
     shop: [{ itemId: 'lotus-tea', price: 30 }],
   },
   {
-    id: 'galaxy-king', name: 'The Galaxy King', title: 'Throne at the Head of the River Hall', weapon: 'sword',
-    model: 'galaxy-king', accent: PALETTE.cobalt,
-    lines: ['The river runs down my hall and out into the stars. Do not drink from it.', 'I was crowned by the night itself. It was not gentle.', 'Kneel, or stand. The pillars have seen both.'],
+    id: 'yunglean', name: 'Yung Lean', title: 'King of the Sad Side of the World', weapon: 'sword',
+    model: 'rift-king', accent: PALETTE.dusk,
+    lines: ['Bittersweet... everything is bittersweet.', 'The porcelain cracks easily. Walk soft.', 'Ginseng in the floor, snow in the sky. It is enough. It is never enough.'],
     behaviour: { kind: 'stand', pose: 'throne', yaw: Math.PI / 2 },
+    // His idle line, when you have been standing around near him a while.
+    voice: { url: '/audio/lean-idle.mp3', caption: 'Bittersweet... everything is bittersweet. Do you happen to have any iced tea on you? No? Shame.', every: 70, range: 9, firstAfter: 25 },
   },
   {
     id: 'void-monk', name: 'The Void Monk', title: 'Keeper of the Ring Portals', weapon: 'staff',
@@ -252,17 +241,17 @@ export const NPC_DEFS: NpcDef[] = [
     behaviour: { kind: 'stand', yaw: Math.PI },
   },
   {
-    id: 'market-a', name: 'Snaggle', title: 'Goblin Merchant of the Floating Isles', weapon: 'sword',
+    id: 'market-a', name: 'Snaggle', title: 'Goblin Merchant of the Kingdom', weapon: 'sword',
     model: 'goblin', accent: PALETTE.witch,
-    lines: ['Crystal ball, slightly used, shows mostly next Tuesday.', 'Everything floats here. Prices too.', 'Mind the rope bridges. The ropes have opinions.'],
-    behaviour: { kind: 'stand', pose: 'offer', yaw: Math.PI / 2 },
+    lines: ['Crystal ball, slightly used, shows mostly next Tuesday.', 'Everything here is porcelain. Prices too: they crack.', 'Mind the lean waves. They have opinions.'],
+    behaviour: { kind: 'stand', pose: 'offer', yaw: Math.PI },
     shop: [{ itemId: 'moon-dew', price: 32 }, { itemId: 'rot-salve', price: 28 }],
   },
   {
-    id: 'market-b', name: 'Grizzle', title: 'Goblin Merchant of the Floating Isles', weapon: 'sword',
+    id: 'market-b', name: 'Grizzle', title: 'Goblin Merchant of the Kingdom', weapon: 'sword',
     model: 'goblin', accent: PALETTE.blood,
     lines: ['Lanterns! Lanterns that remember where you left them!', 'Snaggle overcharges. I overcharge less.'],
-    behaviour: { kind: 'stand', pose: 'offer', yaw: -Math.PI / 2 },
+    behaviour: { kind: 'stand', pose: 'offer', yaw: Math.PI },
     shop: [{ itemId: 'lotus-tea', price: 26 }],
   },
   {
@@ -305,6 +294,7 @@ export class Npc {
       this.pos.y = heightAt(this.pos.x, this.pos.z);
     }
     if (def.voice) {
+      this.voiceWait = def.voice.firstAfter ?? this.voiceWait;
       this.bubble = new SpeechBubble((MODELS[def.model]?.height ?? 1.8) + 0.55);
       this.object.add(this.bubble.sprite);
     }

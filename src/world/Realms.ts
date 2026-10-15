@@ -5,7 +5,6 @@
  */
 import { Group, PointLight, Vector3 } from 'three';
 import { GALAXY, ISLAND_PORTALS, LAYOUT, SUNKEN } from '../data/world';
-import { MODELS } from '../data/models';
 import { glowSprite } from '../render/Glow';
 import { PALETTE } from '../render/palette';
 import { fire } from './Fire';
@@ -14,7 +13,7 @@ import type { Landmark } from './Landmarks';
 import { modelLandmark } from './ModelLandmark';
 import { PRESENT_MODELS } from '../data/colliderGrids';
 import { portal, type PortalLink } from './Portal';
-import { chasmBridge, floorSlab } from './Walkways';
+import { floorSlab } from './Walkways';
 import { patchWingFlap } from '../render/Materials';
 import type { HostileShot } from '../combat/CombatSystem';
 
@@ -134,7 +133,7 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   // ===== The galaxy city =====
   api.realm(G.id);
   const gy = G.y;
-  api.place(floorSlab(G.x, G.z - 5, gy, 120, 160));
+  // (The floor, the sky, the streams and the cup islands are Yung Lean's kingdom: see Kingdom.ts.)
   // Checkered causeway with towers either side (DeOemU1BOZF).
   const road: Placement[] = [];
   for (let z = G.z + 69; z > G.z - 44; z -= 6) road.push({ x: G.x, y: gy + 0.02, z, yaw: 0, scale: 1 });
@@ -212,25 +211,10 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   api.flora('purple-mushroom', shrooms, { shadows: false });
   // The star brewer's tower at the street's end (DeQ-NnpvqF6).
   api.place(modelLandmark('round-tower', 945, G.z - 20, gy, { yaw: face(0), footprints: [{ kind: 'cyl', x: 945, z: G.z - 20, r: 3.6, top: gy + 22 }] }));
-  // Floating isles joined by rope bridges, with the goblin market on the last (DdnJDwBMUoj).
-  const isles: Array<[number, number]> = [[1082, 10], [1108, -12], [1136, 14]];
-  for (const [x, z] of isles) {
-    const scale = 3;
-    // The stone slab is the walk surface; the island model is the rock under it.
-    api.place(modelLandmark('floating-island', x, z, gy - MODELS['floating-island'].height * scale, { scale, collider: 'none' }));
-    api.place(floorSlab(x, z, gy, 13, 13));
-  }
-  api.flora('gnarled-tree', isles.flatMap(([x, z]) => [{ x: x - 4, y: gy, z: z + 3, yaw: api.rnd() * 6, scale: 1.2 }, { x: x + 3, y: gy, z: z - 4, yaw: api.rnd() * 6, scale: 1 }]));
-  const spans: Array<[number, number, number, number]> = [[1059, 10, 1074, 10], [1088, 4, 1102, -6], [1114, -6, 1130, 8]];
-  for (const [ax, az, bx, bz] of spans) {
-    const b = chasmBridge(ax, az, bx, bz, gy, MODELS['chasm-bridge'].height);
-    api.place(b);
-    api.flora('chasm-bridge', b.tiles);
-  }
-  api.place(modelLandmark('market-stall', 1134, 9, gy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'box', x: 1134, z: 9, hw: 1.8, hd: 1.2, top: gy + 1.1 }] }));
-  api.place(modelLandmark('market-stall', 1140, 17, gy, { yaw: face(-Math.PI / 2), footprints: [{ kind: 'box', x: 1140, z: 17, hw: 1.8, hd: 1.2, top: gy + 1.1 }] }));
-  api.place(modelLandmark('crystal-ball', 1134.4, 9.6, gy + 1.1, { color: PALETTE.dusk }));
-  glowAt(api, PALETTE.dusk, 1.6, 1134.4, gy + 1.5, 9.6, 0.6);
+  // The goblin market, on the plaza between the towers and the east tea stream (it used to be out on the isles).
+  for (const z of [20, 32]) api.place(modelLandmark('market-stall', 1018, z, gy, { yaw: face(Math.PI), footprints: [{ kind: 'box', x: 1018, z, hw: 1.2, hd: 1.8, top: gy + 1.1 }] }));
+  api.place(modelLandmark('crystal-ball', 1017.6, 20.4, gy + 1.1, { color: PALETTE.dusk }));
+  glowAt(api, PALETTE.dusk, 1.6, 1017.6, gy + 1.5, 20.4, 0.6);
 
   // ===== The sunken city =====
   api.realm(S.id);

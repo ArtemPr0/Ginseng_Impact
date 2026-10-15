@@ -1,8 +1,9 @@
-import { BoxGeometry, Group, Mesh, PerspectiveCamera, Scene, Vector3, ConeGeometry, CylinderGeometry, TorusGeometry, MeshBasicMaterial, AdditiveBlending, DoubleSide } from 'three';
+import { BoxGeometry, CircleGeometry, Group, Mesh, PerspectiveCamera, Scene, Vector3, ConeGeometry, CylinderGeometry, TorusGeometry, MeshBasicMaterial, AdditiveBlending, DoubleSide } from 'three';
 import type { Audio } from '../audio/Audio';
 import type { CharacterDef } from '../characters/roster';
 import type { Game } from '../core/Game';
-import { ENEMY_DEFS, ENEMY_SPAWNS, type BossAttackKind, type EnemyDef } from '../data/enemies';
+import { ENEMY_DEFS, ENEMY_SPAWNS, type BossAttackKind, type EnemyDef, type EnemyKind } from '../data/enemies';
+import { voiceUrl } from '../data/voices';
 import type { Inventory } from '../items/Inventory';
 import { ITEMS } from '../items/Items';
 import type { ControllerState, WorldQuery } from '../player/CharacterController';
@@ -34,7 +35,7 @@ interface Projectile {
   color: number;
 }
 
-type ProjectileKind = 'bolt' | 'arrow' | 'log' | 'ring' | 'fire';
+type ProjectileKind = 'bolt' | 'arrow' | 'log' | 'ring' | 'fire' | 'cup';
 
 /** A shot from something that is not an enemy (witches, the snail, the dragon), aimed at the hero. */
 export interface HostileShot { speed: number; color: number; atk: number; kind?: ProjectileKind; size?: number; radius?: number; poison?: { dps: number; seconds: number }; spread?: number }
@@ -81,6 +82,12 @@ export class CombatSystem {
   private poisonTick = 0;
   /** A giant's grab: who holds the hero and for how long so far. */
   private grab: { e: Enemy; t: number } | null = null;
+  /** Purple puddles of spilled lean (Sizzlin' Slowness while you stand in one), and how long the slow lasts. */
+  private readonly puddles: Array<{ pos: Vector3; r: number; left: number; mesh: Mesh }> = [];
+  private slowLeft = 0;
+  /** Voice lines: who last spoke and when (so a pack does not talk over itself), and each enemy's last state. */
+  private voiceClock = 0;
+  private readonly lastState = new Map<number, string>();
   private burstCast: { t: number; fired: boolean } | null = null;
   burstEnergy = 0;
   private iframes = 0;
@@ -292,6 +299,23 @@ export class CombatSystem {
         this.d.audio.roar();
       }
     }
+    // Puddles of lean: standing in one keeps you slowed (and the world tilts); they shrink away after a while.
+    this.voiceClock = Math.max(0, this.voiceClock - dt);
+    this.slowLeft = Math.max(0, this.slowLeft - dt);
+    for (let i = this.puddles.length - 1; i >= 0; i--) {
+      const p = this.puddles[i];
+      p.left -= dt;
+      const k = Math.min(1, p.left / 1.2);
+      p.mesh.scale.setScalar(Math.max(0.05, k));
+      if (c.mode === 'ground' && Math.hypot(c.pos.x - p.pos.x, c.pos.z - p.pos.z) < p.r * k && Math.abs(c.pos.y - p.pos.y) < 1) this.slowLeft = Math.max(this.slowLeft, 1.4);
+      if (p.left <= 0) { this.d.scene.remove(p.mesh); this.puddles.splice(i, 1); }
+    }
+    // Spotting you: a talking mob says so as it starts the chase.
+    for (const e of this.enemies) {
+      const was = this.lastState.get(e.id);
+      if (was === 'idle' && e.state === 'chase') this.say(e, e.def.voices?.aggro);
+      this.lastState.set(e.id, e.state);
+    }
     const grounded = c.mode === 'ground';
     // Only Wren can shoot from the air (riding her bow); everyone else fights on their feet.
     const canShoot = grounded || (c.mode === 'fly' && me.weapon === 'bow');
@@ -442,7 +466,7 @@ export class CombatSystem {
       p.pos.addScaledVector(p.vel, dt);
       p.object.position.copy(p.pos);
       if (p.kind === 'arrow' || p.kind === 'ring') p.object.lookAt(aim.copy(p.pos).add(p.vel));
-      else if (p.kind === 'log') { p.object.rotation.x += dt * 7; p.object.rotation.y += dt * 1.3; }
+      else if (p.kind === 'log' || p.kind === 'cup') { p.object.rotation.x += dt * 7; p.object.rotation.y += dt * 1.3; }
       else if (p.kind === 'fire') p.object.scale.setScalar(1 + (2.5 - p.life) * 0.6);
       else p.object.rotation.y += dt * 12;
       let dead = p.life <= 0 || p.pos.y < d.world.heightAt(p.pos.x, p.pos.z, p.pos.y) - 0.2;
@@ -472,6 +496,7 @@ export class CombatSystem {
       if (dead) {
         this.vfx.impact(p.pos, p.owner === 'player' ? ELEMENT_COLOR[p.element ?? 'lunar'] : p.color, p.kind === 'log' ? 3.5 : 1.6);
         if (p.kind === 'log') { this.vfx.burst(p.pos.clone(), 0x5a6aa8, 18, 5, 0.5); this.d.onShake?.(0.4); this.d.audio.stomp(); }
+        if (p.kind === 'cup') this.spawnPuddle(p.pos);
         d.scene.remove(p.object);
         this.projectiles.splice(i, 1);
       }
@@ -570,7 +595,7 @@ export class CombatSystem {
         this.vfx.impact(at.clone().add(new Vector3(0, 3, 0)), color, 5);
         for (let i = 0; i < 2; i++) {
           const a = Math.random() * Math.PI * 2;
-          const m = this.spawnEnemy(ENEMY_DEFS.beast, e.pos.x + Math.cos(a) * 4, e.pos.z + Math.sin(a) * 4, true);
+          const m = this.spawnEnemy(ENEMY_DEFS[e.def.kind === 'rift-king' ? 'styro-ghoul' : 'beast'], e.pos.x + Math.cos(a) * 4, e.pos.z + Math.sin(a) * 4, true);
           m.brain.state = 'chase';
         }
         this.d.audio.cast();
@@ -613,6 +638,40 @@ export class CombatSystem {
         this.d.audio.roar();
         for (let i = 0; i < 6; i++) this.delayed.push({ t: i * 0.08, fn: () => this.enemyBolt(e, (Math.random() - 0.5) * 0.25, 24, 0.35) });
         if (inCone({ x: e.pos.x, z: e.pos.z }, e.yaw, { x: c.pos.x, z: c.pos.z }, 26, 0.4)) this.damagePlayer(e.def.atk * 0.9, e.def.element);
+        break;
+      }
+      case 'cupmortar':
+      case 'cupvolley': {
+        // Cups lobbed like mortar shells: one at you, or three around you.
+        const from = new Vector3(e.pos.x, e.pos.y + e.def.height * sc * 1.05, e.pos.z);
+        const targets = kind === 'cupvolley' ? [[0, 0], [2.8, 1.5], [-2.4, -2.2]] : [[0, 0]];
+        for (const [ox, oz] of targets) {
+          const to = new Vector3(c.pos.x + c.vel.x * 0.5 + ox, c.pos.y + 0.3, c.pos.z + c.vel.z * 0.5 + oz);
+          const T = Math.max(0.8, Math.min(1.6, 0.6 + dist / 18));
+          const g = 16;
+          const vel = to.clone().sub(from).divideScalar(T);
+          vel.y += 0.5 * g * T;
+          this.spawnProjectile(from.clone(), vel, 'enemy', e.def.atk, 1, 'astral', 1.1, 0xb36bff, 0, 0, 0, 0, 1, 'cup', { gravity: g });
+        }
+        this.d.audio.swing(false);
+        this.say(e, e.def.voices?.attack, 0.4);
+        break;
+      }
+      case 'snowstorm': {
+        // Digital snow: squares of static fall where the hero stands and around, then burst.
+        for (const [ox, oz] of [[0, 0], [4, 2], [-3, 4], [2, -4]]) {
+          const tx = c.pos.x + ox, tz = c.pos.z + oz;
+          const ty = this.d.world.heightAt(tx, tz, c.pos.y + 1);
+          const warn = this.vfx.zone(new Vector3(tx, ty, tz), 2.6, 0x9ad8ff, 0.9);
+          this.delayed.push({ t: 0.9, fn: () => {
+            warn();
+            const p = new Vector3(tx, ty, tz);
+            this.vfx.burst(p.clone().add(new Vector3(0, 1.5, 0)), 0xdff4ff, 26, 6, 0.6);
+            this.vfx.shockwave(p, 0x9ad8ff, 4);
+            if (Math.hypot(c.pos.x - tx, c.pos.z - tz) < 2.6) this.damagePlayer(e.def.atk, e.def.element);
+          } });
+        }
+        this.d.audio.cast();
         break;
       }
       case 'logthrow': {
@@ -735,6 +794,8 @@ export class CombatSystem {
     this.d.hud.removeEnemyBar(e.id);
     this.d.audio.kill(!!e.def.boss);
     this.d.onKill?.(e.def.kind);
+    this.voiceClock = 0;
+    this.say(e, e.def.voices?.death);
     this.burstEnergy = Math.min(BURST_MAX, this.burstEnergy + 18);
     const drops = rollDrops(e.def.drops, e.def.shards);
     this.loot.spawn(drops, new Vector3(e.pos.x, this.d.world.heightAt(e.pos.x, e.pos.z) + 1, e.pos.z));
@@ -792,6 +853,15 @@ export class CombatSystem {
       const ring = new Mesh(new TorusGeometry(0.45 * size, 0.07 * size, 8, 28), new MeshBasicMaterial({ color, transparent: true, opacity: 0.9, blending: AdditiveBlending, side: DoubleSide, depthWrite: false, toneMapped: false }));
       object.add(ring, glowSprite(color, 1.6 * size, 0.5, true));
       object.position.copy(from);
+    } else if (kind === 'cup') {
+      // A double styrofoam cup of lean, end over end.
+      const cup = new Mesh(new CylinderGeometry(0.16 * size, 0.12 * size, 0.42 * size, 10), surface({ color: 0xf2f2f6 }));
+      const lean = new Mesh(new CircleGeometry(0.15 * size, 10), new MeshBasicMaterial({ color: 0x9b3dff, toneMapped: false }));
+      lean.rotation.x = -Math.PI / 2;
+      lean.position.y = 0.2 * size;
+      cup.add(lean);
+      object.add(cup, glowSprite(0xb36bff, 0.9 * size, 0.5, true));
+      object.position.copy(from);
     } else if (kind === 'fire') {
       // A gout of fire: a few overlapping glows that swell as they fly.
       for (let i = 0; i < 4; i++) { const g = glowSprite(i % 2 ? color : PALETTE.moon, (0.9 - i * 0.12) * size, 0.85 - i * 0.12, true); g.position.set((Math.random() - 0.5) * 0.3 * size, (Math.random() - 0.5) * 0.3 * size, -i * 0.25 * size); object.add(g); }
@@ -848,6 +918,56 @@ export class CombatSystem {
     if (poison) this.poisonPlayer(poison.dps, poison.seconds);
   }
 
+  /** A boss that is not in the spawn list (Yung Lean off his throne): placed, angry, never respawning. */
+  spawnBoss(kind: EnemyKind, x: number, z: number, yaw = 0): Enemy {
+    const e = this.spawnEnemy(ENEMY_DEFS[kind], x, z, true, { yaw });
+    e.brain.state = 'chase';
+    return e;
+  }
+
+  /** Takes an enemy out of the world for good. */
+  despawn(e: Enemy): void {
+    this.d.scene.remove(e.object);
+    this.d.hud.removeEnemyBar(e.id);
+    const i = this.enemies.indexOf(e);
+    if (i >= 0) this.enemies.splice(i, 1);
+  }
+
+  /** Seconds left of Sizzlin' Slowness (−40% speed, the screen tilts). */
+  get slowed(): number {
+    return this.slowLeft;
+  }
+
+  /** The hero's afflictions, for the HUD. */
+  get debuffs(): Array<{ name: string; left: number }> {
+    const out: Array<{ name: string; left: number }> = [];
+    if (this.poisonLeft > 0) out.push({ name: 'Poisoned', left: this.poisonLeft });
+    if (this.slowLeft > 0) out.push({ name: "Sizzlin' Slowness", left: this.slowLeft });
+    return out;
+  }
+
+  /** One of an enemy's lines (data/voices ids), heard over distance; one at a time across the pack. */
+  private say(e: Enemy, lines: string[] | undefined, chance = 1): void {
+    if (!lines?.length || this.voiceClock > 0 || Math.random() > chance) return;
+    const c = this.d.controller;
+    const d = Math.hypot(e.pos.x - c.pos.x, e.pos.z - c.pos.z);
+    if (d > 30) return;
+    this.voiceClock = 2.2;
+    void this.d.audio.voice(voiceUrl(lines[Math.floor(Math.random() * lines.length)]), Math.max(0.25, 1 - d / 30));
+  }
+
+  /** A burst cup leaves a puddle of lean that slows whoever stands in it. */
+  private spawnPuddle(at: Vector3): void {
+    const y = this.d.world.heightAt(at.x, at.z, at.y + 1) + 0.04;
+    const mesh = new Mesh(new CircleGeometry(2.4, 24), new MeshBasicMaterial({ color: 0x8a2be2, transparent: true, opacity: 0.75, depthWrite: false, toneMapped: false }));
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(at.x, y, at.z);
+    mesh.add(glowSprite(0xb36bff, 3.2, 0.35, true));
+    this.d.scene.add(mesh);
+    this.puddles.push({ pos: new Vector3(at.x, y, at.z), r: 2.4, left: 6, mesh });
+    this.vfx.burst(new Vector3(at.x, y + 0.3, at.z), 0xb36bff, 14, 4, 0.5);
+  }
+
   /** Poison: damage every half second for a while (refreshed, never stacked). */
   poisonPlayer(dps: number, seconds: number): void {
     this.poisonDps = Math.max(this.poisonDps * (this.poisonLeft > 0 ? 1 : 0), dps);
@@ -881,6 +1001,10 @@ export class CombatSystem {
   }
 
   private onCharacterDown(): void {
+    // A ghoul who saw it gloats.
+    const c = this.d.controller;
+    const gloat = this.enemies.find((e) => e.alive && e.aggro && e.def.voices && Math.hypot(e.pos.x - c.pos.x, e.pos.z - c.pos.z) < 25);
+    if (gloat) { this.voiceClock = 0; this.say(gloat, gloat.def.voices!.win); }
     const party = this.d.party;
     const next = party.members.findIndex((m) => (this.hp.get(m.id) ?? 0) > 0);
     if (next >= 0) {

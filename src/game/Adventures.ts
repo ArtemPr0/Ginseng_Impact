@@ -3,7 +3,9 @@
  * boat with the rowers and their beer. Owns the quest state and what F does before the usual targets (loot, talk).
  */
 import { Group, Vector3 } from 'three';
-import { DREAM, LAYOUT } from '../data/world';
+import { DREAM, GALAXY, LAYOUT } from '../data/world';
+import type { EnemyKind } from '../data/enemies';
+import type { Enemy } from '../combat/Enemy';
 import { MODELS } from '../data/models';
 import { voiceUrl } from '../data/voices';
 import { loadModelOrWarn, ModelRig } from '../models/ModelRig';
@@ -35,8 +37,10 @@ export interface AdventureDeps {
   teleport: Teleport;
   /** The active hero's body (the sack hangs on it). */
   activeRig(): Rig;
-  /** Seconds of poison left on the hero (shown with the buffs). */
-  poisoned(): number;
+  /** The hero's afflictions (poison, Sizzlin' Slowness), shown with the buffs. */
+  debuffs(): Array<{ name: string; left: number }>;
+  /** Bosses outside the spawn list (Yung Lean off his throne). */
+  fight: { spawnBoss(kind: EnemyKind, x: number, z: number, yaw: number): Enemy; despawn(e: Enemy): void };
 }
 
 export class Adventures {
@@ -68,6 +72,7 @@ export class Adventures {
       bagCroak: () => this.bagCroak(),
       lick: () => this.enterDream(),
       drinkAle: () => { this.aleLeft = ALE_SECONDS; d.audio.slurp(1); d.hud.announce("Rowers' Ale · stamina lasts longer"); },
+      challengeKing: () => this.challengeKing(),
       announce: (text) => d.hud.announce(text),
     };
   }
@@ -131,6 +136,48 @@ export class Adventures {
     this.d.teleport(x, this.d.world.heights.heightAt(x, z), z, Math.PI, 'You wake beside the Frog King');
   }
 
+  /** Picks up the lost sound on the far cup (Yung Lean's quest). */
+  foundSound(): void {
+    if (this.quests.stage('sound') !== 'active') return;
+    this.d.inventory.add('lost-sound', 1);
+    this.quests.set('sound', 'found');
+    this.d.audio.loot(4);
+    this.d.hud.announce('The Lost Sound');
+  }
+
+  /** Yung Lean off his throne: the seated king gives way to the boss in front of it until he is beaten or left. */
+  private kingFight: { e: Enemy; t: number; beatenFor: number } | null = null;
+
+  private challengeKing(): void {
+    const npc = this.npc('yunglean');
+    if (!npc || this.kingFight) return;
+    npc.hidden = true;
+    npc.object.visible = false;
+    const e = this.d.fight.spawnBoss('rift-king', npc.pos.x, npc.pos.z + 3, Math.PI / 2);
+    this.kingFight = { e, t: 0, beatenFor: 0 };
+    this.d.hud.announce('Yung Lean rises from the throne');
+  }
+
+  private updateKingFight(dt: number): void {
+    const f = this.kingFight;
+    if (!f) return;
+    f.t += dt;
+    const c = this.d.controller;
+    const left = Math.hypot(c.pos.x - GALAXY.x, c.pos.z - GALAXY.z) > GALAXY.radius || f.e.returning;
+    if (f.e.alive && !left) return;
+    if (!f.e.alive) { f.beatenFor += dt; if (f.beatenFor < 2.5) return; }
+    // Beaten or left: he sits back down.
+    this.d.fight.despawn(f.e);
+    const npc = this.npc('yunglean');
+    if (npc) { npc.hidden = false; npc.object.visible = true; }
+    if (!f.e.alive) {
+      void this.d.audio.voice(voiceUrl('lean-beaten'), 1);
+      this.dw.pay(600);
+      this.d.hud.announce('Yung Lean sits back down');
+    }
+    this.kingFight = null;
+  }
+
   /** Steps out of the boat over the side (into the river: swim to a bank). */
   leaveBoat(): void {
     const b = this.riding;
@@ -172,6 +219,7 @@ export class Adventures {
       if (this.dreamLeft <= 0) this.wake();
     }
     if (this.aleLeft > 0) this.aleLeft = Math.max(0, this.aleLeft - dt);
+    this.updateKingFight(dt);
     this.d.controller.drainScale = this.aleLeft > 0 ? 0.5 : 1;
     // Riding: the hero stands between the rowers and goes where the boat goes.
     const b = this.riding;
@@ -198,8 +246,7 @@ export class Adventures {
   private refreshHud(): void {
     const buffs: Array<{ name: string; left: number }> = [];
     if (this.aleLeft > 0) buffs.push({ name: "Rowers' Ale", left: this.aleLeft });
-    const poison = this.d.poisoned();
-    if (poison > 0) buffs.push({ name: 'Poisoned', left: poison });
+    buffs.push(...this.d.debuffs());
     this.d.hud.setQuests(this.quests.tracker(), buffs);
     this.d.hud.setTimer(this.dreamLeft > 0 ? this.dreamLeft : null, 'The dream lasts');
   }
