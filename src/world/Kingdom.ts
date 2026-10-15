@@ -385,6 +385,10 @@ function teaStream(api: RealmApi, path: Array<[number, number]>, y: number): voi
 /** How full the island cups are: the lean stands just under the rim and is the ground you walk on. */
 const ISLAND_FILL = 0.96;
 const ISLAND_R = 0.28;
+/** The rim stands this far above the lean (the cup model's lip at 1 − ISLAND_FILL of its height). */
+const ISLAND_RIM = 0.9;
+/** How far inside a cup's rim a wave of lean comes down into it. */
+const WAVE_INSIDE = 2.6;
 
 /** A giant lean cup for an island: its lean is the floor (glossy, swirling), its rim just above it. */
 function leanCupIsland(api: RealmApi, x: number, z: number, y: number): number {
@@ -413,20 +417,27 @@ function leanCupIsland(api: RealmApi, x: number, z: number, y: number): number {
   group.add(lean, glowSprite(PALETTE.dusk, r * 2.6, 0.18, true));
   group.children[1].position.set(x, y + 1.5, z);
   api.vfx({ group, update: () => {} });
-  // The lean holds you up; a low ring of rim around it.
-  api.place({ object: new Group(), footprints: [{ kind: 'cyl', x, z, r: r + 0.4, top: y }] });
+  // The lean holds you up; the cup's rim (just above the lean) is a low wall round it, so nobody walks off the edge.
+  const footprints: Footprint[] = [{ kind: 'cyl', x, z, r: r + 0.4, top: y }];
+  const segs = 28;
+  for (let i = 0; i < segs; i++) {
+    const a = (i / segs) * Math.PI * 2;
+    footprints.push({ kind: 'box', x: x + Math.cos(a) * (r + 0.2), z: z + Math.sin(a) * (r + 0.2), hw: 0.3, hd: (Math.PI * (r + 0.2)) / segs + 0.12, top: y + ISLAND_RIM, rotY: -a });
+  }
+  api.place({ object: new Group(), footprints });
   return r;
 }
 
 /**
- * A wave of purple lean you can walk over, from one cup to the next: the crest arches up in the middle and curls
- * over on one side, its surface rolling. Its deck collides in short level steps along the arch.
+ * A wave of purple lean you can walk over, from one cup to the next: it rises out of the lean in one cup, arches high
+ * enough to clear both rims, and comes down into the lean of the next; the crest curls over on one side and the
+ * surface rolls. Its deck collides in short level steps along the arch (each under the hero's step height).
  */
 function leanWave(api: RealmApi, ax: number, az: number, bx: number, bz: number, y: number): void {
   const L = Math.hypot(bx - ax, bz - az);
   const ux = (bx - ax) / L, uz = (bz - az) / L;
   const sx = -uz, sz = ux;
-  const N = 28, M = 7, half = 1.9, rise = 1.4;
+  const N = 40, M = 7, half = 1.9, rise = 4.2;
   const heightAt = (s: number) => y + Math.sin(Math.PI * s) * rise;
   const pos: number[] = [];
   const uv: number[] = [];
@@ -473,7 +484,7 @@ function leanWave(api: RealmApi, ax: number, az: number, bx: number, bz: number,
   group.add(wave);
   api.vfx({ group, update: () => {} });
   const footprints: Footprint[] = [];
-  const steps = 10;
+  const steps = 34;
   for (let i = 0; i < steps; i++) {
     const s = (i + 0.5) / steps;
     footprints.push({ kind: 'box', x: ax + ux * L * s, z: az + uz * L * s, hw: half * 0.85, hd: L / steps / 2 + 0.05, top: heightAt(s), rotY: -Math.atan2(ux, uz) });
@@ -521,8 +532,7 @@ export function buildKingdom(api: RealmApi, hooks: { soundWanted(): boolean; fou
   cd.scale.setScalar(120);
   cd.position.set(R.x + 230, gy + 150, R.z - 300);
   cd.lookAt(R.x, gy + 20, R.z);
-  const cdSpin = new Group();
-  sky.add(crescent, cd, cdSpin);
+  sky.add(crescent, cd);
   let t = 0;
   api.vfx({ group: sky, update: (dt) => {
     t += dt;
@@ -544,10 +554,15 @@ export function buildKingdom(api: RealmApi, hooks: { soundWanted(): boolean; fou
   teaStream(api, [[R.x + 27, R.z - 50], [R.x + 33, R.z - 20], [R.x + 26, R.z + 10], [R.x + 32, R.z + 40], [R.x + 27, R.z + 66]], gy);
   // The cup islands east of the plaza, joined by waves of lean (they used to be blocks with rope bridges).
   const cups: Array<[number, number]> = [[1082, 10], [1108, -12], [1136, 14]];
-  for (const [x, z] of cups) leanCupIsland(api, x, z, gy);
-  leanWave(api, 1058, 10, 1076, 10, gy);
-  leanWave(api, 1087, 5, 1103, -7, gy);
-  leanWave(api, 1113, -7, 1131, 9, gy);
+  const radii = cups.map(([x, z]) => leanCupIsland(api, x, z, gy));
+  // From the plaza's edge into the first cup, then cup to cup: each end comes down WAVE_INSIDE inside a rim.
+  const into = (i: number, fx: number, fz: number) => { const [x, z] = cups[i]; const d = Math.hypot(fx - x, fz - z); const k = (radii[i] - WAVE_INSIDE) / d; return [x + (fx - x) * k, z + (fz - z) * k] as const; };
+  { const [bx, bz] = into(0, 1057, 10); leanWave(api, 1057, 10, bx, bz, gy); }
+  for (let i = 0; i < cups.length - 1; i++) {
+    const [ax, az] = into(i, cups[i + 1][0], cups[i + 1][1]);
+    const [bx, bz] = into(i + 1, cups[i][0], cups[i][1]);
+    leanWave(api, ax, az, bx, bz, gy);
+  }
   // The lost sound, humming in the mist on the far cup (Yung Lean's quest).
   const soundAt = new Vector3(1136, gy + 1.6, 14);
   const sound = new Group();

@@ -168,6 +168,7 @@ area.hooks.foundSound = () => adventures.foundSound();
 area.hooks.teleport = teleport;
 area.hooks.shoot = (from, s) => combat.hostileShot(from, s);
 area.hooks.hurt = (atk, poison) => combat.hazard(atk, poison);
+area.hooks.mire = (seconds) => combat.mire(seconds);
 area.hooks.board = (boat) => { adventures.riding = boat; audio.footstep(); hud.announce('Aboard · F talk · SPACE jump off'); };
 adventures.openRowers = () => {
   const node = adventures.talk('rowers');
@@ -312,7 +313,7 @@ game
       const move = input.locked && !combat.busy && combat.charging === 0 ? tpc.moveToWorld(input.moveAxis()) : { x: 0, z: 0 };
       const space = input.locked && input.justPressed('Space');
       adventures.update(dt);
-      controller.speedScale = combat.slowed > 0 ? 0.6 : 1;
+      controller.speedScale = combat.webbed > 0 ? 0 : combat.slowed > 0 ? 0.6 : combat.mired > 0 ? 0.55 : 1;
       if (adventures.riding) { if (space) adventures.leaveBoat(); }
       // In a giant's fist: no moving until thrown.
       else if (combat.held) { /* the combat system carries the hero */ }

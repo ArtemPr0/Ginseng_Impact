@@ -3,6 +3,8 @@ import { MissingModelPlaceholder } from '../models/Placeholder';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { Group, type Object3D, Quaternion, type Sprite, Vector3 } from 'three';
 import { glowSprite } from '../render/Glow';
+import { LeanBubble } from '../render/LeanBubble';
+import { patchTrippy } from '../render/Materials';
 import type { EnemyDef } from '../data/enemies';
 import { PALETTE } from '../render/palette';
 import type { WorldQuery } from '../player/CharacterController';
@@ -29,7 +31,7 @@ const HEAP_HOLD = 6;
 const STAND_UP = 1.4;
 
 /** Where an enemy lives: its spot (which moves along a patrol route), facing, and route. */
-export interface EnemyHome { x: number; z: number; yaw?: number; patrol?: ReadonlyArray<readonly [number, number]> }
+export interface EnemyHome { x: number; z: number; yaw?: number; patrol?: ReadonlyArray<readonly [number, number]>; sitY?: number }
 
 /** Turns `bone` about a world axis from its pose now, returning the local rotation that results (not applied). */
 function turnedAbout(bone: Object3D, axis: Vector3, angle: number): Quaternion {
@@ -97,6 +99,10 @@ export class Enemy {
   brawlTarget: Enemy | null = null;
   private wanderYaw = 0;
   private wanderIn = 0;
+  /** A body that is not a model (a living lean bubble), and its hop: seconds into the current leap. */
+  private bubble: LeanBubble | null = null;
+  private hopT = -1;
+  private bob = Math.random() * 6;
   /** Little lights circling its head while it is dazed, confused or fighting its own (created on first need). */
   private halo: Sprite[] | null = null;
   /** The fall into a heap of bones (collapse mobs): each bone's pose from → to, and the body's tip. */
@@ -107,14 +113,33 @@ export class Enemy {
     this.hp = def.maxHp;
     // On the ground under any roof or deck (a seat inside a pavilion, not its dome).
     const ground = 'groundAt' in world ? (world as { groundAt(x: number, z: number): number }).groundAt(spawn.x, spawn.z) : undefined;
-    this.pos = { x: spawn.x, y: Math.max(world.heightAt(spawn.x, spawn.z, ground), def.floatAt ?? -Infinity) + def.hover, z: spawn.z };
+    this.pos = { x: spawn.x, y: Math.max(world.heightAt(spawn.x, spawn.z, ground), def.floatAt ?? -Infinity) + def.hover + (def.flyAbove ?? 0), z: spawn.z };
     this.territory = def.leash ?? (def.boss ? 30 : 22);
     this.lastX = this.pos.x;
     this.lastZ = this.pos.z;
     if (spawn.yaw !== undefined) this.yaw = spawn.yaw;
+    if (def.seated && spawn.sitY !== undefined) this.pos.y = spawn.sitY;
     if (def.scale) this.object.scale.setScalar(def.scale);
     this.object.position.set(this.pos.x, this.pos.y, this.pos.z);
+    if (def.body === 'bubble') { this.bubble = new LeanBubble(def.bodyRadius); this.object.add(this.bubble.group); return; }
     void loadModelOrWarn(def.kind, def.name).then((g) => { if (g) this.useModel(def.kind, g); else this.showPlaceholder(); });
+  }
+
+  /** Starts a leap (the 'hop' move): `seconds` of arc, as high as `height`. */
+  leap(seconds: number, height: number): void {
+    this.hopT = 0;
+    this.hopLen = seconds;
+    this.hopH = height;
+  }
+
+  private hopLen = 0.6;
+  private hopH = 1.2;
+
+  /** Height of the leap in progress above the ground (0 when not leaping). */
+  private get hopLift(): number {
+    if (this.hopT < 0) return 0;
+    const k = Math.min(1, this.hopT / this.hopLen);
+    return Math.sin(Math.PI * k) * this.hopH;
   }
 
   private showPlaceholder(): void {
@@ -128,6 +153,7 @@ export class Enemy {
     if (this.placeholder) { this.object.remove(this.placeholder.group); this.placeholder = null; }
     if (this.model) this.object.remove(this.model.root);
     this.model = new ModelRig(id, gltf, { cloneMaterials: true });
+    if (this.def.trippy) for (const m of this.model.materials) patchTrippy(m);
     this.object.add(this.model.root);
     this.object.scale.setScalar(1);
     if (!this.alive) this.model.play('death', true);
@@ -233,6 +259,7 @@ export class Enemy {
     // Seated at home: it sits facing its fire until the player comes near, then takes a moment to get up.
     if (this.def.seated && this.brain.state === 'idle') {
       if (!this.seatedNow && Math.hypot(this.pos.x - this.spawn.x, this.pos.z - this.spawn.z) < 1.3) { this.seatedNow = true; this.pos.x = this.spawn.x; this.pos.z = this.spawn.z; }
+      if (this.seatedNow && this.spawn.sitY !== undefined) this.pos.y = this.spawn.sitY;
       if (this.seatedNow) {
         this.yaw = this.spawn.yaw ?? this.yaw;
         if (dist > this.brain.p.aggroRange) return null;
@@ -258,7 +285,7 @@ export class Enemy {
       else {
         this.yaw = Math.atan2(hz, hx);
         const step = Math.min(hd, this.def.speed * 0.55 * dt);
-        this.stepTo(this.pos.x + (hx / hd) * step, this.pos.z + (hz / hd) * step, dt, null);
+        this.stepTo(this.pos.x + (hx / hd) * step, this.pos.z + (hz / hd) * step, dt, this.def.flying && this.def.flyAbove ? this.flyHeight(-Infinity) : null);
         this.spawn.x = this.pos.x;
         this.spawn.z = this.pos.z;
       }
@@ -292,8 +319,11 @@ export class Enemy {
     if (state === 'attack') {
       if (this.def.attacks && this.currentAttack) {
         action = { kind: 'boss', attack: this.currentAttack.kind };
-        if ((this.currentAttack.kind === 'charge' || this.currentAttack.kind === 'bite') && dist > 0.01) {
-          const push = (this.currentAttack.kind === 'charge' ? 18 : 8) * this.lungeRoom(dist);
+        const k = this.currentAttack.kind;
+        if (k === 'hop') this.leap(this.def.body ? 0.55 : 0.9, this.def.body ? 1.4 : 4);
+        if ((k === 'charge' || k === 'bite' || k === 'hop') && dist > 0.01) {
+          // (A leap carries it the whole way: it lands on you.)
+          const push = (k === 'charge' ? 18 : k === 'hop' ? dist * 2.2 : 8) * (k === 'hop' ? 1 : this.lungeRoom(dist));
           this.knock.x += (dx / dist) * push;
           this.knock.z += (dz / dist) * push;
         }
@@ -346,8 +376,14 @@ export class Enemy {
       const ld = Math.hypot(lx, lz);
       if (ld > this.territory) { nx = this.spawn.x + (lx / ld) * this.territory; nz = this.spawn.z + (lz / ld) * this.territory; }
     }
-    this.stepTo(nx, nz, dt, this.def.flying ? Math.max(this.world.heightAt(this.pos.x, this.pos.z, this.pos.y), player.y) : null);
+    this.stepTo(nx, nz, dt, this.def.flying ? this.flyHeight(player.y) : null);
     return action;
+  }
+
+  /** Where a flyer holds itself: over the ground (or the void's floor) and the hero, by its `flyAbove` margin. */
+  private flyHeight(playerY: number): number {
+    const ground = Math.max(this.world.heightAt(this.pos.x, this.pos.z, this.pos.y), this.def.floatAt ?? -Infinity);
+    return Math.max(ground, playerY) + (this.def.flyAbove ?? 0);
   }
 
   /** Moves to (nx, nz) unless a wall or a drop is in the way (ground walkers never climb onto roofs), then settles. */
@@ -401,7 +437,7 @@ export class Enemy {
     const nx = this.pos.x + (hx / d) * step;
     const nz = this.pos.z + (hz / d) * step;
     const before = { x: this.pos.x, z: this.pos.z };
-    this.stepTo(nx, nz, dt, null);
+    this.stepTo(nx, nz, dt, this.def.flying && this.def.flyAbove ? this.flyHeight(-Infinity) : null);
     // Stuck behind something on the way home: just appear back at the spot.
     if (this.pos.x === before.x && this.pos.z === before.z) { this.pos.x = this.spawn.x; this.pos.z = this.spawn.z; }
     return null;
@@ -443,6 +479,8 @@ export class Enemy {
     this.wantFlinch = false;
     this.lunge = this.flinch = 0;
     if (this.model) { this.model.root.rotation.set(0, 0, 0); this.model.root.position.set(0, 0, 0); }
+    this.bubble?.reset();
+    this.hopT = -1;
     this.hp = this.def.maxHp;
     this.aura = null;
     this.defDown = { amount: 0, left: 0 };
@@ -452,15 +490,17 @@ export class Enemy {
     this.brain.stateTime = 0;
     this.lastState = 'idle';
     this.object.visible = true;
-    this.object.scale.setScalar(this.model ? 1 : this.def.scale ?? 1);
+    this.object.scale.setScalar(this.model || this.bubble ? 1 : this.def.scale ?? 1);
     this.model?.play('idle');
   }
 
   /** Per-frame visuals. */
   /** `far`: beyond animation range, so the skeleton holds its pose (state, position and shrink still update). */
   animate(dt: number, far = false): void {
-    this.object.position.set(this.pos.x, this.pos.y, this.pos.z);
+    if (this.hopT >= 0) { this.hopT += dt; if (this.hopT >= this.hopLen) this.hopT = -1; }
+    this.object.position.set(this.pos.x, this.pos.y + this.hopLift, this.pos.z);
     this.flashLeft = Math.max(0, this.flashLeft - dt);
+    if (this.bubble) { this.animateBubble(dt); return; }
     if (this.model) {
       for (const m of this.model.materials) {
         if (this.flashLeft > 0) { m.emissive.set(PALETTE.moon); m.emissiveIntensity = 1.4; }
@@ -517,6 +557,33 @@ export class Enemy {
     this.lunge = Math.max(0, this.lunge - dt * 2.8);
     this.flinch = Math.max(0, this.flinch - dt * 4);
     this.animateHalo(m.height);
+  }
+
+  /** A lean bubble: bobs in place, bounces along as it moves, stretches in a leap and squashes as it lands. */
+  private animateBubble(dt: number): void {
+    const b = this.bubble!;
+    this.object.rotation.y = yawToRotation(this.yaw);
+    if (!this.alive) {
+      if (this.deadFor < 0.05) b.burst();
+      b.update(dt, 0, 0, 0);
+      this.object.visible = this.deadFor < 0.4;
+      return;
+    }
+    const mx = this.pos.x - this.lastX;
+    const mz = this.pos.z - this.lastZ;
+    this.lastX = this.pos.x;
+    this.lastZ = this.pos.z;
+    const v = dt > 0 ? Math.hypot(mx, mz) / dt : 0;
+    this.bob += dt * (3 + v * 2.5);
+    const bounce = v > 0.4 && this.hopT < 0 ? Math.abs(Math.sin(this.bob)) * 0.35 : 0;
+    let squash = Math.sin(this.bob * 0.5) * 0.06;
+    if (this.hopT >= 0) { const k = this.hopT / this.hopLen; squash = k < 0.15 ? -0.5 + k * 4 : k > 0.85 ? -(k - 0.85) * 4 : 0.45; }
+    else if (v > 0.4) squash = Math.cos(this.bob * 2) * 0.2;
+    if (this.brain.state === 'windup') squash = -0.4 * Math.min(1, this.stateClock / 0.4);
+    this.stateClock += dt;
+    if (this.brain.state !== this.lastState) { this.stateClock = 0; this.lastState = this.brain.state; }
+    b.update(dt, bounce, squash, this.flashLeft > 0 ? 1 : 0);
+    this.animateHalo(this.def.height);
   }
 
   /** Lights circling the head: white stars when dazed, every colour when confused, red when it fights its own, lean when slowed. */
@@ -777,6 +844,8 @@ function attackClips(kind: BossAttackKind | undefined): string[] {
     case 'punch': return ['punch', 'attack'];
     case 'grab': return ['grab', 'attack'];
     case 'cupmortar': case 'cupvolley': return ['throw', 'heavy', 'attack'];
+    case 'web': case 'webdrop': return ['attack', 'heavy'];
+    case 'kaleido': case 'eyebeam': case 'mirror': case 'hop': return ['attack', 'cast'];
     case 'snowstorm': return ['heavy', 'cast', 'attack'];
     default: return ['attack', 'heavy'];
   }
@@ -785,5 +854,6 @@ function attackClips(kind: BossAttackKind | undefined): string[] {
 type StaticMotion = 'gallop' | 'slither' | 'hover' | 'wade' | 'fly' | 'seated' | 'stride';
 /** How each clip-less body moves (see driveStatic). */
 const STATIC_MOTION: Partial<Record<string, StaticMotion>> = {
+  'dmt-entity': 'hover', spiderchapel: 'hover',
   emberrider: 'gallop', croc: 'slither', rivershade: 'hover', lurker: 'wade', wyrm: 'fly', hollowking: 'seated', marshdemon: 'stride',
 };

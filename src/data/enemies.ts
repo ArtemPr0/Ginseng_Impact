@@ -1,9 +1,9 @@
 import type { BrainParams } from '../combat/EnemyBrain';
 import type { Element } from '../combat/Elements';
 
-export type EnemyKind = 'beast' | 'bucket' | 'crystalgolem' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king';
+export type EnemyKind = 'beast' | 'bucket' | 'crystalgolem' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity';
 
-export type BossAttackKind = 'slam' | 'boulder' | 'roar' | 'volley' | 'summon' | 'blink' | 'roots' | 'sweep' | 'breath' | 'charge' | 'bite' | 'logthrow' | 'punch' | 'grab' | 'cupmortar' | 'cupvolley' | 'snowstorm';
+export type BossAttackKind = 'slam' | 'boulder' | 'roar' | 'volley' | 'summon' | 'blink' | 'roots' | 'sweep' | 'breath' | 'charge' | 'bite' | 'logthrow' | 'punch' | 'grab' | 'cupmortar' | 'cupvolley' | 'snowstorm' | 'web' | 'webdrop' | 'hop' | 'kaleido' | 'eyebeam' | 'mirror';
 
 export interface BossAttack { kind: BossAttackKind; range: number; windup: number; recover: number; weight: number }
 
@@ -43,6 +43,12 @@ export interface EnemyDef {
   neutral?: boolean;
   /** Wings that beat (a clip-less flyer): the root bone of each wing, how far (radians) and how often (Hz). */
   wings?: { right: string; left: string; amp: number; rate: number };
+  /** Flying: never lower than this height above the ground under it (or above the hero, if higher), metres. */
+  flyAbove?: number;
+  /** A body that is not a model: a living bubble of lean (render/LeanBubble), `bodyRadius` across. */
+  body?: 'bubble';
+  /** Drawn as the dream sees it: every colour at once (render/Materials patchTrippy). */
+  trippy?: boolean;
   /** Lines it says (ids in data/voices): when it spots you, as it throws, as it dies, and when you fall. */
   voices?: { aggro: string[]; attack: string[]; death: string[]; win: string[] };
 }
@@ -56,6 +62,34 @@ const GHOUL_VOICES = {
 };
 
 export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
+  // Bubbles of lean come alive in the giant cups of the kingdom: they bob about in the lean and leap at you.
+  'lean-bubble': {
+    kind: 'lean-bubble', name: 'Lean Bubble', maxHp: 260, def: 10, atk: 58, speed: 3.2, element: 'astral', hover: 0, bodyRadius: 0.7, height: 1.4, body: 'bubble',
+    brain: { aggroRange: 9, attackRange: 5, windup: 0.5, recover: 1.0, attackCooldown: 0.7 }, respawn: 45, leash: 4.2, shards: [3, 6],
+    attacks: [{ kind: 'hop', range: 5, windup: 0.5, recover: 1.0, weight: 1 }],
+  },
+  // The Frog King as he really is, in his dream: a seven-metre god of every colour, floating over the fractal floor.
+  // Rings of tripping orbs, a sweeping stare, a leap that lands where you stand, and reflections of himself.
+  'dmt-entity': {
+    kind: 'dmt-entity', name: 'The Frog God', title: 'Who Dreams You Back', maxHp: 3400, def: 50, atk: 110, speed: 3, element: 'astral', hover: 1.6, bodyRadius: 2.4, height: 7, boss: true, trippy: true,
+    brain: { aggroRange: 55, attackRange: 30, windup: 1.0, recover: 1.1, attackCooldown: 0.6, preferredRange: 11 }, respawn: 20, leash: 60, shards: [420, 520],
+    attacks: [
+      { kind: 'kaleido', range: 30, windup: 1.0, recover: 1.0, weight: 3 },
+      { kind: 'eyebeam', range: 26, windup: 0.9, recover: 1.2, weight: 2 },
+      { kind: 'hop', range: 22, windup: 0.9, recover: 1.3, weight: 2 },
+      { kind: 'mirror', range: 30, windup: 1.2, recover: 1.4, weight: 1 },
+    ],
+    drops: [{ itemId: 'third-eye', chance: 1 }, { itemId: 'moon-dew', chance: 1 }],
+  },
+  // The chapel on spider legs (DdmvaMvMvS4): it walks the sky over the west cliffs above the treetops, and when you
+  // come near it spits webs that pin you where you stand and drops nets over where you are.
+  spiderchapel: {
+    kind: 'spiderchapel', name: 'The Spider Chapel', title: 'That Walks the Sky', maxHp: 9500, def: 85, atk: 140, speed: 4.5, element: 'fog', hover: 0, bodyRadius: 7, height: 28, boss: true,
+    flying: true, flyAbove: 16, floatAt: 2,
+    brain: { aggroRange: 40, attackRange: 36, windup: 1.0, recover: 1.4, attackCooldown: 1.2, preferredRange: 20 }, respawn: 360, leash: 60, shards: [260, 360],
+    attacks: [{ kind: 'web', range: 36, windup: 1.0, recover: 1.4, weight: 3 }, { kind: 'webdrop', range: 30, windup: 1.2, recover: 1.5, weight: 2 }],
+    drops: [{ itemId: 'star-chart', chance: 1 }, { itemId: 'rune-shard', chance: 1 }],
+  },
   // Yung Lean's kingdom: short purple imps with leaking double cups on their backs, lobbing cups like mortar shells.
   'styro-ghoul': {
     kind: 'styro-ghoul', name: 'Styro-Ghoul', maxHp: 640, def: 28, atk: 66, speed: 3.6, element: 'astral', hover: 0, bodyRadius: 0.5, height: 1.25,
@@ -188,7 +222,8 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
  * `yaw`: facing at the spot (seated mobs face their fire); `exact`: placed exactly there (a seat), not at the nearest
  * free ground; `patrol`: a route walked while not fighting (its home moves along it).
  */
-export interface EnemySpawn { kind: EnemyKind; x: number; z: number; yaw?: number; exact?: boolean; patrol?: ReadonlyArray<readonly [number, number]> }
+/** `sitY`: a seated mob's feet height while it sits (a seat higher than its legs are long: they dangle). */
+export interface EnemySpawn { kind: EnemyKind; x: number; z: number; yaw?: number; exact?: boolean; patrol?: ReadonlyArray<readonly [number, number]>; sitY?: number }
 
 export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   // Bosses
@@ -197,10 +232,12 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'warden', x: 68, z: 38 },         // the clearing in the east forest, under the rain
   { kind: 'wyrm', x: 106, z: 22 },          // circling the lonely wizard tower
   { kind: 'rivershade', x: -62, z: 16 },    // rising from the witch stream by the bridge
-  { kind: 'passbeast', x: -36, z: -140 },   // the mountain pass behind the peak
+  { kind: 'passbeast', x: -36, z: -140 },
+  // The spider chapel walks its loop in the sky over the west cliffs (it used to be scenery).
+  { kind: 'spiderchapel', x: -104, z: 44, exact: true, patrol: [[-104, 44], [-88, 58], [-104, 72], [-120, 58]] },   // the mountain pass behind the peak
   { kind: 'troll', x: -70, z: -126 },       // the gorge
   { kind: 'lurker', x: -24, z: -14 },       // the lily pond's shallows (west of the whirlpool)
-  { kind: 'marshdemon', x: 106, z: -18 },   // the flooded ruin's pool, east of the cathedral
+  { kind: 'marshdemon', x: 106, z: -13, exact: true },   // waist-deep in his mud pool, east of the cathedral
   { kind: 'hollowking', x: 36, z: -146 },   // seated on the north shore, east of the head
   { kind: 'emberrider', x: 16, z: -122 },   // the dead wood east of the causeway's end
   // The log giant walks the old haul road by the skeleton camp, minding his own business until someone hits him.
@@ -214,10 +251,19 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'beast', x: -62, z: 36 }, { kind: 'beast', x: -66, z: 30 },      // west meadow, by the stream
   { kind: 'crystalgolem', x: 44, z: 62 }, { kind: 'crystalgolem', x: 52, z: 66 }, // deep in the desert
   // Yung Lean's kingdom: Styro-Ghouls on the lean cups and round the plaza; the Lean-Chucker on the pavilion's throne.
-  { kind: 'styro-ghoul', x: 1084, z: 12, exact: true }, { kind: 'styro-ghoul', x: 1106, z: -10, exact: true }, { kind: 'styro-ghoul', x: 1134, z: 12, exact: true },
-  { kind: 'styro-ghoul', x: 1138, z: 17, exact: true },
+  // (Off the cups: by the Lean-Chucker's pavilion and along the plaza; the cups belong to the lean bubbles.)
+  { kind: 'styro-ghoul', x: 1028, z: -46 }, { kind: 'styro-ghoul', x: 1043, z: -47 }, { kind: 'styro-ghoul', x: 1040, z: -64 },
+  { kind: 'styro-ghoul', x: 1046, z: 12 },
+  // Bubbles bobbing in the lean of each giant cup.
+  { kind: 'lean-bubble', x: 1080, z: 12, exact: true }, { kind: 'lean-bubble', x: 1084, z: 8, exact: true },
+  { kind: 'lean-bubble', x: 1106, z: -10, exact: true }, { kind: 'lean-bubble', x: 1110, z: -14, exact: true }, { kind: 'lean-bubble', x: 1108, z: -9, exact: true },
+  { kind: 'lean-bubble', x: 1134, z: 12, exact: true }, { kind: 'lean-bubble', x: 1138, z: 16, exact: true },
+  // The Frog God waits in the middle of the dream.
+  { kind: 'dmt-entity', x: 0, z: 2570, exact: true, yaw: Math.PI / 2 },
   { kind: 'styro-ghoul', x: 978, z: -32 }, { kind: 'styro-ghoul', x: 1022, z: -30 }, { kind: 'styro-ghoul', x: 1045, z: 48 },
-  { kind: 'lean-chucker', x: 1035, z: -55, yaw: Math.PI, exact: true },
+  // On the front of the pavilion's throne: its seat (x 1034.5–1036.5) is 0.82 m above the dais and his hips sit 0.58 m
+  // above his feet, so a small imp on a big throne sits with his legs dangling over the edge.
+  { kind: 'lean-chucker', x: 1034.3, z: -55, yaw: Math.PI, exact: true, sitY: 24.56 },
   // The bucket mimics' street in the kingdom's west quarter (see GALAXY in data/world.ts).
   { kind: 'bucket', x: 975, z: 20 }, { kind: 'bucket', x: 966, z: 22 }, { kind: 'bucket', x: 958, z: 18 }, { kind: 'bucket', x: 984, z: 18 },
 ];

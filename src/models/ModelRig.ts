@@ -78,6 +78,9 @@ const STRIKE_AT: Array<[RegExp, number]> = [
   [/shouting|shout|roar/, 0.2], [/attack|punch|slash|bite/, 0.38],
 ];
 
+/** Clips that are not fighting (see ModelDef.faceForward): sitting, standing up, talking, drinking, kneeling. */
+const CALM_CLIP = /sit|stand_up|talk|drink|kneel|bow|lantern|torch/i;
+
 /** Clips whose hips wander off sideways (Meshy's Hit_Reaction drifts half a body): their root is pinned in place. */
 const PIN_ROOT = /hit_reaction|hit/i;
 const pinned = new WeakSet<AnimationClip>();
@@ -293,7 +296,8 @@ export class ModelRig {
     let flipped = false;
     for (let clip of gltf.animations) {
       if (PIN_ROOT.test(clip.name)) pinRoot(clip);
-      if (def.faceForward !== undefined) faceForward(clip, def.faceForward);
+      // (Only the fighting clips: a sit or a talk keeps its own body turn, or the hips spin away from the legs.)
+      if (def.faceForward !== undefined && !CALM_CLIP.test(clip.name)) faceForward(clip, def.faceForward);
       if (!flipped && flip.has(clip.name.toLowerCase())) { clip = mirrorClip(clip, scene, holder); flipped = true; }
       this.actions.set(clip.name.toLowerCase(), this.mixer.clipAction(clip));
     }

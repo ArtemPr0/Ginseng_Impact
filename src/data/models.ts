@@ -102,6 +102,8 @@ export const MODELS: Record<string, ModelDef> = {
   croc: { file: 'crocodile.glb', height: 0.7, label: 'crocodile in the flooded ruins (DeJj8CDhL2f)' },
   // NPCs and creatures
   frogking: { file: 'frog-king.glb', height: 2.4, clips: { idle: 'idle|breath' } },
+  // The Frog King as the dream shows him: a god, seven metres tall, every colour at once (the dream's boss).
+  'dmt-entity': { file: 'frog-king.glb', height: 7, label: 'the Frog God of the dream (frog-king.glb, trippy shader)', clips: { idle: 'idle|breath' } },
   loggiant: { file: 'log-giant.glb', height: 4.2, clips: { idle: 'combat_stance|idle|stance', walk: 'carry|walking|walk', run: 'running|run', hit: 'hit_reaction|hit', throw: 'over_shoulder_throw|throw', grab: 'grip_and_throw|grip', punch: 'punch_forward_with_both|punch_combo|punch', attack: 'punch_combo|punch' } },
   spiderchapel: { file: 'spider-chapel.glb', height: 28, clips: { idle: 'idle', walk: 'walk|crawl|run' } },
   colossus: { file: 'moon-shell-colossus.glb', height: 9, clips: { idle: 'crawl' } },

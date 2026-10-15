@@ -107,6 +107,8 @@ const _a = new Vector3();
 const _b = new Vector3();
 const _ax = new Vector3();
 const _mouth = new Vector3();
+/** How far back a seated body may lean (radians): a relaxed slouch, never lying flat. */
+const SIT_LEAN = 0.22;
 const _rim = new Vector3();
 const smooth = (x: number) => { const k = Math.max(0, Math.min(1, x)); return k * k * (3 - 2 * k); };
 
@@ -967,12 +969,34 @@ export class Rig {
     this.turn(bone, _ax, angle * f);
   }
 
+  /**
+   * Seated bodies sit up: some sit clips (Yung Lean's Chair_Sit) fold the torso flat over the thighs; a torso leaning
+   * further than SIT_LEAN back (or a little forward) is turned at the lower spine until the neck is over the hips.
+   */
+  private sitUpright(pose: RigPose): void {
+    const m = this.model;
+    const bn = this.bones;
+    const p = pose.pose;
+    if (!m || !bn?.hips || !bn.spine0 || !bn.neck || !(p === 'sit' || p === 'throne' || p === 'drink' || p === 'read' || p === 'sitSword')) return;
+    m.root.updateWorldMatrix(true, true);
+    const hips = m.frame.worldToLocal(bn.hips.getWorldPosition(_a));
+    const neck = m.frame.worldToLocal(bn.neck.getWorldPosition(_b));
+    const dy = neck.y - hips.y;
+    const dz = neck.z - hips.z;
+    const lean = Math.atan2(-dz, dy); // > 0: leaning back, < 0: folded forward (the frame's front is +z)
+    const want = Math.max(-SIT_LEAN * 0.6, Math.min(SIT_LEAN, lean));
+    if (Math.abs(want - lean) < 0.05) return;
+    const len = Math.hypot(dy, dz);
+    this.aim(bn.spine0, bn.neck, _t.set(neck.x, hips.y + Math.cos(want) * len, hips.z - Math.sin(want) * len), 1);
+  }
+
   /** Advance the animation. Call once per rendered frame. */
   animate(pose: RigPose, dt: number): void {
     for (const t of this.turned) t.bone.quaternion.copy(t.q);
     this.turned.length = 0;
     if (this.model) {
       this.driveModel(pose, dt);
+      this.sitUpright(pose);
       this.flyPose(pose, dt);
       this.swimPose(pose, dt);
       this.animateCyclone(pose, dt);

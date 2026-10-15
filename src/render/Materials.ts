@@ -143,6 +143,34 @@ export function patchWingFlap(mat: MeshStandardMaterial, opts: { x0: number; roo
 }
 
 /**
+ * A creature seen on DMT (the Frog God of the dream): its surface runs through every colour in bands that crawl over
+ * it, its outline breathes, and its skin shimmers. Works on skinned meshes (the bands follow the bind pose).
+ */
+export function patchTrippy(mat: MeshStandardMaterial): void {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (shader, renderer) => {
+    prev?.call(mat, shader, renderer);
+    shader.uniforms.uWind = WIND;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uWind;\nvarying vec3 vTrip;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        vTrip = transformed;
+        transformed += normal * sin(transformed.y * 9.0 + uWind * 3.0) * 0.012;`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uWind;\nvarying vec3 vTrip;')
+      .replace('#include <dithering_fragment>', `#include <dithering_fragment>
+        {
+          float band = vTrip.y * 3.0 + sin(vTrip.x * 7.0 + uWind) * 0.4 + uWind * 0.35;
+          vec3 hue = 0.5 + 0.5 * cos(6.28318 * (band + vec3(0.0, 0.33, 0.67)));
+          float lum = dot(gl_FragColor.rgb, vec3(0.3, 0.6, 0.1));
+          gl_FragColor.rgb = mix(gl_FragColor.rgb, hue * (0.35 + lum * 1.6), 0.7);
+        }`);
+  };
+  mat.customProgramCacheKey = () => 'trippy';
+  mat.needsUpdate = true;
+}
+
+/**
  * A four-beat walk for a horse without a skeleton (horse-rider.glb is one static mesh): every vertex below the hip
  * line within `radius` of a leg's column swings about that leg's hip, the hoof lifting as it comes forward. Legs are
  * columns (x, z) in the model frame (`rel` maps the mesh's geometry into it; forward is the frame's -x), each with

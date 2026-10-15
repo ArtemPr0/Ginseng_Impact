@@ -26,8 +26,8 @@ export const LAYOUT = {
   head: { x: 0, z: -146, height: 26 },
   /** The cathedral's long axis runs east–west; its west front faces the river road. */
   cathedral: { x: 64, z: -24, yaw: Math.PI / 2 },
-  /** The flooded ruin's still pool east of the cathedral, home of the Marsh Sovereign. */
-  floodedRuin: { x: 106, z: -18, r: 11 },
+  /** The mud pool east of the cathedral, home of the Marsh Sovereign: a basin (PADS) filled to `mud` (world y). */
+  floodedRuin: { x: 106, z: -13, r: 9, mud: 4.9 },
   forest: { innerRadius: 72, outerRadius: 119, count: 420 },
   flowerMeadows: [
     { x: 24, z: 42, r: 20, count: 220 },
@@ -64,9 +64,6 @@ export const LAYOUT = {
   logGiantPath: [[-12, 36], [-26, 38], [-38, 40], [-26, 38]] as Array<[number, number]>,
   /** Pim's observatory north of the village, clear of the houses. */
   observatory: { x: -46, z: 48 },
-  /** The spider chapel flies (FLY_HEIGHT above the sea) over the west cliffs, clear of the castle. */
-  spiderPath: [[-104, 44], [-88, 58], [-104, 72], [-120, 58]] as Array<[number, number]>,
-  spiderFlyHeight: 26,
   riderPath: [[8, 48], [24, 48], [40, 42], [24, 48]] as Array<[number, number]>,
   ruins: [
     { x: -8, z: 43, yaw: 0.3, arch: true }, { x: 9, z: 20, yaw: -0.4, arch: false }, { x: -9, z: -13, yaw: 0.9, arch: false },
@@ -124,7 +121,7 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   'skeleton-king': { x: 965, z: -57, dy: 0.6 },
   'skeleton-wizard': { x: 948, z: 20 },
   'galaxy-wizard': { x: 952, z: -20 },
-  yunglean: { x: 1000, z: -74, dy: 0.8 },
+  yunglean: { x: 1000, z: -74.6, dy: 0.8 },
   'void-monk': { x: 1008, z: 66 },
   // Behind their stalls between the purple houses of the bucket street (Realms.ts places the stalls).
   'market-a': { x: 978, z: 10.4 }, 'market-b': { x: 962, z: 29.6 },
@@ -187,6 +184,7 @@ export const PADS: ReadonlyArray<{ x: number; z: number; r: number; y: number; b
   { x: -112, z: 2, r: 3, y: 4.4, blend: 4 },      // Brother Croak hiding in the castle's shadow
   { x: -61, z: -86, r: 2.5, y: 40.3, blend: 3 },  // Hollow Jack's ledge on the peak
   { x: 16, z: -122, r: 7, y: 4.6, blend: 5 },     // the Ember Rider
+  { x: 106, z: -13, r: 8, y: 3.4, blend: 4 },     // the Marsh Sovereign's mud basin (filled to 4.9)
   { x: -40, z: -90, r: 1.6, y: 28.4, blend: 2.5 }, // Sir Halvard's seat on the cliff
   { x: -56, z: 19, r: 2, y: 0.9, blend: 2.5 },     // Old Moss fishing the stream
 ];

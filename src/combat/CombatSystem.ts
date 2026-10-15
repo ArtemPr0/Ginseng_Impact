@@ -1,4 +1,4 @@
-import { BoxGeometry, CircleGeometry, Group, Mesh, PerspectiveCamera, Scene, Vector3, ConeGeometry, CylinderGeometry, TorusGeometry, MeshBasicMaterial, AdditiveBlending, DoubleSide, Sprite, SpriteMaterial } from 'three';
+import { BoxGeometry, BufferGeometry, CircleGeometry, Float32BufferAttribute, Group, LineBasicMaterial, LineSegments, Mesh, PerspectiveCamera, Scene, Vector3, ConeGeometry, CylinderGeometry, TorusGeometry, MeshBasicMaterial, AdditiveBlending, DoubleSide, Sprite, SpriteMaterial } from 'three';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Audio } from '../audio/Audio';
 import type { CharacterDef } from '../characters/roster';
@@ -46,12 +46,14 @@ interface Projectile {
   wobble: number;
   /** What else a hit does (the trip volley's daze and confusion). */
   onHit: ((e: Enemy) => void) | null;
+  /** A hit on the hero pins them in a web for this many seconds. */
+  web: number;
   /** Materials whose colour cycles through every hue (the trip volley). */
   rainbow: Array<{ color: { setHSL(h: number, s: number, l: number): unknown } }>;
   seed: number;
 }
 
-type ProjectileKind = 'bolt' | 'arrow' | 'log' | 'ring' | 'fire' | 'cup' | 'trip';
+type ProjectileKind = 'bolt' | 'arrow' | 'log' | 'ring' | 'fire' | 'cup' | 'trip' | 'web' | 'orb';
 
 /** A shot from something that is not an enemy (witches, the snail, the dragon), aimed at the hero. */
 export interface HostileShot { speed: number; color: number; atk: number; kind?: ProjectileKind; size?: number; radius?: number; poison?: { dps: number; seconds: number }; spread?: number }
@@ -79,6 +81,13 @@ export interface CombatDeps {
 
 /** Orlan's smoke: a cloud that lingers where he blew it, and the puffs that make it. */
 interface SmokeCloud { pos: Vector3; r: number; left: number; life: number; tick: number; puffs: Array<{ s: Sprite; to: Vector3; from: Vector3; spin: number; size: number; delay: number }> }
+
+/** The Frog God's reflections: his body, a breath of his strength, gone at a touch. */
+const MIRROR_DEF: EnemyDef = {
+  ...ENEMY_DEFS['dmt-entity'], name: 'Reflection', title: undefined, boss: false, maxHp: 1, atk: 80, shards: [0, 0], drops: [],
+  brain: { aggroRange: 60, attackRange: 30, windup: 1.2, recover: 1.6, attackCooldown: 1.2, preferredRange: 12 },
+  attacks: [{ kind: 'kaleido', range: 30, windup: 1.2, recover: 1.6, weight: 1 }],
+};
 
 /** How many summoned mobs one caster keeps at a time. */
 const SUMMON_CAP = 4;
@@ -113,6 +122,10 @@ export class CombatSystem {
   /** Purple puddles of spilled lean (Sizzlin' Slowness while you stand in one), and how long the slow lasts. */
   private readonly puddles: Array<{ pos: Vector3; r: number; left: number; mesh: Mesh }> = [];
   private slowLeft = 0;
+  /** Caught in a spider's web: held where you stand (seconds left), and the web drawn around you. */
+  private webLeft = 0;
+  private webMesh: Group | null = null;
+  private mireLeft = 0;
   /** Voice lines: who last spoke and when (so a pack does not talk over itself), and each enemy's last state. */
   private voiceClock = 0;
   private readonly lastState = new Map<number, string>();
@@ -134,9 +147,9 @@ export class CombatSystem {
     this.loot = new LootField(d.scene, (x, z, y) => d.world.heightAt(x, z, y));
     for (const s of ENEMY_SPAWNS) {
       // An enemy without its model would be an invisible attacker: it waits until the file exists.
-      if (!PRESENT_MODELS.has(s.kind)) continue;
+      if (!PRESENT_MODELS.has(s.kind) && !ENEMY_DEFS[s.kind].body) continue;
       const at = s.exact ? { x: s.x, z: s.z } : this.freeSpot(s.x, s.z);
-      this.spawnEnemy(ENEMY_DEFS[s.kind], at.x, at.z, false, { yaw: s.yaw, patrol: s.patrol });
+      this.spawnEnemy(ENEMY_DEFS[s.kind], at.x, at.z, false, { yaw: s.yaw, patrol: s.patrol, sitY: s.sitY });
     }
     for (const c of d.party.members) {
       const combo = COMBO[c.weapon];
@@ -352,6 +365,9 @@ export class CombatSystem {
     // Puddles of lean: standing in one keeps you slowed (and the world tilts); they shrink away after a while.
     this.voiceClock = Math.max(0, this.voiceClock - dt);
     this.slowLeft = Math.max(0, this.slowLeft - dt);
+    this.webLeft = Math.max(0, this.webLeft - dt);
+    this.mireLeft = Math.max(0, this.mireLeft - dt);
+    this.updateWebbed();
     for (let i = this.puddles.length - 1; i >= 0; i--) {
       const p = this.puddles[i];
       p.left -= dt;
@@ -537,11 +553,14 @@ export class CombatSystem {
         const h = (performance.now() / 1000 * 1.4 + p.seed) % 1;
         p.rainbow.forEach((m, k) => m.color.setHSL((h + k * 0.13) % 1, 1, 0.6));
       }
-      if (p.kind === 'arrow' || p.kind === 'ring' || p.kind === 'trip') p.object.lookAt(aim.copy(p.object.position).add(p.vel));
+      if (p.kind === 'arrow' || p.kind === 'ring' || p.kind === 'trip' || p.kind === 'web') p.object.lookAt(aim.copy(p.object.position).add(p.vel));
+      if (p.kind === 'web') p.object.rotateZ(dt * 3);
       else if (p.kind === 'log' || p.kind === 'cup') { p.object.rotation.x += dt * 7; p.object.rotation.y += dt * 1.3; }
       else if (p.kind === 'fire') p.object.scale.setScalar(1 + (2.5 - p.life) * 0.6);
       else p.object.rotation.y += dt * 12;
-      let dead = p.life <= 0 || p.pos.y < d.world.heightAt(p.pos.x, p.pos.z, p.pos.y) - 0.2;
+      // (Asked as a point, not a person: the ground query keeps a body's head room under overhangs, which would
+      // break a shot flying close under a roof.)
+      let dead = p.life <= 0 || p.pos.y < d.world.heightAt(p.pos.x, p.pos.z, p.pos.y - 1.8) - 0.2;
       if (p.owner === 'player') {
         for (const e of this.enemies) {
           if (!e.alive || p.hit.has(e.id)) continue;
@@ -562,8 +581,10 @@ export class CombatSystem {
           }
         }
       } else if (Math.hypot(c.pos.x - p.pos.x, c.pos.z - p.pos.z) < p.radius + 0.5 && Math.abs(c.pos.y + 1 - p.pos.y) < 1.6 + p.radius) {
+        const shielded = this.iframes > 0;
         this.damagePlayer(p.atk * p.mult, p.element);
         if (p.poison) this.poisonPlayer(p.poison.dps, p.poison.seconds);
+        if (p.web > 0 && !shielded) this.ensnare(p.web);
         dead = true;
       }
       if (dead) {
@@ -628,6 +649,21 @@ export class CombatSystem {
     this.vfx.burst(at.clone().add(new Vector3(0, 1.1, 0)), 0xb36bff, 12, 6, 0.4);
     if (!b.fired || last) { this.vfx.shockwave(new Vector3(c.pos.x, c.pos.y, c.pos.z), 0x8b3dff, radius * 1.4); b.fired = true; }
     this.d.audio.swing(last);
+  }
+
+  /**
+   * A lob from `from` to `to` under gravity `g` that takes about `T` seconds, flattened under a roof (a pavilion's dome,
+   * a hall's vault) so the arc's top stays half a metre under the ceiling instead of breaking on it.
+   */
+  private lob(from: Vector3, to: Vector3, T: number, g: number): Vector3 {
+    const w = this.d.world as Partial<HeightWorld> & WorldQuery;
+    const roof = w.ceilingAt?.(from.x, from.z, from.y) ?? Infinity;
+    const room = roof - from.y - 0.5;
+    // The arc rises g·T²/8 over the straight line between the ends (plus whatever the line itself climbs).
+    if (Number.isFinite(room)) T = Math.max(0.45, Math.min(T, Math.sqrt((8 * Math.max(0.2, room - Math.max(0, to.y - from.y))) / g)));
+    const vel = to.clone().sub(from).divideScalar(T);
+    vel.y += 0.5 * g * T;
+    return vel;
   }
 
   /** True when `e`'s body is within `radius` of `at` across the ground and roughly level with it. */
@@ -808,10 +844,8 @@ export class CombatSystem {
         // Lobbed on an arc that lands where the hero is heading.
         const from = new Vector3(e.pos.x, e.pos.y + e.def.height * sc * 0.9, e.pos.z);
         const to = new Vector3(c.pos.x + c.vel.x * 0.3, c.pos.y + 0.5, c.pos.z + c.vel.z * 0.3);
-        const T = Math.max(0.8, Math.min(1.8, 0.6 + dist / 20));
         const g = 16;
-        const vel = to.sub(from).divideScalar(T);
-        vel.y += 0.5 * g * T;
+        const vel = this.lob(from, to, Math.max(0.8, Math.min(1.8, 0.6 + dist / 20)), g);
         this.spawnProjectile(from, vel, 'enemy', e.def.atk, 1.3, 'stone', 1.5, 0x8a96c8, 0, 0, 0, 0, 2.2, 'bolt', { gravity: g });
         break;
       }
@@ -904,14 +938,111 @@ export class CombatSystem {
         const targets = kind === 'cupvolley' ? [[0, 0], [2.8, 1.5], [-2.4, -2.2]] : [[0, 0]];
         for (const [ox, oz] of targets) {
           const to = new Vector3(c.pos.x + c.vel.x * 0.5 + ox, c.pos.y + 0.3, c.pos.z + c.vel.z * 0.5 + oz);
-          const T = Math.max(0.8, Math.min(1.6, 0.6 + dist / 18));
           const g = 16;
-          const vel = to.clone().sub(from).divideScalar(T);
-          vel.y += 0.5 * g * T;
+          const vel = this.lob(from, to, Math.max(0.8, Math.min(1.6, 0.6 + dist / 18)), g);
           this.spawnProjectile(from.clone(), vel, 'enemy', e.def.atk, 1, 'astral', 1.1, 0xb36bff, 0, 0, 0, 0, 1, 'cup', { gravity: g });
         }
         this.d.audio.swing(false);
         this.say(e, e.def.voices?.attack, 0.4);
+        break;
+      }
+      case 'web': {
+        // Three webs spat down at the hero from the spinnerets (under the chapel), leading a moving target a little.
+        const from = new Vector3(e.pos.x, e.pos.y + e.def.height * sc * 0.25, e.pos.z);
+        for (const s of [-0.12, 0, 0.12]) {
+          const to = new Vector3(c.pos.x + c.vel.x * 0.6, c.pos.y + 1, c.pos.z + c.vel.z * 0.6);
+          const dir = to.sub(from).normalize();
+          const x = dir.x * Math.cos(s) - dir.z * Math.sin(s);
+          dir.z = dir.x * Math.sin(s) + dir.z * Math.cos(s);
+          dir.x = x;
+          this.spawnProjectile(from.clone(), dir.multiplyScalar(19), 'enemy', e.def.atk, 0.6, e.def.element, 1.3, PALETTE.moon, 0, 0, 0, 0, 1.6, 'web', { web: 1.8 });
+        }
+        this.d.audio.cast();
+        break;
+      }
+      case 'webdrop': {
+        // A net let down over where the hero stands: a pale ring warns, then the web falls; inside it, you are caught.
+        const tx = c.pos.x;
+        const tz = c.pos.z;
+        const ty = this.d.world.heightAt(tx, tz, c.pos.y + 1);
+        const warn = this.vfx.zone(new Vector3(tx, ty, tz), 4, PALETTE.moon, 1.1);
+        this.delayed.push({ t: 1.0, fn: () => {
+          warn();
+          const net = webDisc(4.2, 0.7);
+          net.rotation.x = -Math.PI / 2;
+          net.position.set(tx, ty + 0.15, tz);
+          this.d.scene.add(net);
+          this.vfx.burst(new Vector3(tx, ty + 0.5, tz), PALETTE.moon, 20, 5, 0.4);
+          this.delayed.push({ t: 4, fn: () => { this.d.scene.remove(net); disposeObject(net); } });
+          if (Math.hypot(c.pos.x - tx, c.pos.z - tz) < 4 && c.pos.y < ty + 3) { this.damagePlayer(e.def.atk * 0.7, e.def.element); this.ensnare(2.4); }
+        } });
+        this.d.audio.cast();
+        break;
+      }
+      case 'hop': {
+        // A leap that lands on you: a bubble bumps into you; the Frog God comes down with a wave of colour.
+        this.contact.set(e.id, e.def.body ? 0.6 : 0.95);
+        if (!e.def.body) {
+          this.delayed.push({ t: 0.85, fn: () => {
+            if (!e.alive) return;
+            const at = new Vector3(e.pos.x, e.pos.y - e.def.hover, e.pos.z);
+            for (const [r, col] of [[9, 0xff5ad6], [6.5, 0x37f5ff], [4, 0x5dff3a]] as const) this.vfx.shockwave(at, col, r);
+            this.d.onShake?.(0.8);
+            this.d.audio.stomp();
+            if (Math.hypot(c.pos.x - e.pos.x, c.pos.z - e.pos.z) < 6 && c.pos.y < at.y + 2.5) this.damagePlayer(e.def.atk * 1.2, e.def.element);
+          } });
+        }
+        break;
+      }
+      case 'kaleido': {
+        // Three rings of tripping orbs, each turned a little against the last, rolling outward like a kaleidoscope.
+        const from = new Vector3(e.pos.x, e.pos.y + e.def.height * sc * 0.5, e.pos.z);
+        const n = e.summoned ? 8 : 14;
+        for (let ring = 0; ring < 3; ring++) {
+          this.delayed.push({ t: ring * 0.28, fn: () => {
+            if (!e.alive) return;
+            const speed = 8.5;
+            const vy = (c.pos.y + 1 - from.y) / Math.max(0.5, dist / speed);
+            for (let i = 0; i < n; i++) {
+              const a = (i / n) * Math.PI * 2 + ring * 0.22;
+              this.spawnProjectile(from.clone(), new Vector3(Math.cos(a) * speed, vy, Math.sin(a) * speed), 'enemy', e.def.atk, e.summoned ? 0.3 : 0.45, e.def.element, 0.7, 0xff5ad6, 0, 0, 0, 0, 1.1, 'orb', { wobble: 0.25 });
+            }
+          } });
+        }
+        this.d.audio.cast();
+        break;
+      }
+      case 'eyebeam': {
+        // A stare that sweeps across you: a stream of orbs from its eyes, swinging from one side to the other.
+        const eyes = new Vector3(e.pos.x, e.pos.y + e.def.height * sc * 0.82, e.pos.z);
+        const base = Math.atan2(c.pos.z - e.pos.z, c.pos.x - e.pos.x);
+        const dir = Math.random() < 0.5 ? 1 : -1;
+        for (let i = 0; i < 16; i++) {
+          this.delayed.push({ t: i * 0.075, fn: () => {
+            if (!e.alive) return;
+            const a = base + dir * (-0.75 + (1.5 * i) / 15);
+            const speed = 26;
+            const vy = (c.pos.y + 1 - eyes.y) / Math.max(0.3, dist / speed);
+            this.spawnProjectile(eyes.clone(), new Vector3(Math.cos(a) * speed, vy, Math.sin(a) * speed), 'enemy', e.def.atk, 0.35, e.def.element, 0.6, 0x37f5ff, 0, 0, 0, 0, 0.8, 'orb');
+          } });
+        }
+        this.d.audio.roar();
+        break;
+      }
+      case 'mirror': {
+        // Reflections of himself around you: they throw rings of their own and break at a touch (and vanish after a while).
+        const list = (this.summoned.get(e.id) ?? []).filter((m) => m.alive && this.enemies.includes(m));
+        this.summoned.set(e.id, list);
+        for (let i = 0; i < 3 - list.length; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const m = this.spawnEnemy(MIRROR_DEF, c.pos.x + Math.cos(a) * 11, c.pos.z + Math.sin(a) * 11, true);
+          m.summoned = true;
+          m.brain.state = 'chase';
+          list.push(m);
+          this.vfx.burst(new Vector3(m.pos.x, m.pos.y + 3, m.pos.z), 0xff5ad6, 20, 6, 0.5);
+          this.delayed.push({ t: 12, fn: () => { if (this.enemies.includes(m)) { this.vfx.burst(new Vector3(m.pos.x, m.pos.y + 3, m.pos.z), 0x37f5ff, 16, 5, 0.4); this.despawn(m); } } });
+        }
+        this.d.audio.cast();
         break;
       }
       case 'snowstorm': {
@@ -935,10 +1066,8 @@ export class CombatSystem {
         // A log pulled off his back, lobbed over the shoulder to land where the hero stands.
         const from = new Vector3(e.pos.x - Math.cos(e.yaw) * 0.4, e.pos.y + e.def.height * sc * 0.95, e.pos.z - Math.sin(e.yaw) * 0.4);
         const to = new Vector3(c.pos.x + c.vel.x * 0.3, c.pos.y + 0.6, c.pos.z + c.vel.z * 0.3);
-        const T = Math.max(0.7, Math.min(1.7, 0.55 + dist / 22));
         const g = 18;
-        const vel = to.clone().sub(from).divideScalar(T);
-        vel.y += 0.5 * g * T;
+        const vel = this.lob(from, to, Math.max(0.7, Math.min(1.7, 0.55 + dist / 22)), g);
         this.spawnProjectile(from, vel, 'enemy', e.def.atk, 1.3, 'stone', 1.3, 0x8a96c8, 0, 0, 0, 0, 1, 'log', { gravity: g });
         this.d.audio.swing(true);
         break;
@@ -1002,8 +1131,9 @@ export class CombatSystem {
     if (def.shape.kind === 'bolt') {
       const target = this.nearestEnemy(c.pos.x, c.pos.z, def.shape.range);
       const from = this.d.muzzle?.(me) ?? new Vector3(c.pos.x + Math.cos(c.yaw) * 0.6, c.pos.y + 1.3, c.pos.z + Math.sin(c.yaw) * 0.6);
+      const aimY = target ? target.pos.y + Math.min(0.5, target.def.height * (target.def.scale ?? 1) * 0.45) + (target.def.flying ? target.def.height * (target.def.scale ?? 1) * 0.3 : 0) : 0;
       const dir = target
-        ? new Vector3(target.pos.x - from.x, target.pos.y + 0.5 - from.y, target.pos.z - from.z).normalize()
+        ? new Vector3(target.pos.x - from.x, aimY - from.y, target.pos.z - from.z).normalize()
         : new Vector3(Math.cos(c.yaw), 0.05, Math.sin(c.yaw));
       const arrow = me.weapon === 'bow';
       if (arrow && c.mode === 'fly') {
@@ -1111,7 +1241,7 @@ export class CombatSystem {
     this.zones.push({ pos, def, left: def.duration, tick: 0.05, atk, remove });
   }
 
-  private spawnProjectile(from: Vector3, vel: Vector3, owner: 'player' | 'enemy', atk: number, mult: number, element: Element | null, radius: number, color: number, chains: number, chainRange: number, knockback: number, hitStop: number, size = 0.24, kind: ProjectileKind = 'bolt', extra: { gravity?: number; poison?: { dps: number; seconds: number }; homing?: Projectile['homing']; wobble?: number; onHit?: (e: Enemy) => void } = {}): void {
+  private spawnProjectile(from: Vector3, vel: Vector3, owner: 'player' | 'enemy', atk: number, mult: number, element: Element | null, radius: number, color: number, chains: number, chainRange: number, knockback: number, hitStop: number, size = 0.24, kind: ProjectileKind = 'bolt', extra: { gravity?: number; poison?: { dps: number; seconds: number }; homing?: Projectile['homing']; wobble?: number; onHit?: (e: Enemy) => void; web?: number } = {}): void {
     const object = new Group();
     const rainbow: Projectile['rainbow'] = [];
     if (kind === 'log') {
@@ -1143,6 +1273,18 @@ export class CombatSystem {
       lean.rotation.x = -Math.PI / 2;
       lean.position.y = 0.17 * size;
       object.add(lean, glowSprite(0xb36bff, 1.1 * size, 0.6, true));
+      object.position.copy(from);
+    } else if (kind === 'orb') {
+      // A tripping orb: a bright core and a halo, both running through every colour.
+      const core = glowSprite(color, 0.7 * size, 0.95, true);
+      const halo = glowSprite(color, 1.6 * size, 0.45, true);
+      object.add(core, halo);
+      rainbow.push(core.material, halo.material);
+      object.position.copy(from);
+    } else if (kind === 'web') {
+      // A spun web flying face-on: spokes and rings of pale silk, turning as it comes.
+      object.add(webDisc(1.1 * size, 0.85));
+      object.add(glowSprite(PALETTE.moon, 1.4 * size, 0.25, true));
       object.position.copy(from);
     } else if (kind === 'trip') {
       // A tripping arrow: a glowing shaft and head that run through every colour, with a rainbow trail.
@@ -1199,7 +1341,7 @@ export class CombatSystem {
     this.projectiles.push({
       pos: from.clone(), vel, life: kind === 'log' || kind === 'trip' || extra.homing ? 4 : 2.5, owner, atk, mult, element, radius, object, chains, chainRange,
       hit: new Set(), knockback, hitStop, kind, gravity: extra.gravity ?? 0, poison: extra.poison ?? null, color,
-      homing: extra.homing ?? null, wobble: extra.wobble ?? 0, onHit: extra.onHit ?? null, rainbow, seed: Math.random() * 10,
+      homing: extra.homing ?? null, wobble: extra.wobble ?? 0, onHit: extra.onHit ?? null, rainbow, seed: Math.random() * 10, web: extra.web ?? 0,
     });
   }
 
@@ -1243,6 +1385,42 @@ export class CombatSystem {
     for (const o of this.enemies) if (o.brawlTarget === e) o.brawlTarget = null;
   }
 
+  /** Wading in mud: slowed for a moment (refreshed while you are in it). */
+  mire(seconds: number): void {
+    this.mireLeft = Math.max(this.mireLeft, seconds);
+  }
+
+  /** Seconds left of wading through mud. */
+  get mired(): number {
+    return this.mireLeft;
+  }
+
+  /** Caught in a web: held for `seconds` (a fresh web resets the time, it never stacks). */
+  private ensnare(seconds: number): void {
+    this.webLeft = Math.max(this.webLeft, seconds);
+    this.d.hud.announce('Webbed!');
+  }
+
+  /** The web wrapped around a caught hero, shown while it holds. */
+  private updateWebbed(): void {
+    const on = this.webLeft > 0;
+    if (on && !this.webMesh) {
+      this.webMesh = new Group();
+      for (let i = 0; i < 3; i++) { const w = webDisc(0.9, 0.6); w.rotation.y = (i * Math.PI) / 3; w.position.y = 1; this.webMesh.add(w); }
+      this.d.scene.add(this.webMesh);
+    }
+    if (this.webMesh) {
+      this.webMesh.visible = on;
+      const c = this.d.controller.pos;
+      if (on) this.webMesh.position.set(c.x, c.y, c.z);
+    }
+  }
+
+  /** Seconds left in a web (the hero cannot move). */
+  get webbed(): number {
+    return this.webLeft;
+  }
+
   /** Seconds left of Sizzlin' Slowness (−40% speed, the screen tilts). */
   get slowed(): number {
     return this.slowLeft;
@@ -1253,6 +1431,7 @@ export class CombatSystem {
     const out: Array<{ name: string; left: number }> = [];
     if (this.poisonLeft > 0) out.push({ name: 'Poisoned', left: this.poisonLeft });
     if (this.slowLeft > 0) out.push({ name: "Sizzlin' Slowness", left: this.slowLeft });
+    if (this.webLeft > 0) out.push({ name: 'Webbed', left: this.webLeft });
     return out;
   }
 
@@ -1334,6 +1513,7 @@ export class CombatSystem {
       this.grab = null;
       this.poisonLeft = 0;
       this.slowLeft = 0;
+      this.webLeft = 0;
       this.casting = null;
       this.heavy = null;
       this.heavyCharge = 0;
@@ -1364,4 +1544,29 @@ export class CombatSystem {
       this.d.hud.enemyBar(e.id, e.def.name, (this.screen.x + 1) / 2 * window.innerWidth, (1 - this.screen.y) / 2 * window.innerHeight, e.hp / e.def.maxHp, e.aura ? ELEMENT_COLOR[e.aura.element] : null, visible, e.aura ? e.aura.element : null);
     }
   }
+}
+
+/** A spider's web: spokes and rings of pale silk in the xy plane, `r` metres across the middle. */
+function webDisc(r: number, opacity: number): Group {
+  const g = new Group();
+  const pts: number[] = [];
+  const spokes = 10;
+  for (let i = 0; i < spokes; i++) {
+    const a = (i / spokes) * Math.PI * 2;
+    pts.push(0, 0, 0, Math.cos(a) * r, Math.sin(a) * r, 0);
+  }
+  for (const k of [0.3, 0.55, 0.8, 1]) {
+    for (let i = 0; i < spokes; i++) {
+      const a0 = (i / spokes) * Math.PI * 2;
+      const a1 = ((i + 1) / spokes) * Math.PI * 2;
+      // Sagging between the spokes, as silk does.
+      const sag = 0.9;
+      pts.push(Math.cos(a0) * r * k, Math.sin(a0) * r * k, 0, Math.cos((a0 + a1) / 2) * r * k * sag, Math.sin((a0 + a1) / 2) * r * k * sag, 0);
+      pts.push(Math.cos((a0 + a1) / 2) * r * k * sag, Math.sin((a0 + a1) / 2) * r * k * sag, 0, Math.cos(a1) * r * k, Math.sin(a1) * r * k, 0);
+    }
+  }
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new Float32BufferAttribute(pts, 3));
+  g.add(new LineSegments(geo, new LineBasicMaterial({ color: PALETTE.moon, transparent: true, opacity, depthWrite: false, toneMapped: false })));
+  return g;
 }

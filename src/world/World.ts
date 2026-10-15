@@ -32,7 +32,7 @@ import { buildRealms, type RealmApi } from './Realms';
 import type { PortalLink } from './Portal';
 import { deadAt, frozenAt, pathAt, RIVER_LEVEL, riverAt, riverDistance, sandAt, streamAt, Terrain, WORLD } from './Terrain';
 import { causewayPostPoints, causewayWalk, chasmBridge, witchBridgeDeck } from './Walkways';
-import { lilyPond, river, stillWaterDisc } from './Water';
+import { lilyPond, mudPool, river } from './Water';
 
 /**
  * The moon-shell snail (moon-shell-colossus.glb, 16.6 m long, head toward +z; measured): solid as it crawls (two
@@ -170,7 +170,7 @@ export class World {
   readonly interactables: Interactable[] = [];
   /** What main.ts lets the world do to the player: move them, sit them in a boat. */
   readonly hooks: {
-    teleport?: Teleport; board?: (boat: Boat) => void; shoot?: (from: Vector3, s: HostileShot) => void; hurt?: (atk: number, poison?: { dps: number; seconds: number }) => void;
+    teleport?: Teleport; board?: (boat: Boat) => void; mire?: (seconds: number) => void; shoot?: (from: Vector3, s: HostileShot) => void; hurt?: (atk: number, poison?: { dps: number; seconds: number }) => void;
     /** Yung Lean's quest: is the lost sound there to find, and the hero took it. */
     soundWanted?: () => boolean; foundSound?: () => void;
   } = {};
@@ -311,7 +311,8 @@ export class World {
     flora('gnarled-tree', orchardSpots(LAYOUT.orchard.x, LAYOUT.orchard.z).map(([x, z]: [number, number]) => ({ x, y: h(x, z) - 0.2, z, yaw: orng() * Math.PI * 2, scale: 0.75 + orng() * 0.3 })), { trunk: 0.05 });
     const pool = LAYOUT.floodedRuin;
     this.place(modelLandmark('flooded-ruin', pool.x, pool.z, h(pool.x, pool.z) - 0.6));
-    this.place(stillWaterDisc(pool.x, pool.z, h(pool.x, pool.z) - 0.3, pool.r));
+    // The Marsh Sovereign stands waist-deep in it; wading in drags at your legs.
+    this.place(mudPool(pool.x, pool.z, pool.mud, pool.r, (wading) => { if (wading) this.hooks.mire?.(0.4); }));
     this.place(modelLandmark('troll-gorge', -66, -129, h(-66, -129) - 0.5));
     // Backdrop mountain ring (scale encodes the old cone sizes).
     const mountains: Placement[] = [];
@@ -334,8 +335,7 @@ export class World {
     this.place(snail);
     vfx(snailBehaviour(snail.root, this.heights, (from, s) => this.hooks.shoot?.(from, s)));
     // (The log giant is an enemy now: he walks his road and fights back when hit; see data/enemies.)
-    // The spider chapel flies over the west cliffs at a fixed height, well above the treetops.
-    this.place(walkerLandmark('spiderchapel', [...LAYOUT.spiderPath], 1.6, () => LAYOUT.spiderFlyHeight, { lift: 0 }));
+    // (The spider chapel is a boss now: it walks the sky over the west cliffs and fights; see data/enemies.)
     const rider = walkerLandmark('horse-rider', [...LAYOUT.riderPath], 3.2, h);
     // The lantern fire hangs from the rider's raised hand (horse-rider.glb, measured in the model's own frame).
     const lantern = fire(0, 0, 0, 0.3, 8);

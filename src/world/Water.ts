@@ -1,8 +1,7 @@
 import {
   AdditiveBlending, BufferAttribute, BufferGeometry, CircleGeometry, Color, DoubleSide, Float32BufferAttribute, Group,
-  Mesh, MeshBasicMaterial, Points, PointsMaterial, ShaderMaterial, Vector3, Vector4,
+  Mesh, MeshBasicMaterial, Points, PointsMaterial, RingGeometry, ShaderMaterial, SphereGeometry, Vector3, Vector4,
 } from 'three';
-import { surface } from '../render/Materials';
 import { PALETTE } from '../render/palette';
 import type { Placement } from './Flora';
 import { glowTexture } from '../render/Glow';
@@ -235,12 +234,88 @@ export function lilyPond(cx: number, cz: number, radius: number, rnd: () => numb
   };
 }
 
-/** Still, dark water in a ruin or a hollow. */
-export function stillWaterDisc(x: number, z: number, y: number, radius: number): Landmark {
-  const water = new Mesh(new CircleGeometry(radius, 40), surface({ color: 0x0a1240, emissive: 0x1b2a6b, emissiveIntensity: 0.55, roughness: 0.15, transparent: true, opacity: 0.8 }));
-  water.rotation.x = -Math.PI / 2;
-  water.position.set(x, y, z);
+/**
+ * A pool of liquid mud (the Marsh Sovereign's): a slow, glossy, swirling sludge (blue-black with a violet sheen, in the
+ * island's palette) with bubbles that swell up out of it and pop, throwing a ring and a few drops. `inside(true)` is
+ * called each frame the player wades in it (the world slows them).
+ */
+export function mudPool(x: number, z: number, y: number, radius: number, inside: (wading: boolean) => void): Landmark {
   const g = new Group();
-  g.add(water);
-  return { object: g, footprints: [] };
+  const mat = new ShaderMaterial({
+    transparent: true, depthWrite: false,
+    uniforms: { uTime: { value: 0 }, uCam: { value: new Vector3() }, uDisc: { value: new Vector4(x, z, radius - 0.6, radius + 0.6) } },
+    vertexShader: WATER_VERT,
+    fragmentShader: /* glsl */ `
+      uniform float uTime; uniform vec3 uCam; uniform vec4 uDisc;
+      varying vec2 vUv; varying vec3 vWorld; varying vec3 vNormalW;
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float vnoise(vec2 p) { vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
+      float fbm(vec2 p) { return vnoise(p) * 0.5 + vnoise(p * 2.1 + 3.3) * 0.3 + vnoise(p * 4.3 - 1.7) * 0.2; }
+      void main() {
+        vec2 p = vWorld.xz * 0.35;
+        float n = fbm(p + vec2(fbm(p + uTime * 0.05), fbm(p - uTime * 0.04)) * 1.6);
+        vec3 c = mix(vec3(0.03, 0.03, 0.09), vec3(0.14, 0.11, 0.26), smoothstep(0.35, 0.8, n));
+        vec3 V = normalize(uCam - vWorld);
+        vec3 N = normalize(vec3((n - 0.5) * 0.6, 1.0, (fbm(p * 1.7) - 0.5) * 0.6));
+        float spec = pow(max(dot(normalize(V + vec3(0.15, 0.42, -1.0)), N), 0.0), 40.0);
+        c += vec3(0.45, 0.4, 0.85) * spec * 0.5;
+        float edge = 1.0 - smoothstep(uDisc.z, uDisc.w, distance(vWorld.xz, uDisc.xy));
+        if (edge <= 0.002) discard;
+        gl_FragColor = vec4(c, 0.96 * edge);
+      }`,
+  });
+  const surface = new Mesh(new CircleGeometry(radius + 0.8, 48), mat);
+  surface.rotation.x = -Math.PI / 2;
+  surface.position.set(x, y, z);
+  g.add(surface);
+  // Bubbles: domes of mud that swell and pop.
+  const domeGeo = new SphereGeometry(1, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+  const ringGeo = new RingGeometry(0.7, 1, 20);
+  const domeMat = new MeshBasicMaterial({ color: 0x241d3d, transparent: true, opacity: 0.95 });
+  const bubbles = Array.from({ length: 10 }, () => {
+    const dome = new Mesh(domeGeo, domeMat);
+    const ring = new Mesh(ringGeo, new MeshBasicMaterial({ color: 0x8a7fd0, transparent: true, opacity: 0, side: DoubleSide, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2;
+    dome.visible = ring.visible = false;
+    g.add(dome, ring);
+    return { dome, ring, t: Math.random() * 3, life: 1, size: 0.3 };
+  });
+  let t = 0;
+  return {
+    object: g,
+    footprints: [],
+    update(dt, player) {
+      t += dt;
+      mat.uniforms.uTime.value = t;
+      (mat.uniforms.uCam.value as Vector3).copy(player);
+      for (const b of bubbles) {
+        b.t -= dt;
+        if (b.t <= -0.5) {
+          // A new bubble somewhere in the pool.
+          const a = Math.random() * Math.PI * 2;
+          const r = Math.sqrt(Math.random()) * (radius - 1);
+          b.dome.position.set(x + Math.cos(a) * r, y, z + Math.sin(a) * r);
+          b.ring.position.set(b.dome.position.x, y + 0.03, b.dome.position.z);
+          b.size = 0.25 + Math.random() * 0.5;
+          b.life = 0.9 + Math.random() * 1.4;
+          b.t = b.life;
+          b.dome.visible = true;
+        }
+        if (b.t > 0) {
+          const k = 1 - b.t / b.life;
+          b.dome.scale.set(b.size * (0.3 + k * 0.9), b.size * (0.2 + k * 0.8), b.size * (0.3 + k * 0.9));
+          b.ring.visible = false;
+        } else {
+          // Pop: the dome is gone, a ring spreads and fades.
+          b.dome.visible = false;
+          const k = -b.t / 0.5;
+          b.ring.visible = true;
+          b.ring.scale.setScalar(b.size * (1 + k * 2.5));
+          (b.ring.material as MeshBasicMaterial).opacity = 0.6 * (1 - k);
+        }
+      }
+      inside(Math.hypot(player.x - x, player.z - z) < radius - 0.3 && player.y < y);
+    },
+  };
 }
+
