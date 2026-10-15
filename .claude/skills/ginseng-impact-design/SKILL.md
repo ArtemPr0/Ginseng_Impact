@@ -22,8 +22,9 @@ are no ginseng roots or plants in the art.
    shading, PCF-soft shadow map from the moon, UnrealBloom on emissives, a linear-space grade with
    cobalt shadow lift and a vignette, ACES tone mapping. Weathered rock = noise-displaced welded boxes.
    **No** pixelation, dither, flat shading, grain or chromatic aberration.
-4. **Monumental vs. tiny.** Stone heads with red eyes, cathedral spires above a cloud sea, one-point
-   causeways, moons. The player is ≤ 1/12 of frame height in hero views. Horizon in the lower third.
+4. **Real-world sizes (user decision, 2026-10-15).** Everything is sized as it would be in reality: people
+   1.7–2 m, houses 6–7 m, a cathedral ~55 m, a castle ~28 m, a wizard tower ~32 m, trees 10–14 m, bosses 3–10 m.
+   Grandeur comes from composition (low horizon, path toward the landmark, fog), not from 100 m props.
 5. **HUD = Genshin layout, dark-fantasy skin.** Cinzel + Inter, `moon` text on navy panels, 1 px
    silver border, sharp corners, stepped motion. No gold, no blur, no rounded pills.
 
@@ -41,7 +42,7 @@ Elements: Lunar=`moon`, Blood=`blood`, Astral=`dusk`, Fog=`fog`, Stone=`ultramar
 | Task | Read | Key numbers |
 |---|---|---|
 | Lights, fog, materials, shader, post | `references/rendering.md` | moon 1.5 + fill 0.35 · hemi 0.55 · `FogExp2(fog, 0.0062)` · bloom 0.55/0.65/0.8 · exposure 0.95 |
-| Landmark, creature, flora, character | `references/motifs.md` | head 45–60 m · spires ≤ 120 m · causeway 6 × 300 m · moon 8° at 25° |
+| Landmark, creature, flora, character | `references/motifs.md` (sizes: `src/data/models.ts`, real-world) | head 26 m · cathedral 55 m · causeway 6 m wide · moon 8° at 25° |
 | HUD, menu, title, icons, fonts | `references/ui.md` | Cinzel/Inter · panel rgba(10,15,46,.72) · radius 2 px · ≤ 120 ms steps |
 | Colour decision of any kind | `references/palette.md` | 70 / 20 / 10 proportions |
 
