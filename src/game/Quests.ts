@@ -2,7 +2,7 @@
  * Quest state: each quest is at one named stage ('none' until it is given, 'done' once rewarded); the tracker shows
  * the objective of every quest in between. Pure: no DOM, no Three.js. Kills and items move quests along.
  */
-export type QuestId = 'throne' | 'croak' | 'lean' | 'sound' | 'trip';
+export type QuestId = 'throne' | 'croak' | 'lean' | 'sound' | 'trip' | 'crown';
 
 export interface QuestDef {
   id: QuestId;
@@ -36,6 +36,8 @@ export const QUESTS: Record<QuestId, QuestDef> = {
   },
   // Not a quest you are given: 'done' once you have woken from the Frog King's dream (he lets you back in after).
   trip: { id: 'trip', title: "The Frog King's Dream", objectives: {} },
+  // Not given either: 'done' once you have beaten Yung Lean (his purse is paid once).
+  crown: { id: 'crown', title: 'Challenge the King', objectives: {} },
   lean: {
     id: 'lean', title: 'Find Yung Lean',
     objectives: {
@@ -71,9 +73,19 @@ export class Quests {
     return s !== 'none' && s !== 'done';
   }
 
+  /** Kinds slain before their quest was given (the quest starts already done with that step). */
+  private readonly slain = new Set<string>();
+
   /** An enemy of `kind` died. */
   kill(kind: string): void {
+    this.slain.add(kind);
     for (const k of KILL_STEPS) if (k.kind === kind && this.stage(k.quest) === k.from) this.set(k.quest, k.to);
+  }
+
+  /** Gives quest `id` at `stage`, moved on at once by any kill made before it was given. */
+  start(id: QuestId, stage: string): void {
+    this.set(id, stage);
+    for (const k of KILL_STEPS) if (k.quest === id && k.from === stage && this.slain.has(k.kind)) this.set(id, k.to);
   }
 
   /** The tracker: every quest in progress with its current objective. */

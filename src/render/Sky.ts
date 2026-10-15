@@ -214,7 +214,7 @@ export class Sky {
   }
 }
 
-export function moonTexture(): CanvasTexture {
+function moonTexture(): CanvasTexture {
   const size = 256;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;

@@ -106,7 +106,9 @@ export function walkerLandmark(id: string, path: Array<[number, number]>, speed:
   const lm = modelLandmark(id, path[0][0], path[0][1], 0, { clip: opts.clip ?? 'walk', color: opts.color, collider: 'none' });
   const step = pathWalker(lm.root, path, speed, heightAt, opts.lift ?? 0);
   const base = lm.update!;
+  // A ring of 24 discs reused oldest-first (one shared shape; each disc has its own fade).
   const discs: Mesh[] = [];
+  const discGeo = new CircleGeometry(4.5, 16);
   const trailMat = new MeshBasicMaterial({ color: PALETTE.electric, transparent: true, opacity: 0.35, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, forceSinglePass: true });
   let sinceDrop = 0;
   lm.update = (dt, player) => {
@@ -116,12 +118,11 @@ export function walkerLandmark(id: string, path: Array<[number, number]>, speed:
     sinceDrop += dt;
     if (sinceDrop > 4) {
       sinceDrop = 0;
-      const disc = new Mesh(new CircleGeometry(4.5, 16), trailMat.clone());
+      const disc = discs.length >= 24 ? discs.shift()! : new Mesh(discGeo, trailMat.clone());
       disc.rotation.x = -Math.PI / 2;
       disc.position.set(lm.root.position.x, lm.root.position.y + 0.55, lm.root.position.z);
-      lm.root.parent?.add(disc);
+      if (!disc.parent) lm.root.parent?.add(disc);
       discs.push(disc);
-      if (discs.length > 24) { const old = discs.shift()!; old.parent?.remove(old); }
     }
     for (let i = 0; i < discs.length; i++) (discs[i].material as MeshBasicMaterial).opacity = 0.05 + (i / discs.length) * 0.3;
   };

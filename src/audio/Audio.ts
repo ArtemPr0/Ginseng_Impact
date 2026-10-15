@@ -173,7 +173,9 @@ export class Audio {
       const o = ctx.createOscillator();
       o.type = 'sawtooth';
       o.detune.value = det;
-      notes.forEach((f, i) => { const t = t0 + 0.4 + i * 0.85; o.frequency.setValueAtTime(o.frequency.value || f, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.035); });
+      // Each note snaps up from the one before it (the first from itself), like autotune catching the pitch.
+      o.frequency.setValueAtTime(notes[0], t0);
+      notes.forEach((f, i) => { const t = t0 + 0.4 + i * 0.85; o.frequency.setValueAtTime(notes[(i + notes.length - 1) % notes.length], t); o.frequency.exponentialRampToValueAtTime(f, t + 0.035); });
       o.connect(f1); o.connect(f2);
       o.start(t0);
       o.stop(t0 + 12);
@@ -184,6 +186,12 @@ export class Audio {
     const fadeIn = (t: number) => Math.min(1, Math.max(0, (t - (t0 + 4)) / 6));
     m.timer = window.setInterval(() => {
       if (this.kingdomMusic !== m || !this.ctx) return;
+      // A throttled timer (a hidden tab) falls behind: skip the steps already in the past instead of firing them all.
+      if (m.next < this.ctx.currentTime - 0.1) {
+        const missed = Math.ceil((this.ctx.currentTime - m.next) / sixteenth);
+        m.next += missed * sixteenth;
+        m.step += missed;
+      }
       while (m.next < this.ctx.currentTime + 0.25) {
         const t = m.next;
         const at = t - this.ctx.currentTime;

@@ -25,8 +25,20 @@ export class SpeechBubble {
   say(text: string, seconds: number): void {
     const c = this.canvas.getContext('2d')!;
     c.clearRect(0, 0, 512, 112);
-    c.font = '600 34px Inter, "Helvetica Neue", Arial, sans-serif';
-    const w = Math.min(500, c.measureText(text).width + 48);
+    // One line when it fits; a long line goes onto two, smaller, split at the space nearest the middle.
+    const font = (px: number) => `600 ${px}px Inter, "Helvetica Neue", Arial, sans-serif`;
+    let lines = [text];
+    let px = 34;
+    c.font = font(px);
+    if (c.measureText(text).width > 452) {
+      let cut = -1;
+      for (let i = 0; i < text.length; i++) if (text[i] === ' ' && Math.abs(i - text.length / 2) < Math.abs(cut - text.length / 2)) cut = i;
+      lines = cut > 0 ? [text.slice(0, cut), text.slice(cut + 1)] : [text];
+      px = 26;
+      c.font = font(px);
+      while (px > 12 && Math.max(...lines.map((l) => c.measureText(l).width)) > 452) { px -= 1; c.font = font(px); }
+    }
+    const w = Math.min(500, Math.max(...lines.map((l) => c.measureText(l).width)) + 48);
     const x = (512 - w) / 2;
     c.fillStyle = 'rgba(10,15,46,0.86)';
     c.fillRect(x, 8, w, 72);
@@ -44,7 +56,8 @@ export class SpeechBubble {
     c.fillStyle = '#dfe6ff';
     c.textAlign = 'center';
     c.textBaseline = 'middle';
-    c.fillText(text, 256, 45);
+    if (lines.length === 1) c.fillText(lines[0], 256, 45);
+    else { c.fillText(lines[0], 256, 45 - px * 0.6); c.fillText(lines[1], 256, 45 + px * 0.6); }
     (this.mat.map as CanvasTexture).needsUpdate = true;
     this.hold = seconds;
     this.left = seconds + 0.5;

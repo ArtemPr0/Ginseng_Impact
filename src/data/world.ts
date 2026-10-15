@@ -70,10 +70,6 @@ export const LAYOUT = {
     { x: 10, z: -90, yaw: 0.2, arch: true }, { x: 49, z: -37, yaw: 1.1, arch: true }, { x: 58, z: -59, yaw: -0.7, arch: false },
     { x: -24, z: 60, yaw: 0.5, arch: false }, { x: 36, z: -78, yaw: 0.0, arch: false },
   ],
-  waterfalls: [
-    { x: -20, z: -44, width: 9, height: 72 },
-    { x: 23, z: -70, width: 7, height: 72 },
-  ],
   cloudSea: { y: -26 },
 } as const;
 
@@ -109,13 +105,14 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   cook: { x: 25.6, z: 77 },
   moss: { x: -56, z: 19, dy: 0.02 },
   sentry: { x: -40, z: -90, dy: 0.02 },
-  standard: { x: -61, z: -86 },
+  standard: { x: -54, z: -93 },
   'rose-knight': { x: 16, z: 34 }, maiden: { x: 18.2, z: 33 },
   // Dunmar guards the door of Yung Lean's hall; Sel watches the street of purple houses (both in the kingdom).
   'watcher-knight': { x: 1000, z: -51.8 }, 'watcher-mage': { x: 994, z: 21 },
   'cup-gnome': { x: 6.5, z: 64 },
   // Fifth batch of reels.
-  grumble: { x: -40, z: -24 },
+  // (Beside the middle tavern table, not inside it: the table at (-40, -24) is solid once its model exists.)
+  grumble: { x: -40, z: -22 },
   priest: { x: 36, z: -96 },
   'lantern-witch': { x: -106, z: 14 },
   'skeleton-king': { x: 965, z: -57, dy: 0.6 },
@@ -182,7 +179,7 @@ export const PADS: ReadonlyArray<{ x: number; z: number; r: number; y: number; b
   { x: 66, z: -130, r: 13, y: 0.8, blend: 8 },    // the Horned Shade's drowned stones
   { x: -54, z: -26, r: 6, y: 1.8, blend: 5 },     // the Frog King's hollow
   { x: -112, z: 2, r: 3, y: 4.4, blend: 4 },      // Brother Croak hiding in the castle's shadow
-  { x: -61, z: -86, r: 2.5, y: 40.3, blend: 3 },  // Hollow Jack's ledge on the peak
+  { x: -54, z: -93, r: 2.2, y: 61.0, blend: 3 },  // Hollow Jack on the peak's summit, his banner over the island
   { x: 16, z: -122, r: 7, y: 4.6, blend: 5 },     // the Ember Rider
   { x: 106, z: -13, r: 8, y: 3.4, blend: 4 },     // the Marsh Sovereign's mud basin (filled to 4.9)
   { x: -40, z: -90, r: 1.6, y: 28.4, blend: 2.5 }, // Sir Halvard's seat on the cliff

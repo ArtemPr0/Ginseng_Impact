@@ -6,8 +6,9 @@
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = new URL('../src/', import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL('../src/', import.meta.url));
 const ALLOW = new Set([
   'world/Terrain.ts', 'world/Water.ts', 'world/Grass.ts', 'world/CloudSea.ts', 'world/Walkways.ts', 'world/ModelLandmark.ts', 'world/Falls.ts', 'world/Stream.ts', 'world/Fire.ts', 'world/Portal.ts',
   'models/Placeholder.ts', 'models/ModelRig.ts', 'combat/Vfx.ts', 'combat/Loot.ts', 'combat/CombatSystem.ts',

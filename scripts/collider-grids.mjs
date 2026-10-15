@@ -17,6 +17,9 @@
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { existsSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+// Paths below are relative to the repository root, wherever the script is run from.
+process.chdir(fileURLToPath(new URL('..', import.meta.url)));
 
 const { MODELS } = await import('../src/data/models.ts');
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);

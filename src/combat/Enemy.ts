@@ -33,13 +33,19 @@ const STAND_UP = 1.4;
 /** Where an enemy lives: its spot (which moves along a patrol route), facing, and route. */
 export interface EnemyHome { x: number; z: number; yaw?: number; patrol?: ReadonlyArray<readonly [number, number]>; sitY?: number }
 
+const _pq = new Quaternion();
+const _wq = new Quaternion();
+const _aq = new Quaternion();
+const _fq = new Quaternion();
+const _fwd = new Vector3();
+
 /** Turns `bone` about a world axis from its pose now, returning the local rotation that results (not applied). */
-function turnedAbout(bone: Object3D, axis: Vector3, angle: number): Quaternion {
-  const pq = new Quaternion();
-  bone.parent?.getWorldQuaternion(pq);
-  const world = pq.clone().multiply(bone.quaternion);
-  world.premultiply(new Quaternion().setFromAxisAngle(axis, angle));
-  return pq.invert().multiply(world);
+function turnedAbout(bone: Object3D, axis: Vector3, angle: number, out = new Quaternion()): Quaternion {
+  _pq.identity();
+  bone.parent?.getWorldQuaternion(_pq);
+  _wq.copy(_pq).multiply(bone.quaternion);
+  _wq.premultiply(_aq.setFromAxisAngle(axis, angle));
+  return out.copy(_pq.invert()).multiply(_wq);
 }
 
 /** Scene-side enemy: a Meshy model (or a placeholder marker), movement, hit reactions, aura and defence debuff bookkeeping. */
@@ -746,10 +752,10 @@ export class Enemy {
     this.wingBeat += dt * w.rate * (this.alive ? 1 : 0.3) * Math.PI * 2;
     const a = Math.sin(this.wingBeat) * w.amp * (this.alive ? 1 : 0.4);
     m.root.updateWorldMatrix(true, true);
-    const fwd = new Vector3(0, 0, 1).applyQuaternion(m.frame.getWorldQuaternion(new Quaternion()));
+    const fwd = _fwd.set(0, 0, 1).applyQuaternion(m.frame.getWorldQuaternion(_fq));
     for (const x of this.wingBones) {
       x.b.quaternion.copy(x.bind);
-      x.b.quaternion.copy(turnedAbout(x.b, fwd, a * x.side));
+      turnedAbout(x.b, fwd, a * x.side, x.b.quaternion);
       x.b.updateWorldMatrix(false, true);
     }
   }

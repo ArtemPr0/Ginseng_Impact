@@ -1,12 +1,12 @@
 /**
  * Conversations with choices. A node is a line (with its recorded voice when it has one) and the player's answers;
  * an answer's `run` changes the world (quests, rewards, the sack, a beer) and says where the talk goes next: another
- * node, 'close', 'trade' (the NPC's shop) or 'more' (the NPC's ordinary lines). No answer → it closes.
+ * node, 'close' or 'trade' (the NPC's shop). No answer → it closes.
  */
 import { VOICES, voiceUrl } from '../data/voices';
 import type { Quests } from './Quests';
 
-export type DialogueStep = DialogueNode | 'close' | 'trade' | 'more';
+export type DialogueStep = DialogueNode | 'close' | 'trade';
 
 export interface DialogueChoice { label: string; run?: () => DialogueStep }
 
@@ -45,7 +45,7 @@ export function dialogueFor(npcId: string, w: DialogueWorld): DialogueNode | nul
       const s = q.stage('throne');
       const accept: DialogueChoice = {
         label: "I'll do it.",
-        run: () => { q.set('throne', 'active'); w.announce('Quest · The Usurped Throne'); return { line: 'Then go. It sulks in the east forest, under the rain.', choices: [LEAVE] }; },
+        run: () => { q.start('throne', 'active'); w.announce('Quest · The Usurped Throne'); return { line: 'Then go. It sulks in the east forest, under the rain.', choices: [LEAVE] }; },
       };
       const trade: DialogueChoice = { label: 'Trade', run: () => 'trade' };
       if (s === 'none') {
@@ -130,7 +130,7 @@ export function dialogueFor(npcId: string, w: DialogueWorld): DialogueNode | nul
           ]),
         }];
         if (q.active('lean')) choices.push({ label: 'Can you sign a cup?', run: () => ({ line: 'Sign a cup? Bring back the sound first. Then I sign anything.', choices: [LEAVE] }) });
-        choices.push({ label: 'Trade', run: () => 'trade' }, LEAVE);
+        choices.push(LEAVE);
         return say('lean-greet', choices);
       }
       if (s === 'active') return { line: 'The silence is still creeping. Over the cups, in the mist.', choices: [LEAVE] };

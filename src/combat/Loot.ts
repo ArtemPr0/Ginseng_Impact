@@ -3,6 +3,7 @@ import { ITEMS, RARITY_COLOR } from '../items/Items';
 import { PALETTE } from '../render/palette';
 import { surface } from '../render/Materials';
 import { glowSprite } from '../render/Glow';
+import { disposeObject } from '../render/dispose';
 import type { DropEntry } from '../data/enemies';
 
 export type Drop = { kind: 'item'; itemId: string; count: number } | { kind: 'shards'; amount: number };
@@ -28,6 +29,7 @@ interface Sparkle { sprites: Sprite[]; t: number; at: Vector3 }
 export class LootField {
   readonly pickups: Pickup[] = [];
   private readonly tmp = new Vector3();
+  private readonly chest = new Vector3();
   private readonly absorbing: Absorbing[] = [];
   private readonly sparkles: Sparkle[] = [];
   /** Called when a taken item reaches the hero (its rarity, 0 for shards): the whoosh and chime. */
@@ -82,7 +84,9 @@ export class LootField {
 
   /** Takes an item pickup: it is yours at once, and flies into you over the next half second. */
   take(p: Pickup): Drop {
-    this.pickups.splice(this.pickups.indexOf(p), 1);
+    const i = this.pickups.indexOf(p);
+    if (i < 0) return p.drop;
+    this.pickups.splice(i, 1);
     this.absorbing.push({ object: p.object, from: p.object.position.clone(), t: 0, turn: Math.random() < 0.5 ? 1 : -1 });
     return p.drop;
   }
@@ -97,7 +101,7 @@ export class LootField {
   update(dt: number, player: Vector3): number {
     let collected = 0;
     // Taken items: up off the ground, then a tightening spiral into the hero's chest, shrinking to a spark.
-    const chest = this.tmp.copy(player).add(new Vector3(0, 1.15, 0));
+    const chest = this.chest.set(player.x, player.y + 1.15, player.z);
     for (let i = this.absorbing.length - 1; i >= 0; i--) {
       const a = this.absorbing[i];
       a.t += dt / 0.6;
@@ -115,6 +119,7 @@ export class LootField {
       a.object.scale.setScalar(Math.max(0.05, 1 - ease * 0.95));
       if (k >= 1) {
         this.scene.remove(a.object);
+        disposeObject(a.object);
         this.absorbing.splice(i, 1);
         this.sparkle(chest, PALETTE.rune);
         this.onAbsorbed?.(1);
@@ -129,22 +134,25 @@ export class LootField {
         sp.material.opacity = 0.9 * (1 - s.t);
         sp.scale.setScalar(0.3 * (1 - s.t * 0.6));
       });
-      if (s.t >= 1) { for (const sp of s.sprites) this.scene.remove(sp); this.sparkles.splice(i, 1); }
+      if (s.t >= 1) { for (const sp of s.sprites) { this.scene.remove(sp); sp.material.dispose(); } this.sparkles.splice(i, 1); }
     }
     for (let i = this.pickups.length - 1; i >= 0; i--) {
       const p = this.pickups[i];
       p.life += dt;
+      // Left lying for long, or fallen off the world: gone.
+      if (p.life > (p.drop.kind === 'shards' ? 120 : 300) || p.pos.y < -100) { this.scene.remove(p.object); disposeObject(p.object); this.pickups.splice(i, 1); continue; }
       if (!p.landed) {
         p.vel.y -= 18 * dt;
         p.pos.addScaledVector(p.vel, dt);
         const g = this.heightAt(p.pos.x, p.pos.z, p.pos.y) + 0.15;
         if (p.pos.y <= g && p.vel.y < 0) { p.pos.y = g; p.landed = true; }
       } else if (p.drop.kind === 'shards' && p.life > 0.6) {
-        const d = this.tmp.copy(player).add(new Vector3(0, 1, 0)).sub(p.pos);
+        const d = this.tmp.copy(player).sub(p.pos);
+        d.y += 1;
         const dist = d.length();
         if (dist < 4.5) {
           p.pos.addScaledVector(d.normalize(), (14 + (4.5 - dist) * 8) * dt);
-          if (dist < 0.6) { collected += p.drop.amount; this.scene.remove(p.object); this.pickups.splice(i, 1); this.sparkle(p.pos, PALETTE.electric); continue; }
+          if (dist < 0.6) { collected += p.drop.amount; this.scene.remove(p.object); disposeObject(p.object); this.pickups.splice(i, 1); this.sparkle(p.pos, PALETTE.electric); continue; }
         }
       }
       p.object.position.copy(p.pos);

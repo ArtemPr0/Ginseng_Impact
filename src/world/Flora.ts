@@ -34,7 +34,8 @@ const SHADOW_HEIGHT = 4;
 
 interface Chunk { meshes: InstancedMesh[]; items: Placement[] }
 
-function writeMatrices(chunk: Chunk, scale: number, offset: { x: number; y: number; z: number }, yaw: number): void {
+/** `bounds`: refit the culling sphere (once at placement; sets that move every frame are never culled instead). */
+function writeMatrices(chunk: Chunk, scale: number, offset: { x: number; y: number; z: number }, yaw: number, bounds = true): void {
   local.makeTranslation(offset.x, offset.y, offset.z).multiply(scaleM.makeScale(scale, scale, scale));
   for (let i = 0; i < chunk.items.length; i++) {
     const p = chunk.items[i];
@@ -45,7 +46,7 @@ function writeMatrices(chunk: Chunk, scale: number, offset: { x: number; y: numb
     dummy.matrix.multiply(local);
     for (const m of chunk.meshes) m.setMatrixAt(i, dummy.matrix);
   }
-  for (const m of chunk.meshes) { m.instanceMatrix.needsUpdate = true; m.computeBoundingSphere(); }
+  for (const m of chunk.meshes) { m.instanceMatrix.needsUpdate = true; if (bounds) m.computeBoundingSphere(); }
 }
 
 /** Instances model `id` at every placement (placement scale multiplies the registry height). */
@@ -83,6 +84,7 @@ export function floraSet(id: string, placements: Placement[], opts: FloraOptions
         for (const { geo, mat } of parts) {
           const inst = new InstancedMesh(geo, mat, items.length);
           inst.castShadow = shadows;
+          if (opts.update) inst.frustumCulled = false;
           inst.receiveShadow = shadows;
           chunk.meshes.push(inst);
           group.add(inst);
@@ -98,7 +100,7 @@ export function floraSet(id: string, placements: Placement[], opts: FloraOptions
     update(dt) {
       if (!opts.update || !transform) return;
       t += dt;
-      if (opts.update(t, placements)) for (const c of chunks) writeMatrices(c, transform.scale, transform.offset, transform.yaw);
+      if (opts.update(t, placements)) for (const c of chunks) writeMatrices(c, transform.scale, transform.offset, transform.yaw, false);
     },
   };
 }

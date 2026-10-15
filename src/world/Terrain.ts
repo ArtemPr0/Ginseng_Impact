@@ -1,4 +1,4 @@
-import { BufferAttribute, Color, Mesh, PlaneGeometry, Vector3 } from 'three';
+import { BufferAttribute, Color, Mesh, PlaneGeometry } from 'three';
 import { surface } from '../render/Materials';
 import { Noise2D, lerp, smoothstep } from './noise';
 import { LAYOUT, PADS } from '../data/world';
@@ -240,12 +240,5 @@ export class Terrain {
     const gz = (this.heightAt(x, z + e) - this.heightAt(x, z - e)) / (2 * e);
     const g = Math.hypot(gx, gz);
     return g / (1 + g);
-  }
-
-  normalAt(x: number, z: number, out = new Vector3()): Vector3 {
-    const e = 1.5;
-    const gx = (this.heightAt(x + e, z) - this.heightAt(x - e, z)) / (2 * e);
-    const gz = (this.heightAt(x, z + e) - this.heightAt(x, z - e)) / (2 * e);
-    return out.set(-gx, 1, -gz).normalize();
   }
 }

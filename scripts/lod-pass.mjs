@@ -7,6 +7,9 @@
  */
 import { execFileSync } from 'node:child_process';
 import { readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+// Paths below are relative to the repository root, wherever the script is run from.
+process.chdir(fileURLToPath(new URL('..', import.meta.url)));
 
 /** Triangle budgets: instanced flora/props are drawn dozens to hundreds of times. */
 const BUDGET = {

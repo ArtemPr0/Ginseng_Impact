@@ -31,20 +31,3 @@ export function waterfall(x: number, z: number, topY: number, width: number, hei
   return { object: g, footprints: [], update(dt) { tex.offset.y += dt * 0.9; } };
 }
 
-/** Teal falls spilling off the giant mushrooms. */
-export function tealFalls(spots: Array<{ x: number; z: number; top: number; height: number; width: number }>): Landmark {
-  const g = new Group();
-  const mats: MeshBasicMaterial[] = [];
-  for (const s of spots) {
-    const tex = fallTexture(16, 128, 'rgba(55,245,255,0.3)', 'rgba(220,255,255,0.9)', 9);
-    tex.repeat.set(s.width / 2, s.height / 10);
-    const mat = new MeshBasicMaterial({ map: tex, transparent: true, side: DoubleSide, forceSinglePass: true, depthWrite: false, color: new Color(1.0, 1.6, 1.7), toneMapped: false });
-    const mesh = new Mesh(new PlaneGeometry(s.width, s.height), mat);
-    mesh.position.set(s.x, s.top - s.height / 2, s.z);
-    const mist = glowSprite(PALETTE.rune, s.width * 2.2, 0.35, true);
-    mist.position.set(s.x, s.top - s.height + 2, s.z);
-    g.add(mesh, mist);
-    mats.push(mat);
-  }
-  return { object: g, footprints: [], update(dt) { for (const m of mats) (m.map as CanvasTexture).offset.y += dt * 1.1; } };
-}

@@ -42,10 +42,5 @@ export class MissingModelPlaceholder {
   }
 }
 
-export function missingModelPlaceholder(id: string, color?: number, label?: string): MissingModelPlaceholder {
-  warnMissing(id, label);
-  return new MissingModelPlaceholder(color);
-}
-
 /** Glowing markers for models that do not exist yet are a debugging aid: shown only with `?placeholders`. */
 export const SHOW_PLACEHOLDERS = typeof location !== 'undefined' && new URLSearchParams(location.search).has('placeholders');

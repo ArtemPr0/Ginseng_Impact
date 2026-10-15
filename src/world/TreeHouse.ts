@@ -58,8 +58,8 @@ export function buildTreeHouse(api: RealmApi, teleport: Teleport, faceDoor: Face
       // Eased swing, a little overshoot settling back.
       const k = open < 1 ? 1 - Math.pow(1 - open, 3) : 1;
       hinge.rotation.y = 1.75 * k;
-      // Once it is open, walking into the doorway takes you in.
-      if (open >= 1 && player && Math.abs(player.x - D.x) < 0.7 && Math.abs(player.z - D.z) < D.w / 2 && Math.abs(player.y - D.bottom) < 1.5) enter('tree');
+      // Once it is open, stepping up to the doorway takes you in (the trunk's collider stays closed behind the door).
+      if (open >= 1 && player && player.x - D.x > -0.5 && player.x - D.x < 2.2 && Math.abs(player.z - D.z) < D.w / 2 && player.y > D.bottom - 1.5 && player.y < D.bottom + 2.5) enter('tree');
     },
   });
 

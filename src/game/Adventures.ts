@@ -175,7 +175,8 @@ export class Adventures {
     if (npc) { npc.hidden = false; npc.object.visible = true; }
     if (!f.e.alive) {
       void this.d.audio.voice(voiceUrl('lean-beaten'), 1);
-      this.dw.pay(600);
+      // The purse is for the first win; after that the fight is its own reward (and his drops).
+      if (this.quests.stage('crown') !== 'done') { this.dw.pay(600); this.quests.set('crown', 'done'); }
       this.d.hud.announce('Yung Lean sits back down');
     }
     this.kingFight = null;

@@ -1,5 +1,4 @@
 import { Color, DirectionalLight, FogExp2, HemisphereLight, PerspectiveCamera, Scene, Vector3 } from 'three';
-import { REALMS } from './data/world';
 import { Bubbles } from './world/Portal';
 import { LightBudget } from './render/LightBudget';
 import { yawToRotation } from './models/ModelRig';
@@ -9,7 +8,7 @@ import { ROSTER } from './characters/roster';
 import { CombatSystem } from './combat/CombatSystem';
 import { Game } from './core/Game';
 import { Input } from './core/Input';
-import { LAYOUT } from './data/world';
+import { LAYOUT, REALMS } from './data/world';
 import { Inventory } from './items/Inventory';
 import { riverAt } from './world/Terrain';
 import { ITEMS } from './items/Items';
@@ -82,6 +81,11 @@ scene.add(atmosphere.group);
 const weather = new Weather(LAYOUT.rainZone, LAYOUT.snowZone);
 scene.add(weather.group);
 const playerPos = new Vector3();
+/** Where the hero was at the start of the last fixed step, and where they are drawn (between it and now). */
+const prevPos = new Vector3();
+const drawPos = new Vector3();
+const interactAt = new Vector3();
+let interactIn = 0;
 
 // --- player ---
 // `?at=x,z` starts the party at a world position (used to check landmarks and bosses quickly).
@@ -199,15 +203,18 @@ hud.bind({
   },
   onSell: (uid, count) => { const gain = inventory.sell(uid, count); if (gain > 0) audio.coins(2); },
   onHire: (npc) => {
-    if (!npc.hire || companions.length >= 3 || companions.some((c) => c.def.id === npc.id)) return false;
-    if (!inventory.spend(npc.hire.cost)) return false;
+    if (!npc.hire || companions.length >= 3 || companions.some((c) => c.def.id === npc.id)) return 'full';
+    if (!inventory.spend(npc.hire.cost)) return 'poor';
+    // The one who follows you leaves their post (no twin standing where they used to be).
+    const post = area.npcs.find((n) => n.def.id === npc.id);
+    if (post) post.hidden = true;
     const c = new Companion(npc, new Vector3(controller.pos.x, controller.pos.y, controller.pos.z), (x, z, y) => world.heightAt(x, z, y), companions.length);
     companions.push(c);
     scene.add(c.rig.root, c.rig.trailObject);
     hud.setCompanions(companions.map((x) => x.def.name));
     audio.fanfare();
     hud.announce(`${npc.name} joins you`);
-    return true;
+    return 'ok';
   },
   onEquip: (uid) => {
     const me = party.active;
@@ -227,13 +234,15 @@ hud.bind({
   },
   onDrop: (uid) => {
     const e = inventory.entries.find((x) => x.uid === uid);
-    if (!e || e.equippedBy) return;
+    if (!e || e.equippedBy || ITEMS[e.itemId].kind === 'key') return;
     inventory.remove(e.itemId, 1);
     combat.loot.spawn([{ kind: 'item', itemId: e.itemId, count: 1 }], new Vector3(controller.pos.x, controller.pos.y + 1, controller.pos.z));
   },
   onClose: () => closePanel(),
 }, inventory);
 window.addEventListener('keydown', (e) => {
+  const digit = /^Digit([1-9])$/.exec(e.code);
+  if (digit && hud.pickChoice(Number(digit[1]))) return;
   if (e.code === 'KeyI') {
     if (hud.panel === 'inventory') closePanel();
     else if (hud.panel === 'none') openPanel(() => hud.inventoryPanel());
@@ -256,7 +265,7 @@ window.addEventListener('resize', () => {
 
 /** What F would do right now: loot first, then talk. */
 function interactTarget(): { kind: 'loot'; take: () => void; label: string } | { kind: 'use'; act: () => void; label: string } | { kind: 'talk'; npc: Npc; label: string } | null {
-  const p = new Vector3(controller.pos.x, controller.pos.y, controller.pos.z);
+  const p = interactAt.set(controller.pos.x, controller.pos.y, controller.pos.z);
   const pickup = combat.loot.nearest(p, 2.8);
   if (pickup && pickup.drop.kind === 'item') {
     const def = ITEMS[pickup.drop.itemId];
@@ -295,6 +304,7 @@ const focus = new Vector3();
 game
   .add({
     update(dt) {
+      prevPos.set(controller.pos.x, controller.pos.y, controller.pos.z);
       const { dx, dy } = input.takeMouseDelta();
       if (input.locked) tpc.rotate(dx, dy);
       party.update(dt);
@@ -327,7 +337,6 @@ game
         ascend: input.isDown('Space'),
         descend: input.isDown('KeyC'),
         stopFly: input.locked && input.justPressed('KeyX'),
-        climbHeld: false,
       }, world, dt);
       // Portals: step into one to cross between the island and the realms.
       portalCooldown -= dt;
@@ -349,21 +358,25 @@ game
         controller.flung = 0;
       }
       playerPos.set(controller.pos.x, controller.pos.y, controller.pos.z);
-      const targets = combat.enemies.map((e) => ({ id: e.id, pos: e.pos, alive: e.alive, aggro: e.aggro }));
+      const targets = companions.length ? combat.enemies.map((e) => ({ id: e.id, pos: e.pos, alive: e.alive, aggro: e.aggro })) : [];
       for (const c of companions) {
         const strike = c.update(dt, playerPos, controller.yaw, targets);
         if (strike !== null) { combat.companionStrike(strike, c.def.hire!.atk); audio.swing(false); }
       }
       hud.setStamina(controller.stamina, CONTROLLER.maxStamina);
-      const t = interactTarget();
-      hud.setInteract(t ? t.label : null);
+      // The F prompt, ten times a second (pressing F looks again at once).
+      interactIn -= dt;
+      if (interactIn <= 0) { interactIn = 0.1; const t = interactTarget(); hud.setInteract(t ? t.label : null); }
       input.endStep();
     },
-    render(_alpha, dt) {
+    render(alpha, dt) {
       // In a boat the river carries you even while a conversation pauses the game.
       adventures.pinToBoat();
       const rig = rigs[party.activeIndex];
-      rig.root.position.set(controller.pos.x, controller.pos.y, controller.pos.z);
+      // Drawn between the last two fixed steps (smooth on 120/144 Hz screens); a jump of metres is a teleport.
+      drawPos.set(controller.pos.x, controller.pos.y, controller.pos.z);
+      if (!adventures.riding && !game.paused && drawPos.distanceToSquared(prevPos) < 16) drawPos.lerpVectors(prevPos, drawPos, Math.min(1, alpha));
+      rig.root.position.copy(drawPos);
       rig.root.rotation.y = yawToRotation(controller.yaw);
       const airborne = controller.mode === 'air' || controller.mode === 'fly';
       if (wasAirborne && !airborne) landedAt = performance.now() / 1000;
@@ -381,7 +394,7 @@ game
       // Benched party members are hidden: no need to animate them.
       combat.render(dt);
       lightBudget.update(playerPos);
-      focus.set(controller.pos.x, controller.pos.y + 1.4, controller.pos.z);
+      focus.set(drawPos.x, drawPos.y + 1.4, drawPos.z);
       if (!input.locked && hud.panel === 'none') {
         cinematicT += dt;
         const u = (Math.sin(cinematicT * 0.045) + 1) / 2;

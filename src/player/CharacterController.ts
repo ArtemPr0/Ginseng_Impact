@@ -16,7 +16,6 @@ export interface ControllerState {
   stamina: number;
   /** Seconds since the mode last changed. */
   modeTime: number;
-  groundedFor: number;
   airborneFor: number;
   /** Seconds since stamina was last spent. */
   staminaIdle: number;
@@ -46,7 +45,6 @@ export interface ControllerInput {
   descend?: boolean;
   /** Edge: stop flying and fall. */
   stopFly?: boolean;
-  climbHeld: boolean;
 }
 
 export interface WorldQuery {
@@ -144,7 +142,6 @@ export function createControllerState(pos: Vec3): ControllerState {
     mode: 'ground',
     stamina: CONTROLLER.maxStamina,
     modeTime: 0,
-    groundedFor: 0,
     airborneFor: 0,
     staminaIdle: 0,
     climbDir: { x: 1, z: 0 },
@@ -159,6 +156,8 @@ function setMode(s: ControllerState, mode: Mode): void {
   if (s.mode !== mode) {
     s.mode = mode;
     s.modeTime = 0;
+    // A throw ends however the hero comes down (onto a wall, into the water): steering comes back at once.
+    if (mode !== 'air') s.flung = 0;
   }
 }
 
@@ -227,7 +226,6 @@ export function stepController(s: ControllerState, input: ControllerInput, world
   const moveScale = Math.min(1, moveLen);
   let spent = false;
 
-  if (s.mode === 'ground') s.groundedFor += dt; else s.groundedFor = 0;
   if (s.mode !== 'ground') s.airborneFor += dt; else s.airborneFor = 0;
   if (input.jump) s.jumpBuffer = CONTROLLER.jumpBufferTime; else s.jumpBuffer = Math.max(0, s.jumpBuffer - dt);
 
@@ -483,6 +481,13 @@ export function stepController(s: ControllerState, input: ControllerInput, world
       s.pos.y += s.vel.y * dt;
       bumpCeiling(world, s, flyStartY);
       const below = world.heightAt(s.pos.x, s.pos.z, flyStartY);
+      // Diving into deep water: a splash, then swimming (not a landing on the bed).
+      const water = swimmable(world, s.pos.x, s.pos.z, flyStartY);
+      if (water !== null && s.vel.y <= 0 && s.pos.y <= water - CONTROLLER.swimFloat * 0.6) {
+        s.vel.y *= 0.25;
+        setMode(s, 'swim');
+        break;
+      }
       if (s.pos.y <= below) {
         s.pos.y = below;
         s.vel.y = 0;

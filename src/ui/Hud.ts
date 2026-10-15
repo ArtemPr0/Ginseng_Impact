@@ -12,7 +12,8 @@ const hex = (n: number) => '#' + n.toString(16).padStart(6, '0');
 export interface HudActions {
   onBuy(itemId: string, price: number): boolean;
   onSell(uid: number, count: number): void;
-  onHire(npc: NpcDef): boolean;
+  /** Hires the NPC: 'ok', or why not ('poor': not enough shards, 'full': three companions already). */
+  onHire(npc: NpcDef): 'ok' | 'poor' | 'full';
   onEquip(uid: number): boolean;
   onUse(uid: number): boolean;
   onDrop(uid: number): void;
@@ -27,6 +28,14 @@ export class Hud {
   private readonly q = <T extends HTMLElement>(sel: string): T => this.root.querySelector(sel) as T;
   private readonly bars = new Map<number, HTMLElement>();
   private bannerTimer = 0;
+  /** What the HUD last drew (it only touches the DOM when something changed). */
+  private interactText: string | null = null;
+  private interactShown = false;
+  private timerShown = -2;
+  private timerLabel = '';
+  /** NPCs who already follow you (no Hire button), and the conversation the shop's Back returns to. */
+  private readonly hired = new Set<string>();
+  private lastNode: { head: { name: string; title: string }; node: DialogueNode } | null = null;
   private burstName = '';
   panel: Panel = 'none';
   private talkNpc: NpcDef | null = null;
@@ -74,10 +83,13 @@ export class Hud {
 
   /** A countdown in the top-right corner (the frog's dream), or null to hide it. */
   setTimer(seconds: number | null, label = ''): void {
+    const s = seconds === null ? -1 : Math.max(0, Math.ceil(seconds));
+    if (s === this.timerShown && label === this.timerLabel) return;
+    this.timerShown = s;
+    this.timerLabel = label;
     const el = this.q('#hud-timer');
     el.style.display = seconds === null ? 'none' : 'block';
     if (seconds === null) return;
-    const s = Math.max(0, Math.ceil(seconds));
     this.q('#hud-timer-label').textContent = label;
     this.q('#hud-timer-time').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   }
@@ -141,8 +153,12 @@ export class Hud {
   }
 
   setInteract(text: string | null): void {
+    const show = !!text && this.panel === 'none';
+    if (text === this.interactText && show === this.interactShown) return;
+    this.interactText = text;
+    this.interactShown = show;
     const el = this.q('#hud-interact');
-    el.style.display = text && this.panel === 'none' ? 'block' : 'none';
+    el.style.display = show ? 'block' : 'none';
     if (text) el.innerHTML = `<span class="key">F</span> ${text}`;
   }
 
@@ -170,7 +186,7 @@ export class Hud {
 
   removeEnemyBar(id: number): void {
     const el = this.bars.get(id);
-    if (el) el.style.display = 'none';
+    if (el) { el.remove(); this.bars.delete(id); }
   }
 
   damageNumber(x: number, y: number, text: string, color: number, big: boolean): void {
@@ -247,11 +263,22 @@ export class Hud {
   close(): void {
     this.open('none');
     this.talkNpc = null;
+    this.lastNode = null;
+  }
+
+  /** The number keys pick a conversation's answers (1 = the first). */
+  pickChoice(n: number): boolean {
+    if (this.panel !== 'talk') return false;
+    const b = this.q('#hud-dialog').querySelector<HTMLButtonElement>(`button[data-act="c${n - 1}"]`);
+    if (!b) return false;
+    b.click();
+    return true;
   }
 
   talk(npc: NpcDef): void {
     this.talkNpc = npc;
     this.talkLine = 0;
+    this.lastNode = null;
     this.open('talk');
     this.renderTalk();
   }
@@ -262,7 +289,7 @@ export class Hud {
     const buttons: string[] = [];
     if (this.talkLine < npc.lines.length - 1) buttons.push(`<button data-act="next">Next</button>`);
     if (npc.shop) buttons.push(`<button data-act="shop">Trade</button>`);
-    if (npc.hire) buttons.push(`<button data-act="hire">Hire · ◆ ${npc.hire.cost}</button>`);
+    if (npc.hire && !this.hired.has(npc.id)) buttons.push(`<button data-act="hire">Hire · ◆ ${npc.hire.cost}</button>`);
     buttons.push(`<button data-act="close">Leave</button>`);
     el.innerHTML = `<div class="dlg-head"><div class="dlg-name">${npc.name}</div><div class="dlg-title">${npc.title}</div></div>
       <div class="dlg-line">“${npc.lines[this.talkLine]}”</div>
@@ -270,7 +297,11 @@ export class Hud {
     this.wire(el, (act) => {
       if (act === 'next') { this.talkLine++; this.renderTalk(); }
       else if (act === 'shop') this.renderShop();
-      else if (act === 'hire') { if (this.actions!.onHire(npc)) { this.renderTalkResult('“Lead on. I follow.”'); } else this.renderTalkResult('“Come back when your purse is heavier.”'); }
+      else if (act === 'hire') {
+        const r = this.actions!.onHire(npc);
+        if (r === 'ok') this.hired.add(npc.id);
+        this.renderTalkResult(r === 'ok' ? '“Lead on. I follow.”' : r === 'full' ? '“You already have three at your back. Come for me another time.”' : '“Come back when your purse is heavier.”');
+      }
       else this.actions!.onClose();
     });
   }
@@ -287,6 +318,7 @@ export class Hud {
 
   private renderNode(head: { name: string; title: string }, node: DialogueNode, onLine?: (node: DialogueNode) => void): void {
     onLine?.(node);
+    this.lastNode = { head, node };
     const el = this.q('#hud-dialog');
     el.innerHTML = `<div class="dlg-head"><div class="dlg-name">${head.name}</div><div class="dlg-title">${head.title}</div></div>
       <div class="dlg-line">“${node.line}”</div>
@@ -296,7 +328,6 @@ export class Hud {
       const step = choice?.run ? choice.run() : 'close';
       if (step === 'close') this.actions!.onClose();
       else if (step === 'trade' && this.talkNpc) this.renderShop();
-      else if (step === 'more' && this.talkNpc) this.talk(this.talkNpc);
       else if (typeof step === 'object') this.renderNode(head, step, onLine);
       else this.actions!.onClose();
     });
@@ -319,7 +350,8 @@ export class Hud {
       const d = ITEMS[s.itemId];
       return `<div class="row"><span class="item r${d.rarity}">${d.name}</span><span class="desc">${d.desc}</span><button data-act="buy" data-id="${s.itemId}" data-price="${s.price}" ${inv.shards < s.price ? 'disabled' : ''}>Buy ◆ ${s.price}</button></div>`;
     }).join('');
-    const sell = inv.entries.filter((e) => !e.equippedBy).map((e) => {
+    // (Quest keys are never for sale.)
+    const sell = inv.entries.filter((e) => !e.equippedBy && ITEMS[e.itemId].kind !== 'key').map((e) => {
       const d = ITEMS[e.itemId];
       return `<div class="row"><span class="item r${d.rarity}">${d.name}${e.count > 1 ? ` ×${e.count}` : ''}</span><span class="desc">${RARITY_NAME[d.rarity]}</span><button data-act="sell" data-uid="${e.uid}">Sell ◆ ${d.value}</button></div>`;
     }).join('') || '<div class="empty">Nothing to sell.</div>';
@@ -329,7 +361,8 @@ export class Hud {
     this.wire(el, (act, b) => {
       if (act === 'buy') { if (this.actions!.onBuy(b.dataset.id!, Number(b.dataset.price))) this.renderShop(); }
       else if (act === 'sell') { this.actions!.onSell(Number(b.dataset.uid), 1); this.renderShop(); }
-      else if (act === 'back') { this.open('talk'); this.renderTalk(); }
+      // Back to where the conversation was (its choices), or to the NPC's ordinary lines.
+      else if (act === 'back') { this.open('talk'); if (this.lastNode) this.renderNode(this.lastNode.head, this.lastNode.node); else this.renderTalk(); }
       else this.actions!.onClose();
     });
   }
@@ -350,7 +383,7 @@ export class Hud {
       let btn = '';
       if (d.kind === 'weapon') btn = e.equippedBy ? `<span class="tag">equipped by ${e.equippedBy}</span>` : `<button data-act="equip" data-uid="${e.uid}" ${d.weaponClass === me.weapon ? '' : 'disabled'}>Equip on ${me.name}</button>`;
       else if (d.kind === 'consumable') btn = `<button data-act="use" data-uid="${e.uid}">Use</button>`;
-      if (!e.equippedBy) btn += `<button class="ghost" data-act="drop" data-uid="${e.uid}">Drop</button>`;
+      if (!e.equippedBy && d.kind !== 'key') btn += `<button class="ghost" data-act="drop" data-uid="${e.uid}">Drop</button>`;
       groups[d.kind].push(`<div class="row"><span class="item r${d.rarity}">${d.name}${e.count > 1 ? ` ×${e.count}` : ''}</span><span class="desc">${stats}</span><span class="btns">${btn}</span></div>`);
     }
     const section = (title: string, rows: string[]) => rows.length ? `<div class="col-title">${title}</div>${rows.join('')}` : '';

@@ -8,6 +8,9 @@ import { readdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+// Paths below are relative to the repository root, wherever the script is run from.
+process.chdir(fileURLToPath(new URL('..', import.meta.url)));
 
 const [key, file, tris = '30000', tex = '1024'] = process.argv.slice(2);
 if (!key || !file) { console.error('usage: meshy-install.mjs <key> <file.glb> [tris] [tex]'); process.exit(2); }

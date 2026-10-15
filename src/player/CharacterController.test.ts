@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CONTROLLER, createControllerState, stepController, type ControllerInput, type WorldQuery } from './CharacterController';
 
 const flat: WorldQuery = { heightAt: () => 0 };
-const idle = (): ControllerInput => ({ move: { x: 0, z: 0 }, sprint: false, jump: false, jumpHeld: false, fly: false, climbHeld: false });
+const idle = (): ControllerInput => ({ move: { x: 0, z: 0 }, sprint: false, jump: false, jumpHeld: false, fly: false });
 
 function run(input: ControllerInput, steps: number, world = flat, s = createControllerState({ x: 0, y: 0, z: 0 })) {
   for (let i = 0; i < steps; i++) stepController(s, input, world, 1 / 60);

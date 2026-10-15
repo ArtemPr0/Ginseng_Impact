@@ -902,7 +902,8 @@ export class Rig {
       if (v > 0.3) { if (!m.play('swim', false, Math.max(0.7, v / 2.6))) m.play('walk', false, 0.6); }
       else if (!m.play('swimIdle')) m.play('idle');
     }
-    else if (v > 5.5) { if (!m.play('run', false, v / 7)) m.play('walk', false, v / 4); }
+    // (A little hysteresis: a speed hovering at the threshold does not flip between the run and the walk.)
+    else if (v > (m.playing === 'run' ? 5.1 : 5.9)) { if (!m.play('run', false, v / 7)) m.play('walk', false, v / 4); }
     else if (v > 0.3) { if (!m.play('walk', false, Math.max(0.6, v / 4))) m.play('run', false, v / 7); }
     else {
       m.play('idle');

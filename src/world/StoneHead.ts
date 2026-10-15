@@ -49,7 +49,8 @@ export function stoneHeadEyes(): Landmark {
       flare = Math.max(0, flare - dt * 0.8);
       for (const e of eyes) {
         // The pupil slides toward the hero across the iris (within it), and the whole eye turns a little.
-        look.copy(player).add(new Vector3(0, 1.5, 0)).sub(e.eye.position);
+        look.copy(player).sub(e.eye.position);
+        look.y += 1.5;
         const yaw = Math.atan2(look.x, look.z);
         const pitch = Math.atan2(look.y, Math.hypot(look.x, look.z));
         const k = near > 0 ? 1 : 0;

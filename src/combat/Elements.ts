@@ -13,10 +13,6 @@ export const ELEMENT_COLOR: Record<Element, number> = {
   tide: PALETTE.rune,
 };
 
-export const ELEMENT_NAME: Record<Element, string> = {
-  lunar: 'Lunar', blood: 'Blood', astral: 'Astral', fog: 'Fog', stone: 'Stone', rot: 'Rot', tide: 'Tide',
-};
-
 export interface Aura { element: Element; gauge: number }
 
 export type ReactionId = 'eclipse' | 'conduit' | 'overload';

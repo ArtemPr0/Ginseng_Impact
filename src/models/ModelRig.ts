@@ -12,8 +12,13 @@ const models = new Map<string, Promise<GLTF | null>>();
 function fetchGlb(file: string): Promise<GLTF | null> {
   let p = files.get(file);
   if (!p) {
-    p = fetch(`/models/${file}`, { method: 'HEAD' })
-      .then((r) => { const ct = (r.headers.get('content-type') ?? '').toLowerCase(); return r.ok && (ct.includes('octet') || ct.includes('gltf') || ct.includes('glb')) ? loader.loadAsync(`/models/${file}`) : null; })
+    // One request: a missing file comes back as 404 (or the dev server's HTML page), anything else is the GLB.
+    p = fetch(`/models/${file}`)
+      .then(async (r) => {
+        const ct = (r.headers.get('content-type') ?? '').toLowerCase();
+        if (!r.ok || ct.includes('text/html')) return null;
+        return loader.parseAsync(await r.arrayBuffer(), '/models/');
+      })
       .catch(() => null);
     files.set(file, p);
   }
@@ -263,6 +268,8 @@ export class ModelRig {
         if (!m || !('emissive' in m)) continue;
         // A file without a material gets glTF's default (fully metallic → near black at night): make it matte clay.
         if (!m.map) { m.metalness = 0; if (def.tint !== undefined) m.color.setHex(def.tint); }
+        // A textured body shared with another id (the Lean-Chucker wears the ghouls' file) is tinted on its own copy.
+        else if (def.tint !== undefined && opts.cloneMaterials) m.color.setHex(def.tint);
         if (m.emissive.getHex() === 0) { m.emissive.setHex(0x16224e); m.emissiveIntensity = 0.42; }
         m.roughness = Math.max(m.roughness ?? 1, 0.6);
         m.userData.baseEmissive = m.emissive.getHex();
@@ -312,7 +319,16 @@ export class ModelRig {
   private readonly damped: Array<{ bone: Object3D; rest: Quaternion }> = [];
   private armDamp = 0;
 
+  /** Clip key → action, once looked up (play() and has() run for every body every frame). */
+  private readonly found = new Map<string, AnimationAction | null>();
+
   private find(key: ClipKey | string): AnimationAction | null {
+    let hit = this.found.get(key);
+    if (hit === undefined) { hit = this.lookup(key); this.found.set(key, hit); }
+    return hit;
+  }
+
+  private lookup(key: ClipKey | string): AnimationAction | null {
     const def = MODELS[this.id];
     // A clip entry may list alternatives ("slam|attack|punch"); the first alternative with a match wins.
     const wanted = (def.clips?.[key as ClipKey] ?? key).toLowerCase().split('|');
@@ -456,10 +472,6 @@ export class ModelRig {
   update(dt: number): void {
     this.mixer.update(dt);
     for (const d of this.damped) d.bone.quaternion.slerp(d.rest, this.armDamp);
-  }
-
-  static clipNames(gltf: GLTF): string[] {
-    return gltf.animations.map((c: AnimationClip) => c.name);
   }
 
   get object(): Object3D {
