@@ -42,6 +42,20 @@ export class Enemy {
   model: ModelRig | null = null;
   private placeholder: MissingModelPlaceholder | null = null;
   private lastState: EnemyState = 'idle';
+  /** Animation bookkeeping: measured ground speed and direction, the one-shot clip in flight, procedural pose state. */
+  private lastX = 0;
+  private lastZ = 0;
+  private lastYaw = 0;
+  private groundSpeed = 0;
+  private moveDirX = 0;
+  private moveDirZ = 0;
+  private stateClock = 0;
+  private oneShot: 'attack' | 'hit' | 'death' | null = null;
+  private wantFlinch = false;
+  private lastFlinch = -10;
+  private gaitPhase = Math.random() * 6;
+  private lunge = 0;
+  private flinch = 0;
   /** Walking back to its spot after losing the player (it heals and ignores the player on the way). */
   returning = false;
   /** How far from its spot this enemy will follow (its def's leash, or a default by size). */
@@ -52,6 +66,8 @@ export class Enemy {
     this.hp = def.maxHp;
     this.pos = { x: spawn.x, y: world.heightAt(spawn.x, spawn.z) + def.hover, z: spawn.z };
     this.territory = def.leash ?? (def.boss ? 30 : 22);
+    this.lastX = this.pos.x;
+    this.lastZ = this.pos.z;
     if (def.scale) this.object.scale.setScalar(def.scale);
     this.object.position.set(this.pos.x, this.pos.y, this.pos.z);
     void loadModelOrWarn(def.kind, def.name).then((g) => { if (g) this.useModel(def.kind, g); else this.showPlaceholder(); });
@@ -86,6 +102,11 @@ export class Enemy {
     return !this.returning && (s === 'chase' || s === 'windup' || s === 'attack' || s === 'recover');
   }
 
+  /** 0..1 of a lunge's push that still fits before the body would run into the player (a lunge stops at the target). */
+  private lungeRoom(dist: number): number {
+    return Math.max(0, Math.min(1, (dist - (this.def.bodyRadius + 1)) / 2.6));
+  }
+
   /** Gives up the chase: back to its spot, healing on the way (portals, leaving its territory, the player dying). */
   disengage(): void {
     if (!this.alive || this.returning) return;
@@ -110,7 +131,9 @@ export class Enemy {
     }
     // Out of its territory (or out of this world, through a portal): walk home and heal.
     const playerFromHome = Math.hypot(player.x - this.spawn.x, player.z - this.spawn.z);
-    if (this.aggro && (playerFromHome > this.territory + this.def.brain.aggroRange * 0.5 || Math.abs(player.y - this.pos.y) > 60)) this.disengage();
+    // (A boss that cannot walk, like the seated Hollow King, still holds the player anywhere within its reach.)
+    const giveUp = Math.max(this.territory + this.def.brain.aggroRange * 0.75, this.def.brain.aggroRange * 1.25);
+    if (this.aggro && (playerFromHome > giveUp || Math.abs(player.y - this.pos.y) > 60)) this.disengage();
     if (this.returning) return this.walkHome(dt);
     const dx = player.x - this.pos.x;
     const dz = player.z - this.pos.z;
@@ -135,15 +158,16 @@ export class Enemy {
       if (this.def.attacks && this.currentAttack) {
         action = { kind: 'boss', attack: this.currentAttack.kind };
         if ((this.currentAttack.kind === 'charge' || this.currentAttack.kind === 'bite') && dist > 0.01) {
-          const push = this.currentAttack.kind === 'charge' ? 18 : 8;
+          const push = (this.currentAttack.kind === 'charge' ? 18 : 8) * this.lungeRoom(dist);
           this.knock.x += (dx / dist) * push;
           this.knock.z += (dz / dist) * push;
         }
       } else {
         action = { kind: 'melee' };
         if ((this.def.kind === 'beast' || this.def.kind === 'croc') && dist > 0.01) {
-          this.knock.x += (dx / dist) * 9;
-          this.knock.z += (dz / dist) * 9;
+          const push = 9 * this.lungeRoom(dist);
+          this.knock.x += (dx / dist) * push;
+          this.knock.z += (dz / dist) * push;
         }
       }
     }
@@ -160,7 +184,8 @@ export class Enemy {
         if (dist > pref + 1.5) { mx = ux; mz = uz; }
         else if (dist < pref - 2) { mx = -ux; mz = -uz; }
         else { mx = -uz * 0.6; mz = ux * 0.6; } // strafe
-      } else {
+      } else if (dist > this.def.brain.attackRange * 0.8) {
+        // Melee: close in to striking distance and hold there while the next blow cools down.
         mx = ux;
         mz = uz;
       }
@@ -253,6 +278,8 @@ export class Enemy {
     this.knock.x += kb.x * strength;
     this.knock.z += kb.z * strength;
     this.flashLeft = 0.09;
+    // Flinch: every hit for small mobs; bosses only now and then, so their attacks are not interrupted constantly.
+    if (!this.def.boss || this.time - this.lastFlinch > 3) { this.wantFlinch = true; this.flinch = 1; this.lastFlinch = this.time; }
     if (this.hp <= 0) {
       this.hp = 0;
       this.brain.kill();
@@ -265,6 +292,10 @@ export class Enemy {
   private respawn(): void {
     if (this.noRespawn) return;
     this.returning = false;
+    this.oneShot = null;
+    this.wantFlinch = false;
+    this.lunge = this.flinch = 0;
+    if (this.model) { this.model.root.rotation.set(0, 0, 0); this.model.root.position.set(0, 0, 0); }
     this.hp = this.def.maxHp;
     this.aura = null;
     this.defDown = { amount: 0, left: 0 };
@@ -289,16 +320,24 @@ export class Enemy {
         else { m.emissive.set(m.userData.baseEmissive as number); m.emissiveIntensity = m.userData.baseIntensity as number; }
       }
     }
+    // How fast and which way the body is actually travelling (drives the gait, not the intended speed).
+    const mx = this.pos.x - this.lastX;
+    const mz = this.pos.z - this.lastZ;
+    this.lastX = this.pos.x;
+    this.lastZ = this.pos.z;
+    const inst = dt > 0 ? Math.hypot(mx, mz) / dt : 0;
+    this.groundSpeed += (Math.min(inst, 30) - this.groundSpeed) * Math.min(1, dt * 8);
+    if (inst > 0.05) { this.moveDirX = mx; this.moveDirZ = mz; }
+    const yawRate = Math.atan2(Math.sin(this.yaw - this.lastYaw), Math.cos(this.yaw - this.lastYaw)) / Math.max(dt, 1e-4);
+    this.lastYaw = this.yaw;
+
     const st: EnemyState = this.returning ? 'chase' : this.brain.state;
     const m = this.model;
-    // State transitions first, so the death clip plays before the body shrinks away.
-    if (m && st !== this.lastState) {
-      if (st === 'windup') { if (!m.play(this.currentAttack?.kind === 'roar' ? 'roar' : 'attack', true)) m.play('attack', true); }
-      else if (st === 'attack') { if (this.def.stomp) this.onStomp?.(this.pos.x, this.pos.y, this.pos.z); }
-      else if (st === 'chase') { if (!m.play('walk')) m.play('idle'); }
-      else if (st === 'idle') m.play('idle');
-      else if (st === 'dead') { if (!m.play('death', true)) m.play('idle'); }
-    }
+    const entered = st !== this.lastState;
+    if (entered) this.stateClock = 0;
+    this.stateClock += dt;
+    if (entered && st === 'attack') { this.lunge = 1; if (this.def.stomp) this.onStomp?.(this.pos.x, this.pos.y, this.pos.z); }
+    if (m && m.hasClips) this.driveClips(m, st, entered);
     this.lastState = st;
     if (!this.alive) {
       // Hold the corpse while the death clip runs (or a short beat without one), then shrink it away.
@@ -307,19 +346,165 @@ export class Enemy {
       const s = hold ? (m ? 1 : this.def.scale ?? 1) : Math.max(0, 1 - (this.deadFor - DEATH_HOLD) * 2.2);
       this.object.scale.setScalar(m ? s : s * (this.def.scale ?? 1));
       this.object.visible = s > 0;
+      if (m && !m.hasClips) this.driveStatic(m, st, dt, yawRate);
       if (!far) m?.update(dt);
       return;
     }
     this.object.rotation.y = yawToRotation(this.yaw);
     if (!m) { this.placeholder?.update(dt); return; }
-    if ((st === 'recover' || st === 'chase') && m.finished) { if (!m.play('walk')) m.play('idle'); }
-    if (this.def.stomp && st === 'chase') {
+    if (this.def.stomp && st === 'chase' && this.groundSpeed > 0.4) {
       const prev = this.stepPhase;
-      this.stepPhase += dt * (Math.PI * this.def.speed) / (this.def.height * 0.45);
+      this.stepPhase += dt * (Math.PI * this.groundSpeed) / (this.def.height * 0.45);
       if (Math.floor(prev / Math.PI) !== Math.floor(this.stepPhase / Math.PI)) this.onStomp?.(this.pos.x, this.pos.y, this.pos.z);
     }
+    if (!m.hasClips) this.driveStatic(m, st, dt, yawRate);
     if (!far) m.update(dt);
-    // Models that came without clips (the seated Hollow King) still breathe.
-    if (!m.playing) { const b = 1 + Math.sin(this.time * 0.9) * 0.012; m.root.scale.set(1, b, 1); }
+    this.lunge = Math.max(0, this.lunge - dt * 2.8);
+    this.flinch = Math.max(0, this.flinch - dt * 4);
+  }
+
+  /**
+   * Clip choice for a rigged body. Attacks play the clip that suits the move, timed so its blow lands exactly when
+   * the hit is dealt; the gait follows the real ground speed (walk or run, played faster or slower so the feet stay
+   * planted, backwards when retreating); standing still shows the stance, never a walk in place.
+   */
+  private driveClips(m: ModelRig, st: EnemyState, entered: boolean): void {
+    if (entered && st === 'dead') { if (!m.play('death', true)) m.play('idle'); this.oneShot = 'death'; return; }
+    if (st === 'dead') return;
+    if (entered && st === 'windup') {
+      const windup = this.brain.p.windup;
+      for (const key of attackClips(this.currentAttack?.kind)) if (m.playStrike(key, windup)) { this.oneShot = 'attack'; return; }
+    }
+    if (this.wantFlinch) {
+      this.wantFlinch = false;
+      // Never during the wind-up (the blow is coming); the follow-through after the blow may be cut short.
+      if (st !== 'windup' && st !== 'attack' && m.has('hit')) { m.play('hit', true, 1, 0.65); this.oneShot = 'hit'; return; }
+    }
+    // Let a swing or a flinch finish (a swing may give way once the body is on the move again).
+    if (this.oneShot && !m.finished) {
+      if (!(this.oneShot === 'hit' || (st === 'chase' && this.groundSpeed > 0.6))) return;
+      if (this.oneShot === 'hit') return;
+    }
+    this.oneShot = null;
+    if (st === 'windup' || st === 'attack') return;
+    const v = this.groundSpeed;
+    if (v < 0.35) {
+      // Calm at home: the relaxed idle; facing the player: the combat stance.
+      if (!(st === 'idle' && !this.returning && m.has('idle_02') && m.play('idle_02'))) m.play('idle');
+      return;
+    }
+    // Pick the gait whose natural pace is nearest the real one, then match it exactly.
+    let best = '';
+    let bestScale = 1;
+    let bestErr = Infinity;
+    for (const key of ['walk', 'run', 'walking', 'running']) {
+      const rate = m.strideSpeed(key);
+      if (rate <= 0) continue;
+      const scale = v / rate;
+      const err = Math.abs(Math.log(scale));
+      if (err < bestErr) { bestErr = err; best = key; bestScale = scale; }
+    }
+    if (!best) { m.play('idle'); return; }
+    const fx = Math.cos(this.yaw);
+    const fz = Math.sin(this.yaw);
+    const len = Math.hypot(this.moveDirX, this.moveDirZ) || 1;
+    const along = (this.moveDirX * fx + this.moveDirZ * fz) / len;
+    const speed = Math.min(2.4, Math.max(0.45, bestScale)) * (along < -0.35 ? -1 : 1);
+    m.play(best, false, speed);
+  }
+
+  /**
+   * A body without clips (the wyrm, the shades, the crocs, the Ember Rider, the seated Hollow King) moves by hand:
+   * a gait bob or slither while travelling, a lean back on the wind-up and a lunge on the blow, a flinch when hit,
+   * a topple when it dies, and breathing at rest.
+   */
+  private driveStatic(m: ModelRig, st: EnemyState, dt: number, yawRate: number): void {
+    const H = m.height;
+    const motion = STATIC_MOTION[this.def.kind] ?? 'stride';
+    const v = this.groundSpeed;
+    const k = Math.min(1, v / Math.max(0.5, H * 0.6));
+    this.gaitPhase += dt * (motion === 'slither' ? 2.2 + v * 1.4 : motion === 'gallop' ? 2 + v * 1.25 : 1.6 + (v / Math.max(0.4, H)) * 5);
+    const ph = this.gaitPhase;
+    const t = this.time;
+    let y = 0;
+    let pitch = 0;
+    let roll = 0;
+    let wiggle = 0;
+    let sy = 1 + Math.sin(t * 0.9) * 0.012;
+    switch (motion) {
+      case 'gallop':
+        y = Math.abs(Math.sin(ph)) * 0.05 * H * k;
+        pitch = Math.sin(ph * 2) * 0.06 * k + 0.04 * k;
+        break;
+      case 'slither':
+        wiggle = Math.sin(ph) * 0.2 * (0.25 + k);
+        y = Math.abs(Math.sin(ph * 2)) * 0.01 * H * k;
+        break;
+      case 'hover':
+        y = Math.sin(t * 1.6) * 0.05 * H;
+        pitch = 0.12 * k;
+        roll = Math.sin(t * 0.8) * 0.03 + Math.sin(ph) * 0.03 * k;
+        break;
+      case 'wade':
+        y = Math.sin(t * 1.3) * 0.03 * H;
+        roll = Math.sin(t * 0.7) * 0.04 + Math.sin(ph) * 0.05 * k;
+        pitch = 0.06 * k;
+        break;
+      case 'fly':
+        y = Math.sin(t * 1.2) * 0.06 * H;
+        roll = Math.max(-0.6, Math.min(0.6, -yawRate * 0.35));
+        pitch = 0.08 * k + Math.sin(t * 2.4) * 0.03;
+        break;
+      case 'seated':
+        sy = 1 + Math.sin(t * 0.7) * 0.015;
+        break;
+      default: // heavy stride
+        y = Math.abs(Math.sin(ph)) * 0.03 * H * k;
+        roll = Math.sin(ph) * 0.045 * k;
+        pitch = 0.05 * k;
+    }
+    // Wind-up: rear back (a horse rears, a croc lifts its head); the blow: lunge forward; a hit: flinch back.
+    if (st === 'windup') {
+      const p = Math.min(1, this.stateClock / Math.max(0.1, this.brain.p.windup));
+      const ease = p * p * (3 - 2 * p);
+      pitch -= ease * (motion === 'gallop' ? 0.42 : motion === 'seated' ? 0.08 : 0.2);
+      sy += ease * 0.04;
+    }
+    pitch += this.lunge * this.lunge * (motion === 'gallop' ? 0.3 : motion === 'seated' ? 0.1 : 0.28);
+    pitch -= this.flinch * 0.16;
+    if (!this.alive) {
+      // No death clip: topple onto one side and settle.
+      const d = Math.min(1, this.deadFor / 0.9);
+      const e = 1 - (1 - d) * (1 - d);
+      roll = e * 1.35;
+      pitch *= 1 - e;
+      y = -e * 0.12 * H;
+      wiggle = 0;
+    }
+    const r = m.root;
+    const a = Math.min(1, dt * 14);
+    r.position.y += (y - r.position.y) * a;
+    r.rotation.x += (pitch - r.rotation.x) * a;
+    r.rotation.z += (roll - r.rotation.z) * a;
+    r.rotation.y += (wiggle - r.rotation.y) * a;
+    r.scale.set(1, sy, 1);
   }
 }
+
+/** Clip keys to try for each move, best first (Meshy preset names match by substring). */
+function attackClips(kind: BossAttackKind | undefined): string[] {
+  switch (kind) {
+    case 'slam': case 'roots': return ['charged_ground_slam', 'heavy', 'attack'];
+    case 'volley': case 'summon': case 'blink': return ['charged_spell_cast', 'mage_s', 'cast', 'attack'];
+    case 'breath': case 'roar': return ['zombie_scream', 'shouting', 'roar', 'attack'];
+    // A swing or a throw: the plain Attack clip, which boss bodies list under 'heavy' ('attack' is their slam).
+    case 'sweep': case 'bite': case 'boulder': case 'charge': return ['heavy', 'attack'];
+    default: return ['attack', 'heavy'];
+  }
+}
+
+type StaticMotion = 'gallop' | 'slither' | 'hover' | 'wade' | 'fly' | 'seated' | 'stride';
+/** How each clip-less body moves (see driveStatic). */
+const STATIC_MOTION: Partial<Record<string, StaticMotion>> = {
+  emberrider: 'gallop', croc: 'slither', rivershade: 'hover', lurker: 'wade', wyrm: 'fly', hollowking: 'seated', marshdemon: 'stride',
+};

@@ -54,7 +54,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     drops: [{ itemId: 'beast-fang', chance: 1 }, { itemId: 'moon-dew', chance: 1 }],
   },
   beast: {
-    kind: 'beast', name: 'Fog Beast', maxHp: 650, def: 30, atk: 85, speed: 4.4, element: 'rot', hover: 0, bodyRadius: 0.7, height: 1.5,
+    kind: 'beast', name: 'Fog Beast', maxHp: 650, def: 30, atk: 85, speed: 3.6, element: 'rot', hover: 0, bodyRadius: 0.7, height: 1.5,
     brain: { aggroRange: 12, attackRange: 2.6, windup: 0.45, recover: 1.1, attackCooldown: 0.7 }, respawn: 35, leash: 22, shards: [8, 16], drops: [{ itemId: 'beast-fang', chance: 0.5 }, { itemId: 'moon-dew', chance: 0.3 }],
   },
   passbeast: {
@@ -119,7 +119,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   },
   croc: {
     kind: 'croc', name: 'Mire Crocodile', maxHp: 900, def: 45, atk: 95, speed: 4.2, element: 'tide', hover: 0, bodyRadius: 1.2, height: 0.7, leash: 16,
-    brain: { aggroRange: 10, attackRange: 2.6, windup: 0.5, recover: 1.0, attackCooldown: 0.6 }, respawn: 60, shards: [8, 14], drops: [{ itemId: 'croc-hide', chance: 0.6 }],
+    brain: { aggroRange: 10, attackRange: 3.6, windup: 0.5, recover: 1.0, attackCooldown: 0.6 }, respawn: 60, shards: [8, 14], drops: [{ itemId: 'croc-hide', chance: 0.6 }],
   },
 };
 

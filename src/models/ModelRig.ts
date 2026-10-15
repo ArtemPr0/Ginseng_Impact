@@ -1,4 +1,4 @@
-import { AnimationAction, AnimationClip, AnimationMixer, Box3, Group, LoopOnce, LoopRepeat, Mesh, type MeshStandardMaterial, Object3D, type SkinnedMesh, Vector3 } from 'three';
+import { AnimationAction, AnimationClip, AnimationMixer, Box3, Group, LoopOnce, LoopRepeat, Mesh, type MeshStandardMaterial, Object3D, Quaternion, type SkinnedMesh, Vector3 } from 'three';
 import { warnMissing } from './Placeholder';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
@@ -60,6 +60,37 @@ export function loadModelOrWarn(id: string, label?: string): Promise<GLTF | null
 }
 
 export type ClipKey = keyof NonNullable<ModelDef['clips']>;
+
+/**
+ * Ground covered per second by Meshy's locomotion presets at normal speed, in heights of the body (measured from
+ * the foot bones of the in-place clips). Playing a walk at speed × v / (rate × height) keeps the feet planted.
+ */
+const STRIDE_RATE: Array<[RegExp, number]> = [
+  [/slow_orc_walk/, 0.127], [/monster_walk/, 0.179], [/crawl/, 0.2], [/running|run/, 1.56], [/walking|walk/, 0.877],
+];
+
+/**
+ * Where in an action clip the blow lands (fraction of its length), from the hand bones' fastest swing / lowest
+ * reach: Meshy's Attack swings at ~38%, the ground slam lands at ~60%, casts release around 45%.
+ */
+const STRIKE_AT: Array<[RegExp, number]> = [
+  [/charged_ground_slam|slam/, 0.6], [/charged_spell_cast/, 0.45], [/mage_s\w*_cast|spell/, 0.32], [/zombie_scream|scream/, 0.3],
+  [/shouting|shout|roar/, 0.2], [/attack|punch|slash|bite/, 0.38],
+];
+
+/** Clips whose hips wander off sideways (Meshy's Hit_Reaction drifts half a body): their root is pinned in place. */
+const PIN_ROOT = /hit_reaction|hit/i;
+const pinned = new WeakSet<AnimationClip>();
+
+function pinRoot(clip: AnimationClip): void {
+  if (pinned.has(clip)) return;
+  pinned.add(clip);
+  for (const t of clip.tracks) {
+    if (!/hips\.position$/i.test(t.name)) continue;
+    const v = t.values;
+    for (let i = 3; i < v.length; i += 3) { v[i] = v[0]; v[i + 2] = v[2]; }
+  }
+}
 
 /** The scale, offset and yaw that put a file at `def.height`, centred on x/z with its feet at y = 0. */
 export function normaliseTransform(scene: Object3D, def: ModelDef): { scale: number; offset: Vector3; yaw: number } {
@@ -159,9 +190,20 @@ export class ModelRig {
     this.frame = holder;
     this.height = def.height;
     this.mixer = new AnimationMixer(scene);
-    for (const clip of gltf.animations) this.actions.set(clip.name.toLowerCase(), this.mixer.clipAction(clip));
+    for (const clip of gltf.animations) {
+      if (PIN_ROOT.test(clip.name)) pinRoot(clip);
+      this.actions.set(clip.name.toLowerCase(), this.mixer.clipAction(clip));
+    }
+    if (def.armDamp) {
+      // Rest pose of the arms, captured before any clip runs (see ModelDef.armDamp).
+      scene.traverse((o) => { if (/(left|right)(shoulder|arm|forearm)$/i.test(o.name)) this.damped.push({ bone: o, rest: o.quaternion.clone() }); });
+      this.armDamp = def.armDamp;
+    }
     this.play('idle');
   }
+
+  private readonly damped: Array<{ bone: Object3D; rest: Quaternion }> = [];
+  private armDamp = 0;
 
   private find(key: ClipKey | string): AnimationAction | null {
     const def = MODELS[this.id];
@@ -187,6 +229,7 @@ export class ModelRig {
     action.clampWhenFinished = once;
     action.timeScale = fitTo ? Math.max(0.3, action.getClip().duration / Math.max(0.05, fitTo)) : speed;
     action.enabled = true;
+    action.weight = key === 'idle' ? MODELS[this.id]?.idleBlend ?? 1 : 1;
     if (this.current && this.current !== action) { action.crossFadeFrom(this.current, 0.18, true); }
     action.play();
     this.current = action;
@@ -196,6 +239,37 @@ export class ModelRig {
 
   get playing(): string {
     return this.currentKey;
+  }
+
+  /** True when `key` resolves to a clip on this body. */
+  has(key: ClipKey | string): boolean {
+    return this.find(key) !== null;
+  }
+
+  /** Name of the clip `key` resolves to (lower case), or ''. */
+  clipName(key: ClipKey | string): string {
+    return this.find(key)?.getClip().name.toLowerCase() ?? '';
+  }
+
+  /** Metres per second the locomotion clip `key` covers at speed 1 on this body (0 when it is not a locomotion clip). */
+  strideSpeed(key: ClipKey | string): number {
+    const name = this.clipName(key);
+    for (const [re, rate] of STRIDE_RATE) if (re.test(name)) return rate * this.height;
+    return 0;
+  }
+
+  /**
+   * Plays a one-shot so that its blow (STRIKE_AT) lands `seconds` from now: the wind-up of the clip fills the
+   * wind-up of the move, and the follow-through plays out at the same pace afterwards.
+   */
+  playStrike(key: ClipKey | string, seconds: number): boolean {
+    const action = this.find(key);
+    if (!action) return false;
+    const name = action.getClip().name.toLowerCase();
+    let at = 0.4;
+    for (const [re, f] of STRIKE_AT) if (re.test(name)) { at = f; break; }
+    const speed = Math.min(4, Math.max(0.35, (action.getClip().duration * at) / Math.max(0.05, seconds)));
+    return this.play(key, true, speed);
   }
 
   /** Freezes the current clip once it reaches `fraction` of its length (a jump's apex, a charge's wind-up). */
@@ -239,6 +313,7 @@ export class ModelRig {
 
   update(dt: number): void {
     this.mixer.update(dt);
+    for (const d of this.damped) d.bone.quaternion.slerp(d.rest, this.armDamp);
   }
 
   static clipNames(gltf: GLTF): string[] {

@@ -26,6 +26,13 @@ export interface ModelDef {
   smoke?: { x: number; y: number; z: number };
   /** Where a held prop (staff) sits on a boneless body, same frame as `smoke`. */
   hand?: { x: number; y: number; z: number };
+  /**
+   * 0..1: how much of the clips' arm rotation to give back to the rest pose. For rigs whose cloak or long arms are
+   * skinned to the arm bones (the Horned Shade, the Gorge Troll), raised arms stretch the mesh into sheets or noodles.
+   */
+  armDamp?: number;
+  /** 0..1: how strongly the idle clip poses the body (a floating spirit should not crouch in a boxer's stance). */
+  idleBlend?: number;
   /** A boneless robe/cloak model: the rig animates it procedurally (hover, sway, hem wind) instead of clips. */
   robe?: boolean;
   /** Human-readable name for the missing-model warning and placeholder. */
@@ -74,10 +81,10 @@ export const MODELS: Record<string, ModelDef> = {
   // Bosses and mobs
   // Meshy animate exports bundle every added preset into one GLB; clip names are the preset's English ids.
   yeti: { file: 'yeti.glb', height: 3.2, clips: BOSS_CLIPS },
-  shade: { file: 'horned-shade.glb', height: 3.4, clips: BOSS_CLIPS },
+  shade: { file: 'horned-shade.glb', height: 3.4, armDamp: 0.7, idleBlend: 0.3, clips: BOSS_CLIPS },
   warden: { file: 'antlered-warden.glb', height: 6.5, clips: BOSS_CLIPS },
   wyrm: { file: 'moon-wyrm.glb', height: 3, yOffset: 0, clips: { idle: 'fly|idle|hover', fly: 'fly|idle', attack: 'bite|attack' } },
-  troll: { file: 'rock-troll.glb', height: 3.2, yaw: Math.PI, clips: BOSS_CLIPS },
+  troll: { file: 'rock-troll.glb', height: 3.2, yaw: Math.PI, armDamp: 0.6, clips: BOSS_CLIPS },
   lurker: { file: 'lake-lurker.glb', height: 2.8, yOffset: -0.3, clips: BOSS_CLIPS },
   marshdemon: { file: 'marsh-demon.glb', height: 5, yOffset: -0.6, clips: BOSS_CLIPS },
   hollowking: { file: 'hollow-king.glb', height: 10, clips: BOSS_CLIPS },
