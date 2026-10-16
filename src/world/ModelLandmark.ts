@@ -10,7 +10,7 @@ import { MissingModelPlaceholder, SHOW_PLACEHOLDERS } from '../models/Placeholde
 import { PRESENT_MODELS } from '../data/colliderGrids';
 import { gridFootprint, type Footprint } from './Colliders';
 import type { Landmark } from './Landmarks';
-import { RIVER_LEVEL } from './Terrain';
+import { EYE, RIVER_LEVEL } from './Terrain';
 import { riverPoint } from './Water';
 
 type HeightAt = (x: number, z: number) => number;
@@ -135,13 +135,17 @@ export function riverDrifter(id: string, startS: number, speed: number): ModelLa
   const lm = modelLandmark(id, p0.x, p0.z, RIVER_LEVEL + 0.05, { clip: 'idle', collider: 'none' });
   let s = startS;
   let t = 0;
+  let spin = 0;
   const base = lm.update!;
   lm.update = (dt, player) => {
     t += dt;
     s += dt * speed;
     const p = riverPoint(-s);
     lm.root.position.set(p.x, RIVER_LEVEL + 0.05 + Math.sin(t * 1.4) * 0.06, p.z);
-    lm.root.rotation.y = yawToRotation(p.yaw);
+    // Over the eye pool the vortex takes hold: the boat spins a full turn as it crosses the pupil.
+    const pupil = Math.max(0, 1 - Math.hypot(p.x - EYE.x, p.z - EYE.z) / 14);
+    spin += dt * pupil * pupil * 2.6;
+    lm.root.rotation.y = yawToRotation(p.yaw) + spin;
     lm.root.rotation.z = Math.sin(t * 1.1) * 0.03;
     base(dt, player);
   };

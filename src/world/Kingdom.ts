@@ -7,7 +7,7 @@
  */
 import {
   BackSide, BoxGeometry, BufferAttribute, BufferGeometry, CircleGeometry, Color, DoubleSide, EdgesGeometry, Float32BufferAttribute,
-  Group, LineBasicMaterial, LineSegments, Mesh, PlaneGeometry, Points, ShaderMaterial, SphereGeometry, Vector3,
+  Group, LineBasicMaterial, LineSegments, Mesh, type MeshStandardMaterial, PlaneGeometry, Points, ShaderMaterial, SphereGeometry, Vector3,
 } from 'three';
 import { Reflector } from 'three/examples/jsm/objects/Reflector.js';
 import { GALAXY } from '../data/world';
@@ -18,6 +18,8 @@ import type { Footprint } from './Colliders';
 import type { Interactable } from './Interact';
 import { modelLandmark } from './ModelLandmark';
 import type { RealmApi } from './Realms';
+import { faceMoon } from '../render/MoonFace';
+import { patchSwim } from '../render/Materials';
 
 const NOISE = /* glsl */ `
 float hash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
@@ -533,13 +535,55 @@ export function buildKingdom(api: RealmApi, hooks: { soundWanted(): boolean; fou
   cd.position.set(R.x + 230, gy + 150, R.z - 300);
   cd.lookAt(R.x, gy + 20, R.z);
   sky.add(crescent, cd);
+  // The grinning moon with glowing eyes (shot-013056) takes the crescent's place once its model is in.
+  const grin = faceMoon('moon-grin', 34, { crescent: 0.45, light: new Vector3(-1, 0.3, 0.4), glow: 0.9 });
+  void grin.ready.then((ok) => {
+    if (!ok) return;
+    grin.group.position.copy(crescent.position);
+    grin.group.lookAt(R.x, gy, R.z);
+    crescent.visible = false;
+    sky.add(grin.group);
+  });
   let t = 0;
   api.vfx({ group: sky, update: (dt) => {
     t += dt;
     clock.value = t;
     cd.rotateZ(dt * 0.35);
+    grin.update(dt);
     for (let i = 0; i < computers.length; i++) computers[i].position.y = gy - 30 + Math.sin(t * 0.2 + i) * 4;
   } });
+  // A humpback whale flying slow loops over the plaza and the cups (DeSEl9PvPG_), its body flexing as it swims.
+  {
+    const cx = R.x + 20;
+    const cz = R.z - 10;
+    const wy = gy + 38;
+    let a = 0;
+    const whale = modelLandmark('whale', cx + 85, cz, wy, {
+      collider: 'none',
+      onLoad: (m) => {
+        // The swim wave along the body's long axis (measured from its mesh, whichever way Meshy laid it).
+        m.root.traverse((o) => {
+          const mesh = o as Mesh;
+          if (!mesh.isMesh) return;
+          mesh.geometry.computeBoundingBox();
+          const bb = mesh.geometry.boundingBox!;
+          const axis = bb.max.x - bb.min.x > bb.max.z - bb.min.z ? 'x' : 'z';
+          const mat = (mesh.material as MeshStandardMaterial).clone();
+          patchSwim(mat, axis, bb.min[axis], bb.max[axis], (bb.max.y - bb.min.y) * 0.18);
+          mesh.material = mat;
+        });
+      },
+      update: (dt, root) => {
+        a += dt * 0.11;
+        root.position.set(cx + Math.cos(a) * 85, wy + Math.sin(a * 2.3) * 5, cz + Math.sin(a) * 60);
+        // Facing along the loop (its front is local +z), banking a little into the turn.
+        root.rotation.set(0, Math.atan2(-Math.sin(a) * 85, Math.cos(a) * 60), 0.12);
+      },
+    });
+    api.place(whale);
+    const belly = glowSprite(0x8fa8ff, 22, 0.18, false);
+    whale.root.add(belly);
+  }
   // Pixel snow and the low pink fog.
   const snow = pixelSnow(gy);
   const snowGroup = new Group();

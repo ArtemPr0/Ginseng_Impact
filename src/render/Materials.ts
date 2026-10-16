@@ -350,3 +350,26 @@ export function patchStone(mat: MeshStandardMaterial): void {
   mat.customProgramCacheKey = () => 'stone';
   mat.needsUpdate = true;
 }
+
+/**
+ * A swimming stroke for a rigid creature model (the flying whale): the body flexes up and down in a wave that grows
+ * toward the tail. `axis` is the model's long axis ('z' or 'x', front toward +), `from`/`to` its extent along it in the
+ * model's own units, `amp` the tail's swing in the same units.
+ */
+export function patchSwim(mat: MeshStandardMaterial, axis: 'x' | 'z', from: number, to: number, amp: number): void {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (shader, renderer) => {
+    prev?.call(mat, shader, renderer);
+    shader.uniforms.uWind = WIND;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uWind;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        {
+          float along = transformed.${axis};
+          float f = clamp((${to.toFixed(4)} - along) / ${(to - from).toFixed(4)}, 0.0, 1.0);
+          transformed.y += sin(uWind * 1.1 - f * 4.0) * ${amp.toFixed(4)} * f * f;
+        }`);
+  };
+  mat.customProgramCacheKey = () => `swim:${axis}:${from.toFixed(2)}:${to.toFixed(2)}`;
+  mat.needsUpdate = true;
+}

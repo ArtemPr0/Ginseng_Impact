@@ -1,4 +1,4 @@
-import { Group, type Mesh, type MeshStandardMaterial, type Object3D, Vector3 } from 'three';
+import { Color, Group, type Mesh, type MeshStandardMaterial, type Object3D, Vector3 } from 'three';
 import { ANCHORS, ISLAND_PORTALS, LAYOUT, REALMS, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
 import { PALETTE } from '../render/palette';
@@ -31,6 +31,7 @@ import type { ModelRig } from '../models/ModelRig';
 import type { Interactable, Teleport } from './Interact';
 import type { HostileShot, ShotTarget } from '../combat/CombatSystem';
 import { SkyEyes } from '../render/SkyEyes';
+import { fireflies } from '../render/Fireflies';
 
 import { buildRealms, type RealmApi } from './Realms';
 import type { PortalLink } from './Portal';
@@ -560,6 +561,9 @@ export class World {
     const door = FACE_DOOR(h);
     const clear = (p: Placement) => Math.hypot(p.x - ISLAND_PORTALS.galaxy.x, p.z - ISLAND_PORTALS.galaxy.z) > 11 && Math.hypot(p.x + 40, p.z + 24) > 10 && Math.hypot(p.x - door.x, p.z - door.z) > 11;
     const shroomRing = this.scatterDisc(rnd, LAYOUT.frog.x, LAYOUT.frog.z, 34, 14, 0.8, 1.5).filter((p) => Math.hypot(p.x - LAYOUT.frog.x, p.z - LAYOUT.frog.z) > 12 && clear(p));
+    // Fireflies in the frog hollow's mushroom ring and among the churchyard's graves.
+    vfx(fireflies(LAYOUT.frog.x, h(LAYOUT.frog.x, LAYOUT.frog.z), LAYOUT.frog.z, 18, 4, 80));
+    vfx(fireflies(LAYOUT.church.x, h(LAYOUT.church.x, LAYOUT.church.z), LAYOUT.church.z, 16, 3, 50, new Color(0.6, 1.4, 0.5)));
     flora('giant-mushroom', shroomRing, { trunk: 0.09, patch: (mat, geo) => { const bb = geo.boundingBox!; patchGlowCap(mat, bb.min.y + (bb.max.y - bb.min.y) * 0.55); } });
     flora('flower-tree', this.scatterDisc(rnd, WORLD.pond.x, WORLD.pond.z, 30, 16, 0.8, 1.3).filter((p) => Math.hypot(p.x - WORLD.pond.x, p.z - WORLD.pond.z) > WORLD.pond.r + 3));
     // One floating island over the lily pond pours two glowing falls into it (01.22.56: the lake under the island).
@@ -717,6 +721,8 @@ export class World {
     // Cheapest tests first: this runs for every grass blade candidate around the player.
     if (Math.abs(x) < 7 && z < LAYOUT.causeway.zStart + 8 && z > LAYOUT.causeway.zEnd - 8) return false;
     if (Math.abs(z - WORLD.chasmCentreZ) < WORLD.chasmHalfWidth + 14) return false;
+    // The forest gorge's floor and walls stay bare (its rims have their own pines, Heart.ts).
+    if (z < WORLD.gorge.zHead + 4 && z > WORLD.gorge.zMouth - 10 && Math.abs(x - WORLD.gorge.x) < WORLD.gorge.rim + 1) return false;
     if (Math.abs(x - VILLAGE.x) < 24 && Math.abs(z - VILLAGE.z) < 10) return false;
     for (const route of WALKER_ROUTES) if (nearRoute(route, x, z, 5)) return false;
     const pdx = x - WORLD.pond.x;

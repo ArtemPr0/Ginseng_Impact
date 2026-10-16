@@ -179,7 +179,8 @@ export class Sky {
   private readonly streak: Sprite;
   private readonly streakDir = new Vector3();
   private streakT = 99;
-  private nextStreak = 8;
+  /** The first shooting star comes a few seconds after you arrive; then one every 8–14 s. */
+  private nextStreak = 3;
   private readonly moon: Mesh;
   private readonly face: Mesh;
   private readonly eclipse: Mesh;
@@ -374,7 +375,7 @@ export class Sky {
     this.streakT += dt;
     if (this.streakT > this.nextStreak) {
       this.streakT = 0;
-      this.nextStreak = 10 + Math.random() * 18;
+      this.nextStreak = 8 + Math.random() * 6;
       const az = Math.random() * Math.PI * 2;
       const el = 0.35 + Math.random() * 0.4;
       this.streak.position.set(Math.cos(az) * SKY_RADIUS * 0.9, Math.sin(el) * SKY_RADIUS * 0.9, Math.sin(az) * SKY_RADIUS * 0.9);

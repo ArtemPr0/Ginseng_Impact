@@ -62,3 +62,14 @@ the kettle, the frog monk, the gnome astronomer, the ogre woodhauler, the troll 
 cliff knight, the standard-bearer, the pale bride, the rose knight and maiden, the lanternbearer, the two sky-watchers, the cauldron
 witch), the river and lily pond, village/tavern/campfire/cloister/observatory/throne hall, wizard tower, demon church, palm island,
 tree-house, ruined nave, arch gate, rope bridge, burning castle, and the sky apparitions. Open items are listed at the end of the notes.
+
+
+## The user's frames (round 5, 2026-10-16) — `docs/reference/frames/`
+
+- `world-look-28.png` — THE target look (island heart). `shot-012256.jpg` — floating island over a glowing lake.
+- `shot-011636.jpg` — forest gorge, stone bridge, black spire castle. `shot-011654.jpg` — graveyard alley, cyclops.
+- `shot-013029.jpg`, `shot-013056.jpg`, `shot-013117.jpg` — the face-moons. `shot-013226.jpg` — the red eyeball.
+- `shot-013245.jpg` — the rainbow wizard. Cropped Meshy sources: `cyclops-011654.png`, `blood-eye-013226.png`,
+  `moon-laugh-013117.png`, `moon-grin-013056.png`, `floating-island-28.png`.
+- Reels: DefYcvutTow (the dream; see the ginseng-psychedelic-dream skill), DeSEl9PvPG_ (black sun stairway, flying
+  whale over white flowers, tiered koi pond).

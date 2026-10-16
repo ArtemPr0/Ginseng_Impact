@@ -224,3 +224,29 @@ these subjects is in `docs/reference/meshy-todo.txt`.
 ## DaIqFavJWbd — the mushroom tavern
 - Cave tavern lit by hanging glowing MUSHROOM LAMPS (red-and-white, blue, green, pink), patrons drinking at long tables.
 - A pewter mug on a wooden table; an angry GNOME with a red hat and white beard standing on the table.
+
+## DefYcvutTow — the trip (round 5: the frog's dream)
+- A rocky STONE STAIR path climbing through a TIE-DYE rainbow nebula toward a marbled glowing MOON-EGG; floating
+  rocks; floating islands with SKULLS, BURNING CASTLES and giant SUNFLOWERS.
+- A CANAL VILLAGE of crooked timber houses round an EYE-shaped vortex (green-yellow iris, black pupil, orange and
+  blue arms); wooden bridges with CANDLES; rain; a SPIRAL OF MOON FACES glowing orange to green; a twisted giant
+  trunk with three stone faces.
+- An endless CHECKERBOARD corridor between hooded robed STATUES, a ceiling column of stacked GIANT EYES, coloured
+  torch flames, a giant SKULL with a SNAKE coiled round it.
+- In game: Dream.ts (all three scenes); the style is saved as the ginseng-psychedelic-dream skill.
+
+## DeSEl9PvPG_ — the black sun, the whale, the koi tiers (round 5)
+- A candle-lined grand stone stairway with braziers up to a gothic gate under a BLACK-SUN ECLIPSE (dark disc, blue
+  corona) and jagged blue mountains.
+- A HUMPBACK WHALE flying over a field of WHITE FLOWERS under stars and pink-lit clouds.
+- A TIERED POND with three glowing blue waterfalls, flying red KOI, mossy rocks.
+- In game: the black sun over the gorge's spire castle; the whale over Yung Lean's plaza; the white meadow by the
+  spawn road; the three koi pools stepping down to the eye.
+
+## The user's frames (round 5) — docs/reference/frames/shot-*.jpg, world-look-28.png
+- world-look-28: the island heart (eye pool, wooden bridge, glowing mushrooms, floating islands with falls,
+  hamlet, spires, cyclops). shot-012256: a floating island pouring falls into a glowing lake (the lily pond).
+- shot-011636: forest gorge with a stone bridge and a black spire castle (the NW gorge). shot-011654: graveyard
+  alley with the cyclops (the Alley of Graves realm).
+- shot-013029 / 013056 / 013117: face-moons (island, kingdom, dream). shot-013226: the Blood Eye over the chasm.
+  shot-013245: the Prism Wizard of the dream.

@@ -68,3 +68,15 @@ export const PALETTE = {
   stone: 0x46538c, bark: 0x2a2f55, cloth: 0x8d99d6,
 } as const;
 ```
+
+## Since round 5 (2026-10-16): warm accents and the trip palette
+
+The user's reference frame (`world-look-28.png`) has warm torch flames, candle-lit windows and an orange swirl in
+the eye vortex, so the old "zero warm colour" rule is retired. What stays: warm only as small points.
+
+| Accent | Value | Where |
+|---|---|---|
+| Fire | `FIRE` (`src/world/Fire.ts`) | torches, candles, braziers, burning castles |
+| Lit window | `(1.0, 0.55, 0.18)` emissive | `patchLitWindows` on houses |
+| Trip palette | cosine palette `0.5 + 0.5·cos(2π(t + (0, 0.33, 0.67)))` | the eye vortex, the dream, the Prism Wizard |
+| Graveyard storm | cloud lit `#d88a2a`, fog `#2a1446` | the Alley of Graves only |

@@ -19,6 +19,7 @@ import { Atmosphere } from './render/Atmosphere';
 import { PALETTE } from './render/palette';
 import { LOOKS, Renderer } from './render/Renderer';
 import { SKIES, Sky } from './render/Sky';
+import { faceMoon } from './render/MoonFace';
 import { SkyEvents } from './render/SkyEvents';
 import { Weather } from './render/Weather';
 import { Hud } from './ui/Hud';
@@ -54,6 +55,9 @@ const moon = new DirectionalLight(PALETTE.moon, 1.5);
 const fill = new DirectionalLight(0x8fa5f0, 0.75);
 fill.position.set(70, 60, 110);
 const sky = new Sky();
+// The island's moon is the laughing face, as a crescent (shot-013029); until its model loads, the cratered disc.
+const moonFace = faceMoon('moon-laugh', Sky.moonRadius, { crescent: 0.72, glow: 0.7 });
+void moonFace.ready.then((ok) => { if (ok) sky.attachMoonModel(moonFace.group); });
 const skyEvents = new SkyEvents();
 moon.castShadow = true;
 moon.shadow.mapSize.set(2048, 2048);
@@ -422,6 +426,7 @@ game
       }
       playerPos.set(controller.pos.x, controller.pos.y, controller.pos.z);
       sky.update(dt, camera.position);
+      moonFace.update(dt);
       const auroraNear = Math.max(0, 1 - Math.hypot(playerPos.x - area.auroraCentre.x, playerPos.z - area.auroraCentre.z) / 90);
       const kingNear = Math.max(0, Math.min(1, 1 - (Math.hypot(playerPos.x - 57, playerPos.z + 129) - 50) / 70));
       skyEvents.update(dt, camera.position, auroraNear, kingNear);

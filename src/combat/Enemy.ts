@@ -1,10 +1,11 @@
 import { loadModelOrWarn, ModelRig, yawToRotation } from '../models/ModelRig';
 import { MissingModelPlaceholder } from '../models/Placeholder';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { Group, type Object3D, Quaternion, type Sprite, Vector3 } from 'three';
+import { Box3, Group, type Object3D, Quaternion, type Sprite, Vector3 } from 'three';
 import { glowSprite } from '../render/Glow';
 import { LeanBubble } from '../render/LeanBubble';
 import { patchTrippy } from '../render/Materials';
+import { EyeIris } from '../render/EyeIris';
 import type { EnemyDef } from '../data/enemies';
 import { PALETTE } from '../render/palette';
 import type { WorldQuery } from '../player/CharacterController';
@@ -154,13 +155,28 @@ export class Enemy {
     this.object.add(this.placeholder.group);
   }
 
+  /** A giant eye's tilt pivot and living iris (def.eye). */
+  private eyePivot: Group | null = null;
+  private eyeIris: EyeIris | null = null;
+
   /** Installs the loaded glTF as the body (its own material copies, so hit flashes stay per enemy). */
   useModel(id: string, gltf: GLTF): void {
     if (this.placeholder) { this.object.remove(this.placeholder.group); this.placeholder = null; }
     if (this.model) this.object.remove(this.model.root);
     this.model = new ModelRig(id, gltf, { cloneMaterials: true });
     if (this.def.trippy) for (const m of this.model.materials) patchTrippy(m);
-    this.object.add(this.model.root);
+    if (this.def.eye) {
+      // A giant eye: the body hangs in a pivot that tilts to look at the hero, its living iris on the front.
+      const box = new Box3().setFromObject(this.model.root);
+      const cy = (box.min.y + box.max.y) / 2;
+      this.eyePivot = new Group();
+      this.eyePivot.position.y = cy;
+      this.model.root.position.y -= cy;
+      this.eyeIris = new EyeIris((box.max.y - box.min.y) * 0.2, this.def.eye.iris);
+      this.eyeIris.group.position.set(0, 0, box.max.z + 0.05);
+      this.eyePivot.add(this.model.root, this.eyeIris.group);
+      this.object.add(this.eyePivot);
+    } else this.object.add(this.model.root);
     this.object.scale.setScalar(1);
     if (!this.alive) this.model.play('death', true);
   }
@@ -215,6 +231,13 @@ export class Enemy {
 
   /** Advance AI + movement. Returns an action the combat system must resolve this step. */
   update(dt: number, player: { x: number; y: number; z: number }): EnemyAction {
+    if (this.eyePivot && this.eyeIris) {
+      const dist = Math.hypot(player.x - this.pos.x, player.z - this.pos.z);
+      const dy = player.y + 1 - (this.pos.y + this.eyePivot.position.y);
+      const pitch = Math.max(-0.9, Math.min(0.9, Math.atan2(dy, Math.max(1, dist))));
+      this.eyePivot.rotation.x += (-pitch - this.eyePivot.rotation.x) * Math.min(1, dt * 3);
+      this.eyeIris.update(dt, this.hp / this.def.maxHp, 1 - Math.min(1, dist / 30));
+    }
     this.time += dt;
     this.aura = tickAura(this.aura, dt);
     const st = this.status;
@@ -450,6 +473,7 @@ export class Enemy {
   }
 
   takeDamage(amount: number, kb: { x: number; z: number }, strength: number): boolean {
+    this.eyeIris?.hurt();
     if (!this.alive) return false;
     // Hit: a neutral mob turns on you, a seated one jumps up at once.
     if (this.def.neutral && !this.provoked) { this.provoked = true; if (this.brain.state === 'idle') { this.brain.state = 'chase'; this.brain.stateTime = 0; } }
@@ -484,7 +508,7 @@ export class Enemy {
     this.oneShot = null;
     this.wantFlinch = false;
     this.lunge = this.flinch = 0;
-    if (this.model) { this.model.root.rotation.set(0, 0, 0); this.model.root.position.set(0, 0, 0); }
+    if (this.model) { this.model.root.rotation.set(0, 0, 0); this.model.root.position.set(0, this.eyePivot ? -this.eyePivot.position.y : 0, 0); }
     this.bubble?.reset();
     this.hopT = -1;
     this.hp = this.def.maxHp;

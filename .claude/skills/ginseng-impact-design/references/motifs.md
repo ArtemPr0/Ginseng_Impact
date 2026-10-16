@@ -11,10 +11,10 @@ chosen so a 1.8 m character reads as tiny against them.
 | **Lonely Cathedral / Towers** | "The Lonely Towers of the Forgotten Realm", "Forgotten Castles Under Dark Skies" | Cluster of 3–5 spires, tallest ≈ 55 m (real-world scale), on a cliff edge above the cloud sea. Spires are stacked tapering boxes with a pyramid cap; arches are two boxes + a triangle. One `rune` portal-fire at the base door with a `PointLight`. Walls are `climbable`. |
 | **Stone Causeway** | "Silent Kingdoms Beyond the Fog", "Beyond the Silent Mountains" | 6 m wide, 200–400 m long, dead straight, slight rise toward the monument, broken balustrade posts every 8 m, 2–3 flights of stairs. Centre it in the spawn view: perfect one-point perspective. Flanked by void or cloud sea. |
 | **Cloud Sea** | cathedral cover | Three large planes at −20, −28, −40 m below the cliff, noise-alpha, `fog`-tinted, drifting 0.2 m/s. The player can glide over it. |
-| **Waterfalls** | "Mystical Echoes of a Lost Realm" | Vertical planes with scrolling 16-px stripe texture, `moon` × `electric`, pouring off cliffs into the cloud sea. |
+| **Waterfalls** | "Mystical Echoes of a Lost Realm", world-look-28, shot-012256 | `cascade()`: glowing blue strands pouring off floating islands, cliffs and pool rims, with mist, spray and a splash ring. |
 | **Dark Forest** | "Last Garden of Darkness", frog cover | Stacked-cone pines 8–15 m, `bark` trunks, canopy `abyss`. Dense at area edges to hide the world boundary. |
 | **Glowing Sunflowers** | sunflower cover | 1.2 m tall, 8 flat petals in `electric`, `void` centre, `bark` stem, emissive petals + one glow sprite. Fields of 200+ in clearings. |
-| **Moons** | all covers | Default silver `moon` disc at 25° elevation, angular size ≈ 8°, always placed behind the hero landmark. **Blood moon** (`blood`) swaps in during combat/boss. **Moon with a face** (canvas-drawn, grinning) is an easter egg for one hidden vantage point. |
+| **Moons** | all covers, shot-013029/013056/013117 | Blue face-moons (Meshy `moon-laugh`, `moon-grin`) via `faceMoon()`: the island's is a laughing crescent at 25°, the kingdom's grins with glowing eyes, the dream has a spiral of them. **Blood moon** tints it red in combat. A **black sun** with a blue corona hangs over the spire castle. |
 | **Star field** | moon covers | 1 500 `Points` in `moon`, size 1.5 px at low-res, no twinkle. |
 
 ## Creatures
@@ -55,3 +55,21 @@ chosen so a 1.8 m character reads as tiny against them.
   glide spread, attack wind-up → eased cut → settle, alternating sides; staff thrust. Exponential blending.
 - Wisp: emissive core + two translucent shells + 6 orbiting glow sprites + 10-sprite position trail.
 - Sentinel: `rockify`'d body/head/shoulders/fists, capsule limbs, pulsing rune cracks, stomp dust and shake.
+
+
+## Round 5 motifs (the user's frames, 2026-10-16)
+
+| Motif | Frame | Where / how |
+|---|---|---|
+| **Eye vortex pool** | world-look-28 | `eyePool()` where the road from the spawn crosses the river; also the dream's canal village. |
+| **Arched wooden bridge with candles** | world-look-28 | `archBridge()` + chasm-bridge tiles pitched along the arch, candles on every other post. |
+| **Glowing blue mushrooms** | world-look-28, shot-012256 | giant-mushroom / purple-mushroom with `patchGlowCap`; the road's giants are bouncy. |
+| **Floating rock islands with dead trees** | world-look-28, shot-012256 | `floating-island` (Meshy) pouring cascades; skull islands with burning castles in the dream. |
+| **Blue cyclops** | world-look-28, shot-011654 | `cyclops` wading at the eye (neutral boss), `cyclops-lord` at the end of the Alley of Graves. |
+| **Graveyard alley** | shot-011654 | the Alley of Graves realm behind the demon church: walls, raised grave plots, purple fog, amber storm. |
+| **Forest gorge to a black spire** | shot-011636 | carved NW gorge: head fall, stream, stone bridge, pines on ridges; the spire castle rises from the cloud sea. |
+| **Red spiky eyeball** | shot-013226 | `blood-eye` boss over the chasm, living iris (`EyeIris`), glare/thorns/beam. |
+| **Rainbow wizard** | shot-013245 | `trip-wizard` (galaxy-wizard in the trippy shader) flying in the dream; spells trip the screen. |
+| **Watching sky eyes** | user request | `SkyEyes`: blink, follow, moods, hurt then angry when shot. |
+| **Flying whale over white flowers** | DeSEl9PvPG_ | `whale` looping over Yung Lean's plaza; the white meadow on the island. |
+| **Tiered koi pools** | DeSEl9PvPG_ | three pools stepping down to the eye, cyan spills, koi circling. |

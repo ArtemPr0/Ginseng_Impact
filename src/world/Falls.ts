@@ -5,7 +5,7 @@
  */
 import {
   AdditiveBlending, BufferAttribute, BufferGeometry, Color, DoubleSide, Group, Mesh, PlaneGeometry, Points, RingGeometry,
-  ShaderMaterial, Vector3,
+  ShaderMaterial, Sphere, Vector3,
 } from 'three';
 import { glowSprite, glowTexture } from '../render/Glow';
 import type { Landmark } from './Landmarks';
@@ -145,7 +145,8 @@ export function cascade(o: CascadeOptions): Landmark {
     transparent: true, depthWrite: false, blending: AdditiveBlending, fog: false,
   });
   const points = new Points(sg, sparkMat);
-  points.frustumCulled = false;
+  // Culled by a sphere round the whole spray (never by its first frame's positions).
+  sg.boundingSphere = new Sphere(new Vector3(0, footY + 2, footZ), o.width + 6);
   g.add(points);
   const sattr = sg.attributes.position as BufferAttribute;
   let t = 0;
