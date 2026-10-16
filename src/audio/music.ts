@@ -1,7 +1,7 @@
 /**
  * Music slots: a song is a file in src/assets/music/ named after its slot, in any common format
- * (`title-intro.mp3`, `kingdom.m4a`, ...). A slot with no file stays silent (the kingdom falls back to its
- * synthesised beat). The files are the user's own and git-ignored: see src/assets/music/README.md.
+ * (`title-intro.mp3`, `kingdom.m4a`, ...), and only a track licensed for use in the game. A slot with no file stays
+ * silent (the kingdom falls back to its synthesised beat). The files are git-ignored: see src/assets/music/README.md.
  */
 export type MusicSlot = 'title-intro' | 'title-loop' | 'kingdom';
 
