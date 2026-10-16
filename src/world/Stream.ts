@@ -148,6 +148,8 @@ export function witchStream(
     update(dt, player) {
       t += dt;
       waterMat.uniforms.uTime.value = t;
+      // Far away (the stream runs 90 m along z around its bridge): the bubbles, witches and lights can rest.
+      if (Math.hypot(player.x - centreAt(bridgeZ), player.z - bridgeZ) > 110) return;
       fire.scale.setScalar(5 + Math.sin(t * 7) * 0.5 + Math.sin(t * 13) * 0.3);
       fireLight.intensity = 26 + Math.sin(t * 9) * 6;
       for (let i = 0; i < N; i++) {

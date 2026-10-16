@@ -121,7 +121,7 @@ export function buildHeart(api: HeartApi): { eye: ReturnType<typeof eyePool>; bo
   for (const [x, z, yaw] of LAYOUT.hamlet) {
     api.place(modelLandmark('village-house', x, z, h(x, z) - 0.2, { yaw, onLoad: (m) => restyle(m, (mat) => patchLitWindows(mat)) }));
   }
-  for (const [x, z] of [[-3, -3.5], [3, -3.5], [12, -11], [-12, -8]] as const) {
+  for (const [x, z] of [[-3, -3.5], [3, -3.5], [12, -11], [-14, -3]] as const) {
     const y = h(x, z);
     api.place(modelLandmark('torch-post', x, z, y, { collider: 'none' }));
     api.vfx(fire(x, y + MODELS['torch-post'].height * 0.86, z, 0.4, 8));

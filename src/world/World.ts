@@ -35,7 +35,7 @@ import { fireflies } from '../render/Fireflies';
 
 import { buildRealms, type RealmApi } from './Realms';
 import type { PortalLink } from './Portal';
-import { deadAt, EYE, frozenAt, pathAt, RIVER_LEVEL, riverAt, riverDistance, sandAt, streamAt, Terrain, WORLD } from './Terrain';
+import { deadAt, EYE, eyeDistance, frozenAt, pathAt, RIVER_LEVEL, riverAt, riverDistance, sandAt, streamAt, Terrain, WORLD } from './Terrain';
 import { causewayPostPoints, causewayWalk, chasmBridge, witchBridgeDeck } from './Walkways';
 import { lilyPond, mudPool, river } from './Water';
 
@@ -342,7 +342,8 @@ export class World {
     }
     const tr = LAYOUT.treehouse;
     this.place(modelLandmark('treehouse', tr.x, tr.z, h(tr.x, tr.z) - 0.6, { yaw: Math.PI / 2 }));
-    this.place(modelLandmark('nave', 66, -17, h(66, -17) - 0.4, { yaw: 0.3 }));
+    // (Clear of the cathedral, whose footprint covers x 36-92, z -42..-6.)
+    this.place(modelLandmark('nave', 100, -45, h(100, -45) - 0.4, { yaw: 0.3 }));
     this.place(modelLandmark('archgate', 58, -90, h(58, -90) - 0.3, { yaw: 0.5 }));
     // Things that only make sense once their model exists: the palm island's falls, the burning castle's blaze.
     if (PRESENT_MODELS.has('palmisland')) {
@@ -357,7 +358,8 @@ export class World {
     for (const r of LAYOUT.ruins) this.place(modelLandmark(r.arch ? 'ruin-arch' : 'ruin-column', r.x, r.z, h(r.x, r.z) - 0.3, { yaw: r.yaw }));
     // Rainy orchard (DdKl7fKMO75): rows of twisted trees; each trunk is solid once the tree model exists.
     const orng = rng(321);
-    flora('gnarled-tree', orchardSpots(LAYOUT.orchard.x, LAYOUT.orchard.z).map(([x, z]: [number, number]) => ({ x, y: h(x, z) - 0.2, z, yaw: orng() * Math.PI * 2, scale: 0.75 + orng() * 0.3 })), { trunk: 0.05 });
+    // (Not in the river: the orchard's south row reaches its channel.)
+    flora('gnarled-tree', orchardSpots(LAYOUT.orchard.x, LAYOUT.orchard.z).map(([x, z]: [number, number]) => ({ x, y: h(x, z) - 0.2, z, yaw: orng() * Math.PI * 2, scale: 0.75 + orng() * 0.3 })).filter((p) => riverAt(p.x, p.z) < 0.02 && riverDistance(p.x, p.z) > 7), { trunk: 0.05 });
     const pool = LAYOUT.floodedRuin;
     this.place(modelLandmark('flooded-ruin', pool.x, pool.z, h(pool.x, pool.z) - 0.6));
     // The Marsh Sovereign stands waist-deep in it; wading in drags at your legs.
@@ -422,7 +424,8 @@ export class World {
       const speed = 0.25 + (i % 3) * 0.06;
       this.place(modelLandmark('koi', WORLD.pond.x, WORLD.pond.z, hgt, { clip: 'idle', collider: 'none', update: (dt, root) => { void dt; const t = performance.now() * 0.001; const a = t * speed + phase; root.position.set(WORLD.pond.x + Math.cos(a) * r, hgt + Math.sin(t * 0.9 + phase * 3) * 0.8, WORLD.pond.z + Math.sin(a) * r); root.rotation.y = -a; root.rotation.z = Math.cos(t * 0.9 + phase * 3) * 0.3; } }));
     }
-    this.place(modelLandmark('snake', -11, -13, h(-11, -13) + 0.05, { clip: 'idle', collider: 'none' }));
+    // (On the bank east of the lily pond, not in its water.)
+    this.place(modelLandmark('snake', -4, -14, h(-4, -14) + 0.05, { clip: 'idle', collider: 'none' }));
 
     // --- water ---
     const theRiver = river(h, rnd);
@@ -579,19 +582,20 @@ export class World {
     flora('willow', ringSpots(WORLD.pond.x, WORLD.pond.z, 18, 6, h, rnd));
     const islandPalms: Placement[] = [];
     for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2; islandPalms.push({ x: 72 + Math.cos(a) * 14, y: 36.4, z: 89 + Math.sin(a) * 14, yaw: rnd() * 6, scale: 0.9 + rnd() * 0.3 }); }
-    flora('palm', [...this.scatterDisc(rnd, WORLD.desert.x, WORLD.desert.z, WORLD.desert.r, 18, 0.8, 1.3), ...islandPalms]);
+    flora('palm', [...this.scatterDisc(rnd, WORLD.desert.x, WORLD.desert.z, WORLD.desert.r, 18, 0.8, 1.3), ...(PRESENT_MODELS.has('palmisland') ? islandPalms : [])]);
     flora('dead-forest-tree', this.scatterDisc(rnd, WORLD.dead.x, WORLD.dead.z, WORLD.dead.r, 60, 0.8, 1.4).filter((p) => Math.hypot(p.x - WORLD.dead.x, p.z - WORLD.dead.z) > 9));
     flora('gnarled-tree', ringSpots(LAYOUT.orchard.x, LAYOUT.orchard.z, 32, 14, h, rnd));
     flora('fallen-fruit', this.scatterDisc(rnd, LAYOUT.orchard.x, LAYOUT.orchard.z, 26, 90, 0.8, 1.2), { shadows: false });
     const roses: Placement[] = [];
     const rr = rng(2100);
-    for (let i = 0; i < 700; i++) { const a = rr() * Math.PI * 2; const r = Math.sqrt(rr()) * 12; const x = 17 + Math.cos(a) * r; const z = 34 + Math.sin(a) * r; roses.push({ x, y: h(x, z) - 0.05, z, yaw: rr() * 6, scale: 0.7 + rr() * 0.6 }); }
+    for (let i = 0; i < 700; i++) { const a = rr() * Math.PI * 2; const r = Math.sqrt(rr()) * 12; const x = 17 + Math.cos(a) * r; const z = 34 + Math.sin(a) * r; const s0 = rr(); const s1 = rr(); if (eyeDistance(x, z) < 2 || riverAt(x, z) > 0.02) continue; roses.push({ x, y: h(x, z) - 0.05, z, yaw: s0 * 6, scale: 0.7 + s1 * 0.6 }); }
     flora('rose-bush', roses, { shadows: false });
     flora('birch', this.riverBank(rnd, 14, 30, 110, 24, 96), { trunk: 0.03 });
     flora('fallen-leaf', this.riverBank(rnd, 8, 26, 600, 24, 96).map((p) => ({ ...p, scale: 0.8 + rnd() * 0.6 })), { shadows: false });
     const driftSpots: Placement[] = [];
     for (let i = 0; i < 160; i++) { const x = 24 + rnd() * 72; const z = 4 + rnd() * 12; if (riverAt(x, z) > 0.5) driftSpots.push({ x, y: 1.0, z, yaw: rnd() * 6, scale: 1 }); }
-    flora('fallen-leaf', driftSpots, { shadows: false, update: (t, ps) => { for (const p of ps) { p.x -= 0.6 * 0.016; if (p.x < 24) p.x = 96; p.yaw = Math.sin(t + p.z) * 0.4; } return true; } });
+    let leafT = 0;
+    flora('fallen-leaf', driftSpots, { shadows: false, update: (t, ps) => { const dt = Math.min(0.1, t - leafT); leafT = t; for (const p of ps) { p.x -= 0.6 * dt; if (p.x < 24) p.x = 96; p.yaw = Math.sin(t + p.z) * 0.4; } return true; } });
     flora('coral', this.riverBank(rnd, 10, 16, 30, 36, 90), { shadows: false });
     const crnd = rng(31);
     flora('cypress', ringSpots(-66, 57, 20, 10, h, crnd));
@@ -726,6 +730,12 @@ export class World {
     if (z < WORLD.gorge.zHead + 4 && z > WORLD.gorge.zMouth - 10 && Math.abs(x - WORLD.gorge.x) < WORLD.gorge.rim + 1) return false;
     if (Math.abs(x - VILLAGE.x) < 24 && Math.abs(z - VILLAGE.z) < 10) return false;
     for (const route of WALKER_ROUTES) if (nearRoute(route, x, z, 5)) return false;
+    // The world tree, the face tree and its portal clearing (built after the flora, so not yet in the colliders),
+    // and the koi pools.
+    if (Math.hypot(x - LAYOUT.worldTree.x, z - LAYOUT.worldTree.z) < 17) return false;
+    if (Math.hypot(x - ISLAND_PORTALS.galaxy.faceTree.x, z - ISLAND_PORTALS.galaxy.faceTree.z) < 9) return false;
+    if (Math.hypot(x - ISLAND_PORTALS.galaxy.x, z - ISLAND_PORTALS.galaxy.z) < 11) return false;
+    for (const t of LAYOUT.tiers) { const dx = x - t.x; const dz = z - t.z; if (dx * dx + dz * dz < (t.r + 3) ** 2) return false; }
     const pdx = x - WORLD.pond.x;
     const pdz = z - WORLD.pond.z;
     if (pdx * pdx + pdz * pdz < (WORLD.pond.r + 1) ** 2) return false;

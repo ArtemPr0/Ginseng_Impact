@@ -122,6 +122,7 @@ export function cascade(o: CascadeOptions): Landmark {
   const mists = [0, 1, 2].map((i) => {
     const sp = glowSprite(color.getHex(), o.width * (1.6 + i * 0.6), 0.22, true);
     sp.position.set((i - 1) * o.width * 0.3, footY + 1 + i * 1.2, footZ);
+    sp.renderOrder = 6;
     g.add(sp);
     return sp;
   });
@@ -145,6 +146,7 @@ export function cascade(o: CascadeOptions): Landmark {
     transparent: true, depthWrite: false, blending: AdditiveBlending, fog: false,
   });
   const points = new Points(sg, sparkMat);
+  points.renderOrder = 6;
   // Culled by a sphere round the whole spray (never by its first frame's positions).
   sg.boundingSphere = new Sphere(new Vector3(0, footY + 2, footZ), o.width + 6);
   g.add(points);

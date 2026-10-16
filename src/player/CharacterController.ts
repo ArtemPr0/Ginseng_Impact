@@ -16,6 +16,8 @@ export interface ControllerState {
   stamina: number;
   /** Seconds since the mode last changed. */
   modeTime: number;
+  /** Thrown up by a mushroom cap: the short-hop cut (jump released early) must not clip the bounce. */
+  bouncing?: boolean;
   airborneFor: number;
   /** Seconds since stamina was last spent. */
   staminaIdle: number;
@@ -158,6 +160,7 @@ function setMode(s: ControllerState, mode: Mode): void {
   if (s.mode !== mode) {
     s.mode = mode;
     s.modeTime = 0;
+    s.bouncing = false;
     // A throw ends however the hero comes down (onto a wall, into the water): steering comes back at once.
     if (mode !== 'air') s.flung = 0;
   }
@@ -316,7 +319,8 @@ export function stepController(s: ControllerState, input: ControllerInput, world
         break;
       }
       // Short hop: letting go of jump while still rising cuts the rise.
-      if (!input.jumpHeld && s.vel.y > 0 && s.modeTime > 0.05) s.vel.y *= Math.pow(CONTROLLER.jumpCut, dt * 12);
+      if (s.bouncing && s.vel.y <= 0) s.bouncing = false;
+      if (!input.jumpHeld && s.vel.y > 0 && s.modeTime > 0.05 && !s.bouncing) s.vel.y *= Math.pow(CONTROLLER.jumpCut, dt * 12);
       s.vel.y -= CONTROLLER.gravity * (s.vel.y < 0 ? CONTROLLER.fallGravity : 1) * dt;
       s.vel.y = Math.max(s.vel.y, -CONTROLLER.maxFallSpeed);
       // A wall in the way: grab it when steering into it, otherwise bounce off it instead of landing on its top.
@@ -349,6 +353,7 @@ export function stepController(s: ControllerState, input: ControllerInput, world
         const bounce = s.vel.y < -1 ? world.bounceAt?.(s.pos.x, s.pos.z, ground) ?? null : null;
         if (bounce !== null) {
           s.vel.y = bounce * (input.jumpHeld ? 1.2 : 1);
+          s.bouncing = true;
           break;
         }
         s.vel.y = 0;
@@ -391,6 +396,8 @@ export function stepController(s: ControllerState, input: ControllerInput, world
       s.pos.x += s.vel.x * dt;
       s.pos.z += s.vel.z * dt;
       s.pos.y += s.vel.y * dt;
+      // A hard splash carries under, but never through the bed.
+      s.pos.y = Math.max(s.pos.y, bed);
       break;
     }
 

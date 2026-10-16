@@ -29,7 +29,8 @@ export const LAYOUT = {
     [[-77, -124], [-86, -116]],
   ] as Array<Array<[number, number]>>,
   /** The raised road starts on the eye's north bank (its stairs climb from the hamlet) and runs over the chasm. */
-  causeway: { x: 0, zStart: -10, zEnd: -115, width: 6, yStart: 6, yEnd: 11, postSpacing: 8, segmentLength: 24.7 },
+  // (yEnd: four 0.45 m risers between its spans, each low enough to walk up; 1 m ledges stopped the hero.)
+  causeway: { x: 0, zStart: -10, zEnd: -115, width: 6, yStart: 6, yEnd: 7.8, postSpacing: 8, segmentLength: 24.7 },
   head: { x: 0, z: -146, height: 26 },
   /** The cathedral's long axis runs east–west; its west front faces the river road. */
   cathedral: { x: 64, z: -24, yaw: Math.PI / 2 },
@@ -74,8 +75,8 @@ export const LAYOUT = {
   observatory: { x: -46, z: 48 },
   riderPath: [[8, 48], [24, 48], [40, 42], [24, 48]] as Array<[number, number]>,
   ruins: [
-    { x: -8, z: 43, yaw: 0.3, arch: true }, { x: 20, z: 24, yaw: -0.4, arch: false }, { x: -9, z: -13, yaw: 0.9, arch: false },
-    { x: 10, z: -90, yaw: 0.2, arch: true }, { x: 49, z: -37, yaw: 1.1, arch: true }, { x: 58, z: -59, yaw: -0.7, arch: false },
+    { x: -8, z: 43, yaw: 0.3, arch: true }, { x: 20, z: 24, yaw: -0.4, arch: false }, { x: -2, z: -21, yaw: 0.9, arch: false },
+    { x: 10, z: -90, yaw: 0.2, arch: true }, { x: 31, z: -28, yaw: 1.1, arch: true }, { x: 58, z: -59, yaw: -0.7, arch: false },
     { x: -24, z: 60, yaw: 0.5, arch: false }, { x: 36, z: -78, yaw: 0.0, arch: false },
   ],
   cloudSea: { y: -26 },

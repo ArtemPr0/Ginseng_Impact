@@ -174,7 +174,7 @@ export function buildDream(api: RealmApi): void {
   const footprints: Footprint[] = [{ kind: 'cyl', x: R.x, z: R.z, r: FLOOR_R + 10, top: R.y }];
   for (let i = 0; i < 48; i++) {
     const a = (i / 48) * Math.PI * 2;
-    footprints.push({ kind: 'box', x: R.x + Math.cos(a) * FLOOR_R, z: R.z + Math.sin(a) * FLOOR_R, hw: 1, hd: 11, top: R.y + 80, rotY: -a });
+    footprints.push({ kind: 'box', x: R.x + Math.cos(a) * FLOOR_R, z: R.z + Math.sin(a) * FLOOR_R, hw: 1, hd: 11, top: R.y + 80, rotY: a });
   }
   api.place({ object: new Group(), footprints });
 

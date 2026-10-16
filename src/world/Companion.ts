@@ -65,8 +65,10 @@ export class Companion {
       moving = true;
     }
     // Teleport if left far behind.
-    if (Math.hypot(player.x - this.pos.x, player.z - this.pos.z) > 40) { this.pos.set(player.x, player.y, player.z); }
-    this.pos.y += (this.heightAt(this.pos.x, this.pos.z, this.pos.y) - this.pos.y) * Math.min(1, dt * 10);
+    // ...or fallen off a realm's floor into the void below (a follower has no colliders of its own).
+    const ground = this.heightAt(this.pos.x, this.pos.z, this.pos.y);
+    if (Math.hypot(player.x - this.pos.x, player.z - this.pos.z) > 40 || ground < player.y - 15 || Math.abs(player.y - this.pos.y) > 25) { this.pos.set(player.x, player.y, player.z); }
+    else this.pos.y += (ground - this.pos.y) * Math.min(1, dt * 10);
     let strike: number | null = null;
     if (target && bd <= reach + 0.6) {
       this.swing -= dt;

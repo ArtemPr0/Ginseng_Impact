@@ -153,7 +153,8 @@ export class CombatSystem {
   /** Mobs each caster has summoned (capped, and sent away with their caster). */
   private readonly summoned = new Map<number, Enemy[]>();
   private frenzyLeft = 0;
-  private readonly delayed: Array<{ t: number; fn: () => void }> = [];
+  /** Callbacks due later (`cleanup` ones tidy the scene and still run when a wipe drops the rest). */
+  private readonly delayed: Array<{ t: number; fn: () => void; cleanup?: boolean }> = [];
   private readonly contact = new Map<number, number>();
   private readonly tmp = new Vector3();
   private readonly screen = new Vector3();
@@ -194,18 +195,17 @@ export class CombatSystem {
   /** Every enemy gives up the chase and walks home (the player crossed a portal or respawned). */
   resetAggro(): void {
     for (const e of this.enemies) e.disengage();
-    for (let i = this.projectiles.length - 1; i >= 0; i--) {
-      if (this.projectiles[i].owner !== 'enemy') continue;
-      this.removeProjectile(i);
-    }
+    for (const p of this.projectiles.filter((q) => q.owner === 'enemy')) this.removeProjectile(p);
     this.contact.clear();
     // Whatever the bosses called up goes back where it came from.
     for (const list of this.summoned.values()) for (const m of list) if (this.enemies.includes(m)) this.despawn(m);
     this.summoned.clear();
   }
 
-  private removeProjectile(i: number): void {
-    const p = this.projectiles[i];
+  /** By reference, not index: a hit can wipe the party, and the wipe clears projectiles under the loop's feet. */
+  private removeProjectile(p: Projectile): void {
+    const i = this.projectiles.indexOf(p);
+    if (i < 0) return;
     this.d.scene.remove(p.object);
     disposeObject(p.object, p.kind === 'cup');
     this.projectiles.splice(i, 1);
@@ -338,7 +338,16 @@ export class CombatSystem {
     this.dodgeCd = Math.max(0, this.dodgeCd - dt);
     this.frenzyLeft = Math.max(0, this.frenzyLeft - dt);
     for (const cd of this.cooldowns.values()) cd.update(dt);
-    for (let i = this.delayed.length - 1; i >= 0; i--) { this.delayed[i].t -= dt; if (this.delayed[i].t <= 0) { this.delayed[i].fn(); this.delayed.splice(i, 1); } }
+    // (Taken off the list before it runs: a callback can wipe the party, which empties the list mid-loop.)
+    for (let i = this.delayed.length - 1; i >= 0; i--) {
+      const job = this.delayed[i];
+      if (!job) { i = this.delayed.length; continue; }
+      job.t -= dt;
+      if (job.t > 0) continue;
+      this.delayed.splice(i, 1);
+      job.fn();
+      if (i > this.delayed.length) i = this.delayed.length;
+    }
     // Poison: a tick every half second, through any dodge.
     if (this.poisonLeft > 0) {
       this.poisonLeft -= dt;
@@ -615,7 +624,7 @@ export class CombatSystem {
         if (p.kind === 'log') { this.vfx.burst(p.pos.clone(), 0x5a6aa8, 18, 5, 0.5); this.d.onShake?.(0.4); this.d.audio.stomp(); }
         if (p.kind === 'cup') this.spawnPuddle(p.pos);
         if (p.kind === 'trip') for (const col of [0xff5ad6, 0x37f5ff, 0x5dff3a, 0x8b3dff]) this.vfx.burst(p.pos.clone(), col, 6, 4, 0.4);
-        this.removeProjectile(i);
+        this.removeProjectile(p);
       }
     }
 
@@ -915,7 +924,8 @@ export class CombatSystem {
         const bz = c.pos.z - Math.sin(c.yaw) * 4;
         // Only onto open ground near its own level (never into a wall or over a drop).
         const w = this.d.world as Partial<HeightWorld> & WorldQuery;
-        if (w.blocked?.(bx, bz) || Math.abs(this.d.world.heightAt(bx, bz, e.pos.y + 2) - (e.pos.y - e.def.hover)) > 3) break;
+        // (A flyer only needs open air: its own height is not the ground's.)
+        if (w.blocked?.(bx, bz) || (!e.def.flying && Math.abs(this.d.world.heightAt(bx, bz, e.pos.y + 2) - (e.pos.y - e.def.hover)) > 3)) break;
         this.vfx.impact(at.clone().add(new Vector3(0, 3, 0)), color, 6);
         e.pos.x = bx;
         e.pos.z = bz;
@@ -948,7 +958,7 @@ export class CombatSystem {
       }
       case 'breath': {
         this.d.audio.roar();
-        for (let i = 0; i < 6; i++) this.delayed.push({ t: i * 0.08, fn: () => this.enemyBolt(e, (Math.random() - 0.5) * 0.25, 24, 0.35) });
+        for (let i = 0; i < 6; i++) this.delayed.push({ t: i * 0.08, fn: () => { if (e.alive) this.enemyBolt(e, (Math.random() - 0.5) * 0.25, 24, 0.35); } });
         // The blast itself reaches as far as the move does, at about its own height.
         const reach = (e.currentAttack?.range ?? 10) + e.def.bodyRadius * sc + 4;
         if (Math.abs(c.pos.y - e.pos.y) < 6 && inCone({ x: e.pos.x, z: e.pos.z }, e.yaw, { x: c.pos.x, z: c.pos.z }, reach, 0.4)) this.damagePlayer(e.def.atk * 0.9, e.def.element);
@@ -996,7 +1006,7 @@ export class CombatSystem {
           net.position.set(tx, ty + 0.15, tz);
           this.d.scene.add(net);
           this.vfx.burst(new Vector3(tx, ty + 0.5, tz), PALETTE.moon, 20, 5, 0.4);
-          this.delayed.push({ t: 4, fn: () => { this.d.scene.remove(net); disposeObject(net); } });
+          this.delayed.push({ t: 4, cleanup: true, fn: () => { this.d.scene.remove(net); disposeObject(net); } });
           if (Math.hypot(c.pos.x - tx, c.pos.z - tz) < 4 && c.pos.y < ty + 3) { this.damagePlayer(e.def.atk * 0.7, e.def.element); this.ensnare(2.4); }
         } });
         this.d.audio.cast();
@@ -1046,7 +1056,7 @@ export class CombatSystem {
             const a = base + dir * (-0.75 + (1.5 * i) / 15);
             const speed = 26;
             const vy = (c.pos.y + 1 - eyes.y) / Math.max(0.3, dist / speed);
-            this.spawnProjectile(eyes.clone(), new Vector3(Math.cos(a) * speed, vy, Math.sin(a) * speed), 'enemy', e.def.atk, 0.35, e.def.element, 0.6, e.def.beamColor ?? 0x37f5ff, 0, 0, 0, 0, 0.8, 'orb');
+            this.spawnProjectile(eyes.clone(), new Vector3(Math.cos(a) * speed, vy, Math.sin(a) * speed), 'enemy', e.def.atk, 0.35, e.def.element, 0.6, e.def.beamColor ?? 0x37f5ff, 0, 0, 0, 0, 0.8, 'orb', { rainbow: !e.def.beamColor });
           } });
         }
         this.d.audio.roar();
@@ -1206,12 +1216,15 @@ export class CombatSystem {
       const arrow = me.weapon === 'bow';
       if (arrow && c.mode === 'fly') {
         // Off the bow she rides: the arrow drops out under her, then finds its way (down, across, or back up).
-        const ahead = target ? null : new Vector3(c.pos.x + Math.cos(c.yaw) * 22, 0, c.pos.z + Math.sin(c.yaw) * 22);
-        if (ahead) ahead.y = this.d.world.heightAt(ahead.x, ahead.z, c.pos.y);
+        // (No enemy in range: a sky eye ahead is the mark, else the ground ahead.)
+        const sky = target ? null : this.aimTarget(from, c.yaw);
+        const ahead = target ? null : sky ? sky.pos.clone() : new Vector3(c.pos.x + Math.cos(c.yaw) * 22, 0, c.pos.z + Math.sin(c.yaw) * 22);
+        if (ahead && !sky) ahead.y = this.d.world.heightAt(ahead.x, ahead.z, c.pos.y);
         const down = new Vector3(Math.cos(c.yaw) * 0.35, -1, Math.sin(c.yaw) * 0.35).normalize().multiplyScalar(18);
         this.spawnProjectile(from, down, 'player', atk, def.mult, element, 1.0, ELEMENT_COLOR[this.elementOf(me)], def.shape.chains, def.shape.chainRange, def.knockback, def.hitStop, 0.24, 'arrow', {
           homing: { target, point: ahead, delay: 0.07, turn: 9, age: 0 },
         });
+        if (sky) { const shot = this.projectiles[this.projectiles.length - 1]; shot.life = Math.max(shot.life, sky.pos.distanceTo(from) / 18 + 1); }
         return;
       }
       // Nothing to fight in range: a shot fired while facing a sky eye flies at it.
@@ -1288,7 +1301,13 @@ export class CombatSystem {
     this.say(e, e.def.voices?.death);
     this.burstEnergy = Math.min(BURST_MAX, this.burstEnergy + 18);
     // Summoned mobs drop nothing (they would be an endless farm).
-    if (!e.summoned) this.loot.spawn(rollDrops(e.def.drops, e.def.shards), new Vector3(e.pos.x, this.d.world.heightAt(e.pos.x, e.pos.z, e.pos.y + 1) + 1, e.pos.z));
+    if (!e.summoned) {
+      // A flyer killed over a drop (the Blood Eye over the chasm) leaves its loot where the hero can reach it.
+      const gy = this.d.world.heightAt(e.pos.x, e.pos.z, e.pos.y + 1);
+      const c = this.d.controller;
+      const at = gy < e.pos.y - 25 ? new Vector3(c.pos.x, c.pos.y + 1, c.pos.z) : new Vector3(e.pos.x, gy + 1, e.pos.z);
+      this.loot.spawn(rollDrops(e.def.drops, e.def.shards), at);
+    }
     if (e.def.boss) { this.d.hud.announce(`${e.def.name} falls`); this.d.onShake?.(1); }
     // Its summons go with it.
     const called = this.summoned.get(e.id);
@@ -1330,7 +1349,7 @@ export class CombatSystem {
     this.zones.push({ pos, def, left: def.duration, tick: 0.05, atk, remove });
   }
 
-  private spawnProjectile(from: Vector3, vel: Vector3, owner: 'player' | 'enemy', atk: number, mult: number, element: Element | null, radius: number, color: number, chains: number, chainRange: number, knockback: number, hitStop: number, size = 0.24, kind: ProjectileKind = 'bolt', extra: { gravity?: number; poison?: { dps: number; seconds: number }; homing?: Projectile['homing']; wobble?: number; onHit?: (e: Enemy) => void; web?: number } = {}): void {
+  private spawnProjectile(from: Vector3, vel: Vector3, owner: 'player' | 'enemy', atk: number, mult: number, element: Element | null, radius: number, color: number, chains: number, chainRange: number, knockback: number, hitStop: number, size = 0.24, kind: ProjectileKind = 'bolt', extra: { gravity?: number; poison?: { dps: number; seconds: number }; homing?: Projectile['homing']; wobble?: number; onHit?: (e: Enemy) => void; web?: number; rainbow?: boolean } = {}): void {
     const object = new Group();
     const rainbow: Projectile['rainbow'] = [];
     if (kind === 'log') {
@@ -1368,7 +1387,7 @@ export class CombatSystem {
       const core = glowSprite(color, 0.7 * size, 0.95, true);
       const halo = glowSprite(color, 1.6 * size, 0.45, true);
       object.add(core, halo);
-      rainbow.push(core.material, halo.material);
+      if (extra.rainbow !== false) rainbow.push(core.material, halo.material);
       object.position.copy(from);
     } else if (kind === 'web') {
       // A spun web flying face-on: spokes and rings of pale silk, turning as it comes.
@@ -1598,7 +1617,11 @@ export class CombatSystem {
       c.flung = 0;
       // A clean slate: every mob walks home and heals, nothing still in flight or pending lands on the fresh party.
       this.resetAggro();
+      // Pending attacks are dropped; pending clean-ups (a web net on the ground) run now.
+      const tidy = this.delayed.filter((j) => j.cleanup);
       this.delayed.length = 0;
+      for (const j of tidy) j.fn();
+      this.mireLeft = 0;
       this.grab = null;
       this.poisonLeft = 0;
       this.slowLeft = 0;

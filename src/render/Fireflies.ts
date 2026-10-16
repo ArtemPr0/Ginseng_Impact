@@ -39,6 +39,8 @@ export function fireflies(x: number, y: number, z: number, radius: number, heigh
     vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, blending: AdditiveBlending,
   });
   const points = new Points(geo, mat);
+  // (Drawn after the water: they hover over pools.)
+  points.renderOrder = 6;
   points.position.set(x, y, z);
   geo.computeBoundingSphere();
   if (geo.boundingSphere) geo.boundingSphere.radius += radius * 0.4 + 2;

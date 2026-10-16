@@ -316,8 +316,9 @@ export class Npc {
       this.pos.set(def.behaviour.path[0][0], 0, def.behaviour.path[0][1]);
       this.pos.y = heightAt(this.pos.x, this.pos.z);
     }
-    if (def.voice) {
-      this.voiceWait = def.voice.firstAfter ?? this.voiceWait;
+    if (def.voice) this.voiceWait = def.voice.firstAfter ?? this.voiceWait;
+    // A guard speaks his line too (as he steps aside), so he gets a bubble even without a voice of his own.
+    if (def.voice || def.behaviour.kind === 'guard') {
       this.bubble = new SpeechBubble((MODELS[def.model]?.height ?? 1.8) + 0.55);
       this.object.add(this.bubble.sprite);
     }

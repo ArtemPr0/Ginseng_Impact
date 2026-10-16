@@ -18,6 +18,8 @@ export class ThirdPersonCamera {
   private initialised = false;
   private shakeAmount = 0;
   private time = 0;
+  /** How far out the spring arm is (0..1 of the way to the desired position), eased out after a block. */
+  private arm = 1;
 
   constructor(readonly camera: PerspectiveCamera, private readonly world: CameraWorld) {}
 
@@ -69,7 +71,9 @@ export class ThirdPersonCamera {
         break;
       }
     }
-    this.camera.position.lerpVectors(this.focus, this.desired, t);
+    // The arm pulls in at once when something blocks the view and lets out smoothly, so it does not pop in steps.
+    this.arm = t < this.arm ? t : this.arm + (t - this.arm) * (1 - Math.exp(-dt * 6));
+    this.camera.position.lerpVectors(this.focus, this.desired, this.arm);
     const floor = this.world.heightAt(this.camera.position.x, this.camera.position.z, this.camera.position.y) + 0.5;
     if (this.camera.position.y < floor) this.camera.position.y = floor;
     this.time += dt;

@@ -140,7 +140,9 @@ export function buildGraveyard(api: GraveyardApi): { links: PortalLink[]; intera
   const trees: Placement[] = [];
   for (let i = 0; i < 12; i++) {
     const side = i % 2 ? 1 : -1;
-    trees.push({ x: R.x + side * (14 + rnd() * 6), y: y0 + 0.6, z: zGate - 10 - i * 11 - rnd() * 4, yaw: rnd() * 6, scale: 0.9 + rnd() * 0.5 });
+    const x = R.x + side * (14 + rnd() * 6);
+    // On the raised plot (|x| < 16) or on the floor beyond it.
+    trees.push({ x, y: Math.abs(x - R.x) < 16 ? y0 + 0.6 : y0, z: zGate - 10 - i * 11 - rnd() * 4, yaw: rnd() * 6, scale: 0.9 + rnd() * 0.5 });
   }
   api.flora('dead-forest-tree', trees, { trunk: 0.05 });
 
@@ -185,7 +187,7 @@ export function buildGraveyard(api: GraveyardApi): { links: PortalLink[]; intera
   api.vfx(fireflies(R.x + 10, y0 + 0.6, R.z - 20, 9, 3, 40, new Color(0.6, 1.4, 0.5)));
 
   // Ways in and out: the church door on the island, the portal at the alley's mouth back to it.
-  const exit = portal(R.x, y0 + 2, zGate + 6, 1.8, { vertical: true, facing: 0, colors: [0x6a2aa8, 0x2a1446] });
+  const exit = portal(R.x, y0 + 2, zGate + 6, 1.8, { vertical: true, facing: -Math.PI / 2, colors: [0x6a2aa8, 0x2a1446] });
   api.place(exit);
   api.realm(null);
   api.heights.add(...solid, ...walls);

@@ -73,7 +73,7 @@ export function buildTreeHouse(api: RealmApi, teleport: Teleport, faceDoor: Face
   // the rafters stops you jumping or flying out over the wall, and the table stands in the middle.
   for (let i = 0; i < 16; i++) {
     const a = (i / 16) * Math.PI * 2;
-    walls.push({ kind: 'box', x: R.x + Math.cos(a) * (ROOM_R + 0.25), z: R.z + Math.sin(a) * (ROOM_R + 0.25), hw: 0.25, hd: 0.55, top: floorY + 80, rotY: -a });
+    walls.push({ kind: 'box', x: R.x + Math.cos(a) * (ROOM_R + 0.25), z: R.z + Math.sin(a) * (ROOM_R + 0.25), hw: 0.25, hd: 0.55, top: floorY + 80, rotY: a });
   }
   walls.push({ kind: 'cyl', x: R.x, z: R.z, r: ROOM_R + 1, top: floorY + 80, bottom: floorY + 4.6 });
   walls.push({ kind: 'cyl', x: R.x, z: R.z, r: 0.6, top: floorY + 0.7 });

@@ -31,8 +31,9 @@ export function stoneHeadEyes(): Landmark {
     group.add(eye);
     return { eye, pupil, glow: glow as Sprite };
   });
-  const bubble = new SpeechBubble(0);
-  bubble.sprite.position.copy(MOUTH).add(new Vector3(0, -1.4, 1.2));
+  // (The bubble sets its own height each frame: give it the mouth's, and only place x and z.)
+  const bubble = new SpeechBubble(MOUTH.y - 1.4);
+  bubble.sprite.position.set(MOUTH.x, MOUTH.y - 1.4, MOUTH.z + 1.2);
   bubble.sprite.scale.multiplyScalar(3.4);
   group.add(bubble.sprite);
   let wait = 6;

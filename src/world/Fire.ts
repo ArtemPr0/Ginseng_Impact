@@ -8,8 +8,11 @@ export const EMBER = 0xff3a10;
 export function fire(x: number, y: number, z: number, scale = 1, intensity = 18): { group: Group; update: (dt: number) => void } {
   const g = new Group();
   const core = glowSprite(FIRE, 1.6 * scale, 0.9, true);
+  // (Flames by the river and the eye are drawn after the water, which would otherwise cover them.)
+  core.renderOrder = 6;
   core.position.set(x, y + 0.5 * scale, z);
   const inner = glowSprite(0xfff0a0, 0.7 * scale, 0.9, true);
+  inner.renderOrder = 6;
   inner.position.set(x, y + 0.35 * scale, z);
   // Small flames (candles, lanterns) are emissive only: dozens of point lights would sink the frame rate.
   const light = new PointLight(FIRE, intensity, 12 * scale, 1.8);
@@ -22,6 +25,7 @@ export function fire(x: number, y: number, z: number, scale = 1, intensity = 18)
   const geo = new BufferGeometry();
   geo.setAttribute('position', new Float32BufferAttribute(pos, 3));
   const embers = new Points(geo, new PointsMaterial({ map: glowTexture(), color: EMBER, size: 0.22 * scale, transparent: true, opacity: 0.9, blending: AdditiveBlending, depthWrite: false }));
+  embers.renderOrder = 6;
   embers.frustumCulled = false;
   g.add(core, inner, embers);
   if (intensity >= 6) g.add(light);

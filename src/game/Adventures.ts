@@ -135,7 +135,8 @@ export class Adventures {
     this.d.teleport(DREAM.x, DREAM.y + 0.05, DREAM.z + 30, -Math.PI / 2, DREAM.name);
   }
 
-  private wake(): void {
+  /** Ends the dream: you wake beside the Frog King (also when the party falls in it). */
+  wake(): void {
     this.dreamLeft = 0;
     this.quests.set('trip', 'done');
     this.d.trip?.(0.6, 3);

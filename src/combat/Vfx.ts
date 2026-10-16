@@ -3,6 +3,7 @@ import {
   PointsMaterial, RingGeometry, Sprite, Vector3,
 } from 'three';
 import { glowSprite, glowTexture } from '../render/Glow';
+import { disposeObject } from '../render/dispose';
 
 interface Item { obj: Group | Mesh | Points | Sprite; life: number; max: number; tick: (t: number, dt: number) => void; done?: () => void }
 
@@ -101,6 +102,9 @@ export class Vfx {
       it.tick(t, dt);
       if (it.life >= it.max) {
         this.group.remove(it.obj);
+        // Every effect builds its own geometry and material: free them (the glow texture is shared and kept).
+        disposeObject(it.obj);
+        it.done?.();
         this.items.splice(i, 1);
       }
     }

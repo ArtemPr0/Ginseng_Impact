@@ -77,8 +77,19 @@ export class Hud {
     const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
     const html = quests.map((q) => `<div class="hud-quest panel"><div class="hud-quest-title">${q.title}</div><div class="hud-quest-obj">${q.objective}</div></div>`).join('')
       + buffs.map((b) => `<div class="hud-buff panel">${b.name} <span>${mmss(b.left)}</span></div>`).join('');
-    const el = this.q('#hud-quests');
-    if (el.innerHTML !== html) el.innerHTML = html;
+    // (Compared with what was last written, not read back from the DOM: this runs every step.)
+    if (html === this.questHtml) return;
+    this.questHtml = html;
+    this.q('#hud-quests').innerHTML = html;
+  }
+
+  /** Last value each per-step readout wrote, so unchanged frames touch no DOM. */
+  private questHtml = '';
+  private readonly shown = new Map<string, string>();
+  private changed(key: string, value: string): boolean {
+    if (this.shown.get(key) === value) return false;
+    this.shown.set(key, value);
+    return true;
   }
 
   /** A countdown in the top-right corner (the frog's dream), or null to hide it. */
@@ -101,6 +112,7 @@ export class Hud {
 
   // ---------- combat readouts ----------
   setHp(value: number, max: number): void {
+    if (!this.changed('hp', `${Math.round(value)}/${max}`)) return;
     const f = Math.max(0, value / max);
     this.q('#hud-hp').style.width = `${Math.round(f * 100)}%`;
     this.q('#hud-hp-text').textContent = `${Math.round(value)} / ${max}`;
@@ -108,18 +120,21 @@ export class Hud {
   }
 
   setSkill(name: string, cooldownFraction: number, ready: boolean): void {
+    if (!this.changed('skill', `${name}|${Math.round(cooldownFraction * 360)}|${ready}`)) return;
     this.q('#hud-skill-name').textContent = name;
     this.q('#hud-skill-cd').style.setProperty('--cd', `${Math.round(cooldownFraction * 360)}deg`);
     this.q('#hud-skill').classList.toggle('ready', ready);
   }
 
   setBurst(fraction: number, ready: boolean, name?: string): void {
+    if (!this.changed('burst', `${Math.round(fraction * 100)}|${ready}|${name ?? ''}`)) return;
     this.q('#hud-burst-fill').style.height = `${Math.round(fraction * 100)}%`;
     this.q('#hud-burst').classList.toggle('ready', ready);
     if (name && name !== this.burstName) { this.burstName = name; this.q('#hud-burst-name').textContent = name; }
   }
 
   setCharge(fraction: number): void {
+    if (!this.changed('charge', `${Math.round(fraction * 100)}`)) return;
     const el = this.q('#hud-charge');
     el.style.opacity = fraction > 0 ? '1' : '0';
     this.q('#hud-charge-fill').style.width = `${Math.round(fraction * 100)}%`;
@@ -127,11 +142,13 @@ export class Hud {
   }
 
   setFrenzy(seconds: number): void {
+    if (!this.changed('frenzy', `${Math.ceil(seconds)}`)) return;
     const el = this.q('#hud-frenzy');
     el.textContent = seconds > 0 ? `LOTUS FRENZY ${Math.ceil(seconds)}s` : '';
   }
 
   setShards(n: number): void {
+    if (!this.changed('shards', String(n))) return;
     this.q('#hud-shards-n').textContent = String(n);
   }
 

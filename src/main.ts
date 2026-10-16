@@ -57,7 +57,7 @@ fill.position.set(70, 60, 110);
 const sky = new Sky();
 // The island's moon is the laughing face, as a crescent (shot-013029); until its model loads, the cratered disc.
 const moonFace = faceMoon('moon-laugh', Sky.moonRadius, { crescent: 0.72, glow: 0.7 });
-void moonFace.ready.then((ok) => { if (ok) sky.attachMoonModel(moonFace.group); });
+void moonFace.ready.then((ok) => { if (ok) sky.attachMoonModel(moonFace.group, moonFace.tint); });
 const skyEvents = new SkyEvents();
 moon.castShadow = true;
 moon.shadow.mapSize.set(2048, 2048);
@@ -142,7 +142,8 @@ const combat = new CombatSystem({
   onTrip: (strength, seconds) => renderer.trip(strength, seconds),
   onKill: (kind) => adventures.quests.kill(kind),
   muzzle: () => rigs[party.activeIndex].muzzle(new Vector3()),
-  onWipe: () => { adventures.riding = null; wasLocked = false; },
+  // A wipe also ends the frog's dream (otherwise its clock would run on, and block the portals, back on the island).
+  onWipe: () => { adventures.riding = null; wasLocked = false; if (adventures.dreamLeft > 0) adventures.wake(); },
   onDodge: () => {
     const axis = input.moveAxis();
     const dir = axis.x === 0 && axis.z === 0 ? { x: -Math.cos(controller.yaw), z: -Math.sin(controller.yaw) } : tpc.moveToWorld(axis);
@@ -255,6 +256,8 @@ hud.bind({
   onClose: () => closePanel(),
 }, inventory);
 window.addEventListener('keydown', (e) => {
+  // (Held keys repeat: a held digit would pick choice after choice, a held I would flicker the bag.)
+  if (e.repeat) return;
   const digit = /^Digit([1-9])$/.exec(e.code);
   if (digit && hud.pickChoice(Number(digit[1]))) return;
   if (e.code === 'KeyI') {

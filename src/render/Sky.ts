@@ -141,6 +141,7 @@ export interface SkyPreset {
 
 const col = (hex: number, k = 1): Color => new Color(hex).multiplyScalar(k);
 const TMP_COLOR = new Color();
+const BLOOD_TINT = new Color(1.9, 0.12, 0.1);
 
 /**
  * The sky's colours, moon and clock as uniform objects shared with everything that reflects the sky (water): they
@@ -189,6 +190,10 @@ export class Sky {
   private readonly eclipse: Mesh;
   private readonly eclipseMat: ShaderMaterial;
   private faceModel: Group | null = null;
+  /** The face-moon's tint (it turns red as a blood moon) and its own colour to come back to. */
+  private moonTint: Color | null = null;
+  private readonly moonTintBase = new Color();
+  private bloodMoon = false;
   private preset: SkyPreset = SKIES.island;
   private readonly cur = { cover: 0.5, swirl: 0.7, vortex: 0.5, nebula: 1, stars: 1, moon: 1, eclipse: 1 };
   /** Where the black sun hangs: low in the north-west, over the forest gorge and the spire castle. */
@@ -227,7 +232,8 @@ export class Sky {
       fog: false,
     });
     const dome = new Mesh(new SphereGeometry(SKY_RADIUS, 48, 24), this.domeMat);
-    dome.renderOrder = -10;
+    // Last of the opaque pass: the depth test skips every pixel the world already covers (the shader is heavy).
+    dome.renderOrder = 1000;
     this.group.add(dome);
 
     const starPos: number[] = [];
@@ -311,8 +317,10 @@ export class Sky {
    * Replaces the flat cratered moon with a modelled face-moon (render/MoonFace). The canvas moon and its timed face
    * stay as the fallback while the model loads or if it is missing.
    */
-  attachMoonModel(model: Group): void {
+  attachMoonModel(model: Group, tint?: Color): void {
     this.faceModel = model;
+    this.moonTint = tint ?? null;
+    if (tint) this.moonTintBase.copy(tint);
     model.position.copy(this.moonDir).multiplyScalar(SKY_RADIUS * 0.93);
     // (lookAt points the model's +z, its face, back at the camera at the dome's centre.)
     model.lookAt(0, 0, 0);
@@ -351,6 +359,9 @@ export class Sky {
   }
 
   setBloodMoon(on: boolean): void {
+    if (on === this.bloodMoon) return;
+    this.bloodMoon = on;
+    if (this.moonTint) this.moonTint.copy(on ? BLOOD_TINT : this.moonTintBase);
     SKY_SHARED.uMoonCol.value.set(on ? 1.6 : 0.85, on ? 0.15 : 0.9, on ? 0.15 : 1.25);
     this.moonMat.color.set(on ? PALETTE.blood : PALETTE.moon).multiplyScalar(on ? 1.9 : 1.6);
     this.glowMat.color.set(on ? PALETTE.blood : PALETTE.electric);

@@ -313,6 +313,8 @@ function porcelainFloor(cx: number, cz: number, w: number, d: number, y: number)
   const floor = new Reflector(new PlaneGeometry(w, d), { shader, textureWidth: 640, textureHeight: 360, clipBias: 0.003, multisample: 0 });
   floor.rotation.x = -Math.PI / 2;
   floor.position.set(cx, y + 0.01, cz);
+  // (Reflector clones the shader's uniforms: give it back the shared clock so the ore veins pulse.)
+  (floor.material as ShaderMaterial).uniforms.uTime = clock;
   return floor;
 }
 
@@ -424,7 +426,7 @@ function leanCupIsland(api: RealmApi, x: number, z: number, y: number): number {
   const segs = 28;
   for (let i = 0; i < segs; i++) {
     const a = (i / segs) * Math.PI * 2;
-    footprints.push({ kind: 'box', x: x + Math.cos(a) * (r + 0.2), z: z + Math.sin(a) * (r + 0.2), hw: 0.3, hd: (Math.PI * (r + 0.2)) / segs + 0.12, top: y + ISLAND_RIM, rotY: -a });
+    footprints.push({ kind: 'box', x: x + Math.cos(a) * (r + 0.2), z: z + Math.sin(a) * (r + 0.2), hw: 0.3, hd: (Math.PI * (r + 0.2)) / segs + 0.12, top: y + ISLAND_RIM, rotY: a });
   }
   api.place({ object: new Group(), footprints });
   return r;
@@ -592,9 +594,16 @@ export function buildKingdom(api: RealmApi, hooks: { soundWanted(): boolean; fou
   api.group.add(blossomFog(R.x, R.z - 5, 120, 160, gy));
   // The floor: porcelain and marble, reflecting.
   api.group.add(porcelainFloor(R.x, R.z - 5, 120, 160, gy));
-  api.place({ object: new Group(), footprints: [{ kind: 'box', x: R.x, z: R.z - 5, hw: 60, hd: 80, top: gy }] });
+  // The plaza, with unseen walls at its edges (west, north, south: the east edge opens onto the waves to the cups).
+  api.place({ object: new Group(), footprints: [
+    { kind: 'box', x: R.x, z: R.z - 5, hw: 60, hd: 80, top: gy },
+    { kind: 'box', x: R.x - 60.5, z: R.z - 5, hw: 0.5, hd: 80, top: gy + 6 },
+    { kind: 'box', x: R.x, z: R.z - 85.5, hw: 61, hd: 0.5, top: gy + 6 },
+    { kind: 'box', x: R.x, z: R.z + 75.5, hw: 61, hd: 0.5, top: gy + 6 },
+  ] });
   // Two tea streams down the length of the plaza, either side of the road.
-  teaStream(api, [[R.x - 26, R.z + 66], [R.x - 31, R.z + 40], [R.x - 24, R.z + 10], [R.x - 30, R.z - 20], [R.x - 25, R.z - 50]], gy);
+  // (The west stream stops short of the purple houses' street at x 966-974, z 5-35.)
+  teaStream(api, [[R.x - 24, R.z - 2], [R.x - 30, R.z - 20], [R.x - 25, R.z - 50]], gy);
   teaStream(api, [[R.x + 27, R.z - 50], [R.x + 33, R.z - 20], [R.x + 26, R.z + 10], [R.x + 32, R.z + 40], [R.x + 27, R.z + 66]], gy);
   // The cup islands east of the plaza, joined by waves of lean (they used to be blocks with rope bridges).
   const cups: Array<[number, number]> = [[1082, 10], [1108, -12], [1136, 14]];

@@ -131,7 +131,8 @@ export function walkerLandmark(id: string, path: Array<[number, number]>, speed:
 
 /** A model carried down the river (boats). */
 export function riverDrifter(id: string, startS: number, speed: number): ModelLandmark {
-  const p0 = riverPoint(-startS);
+  // Downstream, bow first (the polyline runs with the current; riverPoint's yaw is the way it flows).
+  const p0 = riverPoint(startS);
   const lm = modelLandmark(id, p0.x, p0.z, RIVER_LEVEL + 0.05, { clip: 'idle', collider: 'none' });
   let s = startS;
   let t = 0;
@@ -140,7 +141,7 @@ export function riverDrifter(id: string, startS: number, speed: number): ModelLa
   lm.update = (dt, player) => {
     t += dt;
     s += dt * speed;
-    const p = riverPoint(-s);
+    const p = riverPoint(s);
     lm.root.position.set(p.x, RIVER_LEVEL + 0.05 + Math.sin(t * 1.4) * 0.06, p.z);
     // Over the eye pool the vortex takes hold: the boat spins a full turn as it crosses the pupil.
     const pupil = Math.max(0, 1 - Math.hypot(p.x - EYE.x, p.z - EYE.z) / 14);

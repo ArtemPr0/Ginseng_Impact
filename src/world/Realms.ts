@@ -223,6 +223,11 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   api.realm(S.id);
   const sy = S.y;
   api.place(floorSlab(S.x, S.z, sy, 110, 110));
+  // Unseen walls round the slab (beyond it the murk hides a long fall).
+  api.place({ object: new Group(), footprints: [
+    { kind: 'box', x: S.x - 55.5, z: S.z, hw: 0.5, hd: 56, top: sy + 6 }, { kind: 'box', x: S.x + 55.5, z: S.z, hw: 0.5, hd: 56, top: sy + 6 },
+    { kind: 'box', x: S.x, z: S.z - 55.5, hw: 56, hd: 0.5, top: sy + 6 }, { kind: 'box', x: S.x, z: S.z + 55.5, hw: 56, hd: 0.5, top: sy + 6 },
+  ] });
   api.place(modelLandmark('sunken-tavern', S.x, S.z - 24, sy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'box', x: S.x, z: S.z - 28.5, hw: 10.5, hd: 1.8, top: sy + 11 }] }));
   api.place(modelLandmark('coral-throne', S.x - 4, S.z - 13, sy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'box', x: S.x - 4, z: S.z - 13.4, hw: 1.3, hd: 1, top: sy + 0.8 }] }));
   let ca = 0;

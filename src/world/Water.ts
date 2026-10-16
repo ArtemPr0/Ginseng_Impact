@@ -276,6 +276,8 @@ export function river(heightAt: (x: number, z: number) => number, rnd: () => num
   sg.setAttribute('position', new Float32BufferAttribute(sp, 3));
   const sparkles = new Points(sg, new PointsMaterial({ map: glowTexture(), color: PALETTE.moon, size: 0.5, transparent: true, opacity: 0.75, blending: AdditiveBlending, depthWrite: false }));
   sparkles.frustumCulled = false;
+  // (After the water, which is transparent too and would otherwise paint over them.)
+  sparkles.renderOrder = 6;
   g.add(sparkles);
   const sattr = sg.attributes.position as BufferAttribute;
   // Reeds along both banks.
@@ -352,6 +354,8 @@ export function lilyPond(cx: number, cz: number, radius: number, rnd: () => numb
   sg.setAttribute('position', new Float32BufferAttribute(sp, 3));
   const sparkles = new Points(sg, new PointsMaterial({ map: glowTexture(), color: PALETTE.electric, size: 0.35, transparent: true, opacity: 0.8, blending: AdditiveBlending, depthWrite: false }));
   sparkles.frustumCulled = false;
+  // (After the water, which is transparent too and would otherwise paint over them.)
+  sparkles.renderOrder = 6;
   g.add(sparkles);
   const sattr = sg.attributes.position as BufferAttribute;
   let t = 0;
@@ -414,7 +418,8 @@ export function mudPool(x: number, z: number, y: number, radius: number, inside:
     ring.rotation.x = -Math.PI / 2;
     dome.visible = ring.visible = false;
     g.add(dome, ring);
-    return { dome, ring, t: Math.random() * 3, life: 1, size: 0.3 };
+    // (Starts below the respawn mark: every bubble swells before it can pop, never popping unborn at the origin.)
+    return { dome, ring, t: -0.5 - Math.random() * 3, life: 1, size: 0.3 };
   });
   let t = 0;
   return {

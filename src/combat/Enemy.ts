@@ -155,6 +155,8 @@ export class Enemy {
     this.object.add(this.placeholder.group);
   }
 
+  /** When the corpse began to shrink (deadFor), or -1. */
+  private shrinkFrom = -1;
   /** A giant eye's tilt pivot and living iris (def.eye). */
   private eyePivot: Group | null = null;
   private eyeIris: EyeIris | null = null;
@@ -266,7 +268,8 @@ export class Enemy {
     if (this.aggro && (playerFromHome > giveUp || Math.abs(player.y - this.pos.y) > 60)) this.disengage();
     if (this.returning) return this.walkHome(dt);
     // Dazed: stands where it is (knockback still settles).
-    if (st.stun > 0) { this.stepTo(this.pos.x, this.pos.z, dt, this.def.flying ? this.pos.y : null); return null; }
+    // (A flyer holds its height: stepTo adds the hover on top of flyAt, so pass the height without it.)
+    if (st.stun > 0) { this.stepTo(this.pos.x, this.pos.z, dt, this.def.flying ? this.pos.y - this.def.hover : null); return null; }
     // Confused (and not fighting another mob): it has lost the hero and stumbles about, changing its mind often.
     if (st.confuse > 0 && !this.brawling) {
       this.wanderIn -= dt;
@@ -280,7 +283,7 @@ export class Enemy {
       const ld = Math.hypot(lx, lz);
       if (ld > this.territory) { nx = this.spawn.x + (lx / ld) * this.territory; nz = this.spawn.z + (lz / ld) * this.territory; this.wanderIn = 0; }
       if (this.brain.state !== 'idle' && this.brain.state !== 'chase') { this.brain.state = 'chase'; this.brain.stateTime = 0; }
-      this.stepTo(nx, nz, dt, this.def.flying ? this.pos.y : null);
+      this.stepTo(nx, nz, dt, this.def.flying ? this.pos.y - this.def.hover : null);
       return null;
     }
     const dx = player.x - this.pos.x;
@@ -487,6 +490,7 @@ export class Enemy {
     if (!this.def.boss || this.time - this.lastFlinch > 3) { this.wantFlinch = true; this.flinch = 1; this.lastFlinch = this.time; }
     if (this.hp <= 0) {
       this.hp = 0;
+      this.returning = false;
       this.brain.kill();
       this.deadFor = 0;
       Object.assign(this.status, { stun: 0, confuse: 0, brawl: 0, slow: 0, slowBy: 1 });
@@ -517,6 +521,8 @@ export class Enemy {
     this.defDown = { amount: 0, left: 0 };
     this.pos.x = this.spawn.x;
     this.pos.z = this.spawn.z;
+    this.knock.x = this.knock.z = 0;
+    this.shrinkFrom = -1;
     this.brain.state = 'idle';
     this.brain.stateTime = 0;
     this.lastState = 'idle';
@@ -549,7 +555,7 @@ export class Enemy {
     const yawRate = Math.atan2(Math.sin(this.yaw - this.lastYaw), Math.cos(this.yaw - this.lastYaw)) / Math.max(dt, 1e-4);
     this.lastYaw = this.yaw;
 
-    const st: EnemyState = this.returning ? 'chase' : this.brain.state;
+    const st: EnemyState = !this.alive ? 'dead' : this.returning ? 'chase' : this.brain.state;
     const m = this.model;
     const entered = st !== this.lastState;
     if (entered) this.stateClock = 0;
@@ -562,7 +568,9 @@ export class Enemy {
       // Hold the corpse while the death clip runs (or a short beat without one), then shrink it away.
       const clipRunning = !!m && m.playing === 'death' && !m.finished && this.deadFor < DEATH_HOLD_MAX;
       const hold = clipRunning || this.deadFor < (this.heap ? HEAP_HOLD : DEATH_HOLD);
-      const s = hold ? (m ? 1 : this.def.scale ?? 1) : Math.max(0, 1 - (this.deadFor - DEATH_HOLD) * 2.2);
+      // The shrink starts when the hold ends (a long death clip ends after DEATH_HOLD: the body still lies a beat).
+      if (!hold && this.shrinkFrom < 0) this.shrinkFrom = this.deadFor;
+      const s = hold ? (m ? 1 : this.def.scale ?? 1) : Math.max(0, 1 - (this.deadFor - Math.max(DEATH_HOLD, this.shrinkFrom)) * 2.2);
       this.object.scale.setScalar(m ? s : s * (this.def.scale ?? 1));
       this.object.visible = s > 0;
       if (m && !m.hasClips) this.driveStatic(m, st, dt, yawRate);
@@ -855,7 +863,9 @@ export class Enemy {
     }
     const r = m.root;
     const a = Math.min(1, dt * 14);
-    r.position.y += (y - r.position.y) * a;
+    // (A giant eye's body hangs below its tilt pivot by half its height: keep that offset.)
+    const base = this.eyePivot ? -this.eyePivot.position.y : 0;
+    r.position.y += (base + y - r.position.y) * a;
     r.rotation.x += (pitch - r.rotation.x) * a;
     r.rotation.z += (roll - r.rotation.z) * a;
     r.rotation.y += (wiggle - r.rotation.y) * a;
