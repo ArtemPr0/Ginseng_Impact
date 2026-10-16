@@ -38,7 +38,8 @@ void main() {
   // Nebula band arcing across the sky, behind the clouds.
   float az = atan(vd.x, vd.z);
   float bandY = 0.42 + 0.22 * sin(az * 1.3 + 0.8);
-  float band = exp(-pow((vd.y - bandY) * 4.5, 2.0));
+  float bd = (vd.y - bandY) * 4.5;
+  float band = exp(-bd * bd);
   vec2 np = vec2(az * 2.0, vd.y * 6.0) + vec2(uTime * 0.001, 0.0);
   float nn = fbm(np) * 0.6 + fbm(np * 2.7 + 11.0) * 0.4;
   vec3 neb = mix(uNebulaA, uNebulaB, fbm(np * 0.7 + 3.0));
@@ -97,7 +98,8 @@ void main() {
   float r = length(q);
   float a = atan(q.y, q.x);
   float flame = vnoise(vec2(a * 6.0, r * 3.0 - uTime * 0.4)) * 0.6 + vnoise(vec2(a * 17.0, r * 9.0 - uTime * 0.9)) * 0.4;
-  float ring = exp(-pow((r - 0.42) * 9.0, 2.0)) * 1.6;
+  float rr = (r - 0.42) * 9.0;
+  float ring = exp(-rr * rr) * 1.6;
   float rays = smoothstep(0.42, 0.5, r) * pow(max(0.0, 1.0 - (r - 0.42) / (0.55 * (0.5 + flame))), 2.0);
   vec3 col = uCorona * (ring + rays * 1.4) * (0.7 + flame * 0.6);
   float disc = 1.0 - smoothstep(0.395, 0.405, r);
@@ -138,6 +140,7 @@ export interface SkyPreset {
 }
 
 const col = (hex: number, k = 1): Color => new Color(hex).multiplyScalar(k);
+const TMP_COLOR = new Color();
 
 /**
  * The sky's colours, moon and clock as uniform objects shared with everything that reflects the sky (water): they
@@ -328,7 +331,7 @@ export class Sky {
     const k = 1 - Math.exp(-dt * 1.2);
     const u = this.domeMat.uniforms;
     const p = this.preset;
-    const tmp = new Color();
+    const tmp = TMP_COLOR;
     const lerpC = (name: string, hex: number) => (u[name].value as Color).lerp(tmp.set(hex), k);
     lerpC('uHorizon', p.horizon); lerpC('uMid', p.mid); lerpC('uZenith', p.zenith);
     lerpC('uCloudDark', p.cloudDark); lerpC('uCloudLit', p.cloudLit);

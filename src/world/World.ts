@@ -475,7 +475,8 @@ export class World {
     this.watchers.push({ zone: null, update: (dt, cam, p) => skyEyes.update(dt, cam, p) });
     this.shotTargets.push(...skyEyes.targets());
     skyEyes.onAllHurt = () => this.hooks.reward?.('eyes');
-    this.shotTargets.push({ pos: new Vector3(EYE.x, RIVER_LEVEL, EYE.z), radius: 7, active: () => this.here === null, onHit: () => heart.eye.startle() });
+    // (A low sphere: only shots that come down into the pool's middle count, not ones flying over it.)
+    this.shotTargets.push({ pos: new Vector3(EYE.x, RIVER_LEVEL - 3, EYE.z), radius: 5.5, active: () => this.here === null, onHit: () => heart.eye.startle() });
 
     // --- settlements ---
     const vrnd = rng(909);
@@ -605,7 +606,7 @@ export class World {
       if (graves.some((g) => Math.hypot(g.x - x, g.z - z) < 1.6)) continue;
       graves.push({ x, y: h(x, z), z, yaw: Math.PI / 2 + (crnd() - 0.5) * 0.3, scale: 0.8 + crnd() * 0.5 });
     }
-    flora('grave', graves);
+    flora('grave', graves, { trunk: 0.3 });
     this.clouds = new CloudSea(LAYOUT.cloudSea.y);
     this.group.add(this.clouds.group);
 

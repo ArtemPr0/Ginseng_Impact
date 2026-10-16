@@ -287,7 +287,8 @@ export function patchGlowCap(mat: MeshStandardMaterial, capFrom: number, color: 
           totalEmissiveRadiance += uCapColor * (cap * (0.12 + lum * 0.45) * breathe + spot * cap * 1.1 + (1.0 - cap) * 0.03);
         }`);
   };
-  mat.customProgramCacheKey = () => `glowcap:${capFrom.toFixed(3)}`;
+  const prevKey = mat.customProgramCacheKey.bind(mat);
+  mat.customProgramCacheKey = () => `${prevKey()}|glowcap:${capFrom.toFixed(3)}`;
   mat.needsUpdate = true;
 }
 
@@ -307,7 +308,8 @@ export function patchWhiteBloom(mat: MeshStandardMaterial): void {
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         totalEmissiveRadiance += vec3(0.16, 0.19, 0.3) * smoothstep(0.4, 0.8, dot(diffuseColor.rgb, vec3(0.33)));`);
   };
-  mat.customProgramCacheKey = () => 'whitebloom';
+  const prevKey = mat.customProgramCacheKey.bind(mat);
+  mat.customProgramCacheKey = () => `${prevKey()}|whitebloom`;
   mat.needsUpdate = true;
 }
 
@@ -324,7 +326,8 @@ export function patchLitWindows(mat: MeshStandardMaterial, strength = 2.2): void
           totalEmissiveRadiance += vec3(1.0, 0.55, 0.18) * warm * ${strength.toFixed(2)};
         }`);
   };
-  mat.customProgramCacheKey = () => `litwindows:${strength}`;
+  const prevKey = mat.customProgramCacheKey.bind(mat);
+  mat.customProgramCacheKey = () => `${prevKey()}|litwindows:${strength}`;
   mat.needsUpdate = true;
 }
 
@@ -347,7 +350,8 @@ export function patchStone(mat: MeshStandardMaterial): void {
           diffuseColor.rgb = vec3(0.32, 0.33, 0.38) * (0.6 + l * 0.7) + speck;
         }`);
   };
-  mat.customProgramCacheKey = () => 'stone';
+  const prevKey = mat.customProgramCacheKey.bind(mat);
+  mat.customProgramCacheKey = () => `${prevKey()}|stone`;
   mat.needsUpdate = true;
 }
 

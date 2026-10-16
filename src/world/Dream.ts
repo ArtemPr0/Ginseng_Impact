@@ -11,7 +11,7 @@
  * The Prism Wizard flies about it all. Four minutes, no way out (Adventures keeps the clock); an unseen ring keeps
  * you on the floor.
  */
-import { BackSide, CircleGeometry, Color, Group, Mesh, type MeshStandardMaterial, PlaneGeometry, ShaderMaterial, SphereGeometry, Vector3 } from 'three';
+import { BackSide, Color, Group, Mesh, type MeshStandardMaterial, PlaneGeometry, RingGeometry, ShaderMaterial, SphereGeometry, Vector3 } from 'three';
 import { DREAM } from '../data/world';
 import { MODELS } from '../data/models';
 import { fireflies } from '../render/Fireflies';
@@ -127,8 +127,9 @@ function floorMaterial(): ShaderMaterial {
         vP = position.xy;
         vec3 p = position;
         float d = length(p.xy);
-        // The floor breathes: slow swells rolling outward (visual only; the walk surface stays level).
-        p.z += sin(d * 0.08 - uTime * 0.9) * 0.35 * smoothstep(8.0, 30.0, d);
+        // The floor breathes: slow swells rolling outward (visual only; the walk surface stays level). It only dips,
+        // so it never rises over the corridor and the village pool laid just above it.
+        p.z -= (0.5 + 0.5 * sin(d * 0.08 - uTime * 0.9)) * 0.35 * smoothstep(8.0, 30.0, d);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
       }`,
     fragmentShader: /* glsl */ `
@@ -160,7 +161,8 @@ export function buildDream(api: RealmApi): void {
   const sky = new Mesh(new SphereGeometry(380, 48, 24), skyMaterial());
   sky.position.set(R.x, R.y, R.z);
   sky.frustumCulled = false;
-  const floor = new Mesh(new CircleGeometry(FLOOR_R + 20, 120), floorMaterial());
+  // (Rings, not a fan: the swell needs vertices between the centre and the rim.)
+  const floor = new Mesh(new RingGeometry(0.01, FLOOR_R + 20, 120, 48), floorMaterial());
   floor.rotation.x = -Math.PI / 2;
   floor.position.set(R.x, R.y - 0.02, R.z);
   const group = new Group();
@@ -230,13 +232,15 @@ export function buildDream(api: RealmApi): void {
     update: (tt, ps) => { ps.forEach((p, i) => { const a = i * 0.55 + tt * 0.05; const r = 30 + i * 9; p.x = C.x + 140 + Math.cos(a) * r; p.y = y0 + 120 + Math.sin(a) * r * 0.6; }); return true; },
     patch: (mat) => {
       mat.fog = false;
-      mat.onBeforeCompile = (shader) => {
+      const prev = mat.onBeforeCompile;
+      mat.onBeforeCompile = (shader, r) => {
+        prev?.call(mat, shader, r);
         shader.uniforms.uWind = WIND;
         shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying float vHue;').replace('#include <begin_vertex>', '#include <begin_vertex>\n#ifdef USE_INSTANCING\nvHue = instanceMatrix[3].x * 0.013 + instanceMatrix[3].y * 0.02;\n#else\nvHue = 0.0;\n#endif');
         shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uWind; varying float vHue;').replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
           totalEmissiveRadiance += (0.5 + 0.5 * cos(6.28318 * (vec3(0.0, 0.33, 0.67) + vHue + uWind * 0.03))) * dot(diffuseColor.rgb, vec3(0.33)) * 1.3;`);
       };
-      mat.customProgramCacheKey = () => 'dream-moons';
+      mat.customProgramCacheKey = () => 'dream-moons';  // (moons have no wind)
       mat.needsUpdate = true;
     },
   });
@@ -267,8 +271,10 @@ export function buildDream(api: RealmApi): void {
     sunflowers.push({ x, y: onTerrace ? terrace.top : y0, z, yaw: rnd() * 6, scale: onTerrace ? 4 + rnd() * 2 : 6 + rnd() * 5 });
   }
   api.flora('flower', sunflowers, { wind: 0.2, patch: (mat) => {
-    // Giant sunflowers: the petals turn gold, the centres dark.
-    mat.onBeforeCompile = (shader) => {
+    // Giant sunflowers: the petals turn gold, the centres dark (on top of the wind sway).
+    const prev = mat.onBeforeCompile;
+    mat.onBeforeCompile = (shader, r) => {
+      prev?.call(mat, shader, r);
       shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
         {
           float leaf = smoothstep(0.05, 0.2, diffuseColor.g - max(diffuseColor.r, diffuseColor.b));
@@ -276,7 +282,7 @@ export function buildDream(api: RealmApi): void {
           diffuseColor.rgb = mix(mix(vec3(0.18, 0.08, 0.02), vec3(1.0, 0.72, 0.08), smoothstep(0.25, 0.5, l)), diffuseColor.rgb, leaf);
         }`).replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vec3(0.5, 0.3, 0.02) * smoothstep(0.5, 0.9, diffuseColor.r);');
     };
-    mat.customProgramCacheKey = () => 'sunflower';
+    mat.customProgramCacheKey = () => 'sunflower+wind';
     mat.needsUpdate = true;
   } });
   for (const [dx, dz, y, yaw] of [[-104, -44, 32, 0.6], [-58, -94, 42, 2.1], [-114, 28, 28, -0.8]] as const) {

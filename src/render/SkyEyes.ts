@@ -4,7 +4,7 @@
  * an eye flinches and slams shut, then glares: bloodshot, red-irised, lids narrowed, for a while. Drawn entirely in a
  * shader on a camera-facing quad, so there is no model to load and dozens cost one draw each.
  */
-import { AdditiveBlending, Color, Group, Mesh, PlaneGeometry, ShaderMaterial, Vector3 } from 'three';
+import { AdditiveBlending, Color, Group, Mesh, PlaneGeometry, ShaderMaterial, Vector2, Vector3 } from 'three';
 import { glowSprite } from './Glow';
 
 const VERT = /* glsl */ `
@@ -57,6 +57,12 @@ void main() {
 
 type Mood = 'calm' | 'dilate' | 'red' | 'squint' | 'wide';
 
+/** Scratch vectors for the per-frame gaze (no allocations in update). */
+const T1 = new Vector3();
+const T2 = new Vector3();
+const T3 = new Vector3();
+const T4 = new Vector3();
+
 interface Eye {
   mesh: Mesh;
   mat: ShaderMaterial;
@@ -84,12 +90,14 @@ export class SkyEyes {
   /** Called when every eye of the set has been shot at least once (the reward). */
   onAllHurt?: () => void;
   private readonly everHurt = new Set<number>();
+  /** The prize is paid once. */
+  private rewarded = false;
 
   constructor(spots: ReadonlyArray<{ x: number; y: number; z: number; size: number }>) {
     spots.forEach((s, i) => {
       const mat = new ShaderMaterial({
         uniforms: {
-          uLook: { value: { x: 0, y: 0 } }, uOpen: { value: 1 }, uSquint: { value: 0 }, uDilate: { value: 1 }, uRed: { value: 0 },
+          uLook: { value: new Vector2() }, uOpen: { value: 1 }, uSquint: { value: 0 }, uDilate: { value: 1 }, uRed: { value: 0 },
           uAnger: { value: 0 }, uHurt: { value: 0 }, uIris: { value: IRIS[i % IRIS.length] }, uTime: { value: 0 }, uFade: { value: 1 },
         },
         vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, fog: false,
@@ -124,12 +132,11 @@ export class SkyEyes {
     e.anger = 1;
     e.blink = 0;
     this.everHurt.add(i);
-    if (this.everHurt.size === this.eyes.length) { this.onAllHurt?.(); this.everHurt.clear(); }
+    if (!this.rewarded && this.everHurt.size === this.eyes.length) { this.rewarded = true; this.onAllHurt?.(); }
   }
 
   update(dt: number, camera: Vector3, hero: Vector3): void {
     this.t += dt;
-    const up = new Vector3();
     for (const e of this.eyes) {
       const u = e.mat.uniforms;
       // Float a little, face the camera.
@@ -142,13 +149,13 @@ export class SkyEyes {
       const want = e.wander ?? hero;
       e.look.lerp(want, Math.min(1, dt * (e.anger > 0.2 ? 6 : 2.5)));
       // The look in the eye's own frame: the direction to the target against the direction to the camera.
-      const toTarget = e.look.clone().sub(e.mesh.position).normalize();
-      const toCam = camera.clone().sub(e.mesh.position).normalize();
-      const right = up.set(0, 1, 0).cross(toCam).normalize();
-      const upv = toCam.clone().cross(right);
+      const toTarget = T1.copy(e.look).sub(e.mesh.position).normalize();
+      const toCam = T2.copy(camera).sub(e.mesh.position).normalize();
+      const right = T3.set(0, 1, 0).cross(toCam).normalize();
+      const upv = T4.copy(toCam).cross(right);
       const lx = Math.max(-1, Math.min(1, toTarget.dot(right) * -3));
       const ly = Math.max(-1, Math.min(1, toTarget.dot(upv) * 3));
-      u.uLook.value = { x: lx, y: ly };
+      (u.uLook.value as Vector2).set(lx, ly);
       // Blinks.
       e.nextBlink -= dt;
       if (e.nextBlink <= 0) { e.blink = 0.22; e.nextBlink = 2.5 + Math.random() * 6; }

@@ -133,7 +133,7 @@ export function cascade(o: CascadeOptions): Landmark {
     spray[i * 3] = (Math.random() - 0.5) * o.width;
     spray[i * 3 + 1] = footY + 0.1;
     spray[i * 3 + 2] = footZ + (Math.random() - 0.3) * 0.8;
-    vel[i] = new Vector3((Math.random() - 0.5) * 3, 2 + Math.random() * 4, (Math.random() - 0.2) * 3);
+    (vel[i] ??= new Vector3()).set((Math.random() - 0.5) * 3, 2 + Math.random() * 4, (Math.random() - 0.2) * 3);
   };
   for (let i = 0; i < n; i++) { reset(i); spray[i * 3 + 1] += Math.random() * 2; }
   const sg = new BufferGeometry();

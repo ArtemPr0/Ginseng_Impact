@@ -5,7 +5,7 @@
  * 35 m or so something happens: skeleton guards, a candle shrine, an open grave that throws you up, the gate.
  * The floor (path and moss) is a shader like the terrain; walls, graves, trees and towers are models.
  */
-import { Color, Mesh, type MeshStandardMaterial, PlaneGeometry, ShaderMaterial, Vector3 } from 'three';
+import { Color, Mesh, type MeshStandardMaterial, PlaneGeometry, ShaderMaterial, UniformsLib, UniformsUtils, Vector3 } from 'three';
 import { GRAVEYARD } from '../data/world';
 import { MODELS } from '../data/models';
 import { fireflies } from '../render/Fireflies';
@@ -20,8 +20,20 @@ import type { ModelRig } from '../models/ModelRig';
 import { portal, type PortalLink } from './Portal';
 import type { RealmApi } from './Realms';
 
+/** (With the scene's fog, like everything else in the alley: its far edges fade instead of ending against the void.) */
+const FLOOR_VERT = /* glsl */ `
+varying vec2 vUv; varying vec3 vWorld;
+#include <fog_pars_vertex>
+void main() {
+  vUv = uv; vec4 w = modelMatrix * vec4(position, 1.0); vWorld = w.xyz;
+  vec4 mvPosition = viewMatrix * w;
+  gl_Position = projectionMatrix * mvPosition;
+  #include <fog_vertex>
+}`;
+
 const FLOOR_FRAG = /* glsl */ `
 varying vec2 vUv; varying vec3 vWorld;
+#include <fog_pars_fragment>
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vnoise(vec2 p) { vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
 float fbm(vec2 p) { return vnoise(p) * 0.5 + vnoise(p * 2.1 + 3.3) * 0.3 + vnoise(p * 4.3 - 1.7) * 0.2; }
@@ -42,6 +54,7 @@ void main() {
   float mist = fbm(p * 0.12 + vec2(0.0, vWorld.z * 0.01)) * 0.5;
   c = mix(c, vec3(0.16, 0.06, 0.26), mist * 0.6);
   gl_FragColor = vec4(c, 1.0);
+  #include <fog_fragment>
 }`;
 
 /** Gives every mesh of a loaded model its own material copy and restyles it. */
@@ -73,8 +86,8 @@ export function buildGraveyard(api: GraveyardApi): { links: PortalLink[]; intera
   // The floor: one slab for walking, the shader for looks.
   // (Wider than the walkable alley: the fog swallows its edges, never the void.)
   const floor = new Mesh(new PlaneGeometry(220, 300, 1, 1), new ShaderMaterial({
-    vertexShader: 'varying vec2 vUv; varying vec3 vWorld; void main() { vUv = uv; vec4 w = modelMatrix * vec4(position, 1.0); vWorld = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
-    fragmentShader: FLOOR_FRAG,
+    vertexShader: FLOOR_VERT,
+    fragmentShader: FLOOR_FRAG, fog: true, uniforms: UniformsUtils.clone(UniformsLib.fog),
   }));
   floor.rotation.x = -Math.PI / 2;
   floor.position.set(R.x, y0, R.z);
@@ -112,10 +125,11 @@ export function buildGraveyard(api: GraveyardApi): { links: PortalLink[]; intera
       }
     }
   }
-  api.flora('grave', graves);
-  api.flora('rune-grave', runes);
-  api.flora('grave-cross', crosses);
-  const plotSlab = new Mesh(new PlaneGeometry(11.5, 152), new ShaderMaterial({ vertexShader: 'varying vec2 vUv; varying vec3 vWorld; void main() { vUv = uv; vec4 w = modelMatrix * vec4(position, 1.0); vWorld = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }', fragmentShader: FLOOR_FRAG }));
+  // Solid like any stone (a slim cylinder each; the cross's is narrower).
+  api.flora('grave', graves, { trunk: 0.3 });
+  api.flora('rune-grave', runes, { trunk: 0.25 });
+  api.flora('grave-cross', crosses, { trunk: 0.12 });
+  const plotSlab = new Mesh(new PlaneGeometry(11.5, 152), new ShaderMaterial({ vertexShader: FLOOR_VERT, fragmentShader: FLOOR_FRAG, fog: true, uniforms: UniformsUtils.clone(UniformsLib.fog) }));
   for (const side of [-1, 1]) {
     const m = plotSlab.clone();
     m.rotation.x = -Math.PI / 2;

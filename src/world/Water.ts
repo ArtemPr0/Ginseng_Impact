@@ -132,7 +132,8 @@ void main() {
   // The pupil: a black well with a soft violet rim that breathes.
   float pm = smoothstep(pupil + 0.5, pupil - 0.2, r);
   col = mix(col, vec3(0.0), pm);
-  col += vec3(0.4, 0.12, 0.9) * exp(-pow((r - pupil - 0.4) * 1.6, 2.0)) * (0.6 + 0.4 * sin(t * 2.0));
+  float rim = (r - pupil - 0.4) * 1.6;
+  col += vec3(0.4, 0.12, 0.9) * exp(-rim * rim) * (0.6 + 0.4 * sin(t * 2.0));
   // A thin sky reflection over everything but the pupil.
   vec3 V = normalize(cameraPosition - vWorld);
   float fres = 0.03 + 0.97 * pow(1.0 - max(V.y, 0.0), 5.0);
