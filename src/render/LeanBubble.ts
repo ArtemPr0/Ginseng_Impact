@@ -33,10 +33,11 @@ export class LeanBubble {
         void main() {
           float fres = pow(1.0 - max(dot(vN, vV), 0.0), 2.2);
           float swirl = 0.5 + 0.5 * sin(atan(vP.z, vP.x) * 3.0 + vP.y * 6.0 + uTime * 2.0);
-          vec3 c = mix(vec3(0.24, 0.03, 0.5), vec3(0.7, 0.32, 1.0), swirl * 0.6 + fres * 0.4);
-          c += vec3(0.95, 0.8, 1.0) * fres * 0.8;
+          // Thick purple syrup, not a soap film: mostly opaque, brighter where the swirl catches the light.
+          vec3 c = mix(vec3(0.3, 0.04, 0.62), vec3(0.85, 0.4, 1.0), swirl * 0.6 + fres * 0.4);
+          c += vec3(0.95, 0.8, 1.0) * fres * 1.1 + vec3(0.5, 0.15, 0.8) * pow(swirl, 6.0) * 0.6;
           c = mix(c, vec3(1.0), uFlash);
-          gl_FragColor = vec4(c, (0.55 + fres * 0.45) * uFade);
+          gl_FragColor = vec4(c, (0.84 + fres * 0.16) * uFade);
         }`,
     });
     this.body = new Mesh(new IcosahedronGeometry(r, 3), this.mat);

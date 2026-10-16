@@ -185,7 +185,8 @@ export class SkyEvents {
       }
       e.sprite.scale.set(e.scale[0] * (0.9 + f * 0.1), e.scale[1] * (0.9 + f * 0.1), 1);
     }
-    this.aurora.material.opacity = 0.2 + Math.sin(this.time * 0.3) * 0.08 + auroraAmount * 0.45;
+    // A faint veil over the island; it only blazes up near the church.
+    this.aurora.material.opacity = 0.05 + Math.sin(this.time * 0.3) * 0.03 + auroraAmount * 0.4;
     this.aurora.material.rotation = Math.sin(this.time * 0.05) * 0.04;
   }
 }

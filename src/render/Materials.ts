@@ -241,3 +241,112 @@ export function capeKeepAttribute(mesh: SkinnedMesh): void {
   }
   g.setAttribute('capeKeep', new BufferAttribute(keep, 1));
 }
+
+/**
+ * The reference's glowing mushrooms (#28): the cap (local height above `capFrom`) glows its own blue, speckled with
+ * brighter spots, breathing slowly; the stem keeps a faint glow. Works on instanced flora (each instance breathes in
+ * its own phase).
+ */
+export function patchGlowCap(mat: MeshStandardMaterial, capFrom: number, color: Color = new Color(0.2, 0.45, 1.3)): void {
+  // Matte: a shiny cap would catch the moon as a white sheen and lose its own glow.
+  mat.roughness = Math.max(mat.roughness, 0.85);
+  mat.metalness = 0;
+  if (mat.roughnessMap) mat.roughnessMap = null;
+  if (mat.metalnessMap) mat.metalnessMap = null;
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (shader, renderer) => {
+    prev?.call(mat, shader, renderer);
+    shader.uniforms.uWind = WIND;
+    shader.uniforms.uCapFrom = { value: capFrom };
+    shader.uniforms.uCapColor = { value: color };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vCap; varying float vPhase;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        vCap = transformed;
+        #ifdef USE_INSTANCING
+        vPhase = dot(instanceMatrix[3].xyz, vec3(0.37, 0.0, 0.61));
+        #else
+        vPhase = 0.0;
+        #endif`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uWind; uniform float uCapFrom; uniform vec3 uCapColor; varying vec3 vCap; varying float vPhase;\nfloat capHash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }')
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        {
+          // The cap is deep glowing blue whatever colour the texture paints it; the stem keeps its own colour.
+          float capC = smoothstep(uCapFrom - 0.08, uCapFrom + 0.08, vCap.y);
+          float l = dot(diffuseColor.rgb, vec3(0.3, 0.6, 0.1));
+          diffuseColor.rgb = mix(diffuseColor.rgb, normalize(uCapColor) * (0.25 + l * 0.6), capC);
+        }`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        {
+          float cap = smoothstep(uCapFrom - 0.08, uCapFrom + 0.08, vCap.y);
+          vec3 cell = floor(vCap * 22.0);
+          float spot = step(0.9, capHash(cell)) * smoothstep(0.5, 0.0, length(fract(vCap * 22.0) - 0.5));
+          float breathe = 0.75 + 0.25 * sin(uWind * 1.3 + vPhase);
+          float lum = dot(diffuseColor.rgb, vec3(0.3, 0.6, 0.1));
+          totalEmissiveRadiance += uCapColor * (cap * (0.12 + lum * 0.45) * breathe + spot * cap * 1.1 + (1.0 - cap) * 0.03);
+        }`);
+  };
+  mat.customProgramCacheKey = () => `glowcap:${capFrom.toFixed(3)}`;
+  mat.needsUpdate = true;
+}
+
+/** White blossoms (the whale reel's meadow): the petals lose their colour and glow faintly in the moonlight. */
+export function patchWhiteBloom(mat: MeshStandardMaterial): void {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (shader, renderer) => {
+    prev?.call(mat, shader, renderer);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        {
+          float l = dot(diffuseColor.rgb, vec3(0.3, 0.6, 0.1));
+          // Greens (stems, leaves) stay green; everything brighter turns to white petals.
+          float leaf = smoothstep(0.05, 0.2, diffuseColor.g - max(diffuseColor.r, diffuseColor.b));
+          diffuseColor.rgb = mix(vec3(0.82, 0.86, 0.95) * (0.6 + l * 0.8), diffuseColor.rgb, leaf);
+        }`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        totalEmissiveRadiance += vec3(0.16, 0.19, 0.3) * smoothstep(0.4, 0.8, dot(diffuseColor.rgb, vec3(0.33)));`);
+  };
+  mat.customProgramCacheKey = () => 'whitebloom';
+  mat.needsUpdate = true;
+}
+
+/** Lit windows: the warm bright texels of a house's texture (its painted windows) glow as if candles burn inside. */
+export function patchLitWindows(mat: MeshStandardMaterial, strength = 2.2): void {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (shader, renderer) => {
+    prev?.call(mat, shader, renderer);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        {
+          vec3 c = diffuseColor.rgb;
+          float warm = smoothstep(0.08, 0.3, c.r - c.b) * smoothstep(0.25, 0.6, max(c.r, c.g));
+          totalEmissiveRadiance += vec3(1.0, 0.55, 0.18) * warm * ${strength.toFixed(2)};
+        }`);
+  };
+  mat.customProgramCacheKey = () => `litwindows:${strength}`;
+  mat.needsUpdate = true;
+}
+
+/** Turns a figure to weathered stone (the dream's hooded statues): its colours drain to grey, mottled and mossy. */
+export function patchStone(mat: MeshStandardMaterial): void {
+  mat.roughness = 1;
+  mat.metalness = 0;
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (shader, renderer) => {
+    prev?.call(mat, shader, renderer);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vStoneP;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvStoneP = transformed;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vStoneP;\nfloat stoneHash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }')
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        {
+          float l = dot(diffuseColor.rgb, vec3(0.3, 0.6, 0.1));
+          float speck = stoneHash(floor(vStoneP * 40.0)) * 0.12;
+          diffuseColor.rgb = vec3(0.32, 0.33, 0.38) * (0.6 + l * 0.7) + speck;
+        }`);
+  };
+  mat.customProgramCacheKey = () => 'stone';
+  mat.needsUpdate = true;
+}

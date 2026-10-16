@@ -13,16 +13,23 @@ export const LAYOUT = {
     [[-4, 60], [-18, 56], [-34, 50], [-48, 40], [-56, 22], [-56, 9]],
     [[-78, 9], [-90, -2], [-96, -12]],
     [[6, 58], [16, 44], [34, 34], [52, 32], [66, 30], [80, 36]],
-    [[-6, 56], [-10, 30], [-10, 20]],
-    [[-10, 2], [-14, -6], [-30, -10], [-43, -17]],
-    [[6, -8], [18, -16], [30, -24], [34, -24]],
+    [[-6, 56], [-6, 46]],
+    // The flagstone road from the spawn to the wooden bridge over the eye (the reference shot, #28).
+    [[0, 58], [0, 32]],
+    // From the hamlet on the far bank to the pond and the frog hollow, and east to the rope bridge.
+    [[0, -2], [-10, -4], [-14, -6], [-30, -10], [-43, -17]],
+    [[2, -5], [6, -10], [18, -18], [30, -24], [34, -24]],
     [[22, -20], [26, -36]],
     [[0, -134], [0, -140]],
     [[-2, -112], [-12, -108]],
     [[27, -86], [44, -90], [52, -90]],
     [[-4, -96], [-16, -88], [-36, -88]],
+    // Into the forest gorge, over its stone bridge and on to the overlook.
+    [[-4, -114], [-24, -116], [-42, -120], [-51, -124]],
+    [[-77, -124], [-86, -116]],
   ] as Array<Array<[number, number]>>,
-  causeway: { x: 0, zStart: 62, zEnd: -115, width: 6, yStart: 6, yEnd: 11, postSpacing: 8, segmentLength: 24.7 },
+  /** The raised road starts on the eye's north bank (its stairs climb from the hamlet) and runs over the chasm. */
+  causeway: { x: 0, zStart: -10, zEnd: -115, width: 6, yStart: 6, yEnd: 11, postSpacing: 8, segmentLength: 24.7 },
   head: { x: 0, z: -146, height: 26 },
   /** The cathedral's long axis runs east–west; its west front faces the river road. */
   cathedral: { x: 64, z: -24, yaw: Math.PI / 2 },
@@ -30,9 +37,10 @@ export const LAYOUT = {
   floodedRuin: { x: 106, z: -13, r: 9, mud: 4.9 },
   forest: { innerRadius: 72, outerRadius: 119, count: 420 },
   flowerMeadows: [
-    { x: 24, z: 42, r: 20, count: 220 },
-    { x: -24, z: -12, r: 17, count: 180 },
-    { x: 54, z: -72, r: 16, count: 150 },
+    // The white meadow the horse rider crosses (the whale reel's field of white flowers, DeSEl9PvPG_).
+    { x: 28, z: 46, r: 16, count: 600, white: true },
+    { x: -24, z: -12, r: 17, count: 180, white: false },
+    { x: 54, z: -72, r: 16, count: 150, white: false },
   ],
   sunflowerFields: [
     { x: -42, z: 26, r: 19, count: 190 },
@@ -61,16 +69,27 @@ export const LAYOUT = {
   /** The world tree west of the causeway's north end (its roots must not cross the road). */
   worldTree: { x: 44, z: -104 },
   /** Walkers that roam among the buildings without touching them. */
-  logGiantPath: [[-12, 36], [-26, 38], [-38, 40], [-26, 38]] as Array<[number, number]>,
+  logGiantPath: [[-38, 30], [-46, 26], [-52, 32], [-46, 26]] as Array<[number, number]>,
   /** Pim's observatory north of the village, clear of the houses. */
   observatory: { x: -46, z: 48 },
   riderPath: [[8, 48], [24, 48], [40, 42], [24, 48]] as Array<[number, number]>,
   ruins: [
-    { x: -8, z: 43, yaw: 0.3, arch: true }, { x: 9, z: 20, yaw: -0.4, arch: false }, { x: -9, z: -13, yaw: 0.9, arch: false },
+    { x: -8, z: 43, yaw: 0.3, arch: true }, { x: 20, z: 24, yaw: -0.4, arch: false }, { x: -9, z: -13, yaw: 0.9, arch: false },
     { x: 10, z: -90, yaw: 0.2, arch: true }, { x: 49, z: -37, yaw: 1.1, arch: true }, { x: 58, z: -59, yaw: -0.7, arch: false },
     { x: -24, z: 60, yaw: 0.5, arch: false }, { x: 36, z: -78, yaw: 0.0, arch: false },
   ],
   cloudSea: { y: -26 },
+  /**
+   * Three koi pools stepping down toward the eye, each spilling into the next (the whale reel's tiered pond,
+   * DeSEl9PvPG_): centre, radius and water level (world y).
+   */
+  tiers: [
+    { x: -12, z: 32, r: 6, water: 1.6 },
+    { x: -22, z: 35, r: 5.5, water: 4.0 },
+    { x: -31, z: 38, r: 5, water: 6.4 },
+  ],
+  /** The hamlet on the eye's north bank, around the causeway stairs: [x, z, yaw]. */
+  hamlet: [[7, -6, 0], [15, -5, 0.1], [24, -5, -0.08], [8, -18, 0.3], [26, -14, -0.3], [-8, -5, 0]] as ReadonlyArray<readonly [number, number, number]>,
 } as const;
 
 /**
@@ -157,7 +176,12 @@ export const SUNKEN: RealmDef = { id: 'sunken', name: 'The Sunken City', x: -100
 export const TREEHOUSE_ROOM: RealmDef = { id: 'treehouse', name: 'Inside the Tree House', x: -1000, z: 700, y: 0, radius: 30, fog: { color: 0x120a26, density: 0.02 }, ownSky: true };
 /** The Frog King's dream: two minutes you cannot leave (licking a DMT frog). */
 export const DREAM: RealmDef = { id: 'dream', name: "The Frog King's Dream", x: 0, z: 2600, y: 0, radius: 170, fog: { color: 0x3a0f6b, density: 0.0035 }, cycle: true, ownSky: true };
-export const REALMS: readonly RealmDef[] = [GALAXY, SUNKEN, TREEHOUSE_ROOM, DREAM];
+/**
+ * The Alley of Graves behind the demon church's door (01.16.54): purple fog, amber storm clouds (the island sky's
+ * 'graveyard' preset, so not its own dome), the cyclops at the far end.
+ */
+export const GRAVEYARD: RealmDef = { id: 'graveyard', name: 'The Alley of Graves', x: 0, z: -1000, y: 0, radius: 125, fog: { color: 0x2a1446, density: 0.014 } };
+export const REALMS: readonly RealmDef[] = [GALAXY, SUNKEN, TREEHOUSE_ROOM, DREAM, GRAVEYARD];
 
 /** Portal ends on the island. */
 export const ISLAND_PORTALS = {
@@ -184,4 +208,5 @@ export const PADS: ReadonlyArray<{ x: number; z: number; r: number; y: number; b
   { x: 106, z: -13, r: 8, y: 3.4, blend: 4 },     // the Marsh Sovereign's mud basin (filled to 4.9)
   { x: -40, z: -90, r: 1.6, y: 28.4, blend: 2.5 }, // Sir Halvard's seat on the cliff
   { x: -56, z: 19, r: 2, y: 0.9, blend: 2.5 },     // Old Moss fishing the stream
+  { x: -8, z: -5, r: 4, y: 2.8, blend: 3 },       // the hamlet's west house on the eye's bank
 ];

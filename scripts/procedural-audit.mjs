@@ -15,6 +15,7 @@ const ALLOW = new Set([
   'characters/Rig.ts', // the weapon-trail ribbon only; the humanoid body comes from a GLB
   'world/Dream.ts', // the dream's sky dome and fractal floor (sky and terrain); everything in it is a GLB
   'world/StoneHead.ts', // the glowing irises over the stone head's carved eyes (VFX); the head is a GLB
+  'world/Graveyard.ts', // the alley's floor and plot tops (a terrain shader); walls, graves, trees and towers are GLBs
   'world/Kingdom.ts', // the kingdom's sky (aurora, horizon grid, line-drawn computers, moons), floor, tea, lean surfaces and waves, fog, snow; cups, lotus and buildings are GLBs
 ]);
 const ALLOW_PREFIX = ['render/'];

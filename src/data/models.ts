@@ -171,7 +171,7 @@ export const MODELS: Record<string, ModelDef> = {
   birch: stat('birch.glb', 10, 'birch'), willow: stat('willow.glb', 8, 'willow'), palm: stat('palm.glb', 8, 'palm'),
   'gnarled-tree': stat('gnarled-tree.glb', 6, 'gnarled orchard tree'),
   'dead-forest-tree': stat('dead-forest-tree.glb', 8, 'dead forest tree'), 'flower-tree': stat('flower-tree.glb', 7, 'glowing flower tree'),
-  'floating-island': stat('floating-island.glb', 6, 'small floating rock island'),
+  'floating-island': stat('floating-island.glb', 14, 'floating rock island with dead trees and chimney stumps (#28, 01.22.56)'),
   'giant-mushroom': stat('giant-mushroom.glb', 5, 'giant mushroom'), mushroom: stat('mushroom.glb', 0.45, 'small glowing mushroom'),
   sunflower: stat('sunflower.glb', 1.5, 'blue sunflower'), flower: stat('flower.glb', 0.35, 'meadow flower'),
   'giant-flower': stat('giant-flower.glb', 2.4, 'giant cosmos flower'), 'rose-bush': stat('rose-bush.glb', 0.9, 'rose bush'),
@@ -244,4 +244,15 @@ export const MODELS: Record<string, ModelDef> = {
   'spire-city': stat('spire-city.glb', 90, 'city of spires and aqueduct bridges beyond the cliffs (DdwXCyeSsXn)'),
   crystalgolem: { file: 'crystal-golem.glb', height: 2.6, faceForward: 0.3, label: 'golem of blue crystal shards (Dd0wR9Jh2lH)', clips: BOSS_CLIPS },
   emberrider: { file: 'ember-rider.glb', height: 2.7, label: 'red-eyed rider on a black horse with a burning mane (Ddn0A49tnW7)', clips: BOSS_CLIPS },
+  // Round 5 (2026-10-16): the user's reference images (docs/reference/frames/shot-*.jpg, world-look-28.png).
+  cyclops: { file: 'cyclops.glb', height: 9, faceForward: 0.25, armDamp: 0.7, label: 'huge blue one-eyed horned cyclops with claws (shot-011654, world-look-28)', clips: BOSS_CLIPS },
+  'cyclops-lord': { file: 'cyclops.glb', height: 7, faceForward: 0.25, armDamp: 0.7, label: 'the cyclops at the end of the alley of graves (shot-011654)', clips: BOSS_CLIPS },
+  'blood-eye': stat('blood-eye.glb', 6, 'giant floating red spiky eyeball with a blue iris (shot-013226)'),
+  // The wizard of the dream: galaxy-wizard.glb flying, in the trippy shader (shot-013245).
+  'trip-wizard': { file: 'galaxy-wizard.glb', height: 1.9, label: 'rainbow-robed wizard flying in the dream (shot-013245)', clips: { idle: 'idle_02|idle', walk: 'walking|walk', run: 'running|run', attack: 'mage_soell_cast|charged_spell|cast', heavy: 'charged_spell|mage', hit: 'hit_reaction|hit', death: 'dying|death' } },
+  'moon-laugh': stat('moon-laugh.glb', 10, 'blue moon with a laughing face (shot-013117, shot-013029)'),
+  'moon-grin': stat('moon-grin.glb', 10, 'blue moon with glowing eyes and a sharp-toothed grin (shot-013056)'),
+  'stone-wall': { ...stat('stone-wall.glb', 1.3, 'low mossy graveyard wall segment, 4 m long (shot-011654)'), fit: 'y' },
+  whale: stat('whale.glb', 5, 'humpback whale flying over the white flowers (DeSEl9PvPG_)'),
+  'giant-skull': stat('giant-skull.glb', 7, 'giant ancient skull with a snake coiled round it (DefYcvutTow)'),
 };

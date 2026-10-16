@@ -3,7 +3,7 @@ import { ANCHORS, ISLAND_PORTALS, LAYOUT, REALMS, TREEHOUSE_ROOM, VILLAGE } from
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
 import { PALETTE } from '../render/palette';
 import { glowSprite } from '../render/Glow';
-import { patchGait } from '../render/Materials';
+import { patchGait, patchGlowCap, patchLitWindows, patchWhiteBloom } from '../render/Materials';
 import { PointLight } from 'three';
 import { CloudSea } from './CloudSea';
 import { HeightWorld, trunkFootprint, type Footprint } from './Colliders';
@@ -23,14 +23,18 @@ import { Noise2D } from './noise';
 import { witchStream } from './Stream';
 import { stoneHeadEyes } from './StoneHead';
 import { buildTreeHouse } from './TreeHouse';
-import { buildDream } from './Dream';
+import { buildDream, dreamWatchers } from './Dream';
 import { buildKingdom } from './Kingdom';
+import { type Bouncer, buildHeart } from './Heart';
+import { buildGraveyard } from './Graveyard';
+import type { ModelRig } from '../models/ModelRig';
 import type { Interactable, Teleport } from './Interact';
-import type { HostileShot } from '../combat/CombatSystem';
+import type { HostileShot, ShotTarget } from '../combat/CombatSystem';
+import { SkyEyes } from '../render/SkyEyes';
 
 import { buildRealms, type RealmApi } from './Realms';
 import type { PortalLink } from './Portal';
-import { deadAt, frozenAt, pathAt, RIVER_LEVEL, riverAt, riverDistance, sandAt, streamAt, Terrain, WORLD } from './Terrain';
+import { deadAt, EYE, frozenAt, pathAt, RIVER_LEVEL, riverAt, riverDistance, sandAt, streamAt, Terrain, WORLD } from './Terrain';
 import { causewayPostPoints, causewayWalk, chasmBridge, witchBridgeDeck } from './Walkways';
 import { lilyPond, mudPool, river } from './Water';
 
@@ -107,6 +111,17 @@ function grillSparkle(npc: Npc): { group: Group; update(dt: number): void } {
   };
 }
 
+/** Candle-lit windows for a house model: each mesh gets its own material copy with the lit-window glow. */
+function litWindows(m: ModelRig): void {
+  m.root.traverse((o) => {
+    const mesh = o as Mesh;
+    if (!mesh.isMesh) return;
+    const mat = (mesh.material as MeshStandardMaterial).clone();
+    patchLitWindows(mat);
+    mesh.material = mat;
+  });
+}
+
 /** Where the campfire skeletons sit (data/world ANCHORS) and the fire they face. */
 const CAMPFIRE = { x: -24, z: 52 };
 const CAMPFIRE_SEATS = new Set(['rattle', 'bone', 'marrow']);
@@ -173,9 +188,19 @@ export class World {
     teleport?: Teleport; board?: (boat: Boat) => void; mire?: (seconds: number) => void; shoot?: (from: Vector3, s: HostileShot) => void; hurt?: (atk: number, poison?: { dps: number; seconds: number }) => void;
     /** Yung Lean's quest: is the lost sound there to find, and the hero took it. */
     soundWanted?: () => boolean; foundSound?: () => void;
+    /** A small prize for a feat in the world ('eyes': every sky eye shot). */
+    reward?: (what: string) => void;
   } = {};
   /** The river boats with their two rowers each. */
   readonly boats: Boat[] = [];
+  /** The eye pool at the island's heart (it startles when shot). */
+  eye: ReturnType<typeof buildHeart>['eye'] | null = null;
+  /** Mushroom caps that bounce the hero up (CharacterController reads them). */
+  readonly bouncers: Bouncer[] = [];
+  /** Shootable things that are not enemies (main.ts hands them to CombatSystem.targets). */
+  readonly shotTargets: ShotTarget[] = [];
+  /** Things updated with the camera and the hero (sky eyes), in their zone only. */
+  private readonly watchers: Array<{ zone: string | null; update(dt: number, cam: Vector3, player: Vector3): void }> = [];
   private readonly landmarks: Landmark[] = [];
   /** Build target and zone: the island (null) or a realm id; objects in a realm group are drawn and updated only there. */
   private target!: Group;
@@ -193,6 +218,7 @@ export class World {
     this.heights.water = (x, z) => (riverAt(x, z) > 0.3 ? RIVER_LEVEL : null);
     this.target = this.group;
     const rnd = rng(4242);
+    const world0 = this;
     const h = (x: number, z: number) => terrain.heightAt(x, z);
     // Ground-level height for things placed on the island (walkers, NPCs, grass): overhangs above the ground are skipped.
     const hw = (x: number, z: number, y?: number) => this.heights.heightAt(x, z, y ?? terrain.heightAt(x, z));
@@ -258,6 +284,28 @@ export class World {
     }
     const castleY = h(LAYOUT.castle.x, LAYOUT.castle.z) - 0.6;
     this.place(modelLandmark('castle', LAYOUT.castle.x, LAYOUT.castle.z, castleY, { yaw: LAYOUT.castle.yaw }));
+    // Its open courtyard is walkable through the south gate (scripts/collider-grids.mjs): candles along both curtain
+    // walls and two cold lights above the yard, like the cathedral's nave.
+    {
+      const cas = LAYOUT.castle;
+      const yard: Placement[] = [];
+      for (let z = cas.z - 8; z <= cas.z + 6; z += 4.6) for (const side of [-1, 1]) {
+        const x = cas.x + side * 8.5;
+        const y = this.heights.heightAt(x, z, castleY + 2);
+        yard.push({ x, y, z, yaw: 0, scale: 1.4 });
+        vfx(fire(x, y + 0.42, z, 0.12, 1.2));
+      }
+      flora('candle', yard, { shadows: false });
+      for (const z of [cas.z - 6, cas.z + 3]) {
+        const y = this.heights.heightAt(cas.x, z, castleY + 2) + 6;
+        const light = new PointLight(PALETTE.rune, 34, 22, 1.6);
+        light.position.set(cas.x, y, z);
+        this.group.add(light);
+        const glow = glowSprite(PALETTE.rune, 3.5, 0.22, true);
+        glow.position.copy(light.position);
+        this.group.add(glow);
+      }
+    }
     // Antler throne (DedGUYetKjP) on its dais in front of the castle gate, facing +z (the road).
     const th = LAYOUT.throne;
     const thY = h(th.x, th.z) - 0.05;
@@ -313,7 +361,7 @@ export class World {
     this.place(modelLandmark('flooded-ruin', pool.x, pool.z, h(pool.x, pool.z) - 0.6));
     // The Marsh Sovereign stands waist-deep in it; wading in drags at your legs.
     this.place(mudPool(pool.x, pool.z, pool.mud, pool.r, (wading) => { if (wading) this.hooks.mire?.(0.4); }));
-    this.place(modelLandmark('troll-gorge', -66, -129, h(-66, -129) - 0.5));
+    // (The troll's gorge is carved into the terrain now: Terrain.ts WORLD.gorge, dressed in Heart.ts.)
     // Backdrop mountain ring (scale encodes the old cone sizes).
     const mountains: Placement[] = [];
     const mr = rng(77);
@@ -409,12 +457,31 @@ export class World {
     }));
     this.place(modelLandmark('cauldron', LAYOUT.coven.streamX, LAYOUT.coven.bridgeZ, deck.deckY + 0.45, { color: PALETTE.witch }));
 
+    // --- the island's heart (#28) and the forest gorge (01.16.36) ---
+    const heart = buildHeart({
+      get group() { return world0.target; }, realm: (id) => this.enterZone(id), place: (l) => this.place(l), flora, vfx, h, rnd,
+      shoot: (from, sh) => this.hooks.shoot?.(from, sh), heights: this.heights,
+    });
+    this.eye = heart.eye;
+    this.bouncers.push(...heart.bouncers);
+    this.heights.bouncers.push(...heart.bouncers);
+    // Eyes in the sky that watch the hero (and glare when shot); the eye pool startles when a shot lands in it.
+    const skyEyes = new SkyEyes([
+      { x: -34, y: 36, z: -60, size: 9 }, { x: 30, y: 42, z: -66, size: 11 }, { x: -92, y: 44, z: -122, size: 10 },
+      { x: 74, y: 46, z: 8, size: 10 }, { x: -62, y: 40, z: 28, size: 8 }, { x: 8, y: 56, z: -120, size: 13 },
+    ]);
+    this.group.add(skyEyes.group);
+    this.watchers.push({ zone: null, update: (dt, cam, p) => skyEyes.update(dt, cam, p) });
+    this.shotTargets.push(...skyEyes.targets());
+    skyEyes.onAllHurt = () => this.hooks.reward?.('eyes');
+    this.shotTargets.push({ pos: new Vector3(EYE.x, RIVER_LEVEL, EYE.z), radius: 7, active: () => this.here === null, onHit: () => heart.eye.startle() });
+
     // --- settlements ---
     const vrnd = rng(909);
     for (const [dx, dz, , , rot] of VILLAGE.houses) {
       const x = VILLAGE.x + dx;
       const z = VILLAGE.z + dz;
-      this.place(modelLandmark('village-house', x, z, h(x, z) - 0.2, { yaw: rot }));
+      this.place(modelLandmark('village-house', x, z, h(x, z) - 0.2, { yaw: rot, onLoad: (m) => litWindows(m) }));
     }
     const torchSpots: Placement[] = [];
     const torchH = MODELS['torch-post'].height;
@@ -459,12 +526,15 @@ export class World {
     for (const p of lanternSpots) { const halo = glowSprite(PALETTE.blood, 2.4, 0.45, true); halo.position.set(p.x, p.y + 2.1, p.z); this.group.add(halo); }
 
     // --- flora and biomes ---
-    flora('pine', this.scatterRing(rnd, LAYOUT.forest.innerRadius, LAYOUT.forest.outerRadius, LAYOUT.forest.count, 0.8, 1.2), { trunk: 0.035 });
+    // (The view from the spawn down the mushroom road to the eye stays open: no pines in it.)
+    flora('pine', this.scatterRing(rnd, LAYOUT.forest.innerRadius, LAYOUT.forest.outerRadius, LAYOUT.forest.count, 0.8, 1.2).filter((p) => !(Math.abs(p.x) < 18 && p.z > 24 && p.z < 78)), { trunk: 0.035 });
     for (const f of LAYOUT.sunflowerFields) flora('sunflower', this.scatterDisc(rnd, f.x, f.z, f.r, f.count, 0.8, 1.2), { wind: 0.18 });
     const meadow: Placement[] = [];
-    for (const f of LAYOUT.flowerMeadows) meadow.push(...this.scatterDisc(rnd, f.x, f.z, f.r, f.count, 0.7, 1.3));
+    const whiteMeadow: Placement[] = [];
+    for (const f of LAYOUT.flowerMeadows) (f.white ? whiteMeadow : meadow).push(...this.scatterDisc(rnd, f.x, f.z, f.r, f.count, 0.7, 1.3));
     meadow.push(...this.scatterRing(rnd, 12, 90, 380, 0.6, 1.1));
     flora('flower', meadow, { wind: 0.5, shadows: false });
+    flora('flower', whiteMeadow, { wind: 0.5, shadows: false, patch: (mat) => patchWhiteBloom(mat) });
     flora('boulder', this.scatterRing(rnd, 18, 114, 60, 0.8, 2.6));
     this.grass = new Grass((x, z) => hw(x, z), (x, z) => this.plantable(x, z) && frozenAt(x, z) < 0.6 && sandAt(x, z) < 0.3 && deadAt(x, z) < 0.3);
     this.group.add(this.grass.mesh);
@@ -490,11 +560,16 @@ export class World {
     const door = FACE_DOOR(h);
     const clear = (p: Placement) => Math.hypot(p.x - ISLAND_PORTALS.galaxy.x, p.z - ISLAND_PORTALS.galaxy.z) > 11 && Math.hypot(p.x + 40, p.z + 24) > 10 && Math.hypot(p.x - door.x, p.z - door.z) > 11;
     const shroomRing = this.scatterDisc(rnd, LAYOUT.frog.x, LAYOUT.frog.z, 34, 14, 0.8, 1.5).filter((p) => Math.hypot(p.x - LAYOUT.frog.x, p.z - LAYOUT.frog.z) > 12 && clear(p));
-    flora('giant-mushroom', shroomRing, { trunk: 0.09 });
+    flora('giant-mushroom', shroomRing, { trunk: 0.09, patch: (mat, geo) => { const bb = geo.boundingBox!; patchGlowCap(mat, bb.min.y + (bb.max.y - bb.min.y) * 0.55); } });
     flora('flower-tree', this.scatterDisc(rnd, WORLD.pond.x, WORLD.pond.z, 30, 16, 0.8, 1.3).filter((p) => Math.hypot(p.x - WORLD.pond.x, p.z - WORLD.pond.z) > WORLD.pond.r + 3));
-    for (const [dx, y, dz, sc] of [[-18, 26, -10, 1.2], [14, 31, 12, 0.9], [2, 36, -22, 1.0]] as const) {
-      const base = y;
-      this.place(modelLandmark('floating-island', WORLD.pond.x + dx, WORLD.pond.z + dz, base, { collider: 'none', update: (dt, root) => { void dt; root.position.y = base + Math.sin(performance.now() * 0.0005 + dx) * 0.8; root.scale.setScalar(sc); } }));
+    // One floating island over the lily pond pours two glowing falls into it (01.22.56: the lake under the island).
+    {
+      const ix = WORLD.pond.x - 4;
+      const iz = WORLD.pond.z - 9;
+      const base = 24;
+      this.place(modelLandmark('floating-island', ix, iz, base, { collider: 'none', yaw: 0.8 }));
+      const top = base + MODELS['floating-island'].height * 0.62;
+      for (const [dx, w] of [[-2.5, 3], [2.2, 2.2]] as const) this.place(waterfall(ix + dx, iz + 3.5, top, w, top - 1.0));
     }
     flora('willow', ringSpots(WORLD.pond.x, WORLD.pond.z, 18, 6, h, rnd));
     const islandPalms: Placement[] = [];
@@ -503,7 +578,6 @@ export class World {
     flora('dead-forest-tree', this.scatterDisc(rnd, WORLD.dead.x, WORLD.dead.z, WORLD.dead.r, 60, 0.8, 1.4).filter((p) => Math.hypot(p.x - WORLD.dead.x, p.z - WORLD.dead.z) > 9));
     flora('gnarled-tree', ringSpots(LAYOUT.orchard.x, LAYOUT.orchard.z, 32, 14, h, rnd));
     flora('fallen-fruit', this.scatterDisc(rnd, LAYOUT.orchard.x, LAYOUT.orchard.z, 26, 90, 0.8, 1.2), { shadows: false });
-    flora('giant-flower', this.scatterDisc(rnd, -18, 33, 14, 80, 0.8, 1.3), { wind: 0.3 });
     const roses: Placement[] = [];
     const rr = rng(2100);
     for (let i = 0; i < 700; i++) { const a = rr() * Math.PI * 2; const r = Math.sqrt(rr()) * 12; const x = 17 + Math.cos(a) * r; const z = 34 + Math.sin(a) * r; roses.push({ x, y: h(x, z) - 0.05, z, yaw: rr() * 6, scale: 0.7 + rr() * 0.6 }); }
@@ -516,8 +590,17 @@ export class World {
     flora('coral', this.riverBank(rnd, 10, 16, 30, 36, 90), { shadows: false });
     const crnd = rng(31);
     flora('cypress', ringSpots(-66, 57, 20, 10, h, crnd));
+    // The churchyard: gravestones on the land around the church, inside its cypress ring (never past the cliff).
     const graves: Placement[] = [];
-    for (let i = 0; i < 26; i++) { const x = -66 + (crnd() - 0.5) * 24; const z = 57 + 20 + crnd() * 16; graves.push({ x, y: h(x, z), z, yaw: (crnd() - 0.5) * 0.4, scale: 0.8 + crnd() * 0.5 }); }
+    for (let i = 0; i < 400 && graves.length < 26; i++) {
+      const a = crnd() * Math.PI * 2;
+      const r = 9 + crnd() * 10;
+      const x = LAYOUT.church.x + Math.cos(a) * r;
+      const z = LAYOUT.church.z + Math.sin(a) * r;
+      if (!this.plantable(x, z) || h(x, z) < 1 || Math.hypot(x - WORLD.islandCentre.x, z - WORLD.islandCentre.z) > 116) continue;
+      if (graves.some((g) => Math.hypot(g.x - x, g.z - z) < 1.6)) continue;
+      graves.push({ x, y: h(x, z), z, yaw: Math.PI / 2 + (crnd() - 0.5) * 0.3, scale: 0.8 + crnd() * 0.5 });
+    }
     flora('grave', graves);
     this.clouds = new CloudSea(LAYOUT.cloudSea.y);
     this.group.add(this.clouds.group);
@@ -537,8 +620,19 @@ export class World {
     this.interactables.push(...treeHouse.interactables);
     ANCHORS.brother = { ...treeHouse.brotherAt, y: treeHouse.floorY };
     buildDream(realmApi);
+    for (const w of dreamWatchers) this.watchers.push({ zone: 'dream', update: w });
     const kingdom = buildKingdom(realmApi, { soundWanted: () => this.hooks.soundWanted?.() ?? false, foundSound: () => this.hooks.foundSound?.() });
     this.interactables.push(...kingdom.interactables);
+    // Behind the demon church's door: the Alley of Graves.
+    {
+      const dx = LAYOUT.church.x + MODELS.church.height * 0.4 + 0.8;
+      const yard = buildGraveyard({
+        get group() { return world.target; }, realm: (id) => this.enterZone(id), place: (l) => this.place(l), flora, vfx, h, rnd: rrnd,
+        heights: this.heights, teleport: () => this.hooks.teleport, door: { x: dx, z: LAYOUT.church.z, y: h(dx, LAYOUT.church.z) },
+      });
+      this.portals.push(...yard.links);
+      this.interactables.push(...yard.interactables);
+    }
 
     // Seats for NPCs whose only rest pose is sitting on a chair: a barrel at stool height just behind each sitter
     // (the campfire skeletons, Old Moss on the stream bank, Sir Halvard on the cliff).
@@ -690,6 +784,7 @@ export class World {
     // Only the place you are in is updated; elsewhere nothing moves until you get there.
     for (const l of this.landmarks) if ((this.zoneOf.get(l) ?? null) === here) l.update?.(dt, playerPos);
     for (const e of this.extras) if ((this.zoneOf.get(e) ?? null) === here) e.update(dt);
+    for (const w of this.watchers) if (w.zone === here) w.update(dt, cameraPos, playerPos);
     this.clouds.update(dt, cameraPos);
     if (here === null) this.grass.update(playerPos.x, playerPos.z);
     for (const n of this.npcs) {

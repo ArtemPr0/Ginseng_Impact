@@ -17,8 +17,8 @@ import { Party } from './player/Party';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera';
 import { Atmosphere } from './render/Atmosphere';
 import { PALETTE } from './render/palette';
-import { Renderer } from './render/Renderer';
-import { Sky } from './render/Sky';
+import { LOOKS, Renderer } from './render/Renderer';
+import { SKIES, Sky } from './render/Sky';
 import { SkyEvents } from './render/SkyEvents';
 import { Weather } from './render/Weather';
 import { Hud } from './ui/Hud';
@@ -135,6 +135,7 @@ const combat = new CombatSystem({
   scene, world, sky, hud, camera, game, audio, inventory, controller, party, spawn: SPAWN,
   onForceSwitch: (i) => { party.update(Party.cooldown); switchTo(i); },
   onShake: (a) => tpc.shake(a),
+  onTrip: (strength, seconds) => renderer.trip(strength, seconds),
   onKill: (kind) => adventures.quests.kill(kind),
   muzzle: () => rigs[party.activeIndex].muzzle(new Vector3()),
   onWipe: () => { adventures.riding = null; wasLocked = false; },
@@ -165,6 +166,7 @@ function teleport(x: number, y: number, z: number, yaw: number, name?: string): 
 combat.loot.onAbsorbed = () => audio.absorb();
 const adventures = new Adventures({
   controller, world: area, hud, audio, inventory, teleport, activeRig: () => rigs[party.activeIndex], debuffs: () => combat.debuffs,
+  trip: (strength, seconds) => renderer.trip(strength, seconds),
   fight: { spawnBoss: (kind, x, z, yaw) => combat.spawnBoss(kind, x, z, yaw), despawn: (e) => combat.despawn(e) },
 });
 area.hooks.soundWanted = () => adventures.quests.stage('sound') === 'active';
@@ -173,6 +175,14 @@ area.hooks.teleport = teleport;
 area.hooks.shoot = (from, s) => combat.hostileShot(from, s);
 area.hooks.hurt = (atk, poison) => combat.hazard(atk, poison);
 area.hooks.mire = (seconds) => combat.mire(seconds);
+// Shootable things in the world (sky eyes, the eye pool), and the prize for shooting every sky eye.
+combat.targets.push(...area.shotTargets);
+area.hooks.reward = (what) => {
+  if (what !== 'eyes') return;
+  combat.loot.spawn([{ kind: 'shards', amount: 60 }, { kind: 'item', itemId: 'moon-dew', count: 2 }], new Vector3(controller.pos.x, controller.pos.y + 1, controller.pos.z));
+  hud.announce('The sky blinks first · 60 shards');
+  audio.loot(4);
+};
 area.hooks.board = (boat) => { adventures.riding = boat; audio.footstep(); hud.announce('Aboard · F talk · SPACE jump off'); };
 adventures.openRowers = () => {
   const node = adventures.talk('rowers');
@@ -425,6 +435,9 @@ game
       fog.color.lerp(fogTarget, Math.min(1, dt * 3));
       fog.density += ((realm ? realm.fog.density : islandFog.density) - fog.density) * Math.min(1, dt * 3);
       bubbles.group.visible = !!realm?.underwater;
+      // Each world has its own grade (bloom, saturation, lift); the renderer blends toward it.
+      renderer.setLook(LOOKS[realm?.id ?? 'island'] ?? LOOKS.island);
+      sky.setPreset(SKIES[realm?.id ?? 'island'] ?? SKIES.island);
       // A realm with a sky of its own (the kingdom, the frog's dream) hides the island's moon, stars and aurora.
       sky.group.visible = skyEvents.group.visible = !realm?.ownSky;
       // Yung Lean's kingdom has its own music (an underwater arrival, a hum, a slow beat).

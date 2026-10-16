@@ -54,6 +54,8 @@ export interface WorldQuery {
   ceilingAt?(x: number, z: number, y: number): number;
   /** Height of the water surface at (x, z), or null where there is no water. */
   waterAt?(x: number, z: number): number | null;
+  /** Upward speed when feet land at height `y` on a springy surface (a mushroom cap), or null. */
+  bounceAt?(x: number, z: number, y: number): number | null;
 }
 
 /** True when (x, z) is water deep enough to swim in for feet at `y`; returns the surface height (else null). */
@@ -343,6 +345,12 @@ export function stepController(s: ControllerState, input: ControllerInput, world
       }
       if (s.vel.y <= 0 && s.pos.y <= ground) {
         s.pos.y = ground;
+        // A mushroom cap throws you back up (higher the harder you hold jump).
+        const bounce = s.vel.y < -1 ? world.bounceAt?.(s.pos.x, s.pos.z, ground) ?? null : null;
+        if (bounce !== null) {
+          s.vel.y = bounce * (input.jumpHeld ? 1.2 : 1);
+          break;
+        }
         s.vel.y = 0;
         s.flung = 0;
         setMode(s, 'ground');

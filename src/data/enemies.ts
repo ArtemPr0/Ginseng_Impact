@@ -1,9 +1,9 @@
 import type { BrainParams } from '../combat/EnemyBrain';
 import type { Element } from '../combat/Elements';
 
-export type EnemyKind = 'beast' | 'bucket' | 'crystalgolem' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity';
+export type EnemyKind = 'beast' | 'bucket' | 'crystalgolem' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity' | 'cyclops' | 'cyclops-lord' | 'blood-eye' | 'trip-wizard';
 
-export type BossAttackKind = 'slam' | 'boulder' | 'roar' | 'volley' | 'summon' | 'blink' | 'roots' | 'sweep' | 'breath' | 'charge' | 'bite' | 'logthrow' | 'punch' | 'grab' | 'cupmortar' | 'cupvolley' | 'snowstorm' | 'web' | 'webdrop' | 'hop' | 'kaleido' | 'eyebeam' | 'mirror';
+export type BossAttackKind = 'slam' | 'boulder' | 'roar' | 'volley' | 'summon' | 'blink' | 'roots' | 'sweep' | 'breath' | 'charge' | 'bite' | 'logthrow' | 'punch' | 'grab' | 'cupmortar' | 'cupvolley' | 'snowstorm' | 'web' | 'webdrop' | 'hop' | 'kaleido' | 'eyebeam' | 'mirror' | 'glare' | 'thorns' | 'rainbow';
 
 export interface BossAttack { kind: BossAttackKind; range: number; windup: number; recover: number; weight: number }
 
@@ -49,6 +49,10 @@ export interface EnemyDef {
   body?: 'bubble';
   /** Drawn as the dream sees it: every colour at once (render/Materials patchTrippy). */
   trippy?: boolean;
+  /** A giant eye (the Blood Eye): its iris and pupil are drawn over the model and follow the hero (render/EyeIris). */
+  eye?: { iris: number };
+  /** Colour of its eye beam (default the dream's cyan). */
+  beamColor?: number;
   /** Lines it says (ids in data/voices): when it spots you, as it throws, as it dies, and when you fall. */
   voices?: { aggro: string[]; attack: string[]; death: string[]; win: string[] };
 }
@@ -62,6 +66,41 @@ const GHOUL_VOICES = {
 };
 
 export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
+  // The huge blue cyclops wading at the eye pool beside the hamlet (#28): minds his own business until hit, then
+  // stamps, throws stones, and sweeps the bank with the yellow beam of his eye.
+  cyclops: {
+    kind: 'cyclops', stomp: true, name: 'The Cyclops', title: 'Who Wades the Eye', maxHp: 8800, def: 85, atk: 160, speed: 2.4, element: 'stone', hover: 0, bodyRadius: 2.2, height: 9, boss: true,
+    neutral: true, floatAt: 0.9, beamColor: 0xffd23a,
+    brain: { aggroRange: 22, attackRange: 7, windup: 1.0, recover: 1.4, attackCooldown: 1.0 }, respawn: 300, leash: 8, shards: [200, 300],
+    attacks: [{ kind: 'slam', range: 8, windup: 1.0, recover: 1.4, weight: 3 }, { kind: 'boulder', range: 24, windup: 1.0, recover: 1.1, weight: 2 }, { kind: 'eyebeam', range: 26, windup: 1.1, recover: 1.3, weight: 2 }, { kind: 'roar', range: 14, windup: 1.0, recover: 1.4, weight: 1 }],
+    drops: [{ itemId: 'moon-dew', chance: 1 }, { itemId: 'rune-shard', chance: 1 }],
+  },
+  // The cyclops at the end of the Alley of Graves (01.16.54), before the gothic tower: he throws the graves.
+  'cyclops-lord': {
+    kind: 'cyclops-lord', stomp: true, name: 'The Grave Cyclops', title: 'Keeper of the Alley', maxHp: 10500, def: 95, atk: 175, speed: 3.0, element: 'stone', hover: 0, bodyRadius: 1.9, height: 7, boss: true,
+    beamColor: 0xffd23a,
+    brain: { aggroRange: 24, attackRange: 6, windup: 0.9, recover: 1.3, attackCooldown: 0.9 }, respawn: 300, leash: 22, shards: [260, 360],
+    attacks: [{ kind: 'slam', range: 7, windup: 0.9, recover: 1.3, weight: 3 }, { kind: 'boulder', range: 24, windup: 0.9, recover: 1.0, weight: 3 }, { kind: 'eyebeam', range: 26, windup: 1.0, recover: 1.2, weight: 2 }, { kind: 'roar', range: 14, windup: 1.0, recover: 1.4, weight: 1 }],
+    drops: [{ itemId: 'star-chart', chance: 1 }, { itemId: 'moon-dew', chance: 1 }],
+  },
+  // The giant red spiky eyeball over the chasm (01.32.26): it watches the causeway, burns it with its stare, throws
+  // its thorns, and pins whoever meets its glare.
+  'blood-eye': {
+    kind: 'blood-eye', name: 'The Blood Eye', title: 'That Watches the Chasm', maxHp: 7600, def: 60, atk: 150, speed: 3.5, element: 'blood', hover: 0, bodyRadius: 2.6, height: 6, boss: true,
+    flying: true, flyAbove: 14, eye: { iris: 0x3a5cff }, beamColor: 0xff2a2a,
+    brain: { aggroRange: 34, attackRange: 30, windup: 1.0, recover: 1.2, attackCooldown: 0.9, preferredRange: 16 }, respawn: 300, leash: 40, shards: [220, 320],
+    attacks: [{ kind: 'eyebeam', range: 30, windup: 1.0, recover: 1.2, weight: 3 }, { kind: 'thorns', range: 26, windup: 1.0, recover: 1.2, weight: 2 }, { kind: 'glare', range: 30, windup: 1.4, recover: 1.0, weight: 2 }],
+    drops: [{ itemId: 'lurker-eye', chance: 1 }, { itemId: 'star-chart', chance: 1 }],
+  },
+  // The wizard in a rainbow robe who flies in the frog's dream (01.32.45): his ribbons and spells, when they touch you,
+  // send the whole world swirling.
+  'trip-wizard': {
+    kind: 'trip-wizard', name: 'The Prism Wizard', title: 'Who Paints the Trip', maxHp: 4200, def: 50, atk: 115, speed: 4.5, element: 'astral', hover: 0, bodyRadius: 0.7, height: 1.9, boss: true,
+    flying: true, flyAbove: 5, trippy: true,
+    brain: { aggroRange: 28, attackRange: 24, windup: 0.9, recover: 1.0, attackCooldown: 0.7, preferredRange: 13 }, respawn: 25, leash: 60, shards: [260, 340],
+    attacks: [{ kind: 'rainbow', range: 26, windup: 0.9, recover: 1.0, weight: 3 }, { kind: 'kaleido', range: 26, windup: 1.0, recover: 1.0, weight: 2 }, { kind: 'blink', range: 20, windup: 0.5, recover: 0.4, weight: 1 }],
+    drops: [{ itemId: 'star-chart', chance: 1 }],
+  },
   // Bubbles of lean come alive in the giant cups of the kingdom: they bob about in the lean and leap at you.
   'lean-bubble': {
     kind: 'lean-bubble', name: 'Lean Bubble', maxHp: 260, def: 10, atk: 58, speed: 3.2, element: 'astral', hover: 0, bodyRadius: 0.7, height: 1.4, body: 'bubble',
@@ -235,13 +274,20 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'passbeast', x: -36, z: -140 },
   // The spider chapel walks its loop in the sky over the west cliffs (it used to be scenery).
   { kind: 'spiderchapel', x: -104, z: 44, exact: true, patrol: [[-104, 44], [-88, 58], [-104, 72], [-120, 58]] },   // the mountain pass behind the peak
-  { kind: 'troll', x: -70, z: -126 },       // the gorge
+  { kind: 'troll', x: -64, z: -133, exact: true }, // on the gorge floor under the stone bridge
   { kind: 'lurker', x: -24, z: -14 },       // the lily pond's shallows (west of the whirlpool)
   { kind: 'marshdemon', x: 106, z: -13, exact: true },   // waist-deep in his mud pool, east of the cathedral
   { kind: 'hollowking', x: 36, z: -146 },   // seated on the north shore, east of the head
   { kind: 'emberrider', x: 16, z: -122 },   // the dead wood east of the causeway's end
   // The log giant walks the old haul road by the skeleton camp, minding his own business until someone hits him.
-  { kind: 'loggiant', x: -12, z: 36, patrol: [[-12, 36], [-26, 38], [-38, 40], [-26, 38]] },
+  { kind: 'loggiant', x: -38, z: 30, patrol: [[-38, 30], [-46, 26], [-52, 32], [-46, 26]] },
+  // Round 5: the cyclops wading at the eye pool's east tip (#28), the Blood Eye over the chasm (01.32.26), the grave
+  // cyclops at the end of the Alley of Graves (01.16.54) and its skeleton guards, the Prism Wizard in the dream.
+  { kind: 'cyclops', x: 32, z: 4, exact: true, yaw: Math.PI },
+  { kind: 'blood-eye', x: -14, z: -56, exact: true, patrol: [[-40, -56], [-14, -54], [12, -60], [-14, -54]] },
+  { kind: 'cyclops-lord', x: 0, z: -1068, exact: true, yaw: Math.PI / 2 },
+  { kind: 'skeleton', x: -6, z: -945, yaw: -Math.PI / 2 }, { kind: 'skeleton', x: 6, z: -945, yaw: -Math.PI / 2 },
+  { kind: 'trip-wizard', x: -60, z: 2590, exact: true },
   // The skeletons around the campfire by the village (DdjlyzyOcnK): seated on their barrels, facing the fire at (-24, 52).
   { kind: 'skeleton', x: -21.6, z: 53.4, yaw: Math.atan2(52 - 53.4, -24 + 21.6), exact: true },
   { kind: 'skeleton', x: -26.4, z: 53.4, yaw: Math.atan2(52 - 53.4, -24 + 26.4), exact: true },

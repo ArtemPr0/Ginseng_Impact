@@ -69,6 +69,8 @@ export interface CombatDeps {
   onForceSwitch?: (index: number) => void;
   /** Camera shake request, 0..1. */
   onShake?: (amount: number) => void;
+  /** The world swirls (Renderer.trip): a rainbow spell landed on the hero. */
+  onTrip?: (strength: number, seconds: number) => void;
   /** Dodge roll accepted: the caller applies the dash. */
   onDodge?: () => void;
   /** An enemy of this kind died (quests listen). */
@@ -101,9 +103,23 @@ const want = new Vector3();
 const IFRAMES = 0.6;
 const BURST_MAX = 100;
 
+/**
+ * Something that is not an enemy but reacts to being shot (the sky eyes, the eye pool): player shots that pass within
+ * `radius` of `pos` call `onHit`. `aim` targets are what a shot with no enemy in range flies at when the hero faces one.
+ */
+export interface ShotTarget {
+  pos: Vector3;
+  radius: number;
+  active(): boolean;
+  onHit(at: Vector3): void;
+  aim?: boolean;
+}
+
 /** Owns enemies, projectiles, ground zones, VFX, loot, player HP and the attack/skill/burst flow. */
 export class CombatSystem {
   enemies: Enemy[] = [];
+  /** Shootable things that are not enemies (World registers them). */
+  readonly targets: ShotTarget[] = [];
   readonly loot: LootField;
   private readonly projectiles: Projectile[] = [];
   private readonly zones: GroundZone[] = [];
@@ -580,11 +596,18 @@ export class CombatSystem {
             break;
           }
         }
+        if (!dead) for (const t of this.targets) {
+          if (!t.active() || t.pos.distanceTo(p.pos) > p.radius + t.radius) continue;
+          t.onHit(p.pos.clone());
+          dead = true;
+          break;
+        }
       } else if (Math.hypot(c.pos.x - p.pos.x, c.pos.z - p.pos.z) < p.radius + 0.5 && Math.abs(c.pos.y + 1 - p.pos.y) < 1.6 + p.radius) {
         const shielded = this.iframes > 0;
         this.damagePlayer(p.atk * p.mult, p.element);
         if (p.poison) this.poisonPlayer(p.poison.dps, p.poison.seconds);
         if (p.web > 0 && !shielded) this.ensnare(p.web);
+        if (p.kind === 'trip' && !shielded) this.d.onTrip?.(0.6, 3);
         dead = true;
       }
       if (dead) {
@@ -1023,10 +1046,55 @@ export class CombatSystem {
             const a = base + dir * (-0.75 + (1.5 * i) / 15);
             const speed = 26;
             const vy = (c.pos.y + 1 - eyes.y) / Math.max(0.3, dist / speed);
-            this.spawnProjectile(eyes.clone(), new Vector3(Math.cos(a) * speed, vy, Math.sin(a) * speed), 'enemy', e.def.atk, 0.35, e.def.element, 0.6, 0x37f5ff, 0, 0, 0, 0, 0.8, 'orb');
+            this.spawnProjectile(eyes.clone(), new Vector3(Math.cos(a) * speed, vy, Math.sin(a) * speed), 'enemy', e.def.atk, 0.35, e.def.element, 0.6, e.def.beamColor ?? 0x37f5ff, 0, 0, 0, 0, 0.8, 'orb');
           } });
         }
         this.d.audio.roar();
+        break;
+      }
+      case 'glare': {
+        // It gathers a red stare at its eye; whoever is facing it when it opens is held there (look away!).
+        const eye = new Vector3(e.pos.x, e.pos.y + e.def.height * sc * 0.5, e.pos.z);
+        this.vfx.impact(eye, 0xff2a2a, 7);
+        this.d.hud.announce('The eye is gathering a glare · look away');
+        this.delayed.push({ t: 1.1, fn: () => {
+          if (!e.alive) return;
+          const toEye = Math.atan2(e.pos.z - c.pos.z, e.pos.x - c.pos.x);
+          const facing = Math.abs(Math.atan2(Math.sin(toEye - c.yaw), Math.cos(toEye - c.yaw))) < (50 * Math.PI) / 180;
+          this.vfx.shockwave(eye, 0xff2a2a, 18);
+          this.d.audio.roar();
+          if (facing && Math.hypot(e.pos.x - c.pos.x, e.pos.z - c.pos.z) < 40) { this.damagePlayer(e.def.atk * 0.6, e.def.element); this.ensnare(1.8); }
+        } });
+        break;
+      }
+      case 'thorns': {
+        // A ring of red thorns flung out of its spikes, falling toward where the hero stands.
+        const from = new Vector3(e.pos.x, e.pos.y + e.def.height * sc * 0.5, e.pos.z);
+        const n = 16;
+        const speed = 12;
+        const vy = (c.pos.y + 1 - from.y) / Math.max(0.5, dist / speed);
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2;
+          this.spawnProjectile(from.clone(), new Vector3(Math.cos(a) * speed, vy, Math.sin(a) * speed), 'enemy', e.def.atk, 0.5, e.def.element, 0.7, 0xff2a2a, 0, 0, 0, 0, 0.9, 'arrow');
+        }
+        this.d.audio.cast();
+        break;
+      }
+      case 'rainbow': {
+        // Rainbow ribbons that curve in from both sides; one touch and the world swirls.
+        const from = new Vector3(e.pos.x, e.pos.y + e.def.height * sc * 0.7, e.pos.z);
+        const base = Math.atan2(c.pos.z - e.pos.z, c.pos.x - e.pos.x);
+        for (let i = 0; i < 6; i++) {
+          this.delayed.push({ t: i * 0.12, fn: () => {
+            if (!e.alive) return;
+            const a = base + (i % 2 ? 1 : -1) * (0.6 + (i >> 1) * 0.25);
+            const v = new Vector3(Math.cos(a) * 11, 1.5, Math.sin(a) * 11);
+            this.spawnProjectile(from.clone(), v, 'enemy', e.def.atk, 0.45, e.def.element, 0.8, 0xff5ad6, 0, 0, 0, 0, 1.0, 'trip', {
+              homing: { target: null, point: new Vector3(c.pos.x, c.pos.y + 1, c.pos.z), delay: 0.25, turn: 2.4, age: 0 },
+            });
+          } });
+        }
+        this.d.audio.cast();
         break;
       }
       case 'mirror': {
@@ -1146,7 +1214,12 @@ export class CombatSystem {
         });
         return;
       }
-      this.spawnProjectile(from, dir.multiplyScalar(arrow ? 26 : 22), 'player', atk, def.mult, element, 1.0, ELEMENT_COLOR[this.elementOf(me)], def.shape.chains, def.shape.chainRange, def.knockback, def.hitStop, 0.24, arrow ? 'arrow' : 'bolt');
+      // Nothing to fight in range: a shot fired while facing a sky eye flies at it.
+      const sky = target ? null : this.aimTarget(from, c.yaw);
+      if (sky) dir.copy(sky.pos).sub(from).normalize();
+      const speed = arrow ? 26 : 22;
+      this.spawnProjectile(from, dir.multiplyScalar(speed), 'player', atk, def.mult, element, 1.0, ELEMENT_COLOR[this.elementOf(me)], def.shape.chains, def.shape.chainRange, def.knockback, def.hitStop, 0.24, arrow ? 'arrow' : 'bolt');
+      if (sky) { const shot = this.projectiles[this.projectiles.length - 1]; shot.life = Math.max(shot.life, sky.pos.distanceTo(from) / speed + 0.4); }
       return;
     }
     const reach = def.shape.kind === 'cone' ? def.shape.range : def.shape.radius;
@@ -1161,6 +1234,22 @@ export class CombatSystem {
         : inRadius(origin, t, def.shape.radius + e.def.bodyRadius * sc);
       if (ok) this.hitEnemy(e, atk, def.mult, element, def.knockback, def.hitStop);
     }
+  }
+
+  /** The aimable target most nearly ahead of the hero (within about 25° of their facing and 110 m), if any. */
+  private aimTarget(from: Vector3, yaw: number): ShotTarget | null {
+    let best: ShotTarget | null = null;
+    let bestDot = Math.cos((25 * Math.PI) / 180);
+    for (const t of this.targets) {
+      if (!t.aim || !t.active()) continue;
+      const dx = t.pos.x - from.x;
+      const dz = t.pos.z - from.z;
+      const d = Math.hypot(dx, dz);
+      if (d > 110 || d < 1) continue;
+      const dot = (dx * Math.cos(yaw) + dz * Math.sin(yaw)) / d;
+      if (dot > bestDot) { bestDot = dot; best = t; }
+    }
+    return best;
   }
 
   /** `energy`: whether the hit charges the burst (lingering zones and spins do not, or a burst would refill itself). */

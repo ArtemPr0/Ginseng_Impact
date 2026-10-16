@@ -142,7 +142,16 @@ export class HeightWorld implements WorldQuery {
   /** Where the water is (surface height at x, z, or null): the controller swims there when it is deep enough. */
   water: ((x: number, z: number) => number | null) | null = null;
 
+  /** Springy surfaces (giant mushroom caps): landing on one within `r` of (x, z) at height `top` throws you up at `v`. */
+  readonly bouncers: Array<{ x: number; z: number; r: number; top: number; v: number }> = [];
+
   constructor(private readonly terrain: WorldQuery) {}
+
+  /** Upward speed for feet landing at height `y` on a springy surface at (x, z), or null. */
+  bounceAt(x: number, z: number, y: number): number | null {
+    for (const b of this.bouncers) if (Math.abs(y - b.top) < 0.35 && Math.hypot(x - b.x, z - b.z) < b.r) return b.v;
+    return null;
+  }
 
   waterAt(x: number, z: number): number | null {
     return this.water ? this.water(x, z) : null;

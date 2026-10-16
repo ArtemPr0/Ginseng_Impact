@@ -21,7 +21,8 @@ import { dialogueFor, type DialogueNode, type DialogueWorld } from './Dialogue';
 import { Quests } from './Quests';
 
 /** Seconds in the frog's dream, and of the rowers' ale. */
-const DREAM_SECONDS = 120;
+/** Four minutes: long enough to walk the whole dream (the stair path, the canal village, the corridor of eyes). */
+const DREAM_SECONDS = 240;
 const ALE_SECONDS = 180;
 /** Croak is home when the sack is put down this close to his father. */
 const HOME_RANGE = 8;
@@ -41,6 +42,8 @@ export interface AdventureDeps {
   activeRig(): Rig;
   /** The hero's afflictions (poison, Sizzlin' Slowness), shown with the buffs. */
   debuffs(): Array<{ name: string; left: number }>;
+  /** The world swirls (Renderer.trip). */
+  trip?: (strength: number, seconds: number) => void;
   /** Bosses outside the spawn list (Yung Lean off his throne). */
   fight: { spawnBoss(kind: EnemyKind, x: number, z: number, yaw: number): Enemy; despawn(e: Enemy): void };
 }
@@ -127,12 +130,15 @@ export class Adventures {
   private enterDream(): void {
     this.dreamLeft = DREAM_SECONDS;
     this.d.audio.cast();
+    // The lick hits: the world melts for a few seconds as the dream takes you.
+    this.d.trip?.(1, 6);
     this.d.teleport(DREAM.x, DREAM.y + 0.05, DREAM.z + 30, -Math.PI / 2, DREAM.name);
   }
 
   private wake(): void {
     this.dreamLeft = 0;
     this.quests.set('trip', 'done');
+    this.d.trip?.(0.6, 3);
     const f = LAYOUT.frog;
     const x = f.x + 3.5;
     const z = f.z + 2;

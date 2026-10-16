@@ -25,7 +25,30 @@ export const WORLD = {
   desert: { x: 48, z: 60, r: 24 },
   dead: { x: 24, z: -102, r: 20 },
   pond: { x: -18, z: -18, r: 12 },
+  /**
+   * The forest gorge (01.16.36) cut north-west at the old troll gorge: its head under the peak's flank (a waterfall),
+   * its floor falling to the island's cliff at the mouth, a stone bridge across at z = -124.
+   */
+  gorge: { x: -64, zHead: -106, zMouth: -146, floorHead: 1, floorMouth: -12, half: 5, rim: 12 },
 } as const;
+
+/**
+ * The eye-shaped vortex pool (#28) where the river meets the road from the spawn: an ellipse, `a` half its length
+ * (east–west, along the river) and `b` half its width.
+ */
+export const EYE = { x: 0, z: 15, a: 22, b: 14 } as const;
+
+/** Signed distance to the eye pool's outline in metres (negative inside; exact on the axes, close elsewhere). */
+export function eyeDistance(x: number, z: number): number {
+  const u = (x - EYE.x) / EYE.a;
+  const v = (z - EYE.z) / EYE.b;
+  const k = Math.hypot(u, v);
+  if (k < 1e-6) return -Math.min(EYE.a, EYE.b);
+  // Scale the normalised distance by the local radius toward this point.
+  const rx = (u / k) * EYE.a;
+  const rz = (v / k) * EYE.b;
+  return (k - 1) * Math.hypot(rx, rz);
+}
 
 /** The great river: polyline in world xz, flowing west. */
 export const RIVER: ReadonlyArray<readonly [number, number]> = [
@@ -55,7 +78,18 @@ export function riverDistance(x: number, z: number): number {
 
 /** 0..1 inside the water channel. */
 export function riverAt(x: number, z: number): number {
-  return 1 - smoothstep(4.8, 9.5, riverDistance(x, z));
+  const channel = 1 - smoothstep(4.8, 9.5, riverDistance(x, z));
+  if (Math.abs(x - EYE.x) > EYE.a + 4 || Math.abs(z - EYE.z) > EYE.b + 4) return channel;
+  return Math.max(channel, 1 - smoothstep(-3, 1, eyeDistance(x, z)));
+}
+
+/** 0..1 inside one of the koi pools (LAYOUT.tiers); its water level, if any. */
+export function tierAt(x: number, z: number): { wet: number; water: number } {
+  for (const t of LAYOUT.tiers) {
+    const d = Math.hypot(x - t.x, z - t.z);
+    if (d < t.r + 1) return { wet: 1 - smoothstep(t.r - 1.5, t.r + 0.5, d), water: t.water };
+  }
+  return { wet: 0, water: 0 };
 }
 
 /** 0..1 on a worn footpath (LAYOUT.paths): about 2.4 m wide with soft edges. */
@@ -134,6 +168,27 @@ export function terrainHeight(x: number, z: number, noise: Noise2D): number {
     plateau = lerp(plateau, bank, bankMix);
     plateau = lerp(plateau, RIVER_FLOOR, 1 - smoothstep(4.8, 9.5, rd));
   }
+  // The eye pool: banks raised around the lens, the floor funnelling down to the pupil.
+  if (Math.abs(x - EYE.x) < EYE.a + 12 && Math.abs(z - EYE.z) < EYE.b + 12) {
+    const ed = eyeDistance(x, z);
+    if (ed < 12) {
+      // Banks around the pool, but not across the river channel where it flows in and out at the tips.
+      const channel = 1 - smoothstep(4.8, 9.5, rd);
+      plateau = lerp(plateau, Math.max(plateau, 2.6), (1 - smoothstep(2, 12, ed)) * (1 - channel));
+      const inside = 1 - smoothstep(-3, 1, ed);
+      if (inside > 0) {
+        const r = Math.hypot(x - EYE.x, z - EYE.z);
+        plateau = lerp(plateau, lerp(-4, RIVER_FLOOR, smoothstep(3, 12, r)), inside);
+      }
+    }
+  }
+  // Koi pools stepping down to the eye: a stone rim a little above each pool's water, a basin under it.
+  for (const t of LAYOUT.tiers) {
+    const d = Math.hypot(x - t.x, z - t.z);
+    if (d > t.r + 4) continue;
+    plateau = lerp(plateau, Math.max(plateau, t.water + 0.5), 1 - smoothstep(t.r + 1, t.r + 4, d));
+    plateau = lerp(plateau, t.water - 0.8, 1 - smoothstep(t.r - 1.5, t.r + 0.5, d));
+  }
   // Lily pond: a shallow bowl.
   const pd0 = Math.hypot(x - WORLD.pond.x, z - WORLD.pond.z);
   if (pd0 < WORLD.pond.r + 8) {
@@ -148,6 +203,32 @@ export function terrainHeight(x: number, z: number, noise: Noise2D): number {
   if (pd < WORLD.peak.radius) {
     const t = 1 - pd / WORLD.peak.radius;
     plateau += WORLD.peak.height * Math.pow(t, 1.7) + noise.fbm(x * 0.05, z * 0.05, 3) * 6 * t;
+  }
+  // The forest gorge: a steep cut whose floor falls from the head (under the peak) to the cliff at its mouth, with a
+  // ramp up its west wall so nobody is trapped on the floor.
+  const G = WORLD.gorge;
+  if (z < G.zHead + 6 && z > G.zMouth - 30 && Math.abs(x - G.x) < G.rim + 14) {
+    const cx = G.x + noise.noise(z * 0.05, 11) * 2;
+    const along = Math.min(1, Math.max(0, (G.zHead - z) / (G.zHead - G.zMouth)));
+    const floor = lerp(G.floorHead, G.floorMouth, along);
+    const head = smoothstep(G.zHead + 3, G.zHead - 3, z);
+    const dx = Math.abs(x - cx);
+    // Ridges along both rims, so the gorge is deep from either side (its west side was low ground by the cliff).
+    const ridgeTop = lerp(13, 6, along) + noise.noise(z * 0.08, x * 0.08) * 1.5;
+    plateau = Math.max(plateau, lerp(plateau, ridgeTop, head * smoothstep(G.half, G.rim, dx) * (1 - smoothstep(G.rim + 2, G.rim + 11, dx))));
+    const cut = head * (1 - smoothstep(G.half, G.rim, dx));
+    const before = plateau;
+    plateau = lerp(plateau, Math.min(plateau, floor), cut);
+    // Exit ramp: from the floor at (-77, -114) up to the west rim at (-86, -106).
+    const ax = G.x - 5, az = -114, bx = G.x - 14, bz = -106;
+    const rx = bx - ax, rz = bz - az;
+    const tt = Math.max(0, Math.min(1, ((x - ax) * rx + (z - az) * rz) / (rx * rx + rz * rz)));
+    const rd = Math.hypot(x - (ax + rx * tt), z - (az + rz * tt));
+    if (rd < 3.5) {
+      const floorAtStart = lerp(G.floorHead, G.floorMouth, (G.zHead - az) / (G.zHead - G.zMouth));
+      const ramp = lerp(floorAtStart, before, tt);
+      plateau = lerp(plateau, Math.max(plateau, ramp), 1 - smoothstep(2, 3.5, rd));
+    }
   }
   // Level pads for buildings and big creatures (always land inside).
   let padLand = 0;

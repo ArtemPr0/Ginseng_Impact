@@ -158,6 +158,43 @@ export function chasmBridge(ax: number, az: number, bx: number, bz: number, y: n
   return { object: new Group(), tiles, footprints: [{ kind: 'box', x: (ax + bx) / 2, z: (az + bz) / 2, hw: len / 2, hd: 1.4, top: y, rotY: yaw, bottom: y - 0.6 }] };
 }
 
+/**
+ * An arched wooden footbridge (the reference's bridge over the eye, #28) from (x, zA) to (x, zB): its walk surface rises
+ * from `endY` at both ends to `crownY` in the middle in 0.5 m collider slices with railings, and its deck is a row of
+ * `chasm-bridge` tiles pitched along the arch. `posts` are where the railing posts stand (candles go on them).
+ */
+export function archBridge(x: number, zA: number, zB: number, endY: number, crownY: number, halfWidth: number, tileHeight: number): Landmark & { tiles: Array<{ x: number; y: number; z: number; yaw: number; scale: number; pitch: number }>; posts: Array<{ x: number; y: number; z: number }>; surface(z: number): number } {
+  const len = Math.abs(zB - zA);
+  const dir = Math.sign(zB - zA);
+  const surface = (z: number) => {
+    const t = Math.min(1, Math.max(0, (z - zA) / (zB - zA)));
+    return endY + (crownY - endY) * Math.sin(t * Math.PI);
+  };
+  const footprints: Footprint[] = [];
+  const slices = Math.ceil(len / 0.5);
+  for (let k = 0; k < slices; k++) {
+    const z = zA + dir * (k + 0.5) * (len / slices);
+    const top = surface(z);
+    footprints.push({ kind: 'box', x, z, hw: halfWidth, hd: len / slices / 2 + 0.02, top, bottom: top - DECK_DEPTH });
+    for (const side of [-1, 1]) footprints.push({ kind: 'box', x: x + side * (halfWidth + 0.15), z, hw: 0.15, hd: len / slices / 2 + 0.02, top: top + 1.0, bottom: top - DECK_DEPTH });
+  }
+  const n = Math.ceil(len / BRIDGE_TILE);
+  const step = len / n;
+  const tiles = [];
+  for (let i = 0; i < n; i++) {
+    const z = zA + dir * (i + 0.5) * step;
+    const dz = 0.25;
+    const slope = (surface(z + dz) - surface(z - dz)) / (2 * dz);
+    // The tile's local +z runs along the span (yaw π for a bridge heading -z); a rise toward +z tips the nose up.
+    tiles.push({ x, y: surface(z) - tileHeight * BRIDGE_DECK, z, yaw: dir < 0 ? Math.PI : 0, scale: step / BRIDGE_TILE, pitch: -Math.atan(slope * dir) });
+  }
+  const posts = [];
+  for (let z = zA; dir > 0 ? z <= zB + 0.01 : z >= zB - 0.01; z += dir * 3.6) {
+    for (const side of [-1, 1]) posts.push({ x: x + side * (halfWidth + 0.15), y: surface(z), z });
+  }
+  return { object: new Group(), tiles, posts, footprints, surface };
+}
+
 /** Deck, parapets and piers of the bridge over the witch stream. */
 /**
  * The witches' humpback bridge (DeWji_1PuKW): 22 m along x. The walk surface follows the Meshy model's deck

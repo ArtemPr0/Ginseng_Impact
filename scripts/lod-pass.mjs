@@ -25,7 +25,7 @@ const BUDGET = {
 /** Seen big and close: heroes, bosses, landmarks. Everything else gets 512 px textures. */
 const KEEP_1024 = new Set(['knight.glb', 'archer.glb', 'wizard.glb', 'cathedral.glb', 'castle.glb', 'giant-head.glb', 'wizard-tower.glb',
   'yeti.glb', 'rock-troll.glb', 'antlered-warden.glb', 'horned-shade.glb', 'lake-lurker.glb', 'marsh-demon.glb', 'hollow-king.glb',
-  'frog-king.glb', 'spider-chapel.glb', 'log-giant.glb', 'demon-church.glb', 'tree-house.glb', 'world-tree.glb', 'galaxy-hall.glb', 'cup-gnome.glb', 'rift-king.glb', 'gnome-brother.glb', 'treehouse-interior.glb']);
+  'frog-king.glb', 'spider-chapel.glb', 'log-giant.glb', 'demon-church.glb', 'tree-house.glb', 'world-tree.glb', 'galaxy-hall.glb', 'cup-gnome.glb', 'rift-king.glb', 'gnome-brother.glb', 'treehouse-interior.glb', 'galaxy-wizard.glb']);
 
 const only = process.argv.slice(2);
 const files = (only.length ? only : readdirSync('public/models').filter((f) => f.endsWith('.glb'))).map((f) => f.replace(/^.*\//, ''));

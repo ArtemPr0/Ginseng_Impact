@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Noise2D, smoothstep } from './noise';
-import { WORLD, terrainHeight } from './Terrain';
+import { LAYOUT } from '../data/world';
+import { EYE, RIVER_LEVEL, WORLD, riverAt, terrainHeight } from './Terrain';
 
 describe('Noise2D', () => {
   it('is deterministic for a seed and bounded in [-1, 1]', () => {
@@ -49,5 +50,24 @@ describe('terrainHeight', () => {
   it('has a chasm across the island on the causeway line', () => {
     expect(terrainHeight(0, WORLD.chasmCentreZ, noise)).toBeLessThan(WORLD.cloudSeaY - 20);
     expect(terrainHeight(24, WORLD.chasmCentreZ, noise)).toBeLessThan(WORLD.cloudSeaY - 20);
+  });
+
+  it('opens the eye pool under water where the road crosses the river, with dry banks at both bridge ends', () => {
+    expect(terrainHeight(EYE.x, EYE.z, noise)).toBeLessThan(RIVER_LEVEL - 2);
+    expect(riverAt(EYE.x, EYE.z)).toBe(1);
+    for (const z of [EYE.z - EYE.b - 4, EYE.z + EYE.b + 4]) expect(terrainHeight(0, z, noise)).toBeGreaterThan(RIVER_LEVEL + 1);
+  });
+
+  it('cuts the forest gorge deep below its rims', () => {
+    const G = WORLD.gorge;
+    const floor = terrainHeight(G.x, -124, noise);
+    expect(terrainHeight(G.x - G.rim - 2, -124, noise) - floor).toBeGreaterThan(8);
+  });
+
+  it('steps the koi pools down toward the eye, each basin under its own water', () => {
+    const levels = LAYOUT.tiers.map((t) => t.water);
+    expect(levels[0]).toBeLessThan(levels[1]);
+    expect(levels[1]).toBeLessThan(levels[2]);
+    for (const t of LAYOUT.tiers) expect(terrainHeight(t.x, t.z, noise)).toBeLessThan(t.water);
   });
 });
