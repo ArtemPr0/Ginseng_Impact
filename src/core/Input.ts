@@ -7,6 +7,8 @@ export class Input {
   private readonly mouseReleased = new Set<number>();
   /** When true, keys and mouse are swallowed by a UI panel. */
   uiOpen = false;
+  /** When true, a click does not take the pointer (the title screen's first click only starts its music). */
+  hold = false;
   mouseDX = 0;
   mouseDY = 0;
   locked = false;
@@ -28,7 +30,7 @@ export class Input {
     window.addEventListener('blur', () => this.releaseAll());
     canvas.addEventListener('mousedown', (e) => {
       if (!this.locked && !this.free) {
-        if (!this.uiOpen) void canvas.requestPointerLock();
+        if (!this.uiOpen && !this.hold) void canvas.requestPointerLock();
         return;
       }
       this.mouseDownSet.add(e.button);

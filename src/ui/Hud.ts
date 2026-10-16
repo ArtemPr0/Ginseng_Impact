@@ -48,7 +48,7 @@ export class Hud {
   constructor(container: HTMLElement) {
     this.root = container;
     container.innerHTML = `
-      <div class="hud-prompt" id="hud-prompt"><div class="hud-subtitle">A SILENT KINGDOM BEYOND THE FOG</div><div class="hud-wordmark">GINSENG IMPACT</div><div class="hud-press">CLICK TO ENTER THE FOG</div>
+      <div class="hud-prompt" id="hud-prompt"><div class="hud-subtitle">A SILENT KINGDOM BEYOND THE FOG</div><div class="hud-wordmark">GINSENG IMPACT</div><div class="hud-press" id="hud-press">CLICK TO ENTER THE FOG</div>
         <div class="hud-controls">WASD move · SHIFT sprint · SPACE jump, again to fly (hold to rise) · C dive · X land · LMB attack · hold RMB heavy · E skill · Q burst · R dodge · F talk / loot · I inventory · 1 2 3 switch · ESC pause</div></div>
       <div class="hud-boss panel" id="hud-boss"><div class="hud-boss-name" id="hud-boss-name"></div><div class="hud-boss-title" id="hud-boss-title"></div><div class="hud-boss-bar"><div class="hud-boss-fill" id="hud-boss-fill"></div></div></div>
       <div class="hud-shards panel" id="hud-shards"><span class="hud-shard-glyph">◆</span><span id="hud-shards-n">0</span><span class="hud-shards-pop" id="hud-shards-pop"></span></div>
@@ -262,6 +262,11 @@ export class Hud {
     const f = value / max;
     this.q('#hud-stamina').style.width = `${Math.round(f * 100)}%`;
     this.q('#hud-stamina-wrap').style.opacity = f < 0.999 ? '1' : '0';
+  }
+
+  /** The title screen's call to action. */
+  setPress(text: string): void {
+    this.q('#hud-press').textContent = text;
   }
 
   setLocked(locked: boolean): void {

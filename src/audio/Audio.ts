@@ -1,6 +1,14 @@
+import { musicUrl, trimSilence, type MusicSlot } from './music';
+
+/** A decoded song and where its sound starts and ends (seconds, the silence at either end trimmed off). */
+interface Song { buf: AudioBuffer; start: number; end: number }
+/** A song (or a chain of them) playing through its own fader. */
+interface Playing { gain: GainNode; sources: AudioBufferSourceNode[] }
+
 /**
  * Procedural sound engine: every effect is synthesised with Web Audio, except recorded voice lines
- * (`voice`, files under public/audio). Resumes on the first user gesture; all methods are safe to call before that.
+ * (`voice`, files under public/audio) and the songs (`title`, `kingdom`; see music.ts). Resumes on the first user
+ * gesture; all methods are safe to call before that.
  */
 export class Audio {
   private ctx: AudioContext | null = null;
@@ -11,7 +19,14 @@ export class Audio {
   private muffle: BiquadFilterNode | null = null;
   /** The kingdom's music while it plays: its bus, the hum, the step scheduler. */
   private kingdomMusic: { bus: GainNode; timer: number; next: number; step: number; started: number } | null = null;
+  /** Songs skip the effects' compressor: their own bus, and their own low-pass for the underwater arrival. */
+  private musicBus: GainNode | null = null;
+  private musicLp: BiquadFilterNode | null = null;
+  private readonly songs = new Map<MusicSlot, Promise<Song | null>>();
+  private titleSong: Playing | null = null;
+  private kingdomSong: Playing | null = null;
   volume = 0.6;
+  musicVolume = 0.5;
 
   /** Call from a user gesture (click / keydown). */
   unlock(): void {
@@ -28,6 +43,12 @@ export class Audio {
     this.muffle.type = 'lowpass';
     this.muffle.frequency.value = 20000;
     this.master.connect(this.muffle).connect(comp).connect(this.ctx.destination);
+    this.musicLp = this.ctx.createBiquadFilter();
+    this.musicLp.type = 'lowpass';
+    this.musicLp.frequency.value = 20000;
+    this.musicBus = this.ctx.createGain();
+    this.musicBus.gain.value = this.musicVolume;
+    this.musicBus.connect(this.musicLp).connect(this.ctx.destination);
     const len = this.ctx.sampleRate * 2;
     this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
     const d = this.noiseBuf.getChannelData(0);
@@ -35,6 +56,82 @@ export class Audio {
   }
 
   private get now(): number { return this.ctx!.currentTime; }
+
+  /** True until the browser lets sound play (most wait for the first click or key press). */
+  get suspended(): boolean { return this.ctx?.state !== 'running'; }
+
+  /** Whether any of these slots has a song file. */
+  hasMusic(...slots: MusicSlot[]): boolean { return slots.some((slot) => musicUrl(slot) !== null); }
+
+  /**
+   * The title screen's music: the intro sample once, then the loop on repeat, the loop starting on the intro's last
+   * sample (both are decoded first, so there is no gap). `false` fades it out and lets the songs go.
+   */
+  title(on: boolean): void {
+    if (!this.ctx) return;
+    if (!on) {
+      this.fadeOut(this.titleSong);
+      this.titleSong = null;
+      this.songs.delete('title-intro');
+      this.songs.delete('title-loop');
+      return;
+    }
+    if (this.titleSong) return;
+    const play = this.playing();
+    this.titleSong = play;
+    void Promise.all([this.song('title-intro'), this.song('title-loop')]).then(([intro, loop]) => {
+      if (this.titleSong !== play || !this.ctx) return;
+      let t = this.ctx.currentTime + 0.05;
+      if (intro) t = this.schedule(play, intro, t, false);
+      if (loop) this.schedule(play, loop, t, true);
+    });
+  }
+
+  /** Loads and decodes a slot's song once (null when it has no file or will not decode). */
+  private song(slot: MusicSlot): Promise<Song | null> {
+    let p = this.songs.get(slot);
+    if (!p) {
+      const url = musicUrl(slot);
+      const ctx = this.ctx!;
+      p = !url ? Promise.resolve(null) : fetch(url)
+        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+        .then((b) => ctx.decodeAudioData(b))
+        .then((buf) => {
+          const { start, end } = trimSilence(Array.from({ length: buf.numberOfChannels }, (_, i) => buf.getChannelData(i)));
+          return { buf, start: start / buf.sampleRate, end: end / buf.sampleRate };
+        })
+        .catch((e: unknown) => { console.warn(`[music] '${slot}' would not play: ${String(e)}`); return null; });
+      this.songs.set(slot, p);
+    }
+    return p;
+  }
+
+  private playing(): Playing {
+    const gain = this.ctx!.createGain();
+    gain.connect(this.musicBus!);
+    return { gain, sources: [] };
+  }
+
+  /** Starts `song` at context time `t`, once or (`loop`) for ever; returns when a single play ends. */
+  private schedule(p: Playing, song: Song, t: number, loop: boolean): number {
+    const src = this.ctx!.createBufferSource();
+    src.buffer = song.buf;
+    src.connect(p.gain);
+    if (loop) {
+      src.loop = true;
+      src.loopStart = song.start;
+      src.loopEnd = song.end;
+      src.start(t, song.start);
+    } else src.start(t, song.start, song.end - song.start);
+    p.sources.push(src);
+    return t + song.end - song.start;
+  }
+
+  private fadeOut(p: Playing | null, tau = 0.5): void {
+    if (!p || !this.ctx) return;
+    p.gain.gain.setTargetAtTime(0.0001, this.ctx.currentTime, tau);
+    window.setTimeout(() => { for (const s of p.sources) s.stop(); p.gain.disconnect(); }, tau * 6000);
+  }
 
   private env(node: AudioNode, a: number, peak: number, d: number, sustain = 0, r = 0.05, at = 0): GainNode {
     const g = this.ctx!.createGain();
@@ -133,14 +230,16 @@ export class Audio {
   }
 
   /**
-   * Yung Lean's kingdom: arriving, everything is muffled as if underwater and clears; a distant autotuned hum drifts
-   * in and fades into a slow cloud-rap beat (70 BPM: kick and 808, a half-time snare, hats with rolls, a dreamy pad
-   * over Am–F–C–G). `false` fades the music away.
+   * Yung Lean's kingdom: arriving, everything is muffled as if underwater and clears, and its song plays on repeat
+   * (the `kingdom` slot). With no song, a distant autotuned hum drifts in and fades into a slow cloud-rap beat
+   * (70 BPM: kick and 808, a half-time snare, hats with rolls, a dreamy pad over Am–F–C–G). `false` fades it away.
    */
   kingdom(on: boolean): void {
     const ctx = this.ctx;
     if (!ctx || !this.master) return;
     if (!on) {
+      this.fadeOut(this.kingdomSong, 0.6);
+      this.kingdomSong = null;
       const m = this.kingdomMusic;
       if (!m) return;
       this.kingdomMusic = null;
@@ -148,16 +247,35 @@ export class Audio {
       window.setTimeout(() => { window.clearInterval(m.timer); m.bus.disconnect(); }, 3000);
       return;
     }
-    if (this.kingdomMusic) return;
+    if (this.kingdomMusic || this.kingdomSong) return;
     const t0 = ctx.currentTime;
-    if (this.muffle) {
-      this.muffle.frequency.cancelScheduledValues(t0);
-      this.muffle.frequency.setValueAtTime(320, t0);
-      this.muffle.frequency.exponentialRampToValueAtTime(20000, t0 + 2.8);
+    for (const lp of [this.muffle, this.musicLp]) {
+      if (!lp) continue;
+      lp.frequency.cancelScheduledValues(t0);
+      lp.frequency.setValueAtTime(320, t0);
+      lp.frequency.exponentialRampToValueAtTime(20000, t0 + 2.8);
     }
+    if (musicUrl('kingdom')) {
+      const play = this.playing();
+      this.kingdomSong = play;
+      void this.song('kingdom').then((song) => {
+        if (this.kingdomSong !== play || !this.ctx) return;
+        if (song) { this.schedule(play, song, this.ctx.currentTime + 0.05, true); return; }
+        // (A file that will not decode: the synthesised beat instead.)
+        this.kingdomSong = null;
+        this.kingdomBeat(this.ctx.currentTime);
+      });
+      return;
+    }
+    this.kingdomBeat(t0);
+  }
+
+  /** The kingdom's synthesised music, from `t0`: the hum, then the beat. */
+  private kingdomBeat(t0: number): void {
+    const ctx = this.ctx!;
     const bus = ctx.createGain();
     bus.gain.value = 0.9;
-    bus.connect(this.master);
+    bus.connect(this.master!);
     // The hum: two detuned saws through "oo" formants, snapping from note to note like autotune.
     const hum = ctx.createGain();
     hum.gain.setValueAtTime(0.0001, t0);

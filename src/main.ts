@@ -268,6 +268,15 @@ window.addEventListener('keydown', (e) => {
 const unlockAudio = () => audio.unlock();
 window.addEventListener('mousedown', unlockAudio);
 window.addEventListener('keydown', unlockAudio);
+// The title screen's music (the intro sample, then the loop) from the moment the game opens until play begins.
+// Most browsers keep sound off until the first click or key press: that first press only starts the music, and the
+// next click enters the game.
+let titleMusic = !debugAt && audio.hasMusic('title-intro', 'title-loop');
+if (titleMusic) {
+  audio.unlock();
+  audio.title(true);
+  if (audio.suspended) { input.hold = true; hud.setPress('CLICK TO BEGIN'); }
+}
 
 // Title cinematic: a slow dolly up the causeway toward the head while the pointer is not locked.
 const HEAD_EYES = new Vector3(LAYOUT.head.x, terrain.heightAt(LAYOUT.head.x, LAYOUT.head.z) - 3 + LAYOUT.head.height * 0.69, LAYOUT.head.z);
@@ -460,6 +469,8 @@ game
       fill.position.set(playerPos.x + 70, playerPos.y + 60, playerPos.z + 110);
       fill.target.position.copy(playerPos);
       hud.setLocked(input.locked);
+      if (input.hold && !audio.suspended) { input.hold = false; hud.setPress('CLICK TO ENTER THE FOG'); }
+      if (titleMusic && input.locked) { audio.title(false); titleMusic = false; }
       game.paused = !input.locked;
       minimap.draw(controller.pos.x, controller.pos.z, tpc.yaw, combat.enemies.map((e) => ({ x: e.pos.x, z: e.pos.z, alive: e.alive, aggro: e.aggro, boss: !!e.def.boss })), inventory.reveals(), area.npcs.map((n) => ({ x: n.pos.x, z: n.pos.z })));
       renderer.render(scene, camera);
