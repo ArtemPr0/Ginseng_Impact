@@ -99,9 +99,8 @@ function checkerMaterial(): ShaderMaterial {
       void main() {
         vec2 c = floor(vW.xz / 2.0);
         float k = mod(c.x + c.y, 2.0);
-        vec3 col = mix(vec3(0.02, 0.02, 0.03), vec3(0.85, 0.85, 0.9), k);
-        // A slow ripple of colour runs down the squares.
-        col += 0.5 + 0.5 * cos(6.28318 * (vec3(0.0, 0.33, 0.67) + vW.z * 0.01 - uTime * 0.1)) * 0.0;
+        // Ivory and black (not pure white: under the dream's bloom it would glare).
+        vec3 col = mix(vec3(0.015, 0.015, 0.025), vec3(0.42, 0.41, 0.46), k);
         col *= 0.85 + 0.15 * sin(vW.z * 0.2 - uTime * 2.0);
         gl_FragColor = vec4(col, 1.0);
       }`,

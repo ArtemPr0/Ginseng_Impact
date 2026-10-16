@@ -289,7 +289,7 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'blood-eye', x: -14, z: -56, exact: true, patrol: [[-40, -56], [-14, -54], [12, -60], [-14, -54]] },
   { kind: 'cyclops-lord', x: 0, z: -1068, exact: true, yaw: Math.PI / 2 },
   { kind: 'skeleton', x: -6, z: -945, yaw: -Math.PI / 2 }, { kind: 'skeleton', x: 6, z: -945, yaw: -Math.PI / 2 },
-  { kind: 'trip-wizard', x: -60, z: 2590, exact: true },
+  { kind: 'trip-wizard', x: 62, z: 2628, exact: true },   // over the canal village's edge, east of where you wake
   // The skeletons around the campfire by the village (DdjlyzyOcnK): seated on their barrels, facing the fire at (-24, 52).
   { kind: 'skeleton', x: -21.6, z: 53.4, yaw: Math.atan2(52 - 53.4, -24 + 21.6), exact: true },
   { kind: 'skeleton', x: -26.4, z: 53.4, yaw: Math.atan2(52 - 53.4, -24 + 26.4), exact: true },
