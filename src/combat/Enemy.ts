@@ -165,6 +165,7 @@ export class Enemy {
     if (this.model) this.object.remove(this.model.root);
     this.model = new ModelRig(id, gltf, { cloneMaterials: true });
     if (this.def.trippy) for (const m of this.model.materials) patchTrippy(m);
+    if (this.def.glow) for (const m of this.model.materials) { if (m.map) { m.emissiveMap = m.map; m.emissive.setRGB(1, 1, 1); m.emissiveIntensity = this.def.glow; m.userData.baseEmissive = 0xffffff; m.userData.baseIntensity = this.def.glow; m.needsUpdate = true; } }
     if (this.def.eye) {
       // A giant eye: the body hangs in a pivot that tilts to look at the hero, its living iris on the front.
       const box = new Box3().setFromObject(this.model.root);

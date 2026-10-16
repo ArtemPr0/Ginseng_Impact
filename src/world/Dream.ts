@@ -22,6 +22,7 @@ import type { Footprint } from './Colliders';
 import { cascade } from './Falls';
 import { fire } from './Fire';
 import type { Placement } from './Flora';
+import { ISLAND_TOP } from './Heart';
 import { modelLandmark } from './ModelLandmark';
 import type { ModelRig } from '../models/ModelRig';
 import type { RealmApi } from './Realms';
@@ -285,9 +286,9 @@ export function buildDream(api: RealmApi): void {
     const base = y0 + y;
     const bob = (root: Group, k: number) => { root.position.y = base + k + Math.sin(t * 0.3 + dx) * 0.8; };
     api.place(modelLandmark('floating-island', x, z, base, { collider: 'none', yaw, update: (dt, root) => { void dt; bob(root, 0); } }));
-    const top = base + MODELS['floating-island'].height * 0.62;
-    api.place(modelLandmark('giant-skull', x + 2, z, top, { collider: 'none', yaw: yaw + Math.PI, update: (dt, root) => { void dt; bob(root, MODELS['floating-island'].height * 0.62); } }));
-    api.place(modelLandmark('castle', x - 3, z + 2, top, { collider: 'none', scale: 0.22, yaw, update: (dt, root) => { void dt; bob(root, MODELS['floating-island'].height * 0.62); } }));
+    const top = base + MODELS['floating-island'].height * ISLAND_TOP;
+    api.place(modelLandmark('giant-skull', x + 2, z, top, { collider: 'none', yaw: yaw + Math.PI, update: (dt, root) => { void dt; bob(root, MODELS['floating-island'].height * ISLAND_TOP); } }));
+    api.place(modelLandmark('castle', x - 3, z + 2, top, { collider: 'none', scale: 0.22, yaw, update: (dt, root) => { void dt; bob(root, MODELS['floating-island'].height * ISLAND_TOP); } }));
     api.vfx(fire(x - 3, top + 3, z + 2, 5, 0));
     api.vfx(fire(x - 1, top + 5, z + 4, 3.5, 0));
   }

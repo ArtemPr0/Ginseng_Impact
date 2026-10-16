@@ -53,6 +53,8 @@ export interface EnemyDef {
   eye?: { iris: number };
   /** Colour of its eye beam (default the dream's cyan). */
   beamColor?: number;
+  /** Its texture glows (emissive from its own colours) at this strength: the Blood Eye burns in the night. */
+  glow?: number;
   /** Lines it says (ids in data/voices): when it spots you, as it throws, as it dies, and when you fall. */
   voices?: { aggro: string[]; attack: string[]; death: string[]; win: string[] };
 }
@@ -70,7 +72,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   // stamps, throws stones, and sweeps the bank with the yellow beam of his eye.
   cyclops: {
     kind: 'cyclops', stomp: true, name: 'The Cyclops', title: 'Who Wades the Eye', maxHp: 8800, def: 85, atk: 160, speed: 2.4, element: 'stone', hover: 0, bodyRadius: 2.2, height: 9, boss: true,
-    neutral: true, floatAt: 0.9, beamColor: 0xffd23a,
+    neutral: true, floatAt: 0.9, beamColor: 0xffd23a, glow: 1.1,
     brain: { aggroRange: 22, attackRange: 7, windup: 1.0, recover: 1.4, attackCooldown: 1.0 }, respawn: 300, leash: 8, shards: [200, 300],
     attacks: [{ kind: 'slam', range: 8, windup: 1.0, recover: 1.4, weight: 3 }, { kind: 'boulder', range: 24, windup: 1.0, recover: 1.1, weight: 2 }, { kind: 'eyebeam', range: 26, windup: 1.1, recover: 1.3, weight: 2 }, { kind: 'roar', range: 14, windup: 1.0, recover: 1.4, weight: 1 }],
     drops: [{ itemId: 'moon-dew', chance: 1 }, { itemId: 'rune-shard', chance: 1 }],
@@ -78,7 +80,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   // The cyclops at the end of the Alley of Graves (01.16.54), before the gothic tower: he throws the graves.
   'cyclops-lord': {
     kind: 'cyclops-lord', stomp: true, name: 'The Grave Cyclops', title: 'Keeper of the Alley', maxHp: 10500, def: 95, atk: 175, speed: 3.0, element: 'stone', hover: 0, bodyRadius: 1.9, height: 7, boss: true,
-    beamColor: 0xffd23a,
+    beamColor: 0xffd23a, glow: 1.0,
     brain: { aggroRange: 24, attackRange: 6, windup: 0.9, recover: 1.3, attackCooldown: 0.9 }, respawn: 300, leash: 22, shards: [260, 360],
     attacks: [{ kind: 'slam', range: 7, windup: 0.9, recover: 1.3, weight: 3 }, { kind: 'boulder', range: 24, windup: 0.9, recover: 1.0, weight: 3 }, { kind: 'eyebeam', range: 26, windup: 1.0, recover: 1.2, weight: 2 }, { kind: 'roar', range: 14, windup: 1.0, recover: 1.4, weight: 1 }],
     drops: [{ itemId: 'star-chart', chance: 1 }, { itemId: 'moon-dew', chance: 1 }],
@@ -87,7 +89,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   // its thorns, and pins whoever meets its glare.
   'blood-eye': {
     kind: 'blood-eye', name: 'The Blood Eye', title: 'That Watches the Chasm', maxHp: 7600, def: 60, atk: 150, speed: 3.5, element: 'blood', hover: 0, bodyRadius: 2.6, height: 6, boss: true,
-    flying: true, flyAbove: 14, eye: { iris: 0x3a5cff }, beamColor: 0xff2a2a,
+    flying: true, flyAbove: 14, floatAt: 10, eye: { iris: 0x3a5cff }, beamColor: 0xff2a2a, glow: 1.0,
     brain: { aggroRange: 34, attackRange: 30, windup: 1.0, recover: 1.2, attackCooldown: 0.9, preferredRange: 16 }, respawn: 300, leash: 40, shards: [220, 320],
     attacks: [{ kind: 'eyebeam', range: 30, windup: 1.0, recover: 1.2, weight: 3 }, { kind: 'thorns', range: 26, windup: 1.0, recover: 1.2, weight: 2 }, { kind: 'glare', range: 30, windup: 1.4, recover: 1.0, weight: 2 }],
     drops: [{ itemId: 'lurker-eye', chance: 1 }, { itemId: 'star-chart', chance: 1 }],

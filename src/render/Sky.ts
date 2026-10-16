@@ -311,8 +311,8 @@ export class Sky {
   attachMoonModel(model: Group): void {
     this.faceModel = model;
     model.position.copy(this.moonDir).multiplyScalar(SKY_RADIUS * 0.93);
+    // (lookAt points the model's +z, its face, back at the camera at the dome's centre.)
     model.lookAt(0, 0, 0);
-    model.rotateY(Math.PI);
     model.renderOrder = -8;
     this.group.add(model);
     this.moon.visible = false;

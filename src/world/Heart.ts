@@ -24,6 +24,9 @@ import { EYE, RIVER_LEVEL, WORLD } from './Terrain';
 import { archBridge, witchBridgeDeck } from './Walkways';
 import { eyePool, poolWater, waterRibbon } from './Water';
 
+/** The floating island's rock top (where its waterfalls spill and things stand), as a fraction of its height. */
+export const ISLAND_TOP = 0.46;
+
 /** A giant mushroom cap you bounce off (the joy pass): landing on it within `r` of its centre launches you at `v`. */
 export interface Bouncer { x: number; z: number; r: number; top: number; v: number }
 
@@ -127,8 +130,9 @@ export function buildHeart(api: HeartApi): { eye: ReturnType<typeof eyePool>; bo
   // --- floating islands over the river: the west one pours three glowing falls into the eye ---
   const islandH = MODELS['floating-island'].height;
   api.place(modelLandmark('floating-island', -14, 12, 22, { collider: 'none' }));
-  for (const [x, z, w] of [[-18, 14, 3], [-13, 16, 5], [-9, 13, 2.5]] as const) {
-    const top = 22 + islandH * 0.62;
+  // Off the island's south rim (its rock is about 5.5 m across the middle), into the eye's west lobe.
+  for (const [x, z, w] of [[-17.5, 16.6, 2.6], [-14, 17.2, 4], [-10.6, 16.6, 2.2]] as const) {
+    const top = 22 + islandH * ISLAND_TOP;
     api.place(cascade({ x, z, top, height: top - RIVER_LEVEL, width: w, curve: 1.2 }));
   }
   {

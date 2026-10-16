@@ -26,7 +26,7 @@ void main() {
   float inLid = smoothstep(top + 0.02, top - 0.02, p.y) * smoothstep(bot - 0.02, bot + 0.02, p.y);
   // The eyeball: a lit sphere, its white turning to red veins with anger and pain.
   float r = length(p);
-  vec3 sclera = vec3(0.86, 0.88, 0.95) * (1.0 - r * r * 0.45);
+  vec3 sclera = vec3(0.5, 0.52, 0.6) * (1.0 - r * r * 0.5);
   float veinN = vnoise(p * 9.0 + 3.0) * 0.6 + vnoise(p * 23.0) * 0.4;
   float veins = smoothstep(0.62, 0.7, veinN) * smoothstep(0.25, 0.95, r);
   sclera = mix(sclera, vec3(0.75, 0.05, 0.05), veins * (0.35 + uAnger * 0.65 + uHurt * 0.5));
@@ -36,14 +36,14 @@ void main() {
   float ir = length(c);
   float pr = 0.13 * uDilate;
   float fib = vnoise(vec2(atan(c.y, c.x) * 7.0, ir * 14.0)) * 0.5 + 0.5;
-  vec3 iris = mix(uIris, vec3(1.0, 0.1, 0.05), max(uRed, uAnger * 0.8)) * (0.6 + fib * 0.7);
-  iris *= 1.0 + smoothstep(0.34, 0.1, ir) * 0.6;
+  vec3 iris = mix(uIris, vec3(1.0, 0.1, 0.05), max(uRed, uAnger * 0.8)) * (0.45 + fib * 0.6);
+  iris *= 1.0 + smoothstep(0.34, 0.1, ir) * 0.5;
   float irisMask = smoothstep(0.36, 0.33, ir);
   vec3 col = mix(sclera, iris, irisMask);
   float pupil = smoothstep(pr + 0.015, pr - 0.015, ir);
   col = mix(col, vec3(0.0) + vec3(0.6, 0.0, 0.0) * uRed * (0.6 + 0.4 * sin(uTime * 6.0)), pupil);
   // A wet highlight from the moon.
-  col += vec3(1.0) * smoothstep(0.06, 0.0, length(p - vec2(-0.16, 0.18))) * 0.9;
+  col += vec3(1.0) * smoothstep(0.06, 0.0, length(p - vec2(-0.16, 0.18))) * 0.7;
   // The skin around the opening: dark, bruised blue, a lash line along the lids.
   vec3 skin = vec3(0.05, 0.06, 0.16) * (0.7 + vnoise(p * 6.0) * 0.5);
   float lash = smoothstep(0.05, 0.0, abs(p.y - top)) * step(abs(p.x), 0.98);
@@ -52,7 +52,7 @@ void main() {
   col = mix(col, vec3(1.0, 0.2, 0.2), uHurt * 0.35);
   // Fade at the quad's edge into the sky.
   float alpha = (1.0 - smoothstep(0.82, 1.0, length(p * vec2(0.92, 1.25)))) * uFade;
-  gl_FragColor = vec4(col * 1.15, alpha);
+  gl_FragColor = vec4(col, alpha);
 }`;
 
 type Mood = 'calm' | 'dilate' | 'red' | 'squint' | 'wide';
@@ -97,7 +97,7 @@ export class SkyEyes {
       const mesh = new Mesh(new PlaneGeometry(s.size, s.size * 0.8), mat);
       mesh.position.set(s.x, s.y, s.z);
       mesh.renderOrder = -6;
-      const glow = glowSprite(0x4f7cff, s.size * 1.8, 0.18, false);
+      const glow = glowSprite(0x4f7cff, s.size * 1.6, 0.1, false);
       (glow.material as { blending: number }).blending = AdditiveBlending;
       glow.position.copy(mesh.position);
       this.group.add(glow, mesh);

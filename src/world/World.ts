@@ -25,7 +25,7 @@ import { stoneHeadEyes } from './StoneHead';
 import { buildTreeHouse } from './TreeHouse';
 import { buildDream, dreamWatchers } from './Dream';
 import { buildKingdom } from './Kingdom';
-import { type Bouncer, buildHeart } from './Heart';
+import { type Bouncer, buildHeart, ISLAND_TOP } from './Heart';
 import { buildGraveyard } from './Graveyard';
 import type { ModelRig } from '../models/ModelRig';
 import type { Interactable, Teleport } from './Interact';
@@ -572,8 +572,8 @@ export class World {
       const iz = WORLD.pond.z - 9;
       const base = 24;
       this.place(modelLandmark('floating-island', ix, iz, base, { collider: 'none', yaw: 0.8 }));
-      const top = base + MODELS['floating-island'].height * 0.62;
-      for (const [dx, w] of [[-2.5, 3], [2.2, 2.2]] as const) this.place(waterfall(ix + dx, iz + 3.5, top, w, top - 1.0));
+      const top = base + MODELS['floating-island'].height * ISLAND_TOP;
+      for (const [dx, w] of [[-2.5, 3], [2.2, 2.2]] as const) this.place(waterfall(ix + dx, iz + 5, top, w, top - 1.0));
     }
     flora('willow', ringSpots(WORLD.pond.x, WORLD.pond.z, 18, 6, h, rnd));
     const islandPalms: Placement[] = [];

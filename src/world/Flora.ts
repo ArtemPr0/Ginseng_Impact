@@ -69,7 +69,7 @@ export function floraSet(id: string, placements: Placement[], opts: FloraOptions
         let mat = (Array.isArray(src.material) ? src.material[0] : src.material) as MeshStandardMaterial;
         if (opts.patch && mat) mat = mat.clone();
         if (opts.wind && mat && 'emissive' in mat) patchWind(mat, opts.wind);
-        if (mat && 'metalness' in mat && !mat.map) mat.metalness = 0;
+        if (mat && 'metalness' in mat && !mat.map) { mat.metalness = 0; if (def.tint !== undefined) mat.color.setHex(def.tint); }
         const geo = src.geometry.clone();
         // Bake the mesh's own transform inside the file (Meshy exports usually have one node, but not always).
         src.updateWorldMatrix(true, false);

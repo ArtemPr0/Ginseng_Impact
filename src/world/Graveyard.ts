@@ -86,18 +86,20 @@ export function buildGraveyard(api: GraveyardApi): { links: PortalLink[]; intera
   solid.push({ kind: 'box', x: R.x, z: R.z + 120.5, hw: 25, hd: 0.5, top: y0 + 6 }, { kind: 'box', x: R.x, z: R.z - 120.5, hw: 25, hd: 0.5, top: y0 + 6 });
 
   // Walls either side of the path, with a gap every 30 m (a way onto the plots).
-  const wallLen = 4;
+  // One segment's length (stone-wall.glb is 2.16 times as long as it is tall).
+  const wallLen = MODELS['stone-wall'].height * 2.16;
   const walls: Footprint[] = [];
   for (const side of [-1, 1]) {
     for (let z = zGate - 2; z > zArena + 22; z -= wallLen) {
       if (Math.abs(((zGate - z) % 30) - 15) < 2) continue;
       api.place(modelLandmark('stone-wall', R.x + side * 3.4, z, y0, { collider: 'none', yaw: Math.PI / 2 }));
-      walls.push({ kind: 'box', x: R.x + side * 3.4, z, hw: 0.35, hd: wallLen / 2, top: y0 + MODELS['stone-wall'].height });
+      walls.push({ kind: 'box', x: R.x + side * 3.4, z, hw: 0.62, hd: wallLen / 2, top: y0 + MODELS['stone-wall'].height });
     }
   }
   // Raised plots of graves behind the walls.
   const graves: Placement[] = [];
   const runes: Placement[] = [];
+  const crosses: Placement[] = [];
   for (const side of [-1, 1]) {
     solid.push({ kind: 'box', x: R.x + side * 10.25, z: R.z + 8, hw: 5.75, hd: 76, top: y0 + 0.6 });
     for (let z = zGate - 4; z > zArena + 24; z -= 1.9) {
@@ -105,12 +107,14 @@ export function buildGraveyard(api: GraveyardApi): { links: PortalLink[]; intera
         if (rnd() < 0.18) continue;
         const x = R.x + side * (5.4 + k * 3.4 + (rnd() - 0.5) * 0.8);
         const p = { x, y: y0 + 0.6, z: z + (rnd() - 0.5) * 0.6, yaw: (side > 0 ? -Math.PI / 2 : Math.PI / 2) + (rnd() - 0.5) * 0.35, scale: 0.8 + rnd() * 0.5 };
-        (rnd() < 0.12 ? runes : graves).push(p);
+        const r = rnd();
+        (r < 0.15 ? runes : r < 0.3 ? crosses : graves).push(p);
       }
     }
   }
   api.flora('grave', graves);
   api.flora('rune-grave', runes);
+  api.flora('grave-cross', crosses);
   const plotSlab = new Mesh(new PlaneGeometry(11.5, 152), new ShaderMaterial({ vertexShader: 'varying vec2 vUv; varying vec3 vWorld; void main() { vUv = uv; vec4 w = modelMatrix * vec4(position, 1.0); vWorld = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }', fragmentShader: FLOOR_FRAG }));
   for (const side of [-1, 1]) {
     const m = plotSlab.clone();
