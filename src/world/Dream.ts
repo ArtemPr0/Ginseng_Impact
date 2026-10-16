@@ -26,7 +26,7 @@ import { ISLAND_TOP } from './Heart';
 import { modelLandmark } from './ModelLandmark';
 import type { ModelRig } from '../models/ModelRig';
 import type { RealmApi } from './Realms';
-import { archBridge, floorSlab } from './Walkways';
+import { archBridge } from './Walkways';
 import { eyePool } from './Water';
 
 const FLOOR_R = 150;
@@ -248,29 +248,37 @@ export function buildDream(api: RealmApi): void {
   // --- west: the stair path of floating stones up to the sunflower terrace, skull islands burning around it ---
   const steps: Placement[] = [];
   const stepFeet: Footprint[] = [];
-  const terrace = { x: C.x - 66, z: C.z - 8, top: y0 + 9.6 };
+  const terrace = { x: C.x - 66, z: C.z - 8, top: y0 + 9.6, r: 9 };
   for (let i = 0; i < 18; i++) {
     const f = (i + 1) / 18;
     const a = Math.PI * 0.5 + f * Math.PI * 0.55;
     const x = C.x - 14 - f * 44 + Math.cos(a * 3) * 3;
     const z = C.z + 18 - f * 26;
     const top = y0 + 0.55 * (i + 1);
+    // (The last two would lie on, or inside, the terrace's rock.)
+    if (Math.hypot(x - terrace.x, z - terrace.z) < terrace.r + 0.5) continue;
     steps.push({ x, y: top - 0.45, z, yaw: rnd() * 6, scale: 2.4 });
     stepFeet.push({ kind: 'cyl', x, z, r: 1.15, top });
   }
+  // The terrace is the biggest floating stone of the stair (the stone is 0.133 of its width thick).
+  steps.push({ x: terrace.x, y: terrace.top - 0.133 * terrace.r * 2, z: terrace.z, yaw: 0, scale: terrace.r * 2 });
+  stepFeet.push({ kind: 'cyl', x: terrace.x, z: terrace.z, r: terrace.r - 0.3, top: terrace.top });
   api.flora('stepping-stone', steps, { shadows: true, patch: (mat) => { mat.color.multiplyScalar(0.55); mat.color.lerp(new Color(0.25, 0.3, 0.8), 0.35); } });
   api.place({ object: new Group(), footprints: stepFeet });
-  api.place(floorSlab(terrace.x, terrace.z, terrace.top, 18, 18));
   const sunflowers: Placement[] = [];
   for (let i = 0; i < 26; i++) {
     const a = rnd() * Math.PI * 2;
     const r = 8 + rnd() * 26;
     const onTerrace = i < 8;
-    const x = onTerrace ? terrace.x + (rnd() - 0.5) * 15 : terrace.x + Math.cos(a) * r;
-    const z = onTerrace ? terrace.z + (rnd() - 0.5) * 15 : terrace.z + Math.sin(a) * r;
+    const rt = Math.sqrt(rnd()) * (terrace.r - 2.5);
+    const x = terrace.x + Math.cos(a) * (onTerrace ? rt : r);
+    const z = terrace.z + Math.sin(a) * (onTerrace ? rt : r);
+    // (The floor ones stay out from under the terrace's rock, which would swallow them.)
+    if (!onTerrace && r < terrace.r + 1.5) continue;
     sunflowers.push({ x, y: onTerrace ? terrace.top : y0, z, yaw: rnd() * 6, scale: onTerrace ? 4 + rnd() * 2 : 6 + rnd() * 5 });
   }
-  api.flora('flower', sunflowers, { wind: 0.2, patch: (mat) => {
+  // (The sunflower model, not the meadow flower: blown up 4-11 times, its clump of tiny petals only made specks.)
+  api.flora('sunflower', sunflowers, { wind: 0.2, patch: (mat) => {
     // Giant sunflowers: the petals turn gold, the centres dark (on top of the wind sway).
     const prev = mat.onBeforeCompile;
     mat.onBeforeCompile = (shader, r) => {
@@ -352,7 +360,8 @@ export function buildDream(api: RealmApi): void {
   group.add(column.group);
   dreamWatchers.push((dt, cam, hero) => column.update(dt, cam, hero));
   api.place(modelLandmark('giant-skull', K.x, K.z1 - 4, y0, { yaw: 0 }));
-  api.place(modelLandmark('snake', K.x + 3, K.z1 - 2, y0 + 1.5, { scale: 3.5, clip: 'idle', collider: 'none', yaw: -Math.PI / 2 }));
+  // (Big enough to read as coiled against the skull's cheek, as in the reel.)
+  api.place(modelLandmark('snake', K.x + 3.4, K.z1 - 1.2, y0, { scale: 6, clip: 'idle', collider: 'none', yaw: -Math.PI / 2 }));
   for (const side of [-1, 1]) api.vfx(fire(K.x + side * 6, y0, K.z1 - 3, 1.6, 20));
 
   api.vfx({ group: new Group(), update: (dt) => { for (const f of anim) f(dt); } });

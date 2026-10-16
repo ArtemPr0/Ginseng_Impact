@@ -70,10 +70,10 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   }
   api.flora('stepping-stone', stones, { shadows: false });
   api.place(portal(P.x, py + 2.6, P.z, 2.4, { vertical: true, facing: 0 }));
-  // Lanterns hang from the face tree's lower branches beside the portal.
+  // Lanterns hang from the face tree's lower branches beside the portal (at -2.4 rad there was no branch over it).
   const lanterns: Placement[] = [];
   const ftY = api.h(ft.x, ft.z);
-  for (const a of [-2.4, -1.7, -0.9, 2.6]) {
+  for (const a of [-1.7, -0.9, 2.6]) {
     const x = ft.x + Math.cos(a) * 4.6;
     const z = ft.z + Math.sin(a) * 4.6;
     lanterns.push({ x, y: ftY + 3.6, z, yaw: 0, scale: 1 });
@@ -201,18 +201,19 @@ export function buildRealms(api: RealmApi): PortalLink[] {
       }
     } }));
   // The bucket mimics' street, west at z = 20 (DeaqHWJBBPw).
-  for (const x of [986, 970, 954]) {
+  // (6 m west of where it first stood: the houses at x 986 swallowed the towers along the road at x 989.)
+  for (const x of [980, 964, 948]) {
     for (const [z, yaw] of [[9, Math.PI / 2], [31, -Math.PI / 2]] as const) {
       api.place(modelLandmark('purple-house', x, G.z + z, gy, { yaw: face(yaw), footprints: [{ kind: 'box', x, z: G.z + z, hw: 4.2, hd: 4.2, top: gy + 9 }] }));
     }
   }
   // The goblin market: two stalls in the gaps between the houses, facing the street (not out by the towers).
-  const STALLS = [{ x: 978, z: 12.6, yaw: Math.PI / 2 }, { x: 962, z: 27.4, yaw: -Math.PI / 2 }];
+  const STALLS = [{ x: 972, z: 12.6, yaw: Math.PI / 2 }, { x: 956, z: 27.4, yaw: -Math.PI / 2 }];
   for (const st of STALLS) api.place(modelLandmark('market-stall', st.x, G.z + st.z, gy, { yaw: face(st.yaw), footprints: [{ kind: 'box', x: st.x, z: G.z + st.z, hw: 1.8, hd: 1.2, top: gy + 1.1 }] }));
   api.place(modelLandmark('crystal-ball', STALLS[0].x - 0.6, G.z + STALLS[0].z + 0.3, gy + 1.1, { color: PALETTE.dusk }));
   glowAt(api, PALETTE.dusk, 1.6, STALLS[0].x - 0.6, gy + 1.5, G.z + STALLS[0].z + 0.3, 0.6);
   const shrooms: Placement[] = [];
-  for (let x = 990; x > 945; x -= 6) for (const z of [14, 26]) {
+  for (let x = 984; x > 942; x -= 6) for (const z of [14, 26]) {
     if (STALLS.some((st) => Math.hypot(st.x - x, st.z - z) < 3)) continue;
     shrooms.push({ x, y: gy, z: G.z + z, yaw: api.rnd() * 6, scale: 0.8 + api.rnd() * 0.5 }); glowAt(api, PALETTE.dusk, 1.8, x, gy + 2, G.z + z, 0.45); }
   api.flora('purple-mushroom', shrooms, { shadows: false });

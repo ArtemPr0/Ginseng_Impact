@@ -41,6 +41,17 @@ describe('terrainHeight', () => {
     }
   });
 
+  it('fades the causeway corridor out past its ends instead of leaving a ledge', () => {
+    // (Behind the spawn and behind the causeway's north stairs, where it once stopped in 2.5 m and 3.6 m steps.)
+    for (const x of [0, 4]) {
+      for (const [from, to] of [[WORLD.corridorZ.max - 8, WORLD.corridorZ.max + 11], [WORLD.corridorZ.min - 12, WORLD.corridorZ.min + 6]]) {
+        for (let z = from; z < to; z += 0.5) {
+          expect(Math.abs(terrainHeight(x, z + 0.5, noise) - terrainHeight(x, z, noise))).toBeLessThan(0.5);
+        }
+      }
+    }
+  });
+
   it('drops into the abyss well outside the island', () => {
     for (const [x, z] of [[170, 0], [-170, -36], [0, 150], [0, -200]] as const) {
       expect(terrainHeight(x, z, noise)).toBeLessThan(WORLD.cloudSeaY - 20);

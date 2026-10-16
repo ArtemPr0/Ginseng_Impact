@@ -313,5 +313,5 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   // above his feet, so a small imp on a big throne sits with his legs dangling over the edge.
   { kind: 'lean-chucker', x: 1034.3, z: -55, yaw: Math.PI, exact: true, sitY: 24.56 },
   // The bucket mimics' street in the kingdom's west quarter (see GALAXY in data/world.ts).
-  { kind: 'bucket', x: 975, z: 20 }, { kind: 'bucket', x: 966, z: 22 }, { kind: 'bucket', x: 958, z: 18 }, { kind: 'bucket', x: 984, z: 18 },
+  { kind: 'bucket', x: 969, z: 20 }, { kind: 'bucket', x: 960, z: 22 }, { kind: 'bucket', x: 952, z: 18 }, { kind: 'bucket', x: 978, z: 18 },
 ];

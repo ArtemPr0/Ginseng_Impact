@@ -76,7 +76,7 @@ export const LAYOUT = {
   riderPath: [[8, 48], [24, 48], [40, 42], [24, 48]] as Array<[number, number]>,
   ruins: [
     { x: -8, z: 43, yaw: 0.3, arch: true }, { x: 20, z: 24, yaw: -0.4, arch: false }, { x: -2, z: -21, yaw: 0.9, arch: false },
-    { x: 10, z: -90, yaw: 0.2, arch: true }, { x: 31, z: -28, yaw: 1.1, arch: true }, { x: 58, z: -59, yaw: -0.7, arch: false },
+    { x: 8, z: -96, yaw: 0.2, arch: true }, { x: 31, z: -28, yaw: 1.1, arch: true }, { x: 80, z: -84, yaw: -0.7, arch: false },
     { x: -24, z: 60, yaw: 0.5, arch: false }, { x: 36, z: -78, yaw: 0.0, arch: false },
   ],
   cloudSea: { y: -26 },
@@ -141,7 +141,7 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   yunglean: { x: 1000, z: -74.6, dy: 0.8 },
   'void-monk': { x: 1008, z: 66 },
   // Behind their stalls between the purple houses of the bucket street (Realms.ts places the stalls).
-  'market-a': { x: 978, z: 10.4 }, 'market-b': { x: 962, z: 29.6 },
+  'market-a': { x: 972, z: 10.4 }, 'market-b': { x: 956, z: 29.6 },
   'fish-king': { x: -1000, z: -10 },
 };
 
@@ -208,6 +208,6 @@ export const PADS: ReadonlyArray<{ x: number; z: number; r: number; y: number; b
   { x: 16, z: -122, r: 7, y: 4.6, blend: 5 },     // the Ember Rider
   { x: 106, z: -13, r: 8, y: 3.4, blend: 4 },     // the Marsh Sovereign's mud basin (filled to 4.9)
   { x: -40, z: -90, r: 1.6, y: 28.4, blend: 2.5 }, // Sir Halvard's seat on the cliff
-  { x: -56, z: 19, r: 2, y: 0.9, blend: 2.5 },     // Old Moss fishing the stream
+  { x: -56, z: 19, r: 2, y: 1.5, blend: 2.5 },     // Old Moss fishing from the bank (above the river's waterline)
   { x: -8, z: -5, r: 4, y: 2.8, blend: 3 },       // the hamlet's west house on the eye's bank
 ];

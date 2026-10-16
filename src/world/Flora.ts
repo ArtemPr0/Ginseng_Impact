@@ -58,6 +58,9 @@ function writeMatrices(chunk: Chunk, scale: number, offset: { x: number; y: numb
 /** Instances model `id` at every placement (placement scale multiplies the registry height). */
 export function floraSet(id: string, placements: Placement[], opts: FloraOptions = {}): FloraSet {
   const group = new Group();
+  // (Named so tools and the debugger can tell the sets apart.)
+  group.name = 'flora:' + id;
+  group.userData.placements = placements;
   const chunks: Chunk[] = [];
   let transform: ReturnType<typeof normaliseTransform> | null = null;
   const def = MODELS[id];

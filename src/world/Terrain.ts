@@ -138,6 +138,8 @@ export function streamAt(x: number, z: number, noise: Noise2D): number {
   return (1 - smoothstep(3.5, 7, Math.abs(x - streamCentre(z, noise)))) * band;
 }
 
+const CORRIDOR_FADE = 12;
+
 /** Pure height function. Plateau island with a wobbly cliff edge and a chasm band across it. */
 export function terrainHeight(x: number, z: number, noise: Noise2D): number {
   const nx = x * 0.0067;
@@ -153,9 +155,11 @@ export function terrainHeight(x: number, z: number, noise: Noise2D): number {
   const chasm = 1 - smoothstep(WORLD.chasmHalfWidth - 6, WORLD.chasmHalfWidth + 8, Math.abs(z - chasmCentre));
   const land = island * (1 - chasm);
   let plateau = 3 + rolling + detail;
-  // Flatten a corridor under the causeway so the raised road always sits above the ground.
-  if (z > WORLD.corridorZ.min && z < WORLD.corridorZ.max) {
-    const corridor = 1 - smoothstep(6, 14, Math.abs(x));
+  // Flatten a corridor under the causeway so the raised road always sits above the ground. It fades out over
+  // CORRIDOR_FADE past each end (it used to stop dead: a 3.6 m wall behind the north stairs, a 2.5 m step behind the spawn).
+  if (z > WORLD.corridorZ.min - CORRIDOR_FADE && z < WORLD.corridorZ.max + CORRIDOR_FADE) {
+    const ends = smoothstep(WORLD.corridorZ.min - CORRIDOR_FADE, WORLD.corridorZ.min, z) * (1 - smoothstep(WORLD.corridorZ.max, WORLD.corridorZ.max + CORRIDOR_FADE, z));
+    const corridor = (1 - smoothstep(6, 14, Math.abs(x))) * ends;
     plateau = lerp(plateau, 3.2, corridor);
   }
   // Stream ravine.

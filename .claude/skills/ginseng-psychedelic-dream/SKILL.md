@@ -44,7 +44,7 @@ motion, vast scale, and faces and eyes hidden everywhere. Built today in `src/wo
 | Moon-egg | sphere + marble shader (`moonEggMaterial()`), glow sprite, fog off |
 | Spiral of moon faces | `flora('moon-laugh', spiral, { update, patch })`: per-instance hue from the instance position + clock |
 | Floating skull islands | `floating-island` + `giant-skull` + `castle` at 0.22, two big `fire()`s, bobbing |
-| Giant sunflowers | `flower` ×4–11 with the sunflower patch (gold petals, dark centres, faint glow) |
+| Giant sunflowers | `sunflower` ×4–11 with the sunflower patch (gold petals, dark centres, faint glow); never the meadow `flower` blown up (it turns to specks). `sunflower.glb` is still to generate |
 | Candle bridges | `archBridge()` + chasm-bridge tiles, `candle` on every other post + `fire(…, 0.12, 1)` |
 | Checkerboard corridor | `checkerMaterial()` plane; statues `robed-priest`/`void-monk` ×2.1 with `patchStone`, idle frozen at speed 0 |
 | Column of eyes | `new SkyEyes(stack)` (blink, follow, moods, angry when shot) |
