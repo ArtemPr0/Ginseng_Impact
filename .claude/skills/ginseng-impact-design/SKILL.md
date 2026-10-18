@@ -26,8 +26,40 @@ pouring glowing waterfalls, gothic spires, a huge blue cyclops. Sources are the 
    a path leading the eye to a landmark, something floating overhead, something glowing below, a spire on the skyline.
 5. **Never boring for more than 10 seconds.** At walking pace (~5 m/s) the player meets something new every 40–50 m:
    a landmark, a creature, a waterfall, a bouncy mushroom, fireflies, a sky eye to shoot, a shooting star.
+6. **One vibe per district.** Never scatter a reel's subjects across the map: each reel (or family of reels) owns a
+   place with its own floor, fog, sky and look, and its mobs stay in it. Lean, gold, diamonds, grills and dragons
+   live in Yung Lean's kingdom (the Lean Quarter); the island stays storybook; snow places have snow ground and
+   snowfall; a new reel with no room on the island gets a realm (the Dragon's Vale, the Sunken City). See the map below.
 
-## Quick reference
+## The @returndark vibe (round 6: the Lean Quarter, the Sunken City, the Dragon's Vale)
+
+Dark-fantasy at night, rendered rich: **deep purple-blue darkness, purple light, gold and diamonds that sparkle**.
+Skeletons with gold or diamond grills and chains sip purple lean from double cups; black dragons with gold horns
+and diamond teeth lounge and drink; knights in blue plate raise goblets; everything is lit by purple flames,
+lanterns and the moon. Recipes (skill `ginseng-effects` has the code):
+
+- Purple torches and braziers: `fire(..., PURPLE_FIRE)`; lean falls and fountains: `cascade({ color: LEAN_FALL })`.
+- Diamonds catch light: `Glints` on grills, chains, cups, gems, coin heaps (quick 4-point star pops).
+- Purple mist on the floor: `mistLayers(..., 0x5a26b0, 0.26)`; a purple `skyVortex` over a castle; a `ringedPlanet`
+  and `meteors` in the sky.
+- Night per district: `DISTRICT_AIR` (fog, `kingdomNight` sky darkening, `lean-night` / `lean-snow` looks).
+- Underwater (DeVj-Z8POjl): deep teal, warm orange lanterns, `waterCeiling` with the sun, `lightShafts`,
+  faint `causticFloor`, `risingBubbles`, fish with `patchSwim`, a `seabed` hiding every edge.
+
+## The map (districts)
+
+| District | Where | Reels | Feel |
+|---|---|---|---|
+| Island heart, hamlet, eye | island south | world-look-28 | cobalt night, glowing mushrooms, falls |
+| Lantern village street | island SW (-34, 70) | early reels | thatched houses, torches, tavern, knights |
+| Frost March | island NE (x > 57, z < −42) | DeJj8CDhL2f | snow ground, snowfall (`LAYOUT.snowZones`), yeti |
+| Dead wood, gorge, spire castle | island N/NW | Ddn0A49tnW7, shot-011636 | dead trees, black spires |
+| Lean Quarter (Yung Lean's kingdom) | realm (1000, 0) | DeXn5rSPxR8, DeOemU1BOZF, DeaqHWJBBPw, Den1ausBXai, DeldocTvFiB, Def4LDkxikA, DeYtKbMh76x | vaporwave plaza; purple night quarters |
+| Sunken City | realm (−1000, 0) | DeVj-Z8POjl | drowned street, kelp road, Fish King |
+| Dragon's Vale | realm (1000, 900) | Dd5Bqt7vQ5T | village + dragon, crowned head, aurora, floating castle |
+| Alley of Graves, dream, tree house | realms | shot-011654, DefYcvutTow | as built |
+
+## Quick reference (see also skills `ginseng-effects`, `ginseng-animation`, `ginseng-reel-to-game`)
 
 | Task | Use | Read |
 |---|---|---|

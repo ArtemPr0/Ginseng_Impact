@@ -48,3 +48,12 @@ Gotchas
 - Bone tweaks on top of a clip (`turnBone`) must be undone before the next mixer update: three's PropertyMixer only
   rewrites a bone whose track value changed, so on a frozen (`paused`) or constant track the tweak piles up each
   frame (Rig.turn records and restores them).
+
+## Reel side-by-side (does the game look like the reel?)
+
+For each reel in `docs/reference/reel-notes.md`: pick the matching spot in the game (its district, see the design
+skill's map), pin the camera at a similar framing (`G.tpc.update = () => { cam.position.set(...); cam.lookAt(...) }`,
+`await sleep(5000)` so fog/look blends finish), `snap()` it, and tile it next to the user's screenshot of that
+reel moment (`docs/reference/frames/r6-*.png`) with PIL. Tick off each subject in the notes; list anything missing
+(model file not made, wrong colour, too bright). Lit studio close-ups (add a `HemisphereLight(0xffffff, 0x8888aa,
+3.4)` and `scene.fog = null` in the script only) judge shapes and hands; normal captures judge the mood.

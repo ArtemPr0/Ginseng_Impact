@@ -61,6 +61,12 @@ Wordmark `GINSENG IMPACT` in Cinzel 72 px, letter-spacing 0.3em, `moon` with a 1
 outline; silver moon behind the wordmark; causeway and head in the background scene with the camera
 slowly pushing forward; single prompt `PRESS ANY KEY` blinking at 1 Hz, stepped.
 
+## District banners (round 6)
+
+Entering a district announces its name once (`hud.announce`), Cinzel caps on a `panel`. In the Lean Quarter the
+banner's rule line may be `dusk` purple with a single diamond glint sprite beside the name (the reels' sparkle),
+never gold fill: gold stays in the world (chains, gems, coins), not in the HUD chrome.
+
 ## Don'ts
 
 - No rounded pills, no gradients on buttons, no glassmorphism blur, no drop shadows.

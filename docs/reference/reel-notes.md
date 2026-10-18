@@ -250,3 +250,80 @@ these subjects is in `docs/reference/meshy-todo.txt`.
   alley with the cyclops (the Alley of Graves realm).
 - shot-013029 / 013056 / 013117: face-moons (island, kingdom, dream). shot-013226: the Blood Eye over the chasm.
   shot-013245: the Prism Wizard of the dream.
+
+# Round 6 — nine @returndark reels (2026-10-18, watched frame by frame)
+
+The account (instagram.com/returndark, 36 posts) is the same Higgsfield dark-fantasy style; its other reels feed the
+vibe only. Districts: the Lean Quarter (kingdom), the Sunken City, the Dragon's Vale (see the design skill's map).
+
+## DeXn5rSPxR8 — the skeleton lord's pavilion
+- Skeleton lord, black fur cloak, diamond-studded gold grills, gold chain with a diamond skull pendant; a black
+  gauntlet holds a jewelled vape to his teeth and purple smoke curls up. Sparkles pop on the diamonds.
+- Beside him a blue plate knight with a slit visor, a gold goblet of purple drink and a glowing ice-crystal sword,
+  under a ribbed dome with round arched windows onto lit towers.
+- A black-and-gold carriage at a castle gate; a gold gem floats over the gate; purple braziers; fog.
+- In game: the Skeleton Court's pavilion (lord + Sir Cobalt, purple smoke, glints); the carriage and gem at the lean
+  castle's bridge.
+
+## DeOemU1BOZF — the treasury, the causeway, the galaxy knight
+- Crowned skeleton king with gold grills on a stone throne, heaped gold chains and diamonds, a galaxy cloak, a
+  goblet raised; coin-heaped cracked blocks, a purple crystal, blue crystal stalactites, a ringed planet in a pink
+  nebula, meteors, gold flecks.
+- The checkered causeway with a wooden rail between round towers, a spiral galaxy and a meteor ahead.
+- A knight in galaxy-patterned plate with a spiked helm kneels with a galaxy-swirl greatsword on grey moon rock.
+- A starry hall: long tables of galaxy potion bottles and goblets, candle chandeliers, a planet in the windows.
+- In game: the court's treasury (stalactites, galaxy knights), the causeway, the galaxy-bottle tables, the ringed
+  planet and meteors in the kingdom sky.
+
+## Dd5Bqt7vQ5T — the candle wax
+- A tavern: a man in a black suit whose head is a cluster of melting candles, dwarves in blue armour with braided
+  beards raising candle-lit wooden tankards, barrels, a chandelier, a fireplace, a galaxy painting.
+- A giant crowned stone head lying on a grassy hill under a green aurora; a stone bridge over a river with braziers.
+- A village street of thatched houses, lanterns, chimney smoke and stalls; a huge green dragon lies behind it with a
+  hooded mage reading on its claw; a red-caped blue knight walks the street; a meteor.
+- A gothic castle on a floating rock pouring waterfalls into a sea of clouds, chained floating platforms with
+  lanterns, a purple vortex sky and two full moons on the horizon.
+- In game: the Dragon's Vale realm.
+
+## Den1ausBXai — the dragon and the adventurer
+- A black dragon with gold horns and a diamond grill lounges with a knight on a floating island, both sipping lean;
+  dead trees, gothic lamp posts, gravestones, a purple sunset over a sea of clouds.
+- A wooden bar booth hung on chains: a skeleton bartender in fur and a skull pendant serves lean with ice, straws and
+  an orange slice; skull lanterns, purple potion shelves, a bubbling purple cauldron; a dragon rider passes outside.
+- Floating islands with a dead tree, lamps and a broken arch, their undersides cracked and glowing.
+- In game: the kingdom's sky dock.
+
+## DeldocTvFiB — the crypt bar, the plague doctor, the snow chapel
+- Skeletons with glowing green eyes and gold grills (one in a red fur coat, one in a tall witch hat with a gold
+  chain) sipping double cups at a bar before shelves of skulls and melting candles.
+- A plague doctor (beak mask, glowing eyes, black hat, gold chain medallion) on a treasure-chest wagon with
+  lanterns, sipping a lidded cup, in a village of dead trees.
+- A snowy graveyard path to a ruined stone chapel: snow-capped pillars, a broken wooden gate, torches, bare trees,
+  the moon, falling snow.
+- A dark knight with gold trim and a skull medallion raises a glowing cup before walls of skulls.
+- In game: the kingdom's snow chapel quarter.
+
+## Def4LDkxikA — the dragon throne and the fountain hall
+- The skeleton king (gothic gold crown, grills, diamond skull medallion, iced-out cup) on a throne flanked by two
+  black dragons in gold chains; purple flames.
+- A black dragon with diamond teeth drinks lean from a cup a knight holds; lean drips from its jaws.
+- Dragon-head spouts pour lean into basins and tiered fountains; purple mist on the floor; barrels on chains.
+- A castle with purple windows, banners and a big moon at the end of a cobbled path.
+- In game: the Skeleton Court (dragon throne, fountains, mist); the sky dock dragon's drips; the lean castle.
+
+## DeaqHWJBBPw, DeYtKbMh76x (round 6 additions to the notes above)
+- Bucket mimics walk a cobbled street of purple-roofed houses; a castle pours purple lean falls into a purple moat
+  under a swirling purple vortex; the skeleton wizard is circled by floating diamonds.
+- The dragon's face close-up: diamond grill, a gold chain with a dragon pendant; a giant lean cup sits on a
+  castle tower.
+- In game: Bucket Street and the lean castle; the cup on the tower at the sky dock.
+
+## DeVj-Z8POjl — the underwater city (exact)
+- The Fish King pours from a barnacled bottle into a bubbling chalice; portholes onto jellyfish; shelves of glowing
+  orange bottles; a shaft of light from above.
+- The hall: coral throne under a giant crown, teal-fire hearth, stained glass, red orb lamps, a long table of purple
+  goblets and candles, coin tables, barrels, a chest, jellyfish wall lamps, a green door.
+- A drowned street of half-timbered houses with orange lanterns, stalls, big blue fish swimming between the roofs,
+  a gothic church at the end, the surface rippling overhead with the sun.
+- A kelp road in teal fog lit by jellyfish cage-lanterns, where a robed diver in a brass helmet walks.
+- In game: the Sunken City, rebuilt in that order.
