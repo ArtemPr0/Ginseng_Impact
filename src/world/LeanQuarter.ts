@@ -16,10 +16,10 @@
 import { Color, Group, type MeshStandardMaterial, type Mesh, Vector3 } from 'three';
 import { GALAXY, LEAN_QUARTER } from '../data/world';
 import { MODELS } from '../data/models';
-import { flagstoneFloor, cobbleFloor, snowGround } from '../render/Floors';
+import { flagstoneFloor, cobbleFloor, rockTop, snowGround } from '../render/Floors';
 import { glowSprite } from '../render/Glow';
 import { Glints, LEAN, meteors, mistLayers, ringedPlanet, skyVortex, tickLeanFx } from '../render/LeanFx';
-import { patchLitWindows } from '../render/Materials';
+import { clipAbove, patchLitWindows } from '../render/Materials';
 import { PALETTE } from '../render/palette';
 import { PipeSmoke } from '../render/Smoke';
 import type { Footprint } from './Colliders';
@@ -102,6 +102,9 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   }
   glints.add(new Vector3(1000, gy + 2.3, -170.4), new Vector3(), 0.25);
   glints.add(new Vector3(1000, gy + 1.9, -170.2), new Vector3(), 0.3);
+  // The reel's two black dragons flanking the throne, heads up, facing down the court (+z: the model itself looks
+  // about 27° to the left of its yaw, checked from the court).
+  for (const side of [-1, 1]) api.place(modelLandmark('lean-dragon', 1000 + side * 8.5, -172, gy, { yaw: face(Math.PI * 0.35), scale: 0.85 }));
   // Dragon-head fountains along both sides, each pouring lean into its basin; tiered fountains down the aisle.
   for (const side of [-1, 1]) {
     for (const z of [-108, -138]) {
@@ -148,10 +151,12 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   for (let i = 0; i < 8; i++) { const base = gy + 12 + api.rnd() * 5; stal.push({ p: { x: 946 + api.rnd() * 26, y: base, z: -178 + api.rnd() * 32, yaw: api.rnd() * 6, scale: 0.8 + api.rnd() * 0.8 }, base, ph: api.rnd() * 6 }); }
   api.flora('stalactite', stal.map((s) => s.p), { shadows: false, update: (t, ps) => { ps.forEach((p, i) => { p.y = stal[i].base + Math.sin(t * 0.5 + stal[i].ph) * 0.4; }); return true; } });
   for (const s of stal) glow(PALETTE.electric, 2.4, s.p.x, s.base - 1, s.p.z, 0.3);
-  // The skeleton lord's pavilion in the east wing (DeXn5rSPxR8): he and Sir Cobalt sit inside; his smoke is purple.
+  // The skeleton lord's pavilion in the east wing (DeXn5rSPxR8): he sits in its great armchair (seat 1.04 m up, facing
+  // the court), Sir Cobalt on a stool beside him; his smoke is purple.
   api.place(modelLandmark('gothic-pavilion', 1043, -160, gy, { yaw: face(Math.PI) }));
   {
-    const lord = new Vector3(1040.4, gy + 0.02, -158.4);
+    // (Where the seated lord's feet are: his anchor, 0.48 under the seat.)
+    const lord = new Vector3(1043.55, gy + 1.04 - 0.48, -160);
     const smoke = new PipeSmoke(0xb36bff);
     // At his teeth, seated (the vape the gauntlet holds to his mouth in the reel).
     smoke.emitter.position.set(lord.x - 0.18, lord.y + 1.36, lord.z);
@@ -312,8 +317,8 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
     for (const [x, z] of [[869.6, 106.2], [872.8, 106.2], [876, 106.6]]) glints.add(new Vector3(x, gy + 1.6, z), new Vector3(), 0.08);
     glow(0xffa040, 9, bx, gy + 3, bz, 0.12);
   }
-  // The plague doctor on his treasure wagon among the trees (he sits on the chest, NPCs.ts).
-  api.place(modelLandmark('chest-wagon', 931, 124, gy, { yaw: face(Math.PI * 0.85), footprints: [{ kind: 'box', x: 931, z: 124, hw: 1.6, hd: 1.0, top: gy + 1.25 }] }));
+  // The plague doctor on his treasure chest among the trees (one model with the chest, NPCs.ts): the chest is solid.
+  api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: 931, z: 124.6, r: 1.15, top: gy + 1.3 }] });
   glow(0xffa040, 2.2, 929.6, gy + 1.8, 123, 0.5);
   glow(0xffa040, 2.2, 932.4, gy + 1.8, 125, 0.5);
 
@@ -321,7 +326,12 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   const D = Q.dock;
   const dockScale = 2.4;
   const dockBase = gy - MODELS['floating-island'].height * dockScale * ISLAND_TOP;
-  api.place(modelLandmark('floating-island', D.x, D.z, dockBase, { scale: dockScale, collider: 'manual', footprints: [{ kind: 'cyl', x: D.x, z: D.z, r: D.r, top: gy }], yaw: 0.6 }));
+  // (Its model carries a giant dead tree: cut away above the floor, so the dock is open ground like the reel's, and a
+  // tree of ordinary size stands at the back instead.)
+  api.place(modelLandmark('floating-island', D.x, D.z, dockBase, { scale: dockScale, collider: 'manual', footprints: [{ kind: 'cyl', x: D.x, z: D.z, r: D.r, top: gy }], yaw: 0.6,
+    onLoad: (m) => restyle(m, (mat) => clipAbove(mat, gy - 0.02)) }));
+  if (PRESENT_MODELS.has('floating-island')) api.group.add(rockTop(D.x, D.z, D.r + 0.3, gy));
+  api.place(modelLandmark('dead-forest-tree', D.x + 1, D.z + 9.8, gy, { scale: 1.2, yaw: 2.2 }));
   // Its underside glows through the cracks.
   for (let i = 0; i < 4; i++) glow(0xff6a20, 6, D.x + (api.rnd() - 0.5) * 8, dockBase + 4 + i * 3, D.z + (api.rnd() - 0.5) * 8, 0.18);
   // Grillmaw the black dragon lounging at the island's far side, Sir Velvet sipping beside him (NPCs.ts).
@@ -349,29 +359,46 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
       } }));
     glints.add(new Vector3(dx - 2.4, gy + 2.3, dz - 0.4), new Vector3(), 0.4);
   }
-  // The sky bar: a booth on chains at the island's near side, Old Ribs behind the counter (NPCs.ts) with cups and ice.
+  // The sky bar: a booth on chains at the island's near side. It is shut (its window is part of the model), so Old Ribs
+  // (NPCs.ts) serves at its front, north-west, over a table of cups with ice.
   api.place(modelLandmark('sky-bar', D.x - 5, D.z - 4, gy, { yaw: face(Math.PI * 0.75) }));
-  api.flora('lean-cup', [-0.4, 0, 0.4].map((k) => ({ x: D.x - 4 + k, y: gy + 1.15, z: D.z - 2.6 + k, yaw: 0, scale: 1 })), { shadows: false });
-  api.flora('gem', [[-0.7, 0.2], [-0.5, -0.1], [0.6, 0.3]].map(([a, b]) => ({ x: D.x - 4 + a, y: gy + 1.12, z: D.z - 2.6 + b, yaw: api.rnd() * 6, scale: 0.18 })), { shadows: false });
+  {
+    const tx = D.x - 7.8, tz = D.z - 1.1, ang = -Math.PI / 4;
+    api.flora('tavern-table', [{ x: tx, y: gy, z: tz, yaw: ang, scale: 1 }]);
+    // (A box turns the other way from a model's yaw: its local x runs along (cos rotY, sin rotY).)
+    api.place({ object: new Group(), footprints: [{ kind: 'box', x: tx, z: tz, hw: 1.6, hd: 0.6, top: gy + 0.95, rotY: -ang }] });
+    // Along the table's length (its local x, turned by `ang`).
+    const along = (k: number) => ({ x: tx + Math.cos(ang) * k, z: tz - Math.sin(ang) * k });
+    api.flora('lean-cup', [-0.6, 0, 0.6].map((k) => ({ ...along(k), y: gy + 0.97, yaw: 0, scale: 1 })), { shadows: false });
+    api.flora('gem', [-1.1, -0.3, 1.0].map((k) => ({ ...along(k), y: gy + 0.97, yaw: api.rnd() * 6, scale: 0.18 })), { shadows: false });
+  }
   // Gothic lamps round the dock's rim.
   const lamps: Placement[] = [];
   for (let i = 0; i < 5; i++) { const a = -2.4 + i * 1.1; lamps.push({ x: D.x + Math.cos(a) * (D.r - 1.2), y: gy, z: D.z + Math.sin(a) * (D.r - 1.2), yaw: api.rnd() * 6, scale: 1 }); }
   api.flora('gothic-lamp', lamps);
   for (const l of lamps) { api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: l.x, z: l.z, r: 0.25, top: gy + 3.2 }] }); glow(0xffb050, 1.6, l.x, gy + 2.9, l.z, 0.55); }
   // Two more islands in the sky: one with lamps and a dead tree, one carrying a tower with a giant cup on top.
-  for (const [x, z, base, s] of [[1218, -42, gy + 8, 1.2], [1150, -64, gy - 8, 1.4]] as const) {
+  {
+    const x = 1218, z = -42, base = gy + 8;
     let a = Math.random() * 6;
-    api.place(modelLandmark('floating-island', x, z, base, { scale: s, collider: 'none', update: (dt, root) => { a += dt; root.position.y = base + Math.sin(a * 0.4) * 0.8; } }));
+    api.place(modelLandmark('floating-island', x, z, base, { scale: 1.2, collider: 'none', update: (dt, root) => { a += dt; root.position.y = base + Math.sin(a * 0.4) * 0.8; } }));
     glow(0xff6a20, 5, x, base + 2, z, 0.2);
   }
   {
-    const ix = 1150, iz = -64;
-    const top = gy - 8 + MODELS['floating-island'].height * 1.4 * ISLAND_TOP;
+    // Still (a bobbing island would slide through its tower), and without its tree (the tower stands where it grew).
+    const ix = 1150, iz = -64, base = gy - 8;
+    const top = base + MODELS['floating-island'].height * 1.4 * ISLAND_TOP;
+    api.place(modelLandmark('floating-island', ix, iz, base, { scale: 1.4, collider: 'none', onLoad: (m) => restyle(m, (mat) => clipAbove(mat, top - 0.02)) }));
+    if (PRESENT_MODELS.has('floating-island')) api.group.add(rockTop(ix, iz, 8, top));
+    glow(0xff6a20, 5, ix, base + 2, iz, 0.2);
     api.place(modelLandmark('round-tower', ix, iz, top, { collider: 'none' }));
+    // The cup rests on the tower's roof: its base ring (1.7 m across the radius) meets the cone 85% of the way up, and
+    // the spire's tip ends inside the cup.
     const cupH = 7;
-    api.place(modelLandmark('lean-cup', ix, iz, top + MODELS['round-tower'].height, { scale: cupH / MODELS['lean-cup'].height, collider: 'none' }));
-    glow(LEAN, 12, ix, top + MODELS['round-tower'].height + cupH, iz, 0.35);
-    api.place(cascade({ x: ix + 2.2, z: iz, top: top + MODELS['round-tower'].height + cupH * 0.9, height: 16, width: 1.4, yaw: Math.PI / 2, curve: 0.8, color: LEAN_FALL }));
+    const cupBase = top + MODELS['round-tower'].height * 0.85;
+    api.place(modelLandmark('lean-cup', ix, iz, cupBase, { scale: cupH / MODELS['lean-cup'].height, collider: 'none' }));
+    glow(LEAN, 12, ix, cupBase + cupH, iz, 0.35);
+    api.place(cascade({ x: ix + 2.2, z: iz, top: cupBase + cupH * 0.9, height: 16, width: 1.4, yaw: Math.PI / 2, curve: 0.8, color: LEAN_FALL }));
   }
 
   // ===== The sky: a ringed planet in a pink nebula, meteors (DeOemU1BOZF) =====

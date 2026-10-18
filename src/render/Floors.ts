@@ -3,7 +3,7 @@
  * (DeldocTvFiB's chapel), dark cracked flagstones (Def4LDkxikA's fountain hall), and wet cobbles (DeVj-Z8POjl's
  * drowned street). Each is a plane laid just over its slab's collider top.
  */
-import { Color, Mesh, PlaneGeometry, ShaderMaterial } from 'three';
+import { CircleGeometry, Color, Mesh, PlaneGeometry, ShaderMaterial, Vector2 } from 'three';
 
 const NOISE = /* glsl */ `
 float hash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
@@ -21,10 +21,10 @@ vec2 cells(vec2 p) {
 }`;
 
 /** A lit floor: the shader's colour shaded by the scene's fog (the realms are foggy). */
-function floorMaterial(body: string): ShaderMaterial {
+function floorMaterial(body: string, decl = '', uniforms: Record<string, { value: unknown }> = {}): ShaderMaterial {
   return new ShaderMaterial({
     fog: true,
-    uniforms: { fogColor: { value: new Color() }, fogNear: { value: 1 }, fogFar: { value: 1000 }, fogDensity: { value: 0.01 } },
+    uniforms: { fogColor: { value: new Color() }, fogNear: { value: 1 }, fogFar: { value: 1000 }, fogDensity: { value: 0.01 }, ...uniforms },
     vertexShader: /* glsl */ `
       varying vec2 vP;
       #include <fog_pars_vertex>
@@ -33,6 +33,7 @@ function floorMaterial(body: string): ShaderMaterial {
       }`,
     fragmentShader: /* glsl */ `
       varying vec2 vP;
+      ${decl}
       #include <fog_pars_fragment>
       ${NOISE}
       void main() {
@@ -117,4 +118,23 @@ export function cobbleFloor(x: number, z: number, w: number, d: number, y: numbe
     c = mix(c, vec3(0.02, 0.04, 0.06), gap) * ${tone.toFixed(3)};
   `);
   return plane(m, x, z, w, d, y, yaw);
+}
+
+/**
+ * The flat top of a floating island (Den1ausBXai's sky dock): dark cracked rock with moss, a disc of radius `r` whose
+ * rim frays so it follows the rock's own edge. Laid over the island where its tree is clipped away.
+ */
+export function rockTop(x: number, z: number, r: number, y: number): Mesh {
+  const mat = floorMaterial(/* glsl */ `
+    if (length(vP - uC) / uR > 1.0 - 0.07 * fbm(vP * 1.3)) discard;
+    vec2 cl = cells(vP * 0.55);
+    float crack = smoothstep(0.0, 0.07, cl.y - cl.x);
+    c = mix(vec3(0.045, 0.05, 0.08), vec3(0.1, 0.11, 0.15), fbm(vP * 0.35)) * (0.5 + 0.5 * crack);
+    c = mix(c, vec3(0.05, 0.09, 0.06), smoothstep(0.55, 0.78, fbm(vP * 0.8 + 3.1)) * 0.7);`,
+  'uniform vec2 uC; uniform float uR;', { uC: { value: new Vector2(x, z) }, uR: { value: r } });
+  const m = new Mesh(new CircleGeometry(r, 48), mat);
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(x, y + 0.012, z);
+  m.receiveShadow = true;
+  return m;
 }

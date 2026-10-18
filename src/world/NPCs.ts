@@ -218,7 +218,8 @@ export const NPC_DEFS: NpcDef[] = [
     id: 'skeleton-king', name: 'The Skeleton King', title: 'Counter of Coins', weapon: 'sword',
     model: 'skeleton-king', accent: PALETTE.moon,
     lines: ['Every coin on these stones was paid to cross the portal. Some paid twice.', 'Bring me what the great ones drop. I pay better than the antlered fool on the island.', 'The crystals grow from the ceiling because the ceiling is the sky.'],
-    behaviour: { kind: 'stand', pose: 'throne', yaw: 0 },
+    // On the dragon throne at the head of the court, facing down it (+z).
+    behaviour: { kind: 'stand', pose: 'throne', yaw: Math.PI / 2 },
     shop: [{ itemId: 'moon-dew', price: 26 }, { itemId: 'star-chart', price: 200 }],
   },
   {
@@ -302,8 +303,8 @@ export const NPC_DEFS: NpcDef[] = [
     id: 'plague-doctor', name: 'The Plague Doctor', title: 'Who Prescribes the Purple', weapon: 'staff',
     model: 'plague-doctor', accent: PALETTE.blood,
     lines: ['Symptoms? Slowness. Purple vision. My diagnosis: you need another cup.', 'The chest is full of medicine. And gold. Mostly gold.', 'I make house calls. The houses are all graves out here.'],
-    behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI * 0.85 },
-    sipAt: 0.42,
+    // (Lounging on his chest: the model is one piece with it.)
+    behaviour: { kind: 'stand', yaw: Math.PI * 0.85 },
     shop: [{ itemId: 'rot-salve', price: 24 }, { itemId: 'moon-dew', price: 30 }],
   },
   {
@@ -339,7 +340,7 @@ export const NPC_DEFS: NpcDef[] = [
     id: 'waxwick', name: 'Waxwick', title: 'The Man With the Candle Head', weapon: 'staff',
     model: 'candle-head', accent: PALETTE.moon,
     lines: ['Mind the drips. Everything I say comes out warm.', 'A toast! To short wicks and long nights.', 'I do not blow out. I have tried.'],
-    behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI },
+    behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI / 2 },
     sipAt: 0.42,
   },
   {

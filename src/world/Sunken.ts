@@ -71,8 +71,9 @@ export function buildSunken(api: RealmApi, link: (at: Vector3, radius: number, h
   // The sea bed all round (it hides the slab's edges in the murk), and the cobbled way from the kelp road through the
   // street into the square.
   api.group.add(seabed(fcx, fcz, 600, 600, sy));
-  api.group.add(cobbleFloor(X, -40, 16, 130, sy, 0, 0.45));
-  api.group.add(cobbleFloor(X, -78, 46, 36, sy, 0, 0.45));
+  // (Stacked a couple of centimetres apart where they overlap, or the planes fight for the same pixels.)
+  api.group.add(cobbleFloor(X, -40, 16, 130, sy + 0.02, 0, 0.45));
+  api.group.add(cobbleFloor(X, -78, 46, 36, sy + 0.035, 0, 0.45));
 
   // ===== The water itself =====
   const fx = new Group();
@@ -137,8 +138,8 @@ export function buildSunken(api: RealmApi, link: (at: Vector3, radius: number, h
     glow(LANTERN, 2.4, x, sy + 3.3, z, 0.6);
   }
   api.flora('hanging-lantern', lanterns);
-  // Market stalls under the lanterns.
-  for (const [dx, z, yaw] of [[-6.2, 0, 0], [6.2, -22, Math.PI], [-6.2, -41, 0]] as const) {
+  // Market stalls under the lanterns (clear of the house fronts: the drowned houses are deeper than their boxes).
+  for (const [dx, z, yaw] of [[-4.8, 0, 0], [4.8, -22, Math.PI], [-4.8, -41, 0]] as const) {
     const x = X + dx;
     api.place(modelLandmark('market-stall', x, z, sy, { yaw: face(yaw), footprints: [{ kind: 'box', x, z, hw: 1.2, hd: 1.8, top: sy + 1.1 }] }));
   }

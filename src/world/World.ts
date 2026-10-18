@@ -128,7 +128,7 @@ function litWindows(m: ModelRig): void {
 const CAMPFIRE = { x: -24, z: 52 };
 const CAMPFIRE_SEATS = new Set(['rattle', 'bone', 'marrow']);
 /** NPCs who sit on a barrel. */
-const SEATED = new Set(['rattle', 'bone', 'marrow', 'moss', 'sentry', 'vale-beggar', 'skeleton-lord', 'court-knight', 'dock-knight']);
+const SEATED = new Set(['rattle', 'bone', 'marrow', 'moss', 'sentry', 'vale-beggar', 'court-knight', 'dock-knight', 'dragon-reader']);
 /**
  * The lantern in the rider's right hand, in horse-rider.glb's own frame (forward is -x, the rider's right -z, y up
  * from the hooves): the centre of its lit glass (the texels of the flame, averaged), less the fire's own lift.
@@ -661,7 +661,11 @@ export class World {
       const facing = CAMPFIRE_SEATS.has(id) ? Math.atan2(CAMPFIRE.z - a.z, CAMPFIRE.x - a.x) : def?.behaviour.kind === 'stand' ? def.behaviour.yaw : 0;
       const bx = a.x - Math.cos(facing) * 0.28;
       const bz = a.z - Math.sin(facing) * 0.28;
-      this.place(modelLandmark('barrel', bx, bz, h(bx, bz), { scale: 0.5 / MODELS.barrel.height, collider: 'none' }));
+      // On the ground its sitter sits on: the island's, or out in a realm (the island's terrain is the void there) the
+      // realm's floor under any roof (as the NPCs below).
+      const ground = h(bx, bz);
+      const by = ground < -20 ? this.heights.heightAt(bx, bz, ground) : ground;
+      this.place(modelLandmark('barrel', bx, bz, by, { scale: 0.5 / MODELS.barrel.height, collider: 'none' }));
     }
     // The Antlered King perches on the front edge of his throne's seat (squatting, not sunk into the back).
     {

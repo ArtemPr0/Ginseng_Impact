@@ -1,4 +1,4 @@
-import { BufferAttribute, Color, type Matrix4, MeshStandardMaterial, type MeshStandardMaterialParameters, type SkinnedMesh } from 'three';
+import { BufferAttribute, Color, type Material, type Matrix4, MeshStandardMaterial, type MeshStandardMaterialParameters, Plane, type SkinnedMesh, Vector3 } from 'three';
 
 /** Shared time uniform for wind/sway shaders. Updated once per frame by the renderer. */
 export const WIND = { value: 0 };
@@ -379,4 +379,12 @@ export function patchSwim(mat: MeshStandardMaterial, axis: 'x' | 'z', from: numb
   };
   mat.customProgramCacheKey = () => `swim:${axis}:${from.toFixed(2)}:${to.toFixed(2)}`;
   mat.needsUpdate = true;
+}
+
+/**
+ * Cuts a model off above world height `y`: a clipping plane on its (cloned) material, so a floating island's giant tree
+ * goes and its top can carry a floor (the renderer has local clipping on).
+ */
+export function clipAbove(mat: Material, y: number): void {
+  mat.clippingPlanes = [new Plane(new Vector3(0, -1, 0), y)];
 }

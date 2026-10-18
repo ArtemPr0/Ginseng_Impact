@@ -140,10 +140,12 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   'skeleton-king': { x: 1000, z: -170.6, dy: 0.9 },
   'skeleton-wizard': { x: 900, z: 18 },
   'galaxy-wizard': { x: 872, z: -18 },
-  'skeleton-lord': { x: 1040.4, z: -158.4, dy: 0.02 }, 'court-knight': { x: 1040.4, z: -161.6, dy: 0.02 },
+  // The lord in the pavilion's armchair (its seat, 0.48 above his feet), Sir Cobalt on a stool at his side.
+  'skeleton-lord': { x: 1043.55, z: -160, dy: -0.48 }, 'court-knight': { x: 1042.3, z: -158.3, dy: 0.02 },
   'potion-brewer': { x: 1026, z: -127 },
-  bartender: { x: 1173.6, z: -0.6 }, 'dock-knight': { x: 1181, z: 7.5, dy: 0.02 },
-  'plague-doctor': { x: 931, z: 124.6, dy: 1.25 },
+  bartender: { x: 1173.0, z: 10.1 }, 'dock-knight': { x: 1181, z: 7.5, dy: 0.02 },
+  // On the quarter's floor (24, GALAXY.y): his chest is one model with him, and its collider would lift them both.
+  'plague-doctor': { x: 931, z: 124.6, y: 24 },
   'crypt-red': { x: 869.6, z: 106.2 }, 'crypt-witch': { x: 872.8, z: 106.2 }, 'crypt-bones': { x: 876, z: 106.6 },
   'gold-knight': { x: 884, z: 116 },
   yunglean: { x: 1000, z: -74.6, dy: 0.8 },
@@ -151,9 +153,10 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   // Behind their stalls between the purple houses of the bucket street (Realms.ts places the stalls).
   'market-a': { x: 915, z: 6.4 }, 'market-b': { x: 879, z: 29.6 },
   // The Dragon's Vale (Vale.ts): the tavern yard's toasters, the reader on the dragon's claw, the street's folk.
-  waxwick: { x: 1013.2, z: 973 }, brannoc: { x: 1013.4, z: 978.6 }, hilde: { x: 1016.6, z: 978.4 },
-  'dragon-reader': { x: 996.6, z: 893.6, dy: 0.9 },
-  'vale-knight': { x: 1004.5, z: 958 }, 'vale-beggar': { x: 994.4, z: 966, dy: 0.02 }, 'vale-merchant': { x: 1006.8, z: 941.4 },
+  // Round the second yard table (z 978.4, x 1013.1..1016.9): the dwarves on its far side, Waxwick across from them.
+  waxwick: { x: 1015, z: 977.2 }, brannoc: { x: 1014.2, z: 979.6 }, hilde: { x: 1016, z: 979.6 },
+  'dragon-reader': { x: 995.0, z: 904.6, dy: 0.02 },
+  'vale-knight': { x: 1004.5, z: 958 }, 'vale-beggar': { x: 994.4, z: 966, dy: 0.02 }, 'vale-merchant': { x: 1005.0, z: 941.4 },
   // Behind his counter in the sunken tavern's face (Sunken.ts).
   'fish-king': { x: -1000, z: -93.8 },
 };

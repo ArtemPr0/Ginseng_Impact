@@ -78,7 +78,8 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
   // Ground: night grass everywhere, a muddy cobbled street up the middle; unseen walls at the edges.
   const x0 = X - 110, x1 = X + 100, z0 = Z - 120, z1 = Z + 125;
   api.group.add(grassGround((x0 + x1) / 2, (z0 + z1) / 2, x1 - x0, z1 - z0, vy));
-  api.group.add(cobbleFloor(X, Z + 50, 12, 130, vy, 0, 0.7));
+  // (A couple of centimetres over the grass, or the two planes fight for the same pixels.)
+  api.group.add(cobbleFloor(X, Z + 50, 12, 130, vy + 0.02, 0, 0.7));
   const riverX = X - 45;
   api.place({ object: new Group(), footprints: [
     { kind: 'box', x: (riverX + 5 + x1) / 2, z: (z0 + z1) / 2, hw: (x1 - riverX - 5) / 2, hd: (z1 - z0) / 2, top: vy },
@@ -127,7 +128,8 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
     }
   });
   const lanterns: Placement[] = [];
-  for (const dz of [88, 64, 40, 16]) for (const side of [-1, 1]) lanterns.push({ x: X + side * 6.4, y: vy, z: Z + dz, yaw: 0, scale: 1 });
+  // (Clear of the stalls at dz 41.4, 30 and 18.)
+  for (const dz of [88, 64, 36, 12]) for (const side of [-1, 1]) lanterns.push({ x: X + side * 6.4, y: vy, z: Z + dz, yaw: 0, scale: 1 });
   api.flora('lantern-post', lanterns);
   for (const l of lanterns) { api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: l.x, z: l.z, r: 0.2, top: vy + 2.5 }] }); glow(LANTERN, 1.8, l.x, vy + 2.3, l.z, 0.6); }
   // Stalls along the street, a barrel for the beggar to sit on.
@@ -137,9 +139,11 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
   }
 
   // --- The green dragon lying behind the last houses, the reader on its claw ---
-  api.place(modelLandmark('green-dragon', X, Z - 6, vy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'box', x: X, z: Z - 8, hw: 7, hd: 9, top: vy + 4 }] }));
-  api.place(modelLandmark('spell-book', X - 3.2, Z + 6.6, vy + 1.75, { collider: 'none' }));
-  glow(0x7fd8ff, 1.6, X - 3.2, vy + 2.1, Z + 6.6, 0.6);
+  // Twice the registry size: in the reel he looms over the roofs, head raised, at the end of the street (facing up it).
+  api.place(modelLandmark('green-dragon', X, Z - 8, vy, { yaw: face(Math.PI / 2), scale: 2 }));
+  // The reader sits on a stool against the front of his left claw, reading to him, the book open in his lap.
+  api.place(modelLandmark('spell-book', X - 5, Z + 4.72, vy + 0.42, { scale: 0.8, collider: 'none' }));
+  glow(0x7fd8ff, 0.9, X - 5, vy + 0.72, Z + 4.72, 0.45);
 
   // --- West: the river, the stone bridge between braziers, the crowned head on its hill ---
   api.place(waterSheet(riverX, (z0 + z1) / 2, 10, z1 - z0, vy - 0.35, [0x041628, 0x1c5a8a, 0xa8d0ff]));

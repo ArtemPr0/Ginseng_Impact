@@ -105,6 +105,8 @@ export class Renderer {
 
   constructor(readonly canvas: HTMLCanvasElement) {
     this.gl = new WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+    // Clipping planes on single materials (Materials.clipAbove: the sky dock's island without its tree).
+    this.gl.localClippingEnabled = true;
     // At most 1.25× on Retina (1.5× cost ~45% more pixels for little visible gain); the governor may go lower.
     this.gl.setPixelRatio(this.ratio);
     this.gl.toneMapping = ACESFilmicToneMapping;
