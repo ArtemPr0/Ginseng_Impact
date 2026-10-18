@@ -1,0 +1,366 @@
+{
+ "_note": "Round 6 (2026-10-18), the @returndark reels. Image-to-3D from the user's screenshot of `frame` cropped to the subject (docs/reference/frames/r6-<id>.png); 'lite' = Meshy 6 Lite (untextured, registry tint); biped = free Meshy rig + presets (skill ginseng-animation). Every prompt asks for the complete body even where the reel shows part of it. Review each draft before texturing. Budget cap agreed: ~1,300 credits.",
+ "total_estimate": 920,
+ "items": [
+  {
+   "id": "bucket-mimic",
+   "reel": "DeaqHWJBBPw",
+   "frame": "DeaqHWJBBPw@3.6",
+   "method": "image",
+   "rig": "biped",
+   "credits": 30,
+   "prompt": "White styrofoam bucket creature: a tall white ribbed bucket body with a grinning toothy face (glowing violet eyes, wide grin of square teeth) on its front, filled to the brim with glowing blue crystals, standing on two thin skeletal bone legs with bony feet and two thin skeletal bone arms with bony hands; full body, standing upright, A-pose arms, both legs and both feet visible, back of the bucket plain white; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "mail-knight",
+   "reel": "DeaqHWJBBPw",
+   "frame": "DeaqHWJBBPw@6.2",
+   "method": "image",
+   "rig": "biped",
+   "credits": 30,
+   "prompt": "Knight in faceted blue diamond-pattern chain mail from head to toe, chain-mail hood with a narrow eye slit, thick gold chain across the chest, holding a long spear with a blue crystal head; full body standing in A-pose, both arms, both hands, both legs and armoured boots visible; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "galaxy-knight",
+   "reel": "DeOemU1BOZF",
+   "frame": "DeOemU1BOZF@9.0",
+   "method": "image",
+   "rig": "biped",
+   "credits": 30,
+   "prompt": "Armoured knight whose plate armour is patterned with a deep blue starry galaxy, tall spiked crested helm, holding a black greatsword with a white galaxy swirl on the blade; full body standing in A-pose (not kneeling), both arms and hands, both legs and sabatons visible; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "skeleton-red",
+   "reel": "DeldocTvFiB",
+   "frame": "DeldocTvFiB@3.0",
+   "method": "image",
+   "rig": "biped",
+   "credits": 30,
+   "prompt": "Skeleton with glowing green eye sockets and gold teeth grills, wearing a shaggy red fur coat, holding a double white styrofoam cup of purple lean in its right hand; full body standing in A-pose, both bony arms and hands, both legs and bony feet visible; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "skeleton-witch",
+   "reel": "DeldocTvFiB",
+   "frame": "DeldocTvFiB@3.0",
+   "method": "image",
+   "rig": "biped",
+   "credits": 30,
+   "prompt": "Skeleton wearing a tall black pointed witch hat with a gold band, a thick gold chain necklace, a dark robe to the knees, holding a double white styrofoam cup of purple lean; full body standing in A-pose, both bony arms and hands, both legs and bony feet visible; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "gold-knight",
+   "reel": "DeldocTvFiB",
+   "frame": "DeldocTvFiB@11.8",
+   "method": "image",
+   "rig": "biped",
+   "credits": 30,
+   "prompt": "Knight in dark navy plate armour with gold trim and glowing orange seams, great helm with vertical slits, thick gold chain with a square skull medallion, holding a glowing purple galaxy double cup raised in the right hand; full body standing in A-pose, both arms, hands, legs and boots visible; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "plague-doctor",
+   "reel": "DeldocTvFiB",
+   "frame": "DeldocTvFiB@5.2",
+   "method": "image",
+   "rig": "biped",
+   "credits": 30,
+   "prompt": "Plague doctor: long white beak mask with glowing orange eyes, wide-brimmed black hat, long black leather coat, gold chain with a square gold medallion, black gloves, holding a purple cup with a lid and a straw; full body standing in A-pose, both arms and hands, both legs and black boots visible; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "chest-wagon",
+   "reel": "DeldocTvFiB",
+   "frame": "DeldocTvFiB@5.2",
+   "method": "image",
+   "rig": "static",
+   "credits": 30,
+   "prompt": "Small wooden wagon with four spoked wheels carrying a big gold-banded wooden treasure chest, two brass lanterns hanging at its corners; whole wagon, all four wheels; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "lean-dragon",
+   "reel": "Den1ausBXai",
+   "frame": "Den1ausBXai@3.0",
+   "method": "image",
+   "rig": "static",
+   "credits": 30,
+   "prompt": "Black scaly dragon lying down at rest, head raised, curved gold horns, glowing yellow eyes, a grill of diamonds over its teeth, gold chain round its neck, wings folded; whole dragon lying on the ground, all four legs, folded wings and the full tail visible; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "sky-bar",
+   "reel": "Den1ausBXai",
+   "frame": "Den1ausBXai@5.2",
+   "method": "image",
+   "rig": "static",
+   "credits": 30,
+   "prompt": "Small wooden bar booth with a counter, a sloped shingle roof, a purple glowing menu board with a skull, a skull sign, iron chains hanging from its corners down to a rock base; whole booth; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "gothic-lamp",
+   "reel": "Den1ausBXai",
+   "frame": "Den1ausBXai@11.8",
+   "method": "text",
+   "rig": "static",
+   "credits": 30,
+   "prompt": "Tall black wrought-iron gothic street lamp post with a glowing lantern cage on top and a spiked finial; whole lamp from base to top; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "dragon-throne",
+   "reel": "Def4LDkxikA",
+   "frame": "Def4LDkxikA@3.0",
+   "method": "image",
+   "rig": "static",
+   "credits": 30,
+   "prompt": "Gothic black and gold throne with a tall pointed back, flanked left and right by two black dragon statues with gold horns, draped in thick gold chains, purple flame candles on the armrests; whole throne and both dragons; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "dragon-fountain",
+   "reel": "Def4LDkxikA",
+   "frame": "Def4LDkxikA@11.8",
+   "method": "image",
+   "rig": "static",
+   "credits": 30,
+   "prompt": "Stone fountain: a black dragon head statue leaning out over a round carved stone basin; whole fountain from base to the dragon head; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "lean-fountain",
+   "reel": "Def4LDkxikA",
+   "frame": "Def4LDkxikA@11.8",
+   "method": "image",
+   "rig": "static",
+   "credits": 30,
+   "prompt": "Tiered carved grey stone fountain with two round bowls on a pedestal; whole fountain; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "carriage",
+   "reel": "DeXn5rSPxR8",
+   "frame": "DeXn5rSPxR8@11.8",
+   "method": "image",
+   "rig": "static",
+   "credits": 30,
+   "prompt": "Ornate black horse-drawn carriage with gold trim, curling gold ornaments and large gold spoked wheels, a lantern at the front; whole carriage, all four wheels, no horses; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "gem",
+   "reel": "DeXn5rSPxR8",
+   "frame": "DeXn5rSPxR8@11.8",
+   "method": "lite",
+   "rig": "static",
+   "credits": 10,
+   "prompt": "Single brilliant-cut faceted gemstone; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "stalactite",
+   "reel": "DeOemU1BOZF",
+   "frame": "DeOemU1BOZF@1.0",
+   "method": "lite",
+   "rig": "static",
+   "credits": 10,
+   "prompt": "Hanging cluster of glowing blue crystal stalactites pointing down; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "skull-pile",
+   "reel": "DeldocTvFiB",
+   "frame": "DeldocTvFiB@14.4",
+   "method": "lite",
+   "rig": "static",
+   "credits": 10,
+   "prompt": "Heap of old human skulls piled together; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "snow-chapel",
+   "reel": "DeldocTvFiB",
+   "frame": "DeldocTvFiB@9.6",
+   "method": "image",
+   "rig": "static",
+   "credits": 30,
+   "prompt": "Small ruined gothic stone chapel with a pointed bell gable and an arched doorway, snow on its roof and ledges; whole building; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "snow-pillar",
+   "reel": "DeldocTvFiB",
+   "frame": "DeldocTvFiB@9.6",
+   "method": "lite",
+   "rig": "static",
+   "credits": 10,
+   "prompt": "Square dry-stone gate pillar capped with snow; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "broken-gate",
+   "reel": "DeldocTvFiB",
+   "frame": "DeldocTvFiB@9.6",
+   "method": "lite",
+   "rig": "static",
+   "credits": 10,
+   "prompt": "Broken leaning wooden graveyard gate; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "potion-bottle",
+   "reel": "DeOemU1BOZF",
+   "frame": "DeOemU1BOZF@14.0",
+   "method": "lite",
+   "rig": "static",
+   "credits": 10,
+   "prompt": "Round glass potion bottle with a cork, full of a swirling galaxy; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "candle-head",
+   "reel": "Dd5Bqt7vQ5T",
+   "frame": "Dd5Bqt7vQ5T@2.8",
+   "method": "image",
+   "rig": "biped",
+   "credits": 30,
+   "prompt": "Man in a black suit and black shirt whose head is a cluster of melting white candles with lit flames, holding a wooden tankard with a burning candle in it; full body standing in A-pose, both arms and hands, both legs and black shoes visible; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "dwarf",
+   "reel": "Dd5Bqt7vQ5T",
+   "frame": "Dd5Bqt7vQ5T@0.8",
+   "method": "image",
+   "rig": "biped",
+   "credits": 30,
+   "prompt": "Stocky dwarf in blue scale armour with a long grey braided beard and a blue helm, holding a wooden tankard; full body standing in A-pose, both arms and hands, both short legs and boots visible; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "green-dragon",
+   "reel": "Dd5Bqt7vQ5T",
+   "frame": "Dd5Bqt7vQ5T@10.8",
+   "method": "image",
+   "rig": "static",
+   "credits": 30,
+   "prompt": "Huge green dragon lying on the ground with its head raised, horned head, dark green scales, spiked back, big clawed front feet; whole dragon lying down, all four legs, folded wings and the whole tail; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "spell-book",
+   "reel": "Dd5Bqt7vQ5T",
+   "frame": "Dd5Bqt7vQ5T@10.8",
+   "method": "lite",
+   "rig": "static",
+   "credits": 10,
+   "prompt": "Open old spell book with glowing pages; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "crowned-head",
+   "reel": "Dd5Bqt7vQ5T",
+   "frame": "Dd5Bqt7vQ5T@4.8",
+   "method": "image",
+   "rig": "static",
+   "credits": 30,
+   "prompt": "Giant carved stone head of a king wearing a castle-like crown, lying tilted on a grassy hill, mossy cracked blue stone; whole head with the hill under it; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "floating-castle",
+   "reel": "Dd5Bqt7vQ5T",
+   "frame": "Dd5Bqt7vQ5T@12.8",
+   "method": "image",
+   "rig": "static",
+   "credits": 30,
+   "prompt": "Gothic castle with tall pointed towers standing on a floating jagged rock island; whole castle and the whole rock underneath; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "chained-platform",
+   "reel": "Dd5Bqt7vQ5T",
+   "frame": "Dd5Bqt7vQ5T@12.8",
+   "method": "image",
+   "rig": "static",
+   "credits": 30,
+   "prompt": "Floating flat rock platform hung from iron chains at its corners, a lantern standing on it; whole platform with chains; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "chandelier",
+   "reel": "Dd5Bqt7vQ5T",
+   "frame": "Dd5Bqt7vQ5T@0.8",
+   "method": "lite",
+   "rig": "static",
+   "credits": 10,
+   "prompt": "Black iron ring chandelier with melting white candles; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "diver",
+   "reel": "DeVj-Z8POjl",
+   "frame": "DeVj-Z8POjl@13.4",
+   "method": "image",
+   "rig": "biped",
+   "credits": 30,
+   "prompt": "Figure in a brass diving helmet with a round glowing porthole window, a dark blue hooded robe to the ankles split at the front, a rust-red scarf; full body standing in A-pose, both arms and hands, both legs and boots visible below the robe; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "drowned-house",
+   "reel": "DeVj-Z8POjl",
+   "frame": "DeVj-Z8POjl@10.2",
+   "method": "image",
+   "rig": "static",
+   "credits": 30,
+   "prompt": "Narrow two-storey half-timbered medieval house with a steep dark slate roof, crooked walls, small warm lit windows and a wooden door; whole house; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "blue-fish",
+   "reel": "DeVj-Z8POjl",
+   "frame": "DeVj-Z8POjl@10.2",
+   "method": "lite",
+   "rig": "static",
+   "credits": 10,
+   "prompt": "Big blue grouper fish, whole body side view; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "jelly-lantern",
+   "reel": "DeVj-Z8POjl",
+   "frame": "DeVj-Z8POjl@13.4",
+   "method": "image",
+   "rig": "static",
+   "credits": 30,
+   "prompt": "Tall iron lamp post with a hanging cage lantern holding a glowing jellyfish with trailing tentacles; whole post; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "bottle-shelf",
+   "reel": "DeVj-Z8POjl",
+   "frame": "DeVj-Z8POjl@3.8",
+   "method": "image",
+   "rig": "static",
+   "credits": 30,
+   "prompt": "Wooden wall shelves full of glowing orange glass bottles; whole shelf unit; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "orb-lamp",
+   "reel": "DeVj-Z8POjl",
+   "frame": "DeVj-Z8POjl@7.0",
+   "method": "lite",
+   "rig": "static",
+   "credits": 10,
+   "prompt": "Iron lamp stand holding glowing red glass orbs; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "coin-table",
+   "reel": "DeVj-Z8POjl",
+   "frame": "DeVj-Z8POjl@7.0",
+   "method": "lite",
+   "rig": "static",
+   "credits": 10,
+   "prompt": "Round wooden table heaped with gold coins; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "chalice",
+   "reel": "DeVj-Z8POjl",
+   "frame": "DeVj-Z8POjl@3.8",
+   "method": "lite",
+   "rig": "static",
+   "credits": 10,
+   "prompt": "Barnacle-encrusted stone chalice; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "kelp",
+   "reel": "DeVj-Z8POjl",
+   "frame": "DeVj-Z8POjl@13.4",
+   "method": "lite",
+   "rig": "static",
+   "credits": 10,
+   "prompt": "Tall clump of kelp seaweed; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  },
+  {
+   "id": "tavern-table",
+   "reel": "DeVj-Z8POjl",
+   "frame": "DeVj-Z8POjl@7.0",
+   "method": "lite",
+   "rig": "static",
+   "credits": 10,
+   "prompt": "Long rough wooden tavern table; dark fantasy game asset, detailed PBR textures, night lighting colours"
+  }
+ ]
+}
