@@ -67,6 +67,12 @@ export class LeanCup {
     return this.h;
   }
 
+  /** The cup's outer radius `y` metres above its feet (measured: 0.194 h at the foot, widening to 0.29 h by 0.7 h). */
+  radiusAt(y: number): number {
+    const f = Math.max(0, Math.min(1, y / this.h));
+    return this.h * (0.194 + 0.096 * Math.min(1, f / 0.7));
+  }
+
   constructor(cup: Object3D, private readonly h: number) {
     this.group.add(cup);
     this.liquid = new Mesh(new CircleGeometry(INNER_R * h, 20), new MeshBasicMaterial({ map: liquidTexture(), toneMapped: false }));

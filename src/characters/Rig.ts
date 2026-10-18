@@ -1,4 +1,4 @@
-import { AdditiveBlending, type AnimationAction, BufferAttribute, BufferGeometry, DoubleSide, Float32BufferAttribute, Group, LoopOnce, Matrix4, Mesh, MeshBasicMaterial, Quaternion, Vector3, type Object3D, type SkinnedMesh, type Sprite } from 'three';
+import { AdditiveBlending, type AnimationAction, type Bone, BufferAttribute, BufferGeometry, DoubleSide, Float32BufferAttribute, Group, LoopOnce, Matrix4, Mesh, MeshBasicMaterial, Quaternion, Vector3, type Object3D, type SkinnedMesh, type Sprite } from 'three';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { loadModelOrWarn, ModelRig } from '../models/ModelRig';
 import { MissingModelPlaceholder } from '../models/Placeholder';
@@ -77,17 +77,23 @@ const LATERAL = new Vector3();
 const FORWARD = new Vector3();
 const UP = new Vector3();
 /**
- * Sir Aldric's cup of lean in his left hand (mixamorigLeftHand frame, metres: the cup's foot under the fingers,
- * upright when he holds it before a sip). The sip is Stand_and_Drink's left arm, neck and head, layered over whatever
- * he is doing, from `from` to `to` of the clip (hand at the mouth around 0.4–0.55), with a slurp at `slurpAt`.
+ * How Sir Aldric holds his cup of lean (left hand, metres): its axis along his knuckles (rim toward the index finger),
+ * the middle knuckle `knuckleAt` up the cup, its wall `palm` off the knuckle line on the palm side and set `inset`
+ * back toward the wrist; then every finger joint curls until the next one lies `finger` (thumb `thumb`) off the wall,
+ * the gauntlet's thickness. The sip is Stand_and_Drink's left arm, neck and head, layered over whatever he is doing,
+ * from `from` to `to` of the clip (hand at the mouth around 0.4–0.55), with a slurp at `slurpAt`.
  */
-const CUP_GRIP = { x: -0.047, y: 0.108, z: -0.043, rx: -0.56, ry: -0.426, rz: -1.931 };
-const SIP = { from: 0.3, to: 0.66, slurpAt: 0.45, weight: 30, every: [10, 16] as const };
+const CUP_HOLD = { knuckleAt: 0.085, palm: 0.017, inset: 0.018, finger: 0.011, thumb: 0.012 };
+const FINGERS = ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky'] as const;
+const SIP = { from: 0.3, to: 0.66, slurpAt: 0.45, weight: 30, every: [10, 16] as const, tilt: 1.2 };
 const SIP_BONES = /left(shoulder|arm|forearm|hand)|neck|head/i;
 const LEFT_ARM = /left(shoulder|arm|forearm|hand)/i;
 const RIGHT_ARM = /right(shoulder|arm|forearm|hand)/i;
-/** His mouth, from the head bone along the body's up and forward axes (metres): where a sip brings the rim. */
-const MOUTH = { up: 0.075, fwd: 0.13 };
+/**
+ * His mouth, from the head bone along the body's up and forward axes (metres): where a sip brings the rim. On his
+ * helmet (measured) the eye slit is 0.09-0.1 up and the face plate's front 0.14-0.15 forward; the mouth is low on it.
+ */
+const MOUTH = { up: 0.035, fwd: 0.155 };
 /** In flight the cup is carried at the chest, gripped as at the start of a sip (Stand_and_Drink at this fraction). */
 const CARRY_AT = 0.22;
 /**
@@ -95,11 +101,23 @@ const CARRY_AT = 0.22;
  * stands about. Points in her body frame (metres; her right side is -x). `size`: the mushroom, metres tall.
  */
 const SHROOM = {
-  every: [7, 12] as const, size: 0.07, frame: 0,
+  every: [7, 12] as const, size: 0.12, frame: 0,
+  /** Her mouth, from the head bone along the body's up and forward axes (metres, measured): where a bite brings the cap. */
+  bite: { up: 0.035, fwd: 0.12 },
+  /** As she bites, the mushroom points this far (radians) back from straight up, toward her lips. */
+  biteTilt: 0.6,
+  /** How far each fingertip's bone stays off the stem's centre (the stem's radius plus a finger pad), metres. */
+  stem: 0.011,
   /** Her right arm hanging easy between snacks (the calm frame holds it out, palm up). */
   restElbow: [-0.23, 1.13, -0.04], restHand: [-0.25, 0.87, 0.03],
-  pouch: [-0.21, 0.93, 0.1], pouchElbow: [-0.33, 1.12, -0.05], mouth: [-0.03, 1.57, 0.14], mouthElbow: [-0.26, 1.2, 0.1],
+  pouch: [-0.21, 0.93, 0.1], pouchElbow: [-0.33, 1.12, -0.05], mouth: [-0.04, 1.49, 0.17], mouthElbow: [-0.26, 1.2, 0.1],
 };
+/**
+ * Wren's hands: her mesh was modelled with open hands and crumples when a finger joint bends past about 30°, so the
+ * clips' finger curls are eased toward that open bind pose, keeping `keep` of them (`keepShot` while she shoots, when
+ * one hand holds the bow and the other the string).
+ */
+const HAND = { keep: 0.38, keepShot: 0.8, close: 0.8 };
 /** Where a swimmer's hips ride above the controller's feet: just under the surface (CONTROLLER.swimFloat = 1.05). */
 const SWIM_HIPS = 0.92;
 const _t = new Vector3();
@@ -107,6 +125,13 @@ const _a = new Vector3();
 const _b = new Vector3();
 const _ax = new Vector3();
 const _mouth = new Vector3();
+const _drink = new Vector3();
+const _q2v = new Vector3();
+const _drink2 = new Vector3();
+const _pinch = new Vector3();
+const _pinchAcross = new Vector3();
+const _pinchT = new Vector3();
+const _pinchI = new Vector3();
 /** How far back a seated body may lean (radians): a relaxed slouch, never lying flat. */
 const SIT_LEAN = 0.22;
 const _rim = new Vector3();
@@ -123,6 +148,25 @@ function turnBone(bone: Object3D | null, axis: Vector3, angle: number): void {
   bone.updateWorldMatrix(false, true);
 }
 const OFF_HAND_BONE = /left.?hand|hand[_.]?l\b|lefthand/i;
+
+/** Each finger bone's local rotation in the skin's bind pose (from the skeleton's inverse bind matrices). */
+function bindFingers(model: ModelRig): Array<{ bone: Object3D; rest: Quaternion; clip: Quaternion; held: boolean }> {
+  let skinned: SkinnedMesh | null = null;
+  model.root.traverse((o) => { if (!skinned && (o as SkinnedMesh).isSkinnedMesh) skinned = o as SkinnedMesh; });
+  const sk = (skinned as SkinnedMesh | null)?.skeleton;
+  if (!sk) return [];
+  const out: Array<{ bone: Object3D; rest: Quaternion; clip: Quaternion; held: boolean }> = [];
+  sk.bones.forEach((bone, i) => {
+    if (!/hand(thumb|index|middle|ring|pinky)[1-3]$/i.test(bone.name)) return;
+    const pi = sk.bones.indexOf(bone.parent as Bone);
+    if (pi < 0) return;
+    const local = sk.boneInverses[pi].clone().multiply(sk.boneInverses[i].clone().invert());
+    const rest = new Quaternion();
+    local.decompose(new Vector3(), rest, new Vector3());
+    out.push({ bone, rest, clip: new Quaternion(), held: false });
+  });
+  return out;
+}
 
 /**
  * A character body: a Meshy glTF driven by pose → clip mapping, with the weapon trail and Orlan's pipe smoke.
@@ -170,6 +214,13 @@ export class Rig {
   private stowedBow: Group | null = null;
   /** Wren's mushroom snack: the mushroom in her hand, the snack in progress, and the sparkles it leaves. */
   private shroom: Group | null = null;
+  /** Its height in the holder's units (the holder is scaled to the hand), and her fingers' bind pose (see HAND). */
+  private shroomLen = 0;
+  private shroomH = 0;
+  /** Her fingers' bind pose, and the clip's rotation they had before being eased this frame (put back next frame). */
+  private fingerRest: Array<{ bone: Object3D; rest: Quaternion; clip: Quaternion; held: boolean }> = [];
+  /** Hand and finger bones by name (`RightHandIndex1`, `LeftHand`...), looked up once. */
+  private readonly digits = new Map<string, Object3D | null>();
   private snack: { t: number } | null = null;
   private snackIn: number = SHROOM.every[0];
   private readonly sparkles: Sprite[] = [];
@@ -187,6 +238,8 @@ export class Rig {
   private cup: LeanCup | null = null;
   private cupPivot: Group | null = null;
   private readonly cupGripQ = new Quaternion();
+  /** His fingers wrapped round the cup (local rotations, solved once: the cup never moves in his hand). */
+  private cupFingers: Array<{ bone: Object3D; q: Quaternion }> | null = null;
   private sip: { action: AnimationAction; w: number; slurped: boolean } | null = null;
   private sipIn: number = SIP.every[0];
   /** The carry pose (cup at the chest in flight) is playing. */
@@ -251,6 +304,7 @@ export class Rig {
     }
     if (id === 'knight' && this.offHand) void loadModelOrWarn('lean-cup', MODELS['lean-cup']?.label).then((g) => { if (g) this.attachCup(g); });
     if (id === 'archer' && this.hand) void loadModelOrWarn('purple-mushroom', MODELS['purple-mushroom']?.label).then((g) => { if (g) this.attachShroom(g); });
+    if (id === 'archer') this.fingerRest = bindFingers(this.model);
     if (id === 'archer') for (let i = 0; i < 14; i++) {
       const sp = glowSprite(0xffffff, 0.05, 0, true);
       sp.visible = false;
@@ -293,10 +347,8 @@ export class Rig {
     this.offHand.getWorldScale(ws);
     const holder = new Group();
     holder.scale.setScalar(1 / Math.max(1e-4, ws.y));
+    // (Seated in the hand on the first frame it is posed: see fitCup.)
     const pivot = new Group();
-    pivot.position.set(CUP_GRIP.x, CUP_GRIP.y, CUP_GRIP.z);
-    pivot.rotation.set(CUP_GRIP.rx, CUP_GRIP.ry, CUP_GRIP.rz);
-    this.cupGripQ.copy(pivot.quaternion);
     pivot.add(this.cup.group);
     holder.add(pivot);
     this.offHand.add(holder);
@@ -313,6 +365,7 @@ export class Rig {
   private animateCup(pose: RigPose, dt: number): void {
     const m = this.model;
     if (!this.cup || !this.cupPivot || !m) return;
+    if (!this.cupFingers) this.fitCup();
     const cyclone = pose.burst?.kind === 'cyclone' ? pose.burst.t : -1;
     const calm = pose.mode === 'ground' && pose.attack === undefined && !pose.charging && pose.speed < 5.5;
     if (!this.sip) {
@@ -332,9 +385,11 @@ export class Rig {
       }
     }
     let lead = 0;
+    let sipK = 0;
     if (this.sip) {
       const s = this.sip;
       const k = (s.action.time / s.action.getClip().duration - SIP.from) / (SIP.to - SIP.from);
+      sipK = k;
       const done = !calm || k >= 1;
       s.w += ((done ? 0 : 1) - s.w) * Math.min(1, dt * (calm ? 5 : 25));
       s.action.setEffectiveWeight(s.w * SIP.weight);
@@ -353,36 +408,129 @@ export class Rig {
         carry.setEffectiveWeight(carryW * SIP.weight);
       } else if (this.carrying) { carry.stop(); this.carrying = false; }
     }
+    // The cup never turns in his fist: the wrist does the tipping and the levelling.
     this.cupPivot.quaternion.copy(this.cupGripQ);
     if (cyclone >= 0 && cyclone < CYCLONE.pour) {
-      // Tipped over the blade: the lean pours out and runs down the sword.
+      // Tipped over the blade (the hand rolls about the forearm, rim toward the sword): the lean runs down it.
       const k = Math.min(1, cyclone / 0.25) * Math.min(1, (CYCLONE.pour - cyclone) / 0.15);
-      this.cupPivot.rotateZ(2.1 * k);
+      this.pourByWrist(1.7 * k);
       if (k > 0.5) this.pourDrop();
-    } else if (this.flight > 0.05 && this.offHand) {
-      // Gripped, never floating free of the fist: the wrist turns the cup most of the way upright.
-      this.cupPivot.updateWorldMatrix(true, false);
-      this.cupPivot.getWorldQuaternion(_q);
-      _a.set(0, 1, 0).applyQuaternion(_q);
-      const angle = Math.acos(Math.max(-1, Math.min(1, _a.y)));
-      if (angle > 1e-3) {
-        _ax.crossVectors(_a, _b.set(0, 1, 0)).normalize();
-        this.turn(this.offHand, _ax, Math.min(angle, 1.15) * this.flight);
-      }
-      LeanCup.level(this.cupPivot, 0.35 * this.flight);
-    } else LeanCup.level(this.cupPivot, 0.92 * (1 - lead));
-    // A sip brings the rim to his lips (the clip alone lifts it to the visor): the shoulder, then the elbow, are
-    // turned so the rim meets the mouth.
+    } else this.levelByWrist(this.flight > 0.05 ? this.flight : 0.92 * (1 - lead));
+    // A sip tips the cup toward his face (base up and away, by the wrist) and brings the rim to his mouth (the clip
+    // alone lifts it to the visor): the wrist, the shoulder and the elbow are turned in turn until both hold.
     if (this.sip && lead > 0.02 && this.bones?.head) {
       const bn = this.bones;
       m.root.updateWorldMatrix(true, true);
       m.frame.getWorldQuaternion(_fq);
-      const mouth = bn.head!.getWorldPosition(_mouth)
-        .addScaledVector(UP.set(0, 1, 0).applyQuaternion(_fq), MOUTH.up)
-        .addScaledVector(FORWARD.set(0, 0, 1).applyQuaternion(_fq), MOUTH.fwd);
-      for (let pass = 0; pass < 2; pass++) for (const b of [bn.lArm, bn.lForeArm]) this.reach(b, mouth, lead);
+      UP.set(0, 1, 0).applyQuaternion(_fq);
+      FORWARD.set(0, 0, 1).applyQuaternion(_fq);
+      const mouth = bn.head!.getWorldPosition(_mouth).addScaledVector(UP, MOUTH.up).addScaledVector(FORWARD, MOUTH.fwd);
+      const tilt = SIP.tilt * smooth((sipK - 0.08) / 0.3) * (1 - smooth((sipK - 0.72) / 0.22));
+      _drink.copy(UP).multiplyScalar(Math.cos(tilt)).addScaledVector(FORWARD, -Math.sin(tilt));
+      for (let pass = 0; pass < 3; pass++) {
+        this.tipCup(_drink, lead);
+        for (const b of [bn.lArm, bn.lForeArm]) this.reach(b, mouth, lead);
+      }
     }
+    if (this.cupFingers) for (const f of this.cupFingers) f.bone.quaternion.copy(f.q);
     this.cup.update(dt);
+  }
+
+  /**
+   * Seats the cup in Sir Aldric's left hand and closes his fingers round it: the cup's axis along the knuckle line,
+   * its wall against the palm, then each finger joint (knuckle to tip) turned toward the cup's axis until the next
+   * joint lies on the wall. Solved once from the posed hand; the cup is fixed to the hand, so the grip holds whatever
+   * the arm does.
+   */
+  private fitCup(): void {
+    const m = this.model;
+    const hand = this.offHand;
+    const pivot = this.cupPivot;
+    const cup = this.cup;
+    const holder = pivot?.parent;
+    if (!m || !hand || !pivot || !cup || !holder) return;
+    const bone = (n: string) => m.bone(new RegExp(`left.?hand${n}$`, 'i'));
+    const i1 = bone('Index1');
+    const p1 = bone('Pinky1');
+    const m1 = bone('Middle1');
+    const m4 = bone('Middle4');
+    if (!i1 || !p1 || !m1 || !m4) { this.cupFingers = []; return; }
+    m.root.updateWorldMatrix(true, true);
+    const at = (o: Object3D) => holder.worldToLocal(o.getWorldPosition(new Vector3()));
+    const I1 = at(i1);
+    const M1 = at(m1);
+    const W = at(hand);
+    const up = I1.clone().sub(at(p1)).normalize();
+    // Across the palm (wrist to knuckles), and out of it on the side the fingers close toward.
+    const across = M1.clone().sub(W);
+    across.addScaledVector(up, -across.dot(up)).normalize();
+    const palm = new Vector3().crossVectors(across, up).normalize();
+    if (palm.dot(at(m4).sub(M1)) < 0) palm.negate();
+    const r = cup.radiusAt(CUP_HOLD.knuckleAt);
+    pivot.position.copy(M1).addScaledVector(palm, r + CUP_HOLD.palm).addScaledVector(across, -CUP_HOLD.inset).addScaledVector(up, -CUP_HOLD.knuckleAt);
+    pivot.quaternion.setFromRotationMatrix(new Matrix4().makeBasis(palm, up, new Vector3().crossVectors(palm, up)));
+    this.cupGripQ.copy(pivot.quaternion);
+    pivot.updateWorldMatrix(true, true);
+    const g = cup.group;
+    const fingers: Array<{ bone: Object3D; q: Quaternion }> = [];
+    for (const f of FINGERS) {
+      const thick = f === 'Thumb' ? CUP_HOLD.thumb : CUP_HOLD.finger;
+      for (let j = 1; j <= 3; j++) {
+        const jb = bone(f + j);
+        const cb = bone(f + (j + 1));
+        if (!jb || !cb) break;
+        const p = jb.getWorldPosition(new Vector3());
+        const toAxis = g.localToWorld(new Vector3(0, g.worldToLocal(p.clone()).y, 0)).sub(p).normalize();
+        const dir = cb.getWorldPosition(new Vector3()).sub(p).normalize();
+        const axis = new Vector3().crossVectors(dir, toAxis).normalize();
+        const base = jb.quaternion.clone();
+        // How far the next joint stands off the wall with this joint turned `theta` toward the axis.
+        const gap = (theta: number): number => {
+          jb.quaternion.copy(base);
+          turnBone(jb, axis, theta);
+          const c = g.worldToLocal(cb.getWorldPosition(_a));
+          return Math.hypot(c.x, c.z) - (cup.radiusAt(c.y) + thick);
+        };
+        let lo = -1.2;
+        let hi = Math.min(1.7, dir.angleTo(toAxis));
+        if (gap(lo) <= 0) gap(lo); // touching even straightened out
+        else if (gap(hi) >= 0) gap(hi); // cannot reach the wall: curled as far as it goes
+        else {
+          for (let k = 0; k < 18; k++) { const mid = (lo + hi) / 2; if (gap(mid) > 0) lo = mid; else hi = mid; }
+          gap(hi);
+        }
+        fingers.push({ bone: jb, q: jb.quaternion.clone() });
+      }
+    }
+    this.cupFingers = fingers;
+  }
+
+  /** Turns the wrist so the cup stands `amount` of the way upright (at most 1.15 rad of it). */
+  private levelByWrist(amount: number): void {
+    this.tipCup(_drink.set(0, 1, 0), amount, 1.15);
+  }
+
+  /** Turns the wrist so the cup's axis (foot to rim) swings `w` of the way toward `want` (at most `max` rad). */
+  private tipCup(want: Vector3, w: number, max = Math.PI): void {
+    if (!this.offHand || !this.cupPivot || w <= 0.001) return;
+    this.cupPivot.updateWorldMatrix(true, false);
+    _a.set(0, 1, 0).applyQuaternion(this.cupPivot.getWorldQuaternion(_q));
+    const angle = _a.angleTo(want);
+    if (angle < 1e-3) return;
+    _ax.crossVectors(_a, want).normalize();
+    this.turn(this.offHand, _ax, Math.min(angle, max) * w);
+  }
+
+  /** Rolls the cup hand about the forearm by `angle`, the way that brings the rim toward the sword hand. */
+  private pourByWrist(angle: number): void {
+    const fore = this.bones?.lForeArm;
+    if (!this.offHand || !this.hand || !this.cup || !fore || angle <= 0) return;
+    const wrist = this.offHand.getWorldPosition(_a);
+    const along = _ax.copy(wrist).sub(fore.getWorldPosition(_b)).normalize();
+    const rim = this.cup.group.localToWorld(_t.set(0, this.cup.height, 0)).sub(wrist);
+    const toBlade = this.hand.getWorldPosition(_b).sub(wrist);
+    const sign = Math.sign(_mouth.crossVectors(along, rim).dot(toBlade)) || 1;
+    this.turn(this.offHand, along, angle * sign);
   }
 
   /** Turns `bone` so the cup's rim swings toward `target` (one step of a CCD reach), by `w` of the way. */
@@ -482,7 +630,10 @@ export class Rig {
     }
   }
 
-  /** Wren's mushroom: a tiny purple one, held between her fingers (hidden until she takes it out of the pouch). */
+  /**
+   * Wren's mushroom: a small purple one, pinched by its stem between her thumb and forefinger (hidden until she takes
+   * it out of the pouch; placed each frame, see pinch).
+   */
   private attachShroom(gltf: GLTF): void {
     if (!this.model || !this.hand) return;
     const rig = new ModelRig('purple-mushroom', gltf);
@@ -491,7 +642,8 @@ export class Rig {
     this.hand.getWorldScale(ws);
     const holder = new Group();
     holder.scale.setScalar(SHROOM.size / rig.height / Math.max(1e-4, ws.y));
-    holder.position.set(0, 0.09 / Math.max(1e-4, ws.y), 0.02 / Math.max(1e-4, ws.y));
+    this.shroomLen = SHROOM.size / Math.max(1e-4, ws.y);
+    this.shroomH = rig.height;
     holder.add(rig.root);
     holder.visible = false;
     this.hand.add(holder);
@@ -524,6 +676,7 @@ export class Rig {
       this.turn(bn.neck, UP, Math.sin(t * 0.37) * 0.25);
       this.turn(bn.hips, FORWARD, Math.sin(t * 0.5) * 0.03);
     }
+    if (!this.snack) this.relaxHands(pose);
     if (!this.snack) {
       this.snackIn -= dt;
       if (this.snackIn <= 0 && calm) { this.snack = { t: 0 }; Rig.sound?.rustle?.(); }
@@ -544,11 +697,24 @@ export class Rig {
         this.aim(bn.rArm, bn.rForeArm, at(SHROOM.pouchElbow, SHROOM.mouthElbow), w);
         this.aim(bn.rForeArm, this.hand, at(SHROOM.pouch, SHROOM.mouth).add(_b.set(0, dig + chew, 0)), w);
         if (t > 1.55 && t < 2.6) this.turn(bn.head, LATERAL, Math.sin((t - 1.55) * 16) * 0.05);
+        this.relaxHands(pose);
+        this.pinch(w);
         if (this.shroom) {
           this.shroom.visible = t > 0.8 && t < 2.35;
           // Bitten down as she eats.
           const left = t < 1.6 ? 1 : Math.max(0.25, 1 - (t - 1.6) / 0.75);
           this.shroom.scale.y = Math.abs(this.shroom.scale.x) * left;
+          // Up at her mouth, the cap (not the hand) meets her lips from below, the mushroom tipped up toward them so
+          // the hand stays under her chin and the bite shows: the arm is turned until the cap is there.
+          if (up > 0.02 && bn.head) {
+            const mouth = bn.head.getWorldPosition(_mouth).addScaledVector(UP, SHROOM.bite.up).addScaledVector(FORWARD, SHROOM.bite.fwd);
+            const toLips = _drink2.copy(UP).multiplyScalar(Math.cos(SHROOM.biteTilt)).addScaledVector(FORWARD, -Math.sin(SHROOM.biteTilt));
+            for (let pass = 0; pass < 3; pass++) {
+              this.pinch(w, toLips, up);
+              for (const b of [bn.rArm, bn.rForeArm]) this.reachWith(b, this.shroomTip(), mouth, up * w);
+            }
+            this.pinch(w, toLips, up);
+          }
         }
         if (t > 2.3 && this.tripLeft <= 0) { this.tripLeft = 6; Rig.sound?.munch?.(); }
       }
@@ -570,6 +736,104 @@ export class Rig {
       sp.material.opacity = Math.min(1, this.tripLeft / 1.5) * (0.5 + 0.5 * Math.sin(T * 6 + i * 2));
       sp.scale.setScalar(0.05 + 0.03 * Math.sin(T * 4 + i));
     });
+  }
+
+  /** A hand or finger bone of this body (`digit('RightHandIndex1')`), cached. */
+  private digit(name: string): Object3D | null {
+    if (!this.digits.has(name)) this.digits.set(name, this.model?.bone(new RegExp(`${name}$`, 'i')) ?? null);
+    return this.digits.get(name)!;
+  }
+
+  /**
+   * Eases every finger toward the bind pose (see HAND), then brings the fingers side by side: the bind pose spreads
+   * them, and her low-poly hand then splits in two clumps.
+   */
+  private relaxHands(pose: RigPose): void {
+    const keep = pose.attack !== undefined ? HAND.keepShot : HAND.keep;
+    for (const f of this.fingerRest) {
+      if (!f.held) { f.clip.copy(f.bone.quaternion); f.held = true; }
+      f.bone.quaternion.copy(f.rest).slerp(f.clip, keep);
+    }
+    if (!this.fingerRest.length) return;
+    this.model?.root.updateWorldMatrix(true, true);
+    for (const side of ['Left', 'Right']) {
+      const d = (n: string) => this.digit(`${side}Hand${n}`);
+      const hand = d('');
+      const i1 = d('Index1');
+      const p1 = d('Pinky1');
+      const m1 = d('Middle1');
+      const m2 = d('Middle2');
+      if (!hand || !i1 || !p1 || !m1 || !m2) continue;
+      // The palm's normal, and the middle finger's line in the palm's plane.
+      const n = _q2v.copy(i1.getWorldPosition(_a)).sub(p1.getWorldPosition(_b)).cross(_t.copy(m1.getWorldPosition(_a)).sub(hand.getWorldPosition(_b))).normalize();
+      const mid = _drink2.copy(m2.getWorldPosition(_a)).sub(m1.getWorldPosition(_b));
+      mid.addScaledVector(n, -mid.dot(n)).normalize();
+      for (const f of ['Index', 'Ring', 'Pinky']) {
+        const f1 = d(f + '1');
+        const f2 = d(f + '2');
+        if (!f1 || !f2) continue;
+        const dir = _rim.copy(f2.getWorldPosition(_a)).sub(f1.getWorldPosition(_b));
+        dir.addScaledVector(n, -dir.dot(n)).normalize();
+        const angle = Math.atan2(_t.crossVectors(dir, mid).dot(n), dir.dot(mid));
+        turnBone(f1, n, angle * HAND.close);
+      }
+    }
+  }
+
+  /**
+   * Wren's right hand pinching the mushroom by its stem (`w` of the way): the thumb's and forefinger's tips brought
+   * together, and the mushroom set between them, its cap out past the fingertips.
+   */
+  private pinch(w: number, along: Vector3 | null = null, k = 0): void {
+    const m = this.model;
+    const hand = this.hand;
+    if (!m || !hand || w <= 0.01) return;
+    const b = (n: string) => this.digit(`RightHand${n}`);
+    const thumb = [b('Thumb1'), b('Thumb2'), b('Thumb3'), b('Thumb4')];
+    const index = [b('Index1'), b('Index2'), b('Index3'), b('Index4')];
+    if (thumb.some((x) => !x) || index.some((x) => !x)) return;
+    m.root.updateWorldMatrix(true, true);
+    // They meet halfway, either side of the stem.
+    const tipT = thumb[3]!.getWorldPosition(_a);
+    const tipI = index[3]!.getWorldPosition(_b);
+    const meet = _drink.copy(tipT).add(tipI).multiplyScalar(0.5);
+    const across = _pinchAcross.copy(tipT).sub(tipI);
+    if (across.lengthSq() < 1e-8) across.set(0, 1, 0); else across.normalize();
+    const atThumb = _pinchT.copy(meet).addScaledVector(across, SHROOM.stem);
+    const atIndex = _pinchI.copy(meet).addScaledVector(across, -SHROOM.stem);
+    for (let pass = 0; pass < 3; pass++) {
+      for (const j of thumb.slice(0, 3)) this.reachWith(j, thumb[3]!.getWorldPosition(_rim), atThumb, w);
+      for (const j of index.slice(0, 3)) this.reachWith(j, index[3]!.getWorldPosition(_rim), atIndex, w);
+    }
+    if (!this.shroom) return;
+    // The stem between the pads, a third of the way up; the mushroom points out of the fist, past the fingertips.
+    const pinchAt = _pinch.copy(hand.worldToLocal(thumb[3]!.getWorldPosition(_a).add(index[3]!.getWorldPosition(_b)).multiplyScalar(0.5)));
+    const out = _t.copy(pinchAt).normalize();
+    // (Turned `k` of the way to point along the world direction `along`.)
+    if (along && k > 0) {
+      const there = hand.worldToLocal(hand.localToWorld(_a.copy(pinchAt)).add(along)).sub(pinchAt).normalize();
+      out.lerp(there, k).normalize();
+    }
+    this.shroom.quaternion.setFromUnitVectors(_b.set(0, 1, 0), out);
+    this.shroom.position.copy(pinchAt).addScaledVector(out, -this.shroomLen * 0.3);
+  }
+
+  /** The top of the mushroom's cap, world space (the holder's scale carries the bites taken). */
+  private shroomTip(): Vector3 {
+    const s = this.shroom!;
+    s.updateWorldMatrix(true, false);
+    return s.localToWorld(_ax.set(0, this.shroomH, 0));
+  }
+
+  /** Turns `bone` so the world point `effector` (carried by it) swings toward `target`, `w` of the way (one CCD step). */
+  private reachWith(bone: Object3D | null, effector: Vector3, target: Vector3, w: number): void {
+    if (!bone) return;
+    const p = bone.getWorldPosition(_a);
+    const from = _b.copy(effector).sub(p).normalize();
+    const to = _t.copy(target).sub(p).normalize();
+    const angle = from.angleTo(to);
+    if (angle < 1e-4) return;
+    this.turn(bone, _q2v.crossVectors(from, to).normalize(), angle * w);
   }
 
   /** Wren's bow in her left hand (on foot); in the air she shoots off the bow she rides. */
@@ -995,6 +1259,9 @@ export class Rig {
   animate(pose: RigPose, dt: number): void {
     for (const t of this.turned) t.bone.quaternion.copy(t.q);
     this.turned.length = 0;
+    // (The clip's finger rotations back too: a frozen or constant track would not rewrite them, and the easing would
+    // pile up frame after frame.)
+    for (const f of this.fingerRest) if (f.held) { f.bone.quaternion.copy(f.clip); f.held = false; }
     if (this.model) {
       this.driveModel(pose, dt);
       this.sitUpright(pose);

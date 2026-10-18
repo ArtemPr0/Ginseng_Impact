@@ -486,7 +486,9 @@ declare global {
       inventory: Inventory; hud: Hud; companions: Companion[]; audio: Audio;
       /** Quests and side adventures; F and its current target (headless checks press F without pointer lock). */
       adventures: Adventures; pressF: () => void; interactTarget: typeof interactTarget;
+      /** The party's bodies (bones, held props), in roster order. */
+      rigs: typeof rigs;
     };
   }
 }
-window.__ginseng = { scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, inventory, hud, companions, audio, adventures, pressF, interactTarget };
+window.__ginseng = { scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs };
