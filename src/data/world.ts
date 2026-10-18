@@ -63,7 +63,8 @@ export const LAYOUT = {
   treehouse: { x: -90, z: 30 },
   orchard: { x: 60, z: 24 },
   rainZone: { x: 60, z: 24, radius: 30 },
-  snowZone: { x: 72, z: -48, radius: 40 },
+  /** Snow: the Frost March (the island's frozen north-east, see Terrain.frozenAt) and the kingdom's snow chapel. */
+  snowZones: [{ x: 84, z: -78, radius: 48 }, { x: 900, z: 122, radius: 52 }],
   frozenRect: { xFrom: 33, xTo: 114, zFrom: -105, zTo: -18 },
   /** The moon-shell colossus crawls the east shore, outside every building. */
   colossusPath: [[84, -90], [90, -110], [84, -130], [90, -110]] as Array<[number, number]>,
@@ -127,22 +128,34 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   sentry: { x: -40, z: -90, dy: 0.02 },
   standard: { x: -54, z: -93 },
   'rose-knight': { x: 16, z: 34 }, maiden: { x: 18.2, z: 33 },
-  // Dunmar guards the door of Yung Lean's hall; Sel watches the street of purple houses (both in the kingdom).
-  'watcher-knight': { x: 1000, z: -51.8 }, 'watcher-mage': { x: 994, z: 21 },
+  // Dunmar guards the door of Yung Lean's hall; Sel watches the head of Bucket Street (both in the kingdom).
+  'watcher-knight': { x: 1000, z: -51.8 }, 'watcher-mage': { x: 937, z: 24 },
   'cup-gnome': { x: 6.5, z: 64 },
   // Fifth batch of reels.
   // (Beside the middle tavern table, not inside it: the table at (-40, -24) is solid once its model exists.)
   grumble: { x: -40, z: -22 },
   priest: { x: 36, z: -96 },
   'lantern-witch': { x: -106, z: 14 },
-  'skeleton-king': { x: 965, z: -57, dy: 0.6 },
-  'skeleton-wizard': { x: 948, z: 20 },
-  'galaxy-wizard': { x: 952, z: -20 },
+  // The Lean Quarter (round 6, see LEAN_QUARTER): the Skeleton Court, Bucket Street, the snow chapel, the sky dock.
+  'skeleton-king': { x: 1000, z: -170.6, dy: 0.9 },
+  'skeleton-wizard': { x: 900, z: 18 },
+  'galaxy-wizard': { x: 872, z: -18 },
+  'skeleton-lord': { x: 1040.4, z: -158.4, dy: 0.02 }, 'court-knight': { x: 1040.4, z: -161.6, dy: 0.02 },
+  'potion-brewer': { x: 1026, z: -127 },
+  bartender: { x: 1173.6, z: -0.6 }, 'dock-knight': { x: 1181, z: 7.5, dy: 0.02 },
+  'plague-doctor': { x: 931, z: 124.6, dy: 1.25 },
+  'crypt-red': { x: 869.6, z: 106.2 }, 'crypt-witch': { x: 872.8, z: 106.2 }, 'crypt-bones': { x: 876, z: 106.6 },
+  'gold-knight': { x: 884, z: 116 },
   yunglean: { x: 1000, z: -74.6, dy: 0.8 },
   'void-monk': { x: 1008, z: 66 },
   // Behind their stalls between the purple houses of the bucket street (Realms.ts places the stalls).
-  'market-a': { x: 972, z: 10.4 }, 'market-b': { x: 956, z: 29.6 },
-  'fish-king': { x: -1000, z: -10 },
+  'market-a': { x: 915, z: 6.4 }, 'market-b': { x: 879, z: 29.6 },
+  // The Dragon's Vale (Vale.ts): the tavern yard's toasters, the reader on the dragon's claw, the street's folk.
+  waxwick: { x: 1013.2, z: 973 }, brannoc: { x: 1013.4, z: 978.6 }, hilde: { x: 1016.6, z: 978.4 },
+  'dragon-reader': { x: 996.6, z: 893.6, dy: 0.9 },
+  'vale-knight': { x: 1004.5, z: 958 }, 'vale-beggar': { x: 994.4, z: 966, dy: 0.02 }, 'vale-merchant': { x: 1006.8, z: 941.4 },
+  // Behind his counter in the sunken tavern's face (Sunken.ts).
+  'fish-king': { x: -1000, z: -93.8 },
 };
 
 /**
@@ -169,9 +182,52 @@ export interface RealmDef {
 
 /** The galaxy city beyond the portal (DeOemU1BOZF, DeaqHWJBBPw, DeXn5rSPxR8, DeQ-NnpvqF6, Dd0wR9Jh2lH, DdyN2PNyIxb, DdnJDwBMUoj). */
 /** Beyond the portal: Yung Lean's kingdom (it was the galaxy city; the id stays). */
-export const GALAXY: RealmDef = { id: 'galaxy', name: "Yung Lean's Kingdom", x: 1000, z: 0, y: 24, radius: 190, fog: { color: 0x3a1a52, density: 0.0055 }, ownSky: true };
+export const GALAXY: RealmDef = { id: 'galaxy', name: "Yung Lean's Kingdom", x: 1000, z: 0, y: 24, radius: 300, fog: { color: 0x3a1a52, density: 0.0055 }, ownSky: true };
+
+/**
+ * The kingdom's quarters (round 6, the @returndark reels), each a walkable floor off the plaza (x 940..1060,
+ * z -85..75): the Skeleton Court north, Bucket Street and the lean castle west, the snow chapel south-west, the sky
+ * dock east beyond the cup islands. Rectangles are [x0, x1, z0, z1].
+ */
+export const LEAN_QUARTER = {
+  court: [940, 1060, -185, -85] as const,
+  street: [828, 940, -40, 75] as const,
+  /** The lean moat in front of the castle (a sunken channel) and the castle's own ground behind it. */
+  moat: [816, 828, -40, 75] as const,
+  castleYard: [780, 816, -40, 75] as const,
+  snow: [860, 960, 75, 175] as const,
+  castle: { x: 800, z: 18 },
+  chapel: { x: 900, z: 152 },
+  dock: { x: 1180, z: 12, r: 12 },
+};
+
+export type LeanDistrict = 'court' | 'street' | 'castle' | 'snow' | 'dock';
+
+/** Which quarter of the kingdom (x, z) is in, or null on the plaza and the cups (they keep the vaporwave look). */
+export function leanDistrict(x: number, z: number): LeanDistrict | null {
+  const Q = LEAN_QUARTER;
+  const inside = (r: readonly [number, number, number, number], pad = 0) => x > r[0] - pad && x < r[1] + pad && z > r[2] - pad && z < r[3] + pad;
+  if (inside(Q.court)) return 'court';
+  if (inside(Q.snow)) return 'snow';
+  if (inside(Q.castleYard) || inside(Q.moat)) return 'castle';
+  if (inside(Q.street)) return 'street';
+  if (Math.hypot(x - Q.dock.x, z - Q.dock.z) < Q.dock.r + 25) return 'dock';
+  return null;
+}
+
+/**
+ * The quarters' night (the @returndark reels are moonlit, not pink): fog, how far the kingdom's sky darkens (0..1),
+ * and the renderer look (Renderer.LOOKS) to blend toward.
+ */
+export const DISTRICT_AIR: Record<LeanDistrict, { fog: number; density: number; night: number; look: string }> = {
+  court: { fog: 0x120a28, density: 0.012, night: 1, look: 'lean-night' },
+  street: { fog: 0x170c33, density: 0.01, night: 0.9, look: 'lean-night' },
+  castle: { fog: 0x170c33, density: 0.009, night: 0.9, look: 'lean-night' },
+  snow: { fog: 0x1c2644, density: 0.014, night: 1, look: 'lean-snow' },
+  dock: { fog: 0x2a1446, density: 0.006, night: 0.55, look: 'galaxy' },
+};
 /** The sunken city under the lake (DeVj-Z8POjl). */
-export const SUNKEN: RealmDef = { id: 'sunken', name: 'The Sunken City', x: -1000, z: 0, y: -48, radius: 90, fog: { color: 0x07304a, density: 0.034 }, underwater: true };
+export const SUNKEN: RealmDef = { id: 'sunken', name: 'The Sunken City', x: -1000, z: 0, y: -48, radius: 160, fog: { color: 0x0a3a4e, density: 0.024 }, underwater: true };
 /** The round room inside the tree house trunk (Goldgrin's brother). */
 /** (Its own sky: the trunk is open at the top, and above the room there is only the dark of the hollow, no moon.) */
 export const TREEHOUSE_ROOM: RealmDef = { id: 'treehouse', name: 'Inside the Tree House', x: -1000, z: 700, y: 0, radius: 30, fog: { color: 0x120a26, density: 0.02 }, ownSky: true };
@@ -182,12 +238,20 @@ export const DREAM: RealmDef = { id: 'dream', name: "The Frog King's Dream", x: 
  * 'graveyard' preset, so not its own dome), the cyclops at the far end.
  */
 export const GRAVEYARD: RealmDef = { id: 'graveyard', name: 'The Alley of Graves', x: 0, z: -1000, y: 0, radius: 125, fog: { color: 0x2a1446, density: 0.014 } };
-export const REALMS: readonly RealmDef[] = [GALAXY, SUNKEN, TREEHOUSE_ROOM, DREAM, GRAVEYARD];
+/**
+ * The Dragon's Vale (reel Dd5Bqt7vQ5T), through the lantern arch at the east end of the island's village street: a
+ * village street with a tavern yard, a green dragon lying at its end, a crowned stone head on a hill by a river under
+ * the aurora, and a castle floating over the clouds beyond. The island's sky shows over it (the VALE preset).
+ */
+export const VALE: RealmDef = { id: 'vale', name: "The Dragon's Vale", x: 1000, z: 900, y: 0, radius: 190, fog: { color: 0x0c2032, density: 0.008 } };
+export const REALMS: readonly RealmDef[] = [GALAXY, SUNKEN, TREEHOUSE_ROOM, DREAM, GRAVEYARD, VALE];
 
 /** Portal ends on the island. */
 export const ISLAND_PORTALS = {
   /** The swirling portal at the end of the stepping stones by the face tree (DeQ-NnpvqF6). */
   galaxy: { x: -56, z: -10, faceTree: { x: -47, z: -2 } },
+  /** The lantern arch at the east end of the village street: the road to the Dragon's Vale. */
+  vale: { x: -5, z: 70 },
   /** The whirlpool in the lily pond: the way down to the sunken city. */
   pond: { x: -18, z: -18, shore: { x: -3, z: -18 } },
 } as const;

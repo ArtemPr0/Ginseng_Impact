@@ -4,18 +4,24 @@ import { glowSprite, glowTexture } from '../render/Glow';
 export const FIRE = 0xff7a2a;
 export const EMBER = 0xff3a10;
 
-/** Fire: emissive core sprite, point light with flicker, rising embers. Pure VFX (no mesh). */
-export function fire(x: number, y: number, z: number, scale = 1, intensity = 18): { group: Group; update: (dt: number) => void } {
+/** The purple flames of the Lean Quarter's torches and braziers (DeaqHWJBBPw, Def4LDkxikA): `fire(..., PURPLE_FIRE)`. */
+export const PURPLE_FIRE = { core: 0xa64dff, inner: 0xf0c8ff, ember: 0x7a2cff };
+
+/**
+ * Fire: emissive core sprite, point light with flicker, rising embers. Pure VFX (no mesh). `colors` recolours it
+ * (PURPLE_FIRE); the default is a warm orange flame.
+ */
+export function fire(x: number, y: number, z: number, scale = 1, intensity = 18, colors?: { core: number; inner: number; ember: number }): { group: Group; update: (dt: number) => void } {
   const g = new Group();
-  const core = glowSprite(FIRE, 1.6 * scale, 0.9, true);
+  const core = glowSprite(colors?.core ?? FIRE, 1.6 * scale, 0.9, true);
   // (Flames by the river and the eye are drawn after the water, which would otherwise cover them.)
   core.renderOrder = 6;
   core.position.set(x, y + 0.5 * scale, z);
-  const inner = glowSprite(0xfff0a0, 0.7 * scale, 0.9, true);
+  const inner = glowSprite(colors?.inner ?? 0xfff0a0, 0.7 * scale, 0.9, true);
   inner.renderOrder = 6;
   inner.position.set(x, y + 0.35 * scale, z);
   // Small flames (candles, lanterns) are emissive only: dozens of point lights would sink the frame rate.
-  const light = new PointLight(FIRE, intensity, 12 * scale, 1.8);
+  const light = new PointLight(colors?.core ?? FIRE, intensity, 12 * scale, 1.8);
   light.position.set(x, y + 1.2 * scale, z);
   light.visible = intensity >= 6;
   const n = 24;
@@ -24,7 +30,7 @@ export function fire(x: number, y: number, z: number, scale = 1, intensity = 18)
   for (let i = 0; i < n; i++) { pos.push(x, y, z); seeds.push(Math.random()); }
   const geo = new BufferGeometry();
   geo.setAttribute('position', new Float32BufferAttribute(pos, 3));
-  const embers = new Points(geo, new PointsMaterial({ map: glowTexture(), color: EMBER, size: 0.22 * scale, transparent: true, opacity: 0.9, blending: AdditiveBlending, depthWrite: false }));
+  const embers = new Points(geo, new PointsMaterial({ map: glowTexture(), color: colors?.ember ?? EMBER, size: 0.22 * scale, transparent: true, opacity: 0.9, blending: AdditiveBlending, depthWrite: false }));
   embers.renderOrder = 6;
   embers.frustumCulled = false;
   g.add(core, inner, embers);

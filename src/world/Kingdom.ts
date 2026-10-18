@@ -10,7 +10,7 @@ import {
   Group, LineBasicMaterial, LineSegments, Mesh, type MeshStandardMaterial, PlaneGeometry, Points, ShaderMaterial, SphereGeometry, Vector3,
 } from 'three';
 import { Reflector } from 'three/examples/jsm/objects/Reflector.js';
-import { GALAXY } from '../data/world';
+import { GALAXY, LEAN_QUARTER } from '../data/world';
 import { MODELS } from '../data/models';
 import { glowSprite } from '../render/Glow';
 import { PALETTE } from '../render/palette';
@@ -36,21 +36,29 @@ float voronoiEdge(vec2 p) {
 
 /** The shared clock of the kingdom's shaders. */
 const clock = { value: 0 };
+/**
+ * How far the kingdom's sky has sunk into night (0 = the vaporwave plaza, 1 = the moonlit quarters of the
+ * @returndark reels); main.ts eases it as the hero walks between them (data/world.ts DISTRICT_AIR).
+ */
+export const kingdomNight = { value: 0 };
 
 // ---------- the sky ----------
 function skyDome(): Mesh {
   const mat = new ShaderMaterial({
     // Drawn first and writing depth: the island's moon and aurora (further out) stay hidden behind it.
     side: BackSide, fog: false,
-    uniforms: { uTime: clock },
+    uniforms: { uTime: clock, uNight: kingdomNight },
     vertexShader: /* glsl */ `varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
     fragmentShader: /* glsl */ `
-      uniform float uTime; varying vec3 vDir;
+      uniform float uTime; uniform float uNight; varying vec3 vDir;
       ${NOISE}
       void main() {
         float e = vDir.y;
         // Midnight blue overhead, violet in the middle, neon pink low on the horizon.
-        vec3 zen = vec3(0.03, 0.04, 0.16), mid = vec3(0.24, 0.08, 0.42), low = vec3(1.0, 0.31, 0.69);
+        // (At night, in the quarters: near-black indigo overhead, deep violet low, the horizon only faintly warm.)
+        vec3 zen = mix(vec3(0.03, 0.04, 0.16), vec3(0.008, 0.01, 0.045), uNight);
+        vec3 mid = mix(vec3(0.24, 0.08, 0.42), vec3(0.07, 0.03, 0.16), uNight);
+        vec3 low = mix(vec3(1.0, 0.31, 0.69), vec3(0.26, 0.09, 0.34), uNight);
         vec3 c = mix(mid, zen, smoothstep(0.1, 0.75, e));
         c = mix(c, low, smoothstep(0.32, -0.02, e) * 0.85);
         // The aurora in ink wash: soft curtains that bleed into each other, drifting.
@@ -60,7 +68,7 @@ function skyDome(): Mesh {
         float band = smoothstep(0.15, 0.55, e) * smoothstep(0.85, 0.45, e);
         vec3 ink = mix(vec3(0.55, 0.2, 0.95), vec3(1.0, 0.35, 0.75), fbm(q * 1.3 + 5.0));
         ink = mix(ink, vec3(0.25, 0.85, 1.0), smoothstep(0.62, 0.8, fbm(q * 0.6 - 3.0)) * 0.6);
-        c += ink * smoothstep(0.45, 0.85, curtain) * band * 0.75;
+        c += ink * smoothstep(0.45, 0.85, curtain) * band * mix(0.75, 0.3, uNight);
         // A few pixel stars.
         vec2 sp = floor(vec2(a * 160.0, e * 160.0));
         float star = step(0.9965, hash(sp)) * smoothstep(0.05, 0.3, e);
@@ -78,16 +86,17 @@ function skyDome(): Mesh {
 function horizonGrid(): Mesh {
   const mat = new ShaderMaterial({
     transparent: true, depthWrite: false, fog: false,
-    uniforms: { uTime: clock },
+    uniforms: { uTime: clock, uNight: kingdomNight },
     vertexShader: /* glsl */ `varying vec2 vP; void main() { vP = (modelMatrix * vec4(position, 1.0)).xz; gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }`,
     fragmentShader: /* glsl */ `
-      uniform float uTime; varying vec2 vP;
+      uniform float uTime; uniform float uNight; varying vec2 vP;
       void main() {
         vec2 c = vP - vec2(${GALAXY.x.toFixed(1)}, ${GALAXY.z.toFixed(1)});
         vec2 g = abs(fract((c + vec2(0.0, uTime * 2.0)) / 14.0 - 0.5));
         float line = smoothstep(0.035, 0.0, min(g.x, g.y));
         float d = length(c);
-        float fade = smoothstep(90.0, 160.0, d) * (1.0 - smoothstep(380.0, 700.0, d));
+        // (Out past the quarters, and faint at night.)
+        float fade = smoothstep(230.0, 300.0, d) * (1.0 - smoothstep(420.0, 700.0, d)) * (1.0 - uNight * 0.7);
         vec3 col = mix(vec3(1.0, 0.3, 0.75), vec3(0.3, 0.9, 1.0), smoothstep(150.0, 420.0, d));
         gl_FragColor = vec4(col * line, line * fade * 0.85);
       }`,
@@ -147,12 +156,14 @@ function crescentMoon(): Mesh {
 function cdMoon(): Mesh {
   const mat = new ShaderMaterial({
     transparent: true, side: DoubleSide, fog: false, depthWrite: false,
-    uniforms: { uTime: clock },
+    uniforms: { uTime: clock, uNight: kingdomNight },
     vertexShader: /* glsl */ `varying vec2 vUv; varying vec3 vN; varying vec3 vView;
       void main() { vUv = uv; vec4 w = modelMatrix * vec4(position, 1.0); vN = normalize(mat3(modelMatrix) * normal); vView = normalize(cameraPosition - w.xyz); gl_Position = projectionMatrix * viewMatrix * w; }`,
     fragmentShader: /* glsl */ `
-      uniform float uTime; varying vec2 vUv; varying vec3 vN; varying vec3 vView;
+      uniform float uTime; uniform float uNight; varying vec2 vUv; varying vec3 vN; varying vec3 vView;
       void main() {
+        // (Gone from the quarters' night sky.)
+        if (uNight > 0.85) discard;
         vec2 p = vUv - 0.5; float r = length(p) * 2.0; float a = atan(p.y, p.x);
         if (r > 1.0 || r < 0.16) discard;
         // Thin-film rainbow: hue slides with the viewing angle, the radius and the spin.
@@ -197,9 +208,9 @@ function pixelSnow(floorY: number): { points: Points; update(dt: number, player:
   geo.setAttribute('seed', new BufferAttribute(seed, 1));
   const mat = new ShaderMaterial({
     transparent: true, depthWrite: false, fog: false,
-    uniforms: { uPlayer: { value: new Vector3() }, uFloor: { value: floorY }, uScale: { value: 620 } },
+    uniforms: { uPlayer: { value: new Vector3() }, uFloor: { value: floorY }, uScale: { value: 620 }, uNight: kingdomNight },
     vertexShader: /* glsl */ `
-      uniform vec3 uPlayer; uniform float uFloor; uniform float uScale;
+      uniform vec3 uPlayer; uniform float uFloor; uniform float uScale; uniform float uNight;
       attribute vec3 color; attribute float seed; varying vec3 vColor; varying float vAlpha;
       void main() {
         vColor = color;
@@ -210,7 +221,7 @@ function pixelSnow(floorY: number): { points: Points; update(dt: number, player:
         // Gone before it touches anything: fades out low over the floor and close to the hero.
         float h = position.y - uFloor;
         float near = distance(position, uPlayer + vec3(0.0, 1.0, 0.0));
-        vAlpha = smoothstep(0.4, 2.6, h + petal * 2.0) * smoothstep(1.2, 4.0, near) * mix(0.85, 0.7, petal);
+        vAlpha = smoothstep(0.4, 2.6, h + petal * 2.0) * smoothstep(1.2, 4.0, near) * mix(0.85, 0.7, petal) * (1.0 - uNight * 0.85);
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: /* glsl */ `varying vec3 vColor; varying float vAlpha; void main() { gl_FragColor = vec4(vColor, vAlpha); }`,
@@ -553,6 +564,9 @@ export function buildKingdom(api: RealmApi, hooks: { soundWanted(): boolean; fou
     cd.rotateZ(dt * 0.35);
     grin.update(dt);
     for (let i = 0; i < computers.length; i++) computers[i].position.y = gy - 30 + Math.sin(t * 0.2 + i) * 4;
+    // The neon computers and the grinning moon fade out of the quarters' night sky.
+    for (const c of computers) c.visible = kingdomNight.value < 0.8;
+    grin.group.visible = kingdomNight.value < 0.85;
   } });
   // A humpback whale flying slow loops over the plaza and the cups (DeSEl9PvPG_), its body flexing as it swims.
   {
@@ -594,13 +608,8 @@ export function buildKingdom(api: RealmApi, hooks: { soundWanted(): boolean; fou
   api.group.add(blossomFog(R.x, R.z - 5, 120, 160, gy));
   // The floor: porcelain and marble, reflecting.
   api.group.add(porcelainFloor(R.x, R.z - 5, 120, 160, gy));
-  // The plaza, with unseen walls at its edges (west, north, south: the east edge opens onto the waves to the cups).
-  api.place({ object: new Group(), footprints: [
-    { kind: 'box', x: R.x, z: R.z - 5, hw: 60, hd: 80, top: gy },
-    { kind: 'box', x: R.x - 60.5, z: R.z - 5, hw: 0.5, hd: 80, top: gy + 6 },
-    { kind: 'box', x: R.x, z: R.z - 85.5, hw: 61, hd: 0.5, top: gy + 6 },
-    { kind: 'box', x: R.x, z: R.z + 75.5, hw: 61, hd: 0.5, top: gy + 6 },
-  ] });
+  // The plaza (its walls and the quarters round it: LeanQuarter.ts; the east edge opens onto the waves to the cups).
+  api.place({ object: new Group(), footprints: [{ kind: 'box', x: R.x, z: R.z - 5, hw: 60, hd: 80, top: gy }] });
   // Two tea streams down the length of the plaza, either side of the road.
   // (The west stream stops short of the purple houses' street at x 966-974, z 5-35.)
   teaStream(api, [[R.x - 24, R.z - 2], [R.x - 30, R.z - 20], [R.x - 25, R.z - 50]], gy);
@@ -615,6 +624,14 @@ export function buildKingdom(api: RealmApi, hooks: { soundWanted(): boolean; fou
     const [ax, az] = into(i, cups[i + 1][0], cups[i + 1][1]);
     const [bx, bz] = into(i + 1, cups[i][0], cups[i][1]);
     leanWave(api, ax, az, bx, bz, gy);
+  }
+  // From the far cup out to the sky dock (LeanQuarter.ts), landing just inside the island's rim.
+  {
+    const D = LEAN_QUARTER.dock;
+    const last = cups.length - 1;
+    const [ax, az] = into(last, D.x, D.z);
+    const d = Math.hypot(ax - D.x, az - D.z);
+    leanWave(api, ax, az, D.x + ((ax - D.x) / d) * (D.r - 2), D.z + ((az - D.z) / d) * (D.r - 2), gy);
   }
   // The lost sound, humming in the mist on the far cup (Yung Lean's quest).
   const soundAt = new Vector3(1136, gy + 1.6, 14);

@@ -163,6 +163,11 @@ export const SKIES: Record<string, SkyPreset> = {
     horizon: 0x1f3080, mid: 0x0f1a6a, zenith: 0x050a26, cloudDark: 0x0a1036, cloudLit: 0x4a64c8, cover: 0.5, swirl: 0.7,
     vortex: 0.5, vortexA: 0x3a3cff, vortexB: 0xc04ad8, vortexC: 0xff8a3a, nebula: 1, stars: 1, moon: 1, eclipse: 1,
   },
+  // The Dragon's Vale (Dd5Bqt7vQ5T): a deep teal-blue night, thin clouds, many stars (the aurora is SkyEvents').
+  vale: {
+    horizon: 0x13405a, mid: 0x0a2048, zenith: 0x030818, cloudDark: 0x08182e, cloudLit: 0x3a6a9a, cover: 0.3, swirl: 0.3,
+    vortex: 0, vortexA: 0x000000, vortexB: 0x000000, vortexC: 0x000000, nebula: 0.4, stars: 1.2, moon: 1, eclipse: 0,
+  },
   graveyard: {
     horizon: 0x3a1460, mid: 0x5a2a28, zenith: 0x1a0c06, cloudDark: 0x2a1206, cloudLit: 0xd88a2a, cover: 0.34, swirl: 0.25,
     vortex: 0, vortexA: 0x000000, vortexB: 0x000000, vortexC: 0x000000, nebula: 0, stars: 0.25, moon: 0, eclipse: 0,

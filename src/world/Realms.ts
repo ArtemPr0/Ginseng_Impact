@@ -13,7 +13,8 @@ import type { Landmark } from './Landmarks';
 import { modelLandmark } from './ModelLandmark';
 import { PRESENT_MODELS } from '../data/colliderGrids';
 import { portal, type PortalLink } from './Portal';
-import { floorSlab } from './Walkways';
+import { buildSunken, SUNKEN_ARRIVAL } from './Sunken';
+import { buildVale } from './Vale';
 import { patchWingFlap } from '../render/Materials';
 import type { HostileShot } from '../combat/CombatSystem';
 
@@ -85,7 +86,7 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   // ===== Island: the whirlpool in the lily pond, the way down to the sunken city (DeVj-Z8POjl) =====
   const pond = ISLAND_PORTALS.pond;
   api.place(portal(pond.x, 1.06, pond.z, 3, { vertical: false, colors: [PALETTE.abyss, PALETTE.rune], spin: -1 }));
-  links.push(link(new Vector3(pond.x, 0.5, pond.z), 2.6, 3, S.x, S.z + 22, -Math.PI / 2, S.name));
+  links.push(link(new Vector3(pond.x, 0.5, pond.z), 2.6, 3, SUNKEN_ARRIVAL.x, SUNKEN_ARRIVAL.z, -Math.PI / 2, S.name));
 
   // ===== Island: the mushroom tavern between the frog hollow and the pond (DaIqFavJWbd) =====
   const tx = -40, tz = -24;
@@ -163,15 +164,8 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   // The river hall of the galaxy king (Dd0wR9Jh2lH).
   api.place(modelLandmark('galaxy-hall', G.x, G.z - 66, gy, { yaw: face(Math.PI / 2) }));
   api.place(modelLandmark('marble-throne', G.x, G.z - 75, gy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'box', x: G.x, z: G.z - 75.6, hw: 1.8, hd: 1.2, top: gy + 0.8 }] }));
-  // The skeleton king's treasury, west (DeOemU1BOZF).
-  api.place(modelLandmark('stone-throne', 962, G.z - 57, gy, { yaw: face(0), footprints: [{ kind: 'box', x: 961.4, z: G.z - 57, hw: 1.2, hd: 1.6, top: gy + 0.9 }] }));
-  const coins: Placement[] = [[968, -52], [970, -61], [966, -65], [958, -50], [956, -63], [973, -56]].map(([x, z]) => ({ x, y: gy, z: G.z + z, yaw: api.rnd() * 6, scale: 0.8 + api.rnd() * 0.5 }));
-  api.flora('coin-block', coins);
-  for (const c of coins) api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: c.x, z: c.z, r: 0.7 * c.scale, top: gy + 1.1 * c.scale }] });
-  const crystals: Placement[] = [];
-  for (let i = 0; i < 10; i++) { const x = 952 + api.rnd() * 26; const z = G.z - 48 - api.rnd() * 20; crystals.push({ x, y: gy, z, yaw: api.rnd() * 6, scale: 0.6 + api.rnd() * 1.2 }); glowAt(api, PALETTE.dusk, 1.4, x, gy + 0.6, z, 0.4); }
-  api.flora('purple-crystal', crystals, { shadows: false });
-  // The skeleton lord's pavilion, east (DeXn5rSPxR8).
+  // (The treasury, Bucket Street and the rest of the Lean Quarter: LeanQuarter.ts.)
+  // The Lean-Chucker's pavilion, east (DeXn5rSPxR8's dome; the skeleton lord has his own in the court).
   api.place(modelLandmark('gothic-pavilion', 1035, G.z - 55, gy, { yaw: face(Math.PI) }));
   // Dragon riders circling the city (DeYtKbMh76x): wings beating (the mesh has no bones: a vertex flap), and purple
   // fire for anyone who flies up close.
@@ -183,8 +177,9 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   api.place(modelLandmark('dragon-riders', G.x + 80, G.z, gy + 42, { clip: 'fly', color: PALETTE.dusk, collider: 'none',
     onLoad: (m) => { for (const mat of m.materials) patchWingFlap(mat, { x0: 0.22, rootY: 0.45, rate: 3.4, amp: 0.75 }); },
     update: (dt, root, _m, player) => {
-      da += dt * 0.12;
-      root.position.set(G.x + Math.cos(da) * 80, gy + 42 + Math.sin(da * 3) * 4, G.z + Math.sin(da) * 80);
+      da += dt * 0.09;
+      // A wide loop over every quarter: the court, the castle, the snow chapel, the sky dock.
+      root.position.set(G.x - 40 + Math.cos(da) * 130, gy + 42 + Math.sin(da * 3) * 4, G.z - 20 + Math.sin(da) * 120);
       root.rotation.y = face(da + Math.PI / 2);
       root.rotation.z = -0.25;
       // A hero in the air near it gets a gout of fire (bursts of bolts from the jaws, then a breath).
@@ -200,71 +195,10 @@ export function buildRealms(api: RealmApi): PortalLink[] {
         }
       }
     } }));
-  // The bucket mimics' street, west at z = 20 (DeaqHWJBBPw).
-  // (6 m west of where it first stood: the houses at x 986 swallowed the towers along the road at x 989.)
-  for (const x of [980, 964, 948]) {
-    for (const [z, yaw] of [[9, Math.PI / 2], [31, -Math.PI / 2]] as const) {
-      api.place(modelLandmark('purple-house', x, G.z + z, gy, { yaw: face(yaw), footprints: [{ kind: 'box', x, z: G.z + z, hw: 4.2, hd: 4.2, top: gy + 9 }] }));
-    }
-  }
-  // The goblin market: two stalls in the gaps between the houses, facing the street (not out by the towers).
-  const STALLS = [{ x: 972, z: 12.6, yaw: Math.PI / 2 }, { x: 956, z: 27.4, yaw: -Math.PI / 2 }];
-  for (const st of STALLS) api.place(modelLandmark('market-stall', st.x, G.z + st.z, gy, { yaw: face(st.yaw), footprints: [{ kind: 'box', x: st.x, z: G.z + st.z, hw: 1.8, hd: 1.2, top: gy + 1.1 }] }));
-  api.place(modelLandmark('crystal-ball', STALLS[0].x - 0.6, G.z + STALLS[0].z + 0.3, gy + 1.1, { color: PALETTE.dusk }));
-  glowAt(api, PALETTE.dusk, 1.6, STALLS[0].x - 0.6, gy + 1.5, G.z + STALLS[0].z + 0.3, 0.6);
-  const shrooms: Placement[] = [];
-  for (let x = 984; x > 942; x -= 6) for (const z of [14, 26]) {
-    if (STALLS.some((st) => Math.hypot(st.x - x, st.z - z) < 3)) continue;
-    shrooms.push({ x, y: gy, z: G.z + z, yaw: api.rnd() * 6, scale: 0.8 + api.rnd() * 0.5 }); glowAt(api, PALETTE.dusk, 1.8, x, gy + 2, G.z + z, 0.45); }
-  api.flora('purple-mushroom', shrooms, { shadows: false });
-  // The star brewer's tower at the street's end (DeQ-NnpvqF6).
-  api.place(modelLandmark('round-tower', 945, G.z - 20, gy, { yaw: face(0), footprints: [{ kind: 'cyl', x: 945, z: G.z - 20, r: 3.6, top: gy + 22 }] }));
 
-  // ===== The sunken city =====
-  api.realm(S.id);
-  const sy = S.y;
-  api.place(floorSlab(S.x, S.z, sy, 110, 110));
-  // Unseen walls round the slab (beyond it the murk hides a long fall).
-  api.place({ object: new Group(), footprints: [
-    { kind: 'box', x: S.x - 55.5, z: S.z, hw: 0.5, hd: 56, top: sy + 6 }, { kind: 'box', x: S.x + 55.5, z: S.z, hw: 0.5, hd: 56, top: sy + 6 },
-    { kind: 'box', x: S.x, z: S.z - 55.5, hw: 56, hd: 0.5, top: sy + 6 }, { kind: 'box', x: S.x, z: S.z + 55.5, hw: 56, hd: 0.5, top: sy + 6 },
-  ] });
-  api.place(modelLandmark('sunken-tavern', S.x, S.z - 24, sy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'box', x: S.x, z: S.z - 28.5, hw: 10.5, hd: 1.8, top: sy + 11 }] }));
-  api.place(modelLandmark('coral-throne', S.x - 4, S.z - 13, sy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'box', x: S.x - 4, z: S.z - 13.4, hw: 1.3, hd: 1, top: sy + 0.8 }] }));
-  let ca = 0;
-  api.place(modelLandmark('giant-crown', S.x, S.z - 16, sy + 11, { collider: 'none', update: (dt, root) => { ca += dt; root.rotation.y = Math.sin(ca * 0.3) * 0.2; root.position.y = sy + 11 + Math.sin(ca * 0.8) * 0.2; } }));
-  const sTables: Placement[] = [[-6, -6, 0], [6, -6, 0]].map(([dx, dz, yaw]) => ({ x: S.x + dx, y: sy, z: S.z + dz, yaw, scale: 1 }));
-  api.flora('tavern-table', sTables);
-  if (PRESENT_MODELS.has('tavern-table')) for (const t of sTables) api.place({ object: new Group(), footprints: [{ kind: 'box', x: t.x, z: t.z, hw: 1.6, hd: 0.6, top: sy + 0.95 }] });
-  if (PRESENT_MODELS.has('tavern-table')) api.flora('candle', sTables.flatMap((t) => [-1, 0, 1].map((k) => ({ x: t.x + k * 0.9, y: sy + 0.95, z: t.z, yaw: 0, scale: 1 }))), { shadows: false });
-  if (PRESENT_MODELS.has('tavern-table')) for (const t of sTables) for (const k of [-1, 0, 1]) glowAt(api, PALETTE.dusk, 0.5, t.x + k * 0.9, sy + 1.4, t.z, 0.6);
-  const barrels: Placement[] = [[-10, -14], [-11.5, -12], [10, -14], [11.6, -12.4], [-8, 4], [9, 6]].map(([dx, dz]) => ({ x: S.x + dx, y: sy, z: S.z + dz, yaw: api.rnd() * 6, scale: 1 }));
-  api.flora('barrel', barrels);
-  for (const b of barrels) api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: b.x, z: b.z, r: 0.5, top: sy + 1.1 }] });
-  const coral: Placement[] = [];
-  for (let i = 0; i < 28; i++) { const a = api.rnd() * Math.PI * 2; const r = 16 + api.rnd() * 30; coral.push({ x: S.x + Math.cos(a) * r, y: sy, z: S.z + Math.sin(a) * r, yaw: api.rnd() * 6, scale: 0.8 + api.rnd() * 1.6 }); }
-  api.flora('coral', coral, { shadows: false });
-  const jelly: Placement[] = [];
-  const jellySeed: Array<{ cx: number; cz: number; r: number; h: number; s: number; p: number }> = [];
-  for (let i = 0; i < 16; i++) {
-    const seed = { cx: S.x + (api.rnd() - 0.5) * 50, cz: S.z + (api.rnd() - 0.5) * 50, r: 2 + api.rnd() * 6, h: sy + 4 + api.rnd() * 10, s: 0.1 + api.rnd() * 0.2, p: api.rnd() * 6 };
-    jellySeed.push(seed);
-    jelly.push({ x: seed.cx, y: seed.h, z: seed.cz, yaw: 0, scale: 0.6 + api.rnd() * 0.8 });
-  }
-  api.flora('jellyfish', jelly, { shadows: false, update: (t, ps) => {
-    ps.forEach((p, i) => { const s = jellySeed[i]; const a = t * s.s + s.p; p.x = s.cx + Math.cos(a) * s.r; p.z = s.cz + Math.sin(a) * s.r; p.y = s.h + Math.sin(t * 0.7 + s.p) * 1.2; p.yaw = -a; });
-    return true;
-  } });
-  const glowJelly = new Group();
-  for (let i = 0; i < 16; i++) glowJelly.add(glowSprite(PALETTE.rune, 2.2, 0.35, true));
-  api.vfx({ group: glowJelly, update: () => { const t = performance.now() / 1000; glowJelly.children.forEach((c, i) => { const s = jellySeed[i]; const a = t * s.s + s.p; c.position.set(s.cx + Math.cos(a) * s.r, s.h + 0.6 + Math.sin(t * 0.7 + s.p) * 1.2, s.cz + Math.sin(a) * s.r); }); } });
-  const hearth = new PointLight(PALETTE.rune, 60, 30, 1.6);
-  hearth.position.set(S.x, sy + 3, S.z - 17);
-  api.group.add(hearth);
-  // The bubble column home.
-  api.place(portal(S.x, sy + 0.06, S.z + 30, 2.6, { vertical: false, colors: [PALETTE.abyss, PALETTE.moon], spin: 1 }));
-  for (let k = 0; k < 8; k++) glowAt(api, PALETTE.moon, 0.8, S.x + (api.rnd() - 0.5) * 2, sy + 1 + k * 1.6, S.z + 30 + (api.rnd() - 0.5) * 2, 0.4);
-  links.push(link(new Vector3(S.x, sy + 0.5, S.z + 30), 2.2, 3, ISLAND_PORTALS.pond.shore.x, ISLAND_PORTALS.pond.shore.z, 0, 'The Lily Pond'));
+  // ===== The sunken city (DeVj-Z8POjl): Sunken.ts; the Dragon's Vale (Dd5Bqt7vQ5T): Vale.ts =====
+  links.push(...buildSunken(api, link));
+  links.push(...buildVale(api, link));
 
   api.realm(null);
   return links;

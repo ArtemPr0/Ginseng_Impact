@@ -48,7 +48,10 @@ function flakeTexture(): CanvasTexture {
   return new CanvasTexture(canvas);
 }
 
-/** Localised precipitation: rain over the orchard, snow over the frozen realm; both fade with distance from their zone. */
+/**
+ * Localised precipitation: rain over the orchard, snow over the frozen places (the Frost March, the kingdom's snow
+ * chapel); both fade with distance from their zones.
+ */
 export class Weather {
   readonly group = new Group();
   private readonly rainMat: ShaderMaterial;
@@ -58,7 +61,7 @@ export class Weather {
   /** True while the player stands inside the rain zone (drives lightning). */
   inRain = false;
 
-  constructor(private readonly rain: WeatherZone, private readonly snow: WeatherZone) {
+  constructor(private readonly rain: WeatherZone, private readonly snow: readonly WeatherZone[]) {
     const make = (count: number, range: number, height: number, speed: number, sway: number, color: number, map: CanvasTexture, opacity: number, blending: Blending) => {
       const pos: number[] = [];
       const seeds: number[] = [];
@@ -91,7 +94,7 @@ export class Weather {
     this.cover += ((covered ? 1 : 0) - this.cover) * Math.min(1, dt * 3);
     const open = 1 - this.cover;
     const rainF = this.zoneFade(this.rain, player) * open;
-    const snowF = this.zoneFade(this.snow, player) * open;
+    const snowF = Math.max(0, ...this.snow.map((z) => this.zoneFade(z, player))) * open;
     this.inRain = rainF > 0.5;
     this.fall(this.rainMat, rainF, 0.55, player);
     this.fall(this.snowMat, snowF, 0.8, player);

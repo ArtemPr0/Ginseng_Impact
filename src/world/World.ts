@@ -25,6 +25,7 @@ import { stoneHeadEyes } from './StoneHead';
 import { buildTreeHouse } from './TreeHouse';
 import { buildDream, dreamWatchers } from './Dream';
 import { buildKingdom } from './Kingdom';
+import { buildLeanQuarter } from './LeanQuarter';
 import { type Bouncer, buildHeart, ISLAND_TOP } from './Heart';
 import { buildGraveyard } from './Graveyard';
 import type { ModelRig } from '../models/ModelRig';
@@ -127,7 +128,7 @@ function litWindows(m: ModelRig): void {
 const CAMPFIRE = { x: -24, z: 52 };
 const CAMPFIRE_SEATS = new Set(['rattle', 'bone', 'marrow']);
 /** NPCs who sit on a barrel. */
-const SEATED = new Set(['rattle', 'bone', 'marrow', 'moss', 'sentry']);
+const SEATED = new Set(['rattle', 'bone', 'marrow', 'moss', 'sentry', 'vale-beggar', 'skeleton-lord', 'court-knight', 'dock-knight']);
 /**
  * The lantern in the rider's right hand, in horse-rider.glb's own frame (forward is -x, the rider's right -z, y up
  * from the hooves): the centre of its lit glass (the texels of the flame, averaged), less the fire's own lift.
@@ -191,6 +192,8 @@ export class World {
     soundWanted?: () => boolean; foundSound?: () => void;
     /** A small prize for a feat in the world ('eyes': every sky eye shot). */
     reward?: (what: string) => void;
+    /** The world swirls (a sip from the Lean Quarter's fountains). */
+    trip?: (strength: number, seconds: number) => void;
   } = {};
   /** The river boats with their two rowers each. */
   readonly boats: Boat[] = [];
@@ -637,6 +640,7 @@ export class World {
     for (const w of dreamWatchers) this.watchers.push({ zone: 'dream', update: w });
     const kingdom = buildKingdom(realmApi, { soundWanted: () => this.hooks.soundWanted?.() ?? false, foundSound: () => this.hooks.foundSound?.() });
     this.interactables.push(...kingdom.interactables);
+    this.interactables.push(...buildLeanQuarter(realmApi, { trip: (s, sec) => this.hooks.trip?.(s, sec) }).interactables);
     // Behind the demon church's door: the Alley of Graves.
     {
       const dx = LAYOUT.church.x + MODELS.church.height * 0.4 + 0.8;

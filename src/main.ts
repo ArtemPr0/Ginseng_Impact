@@ -8,7 +8,8 @@ import { ROSTER } from './characters/roster';
 import { CombatSystem } from './combat/CombatSystem';
 import { Game } from './core/Game';
 import { Input } from './core/Input';
-import { LAYOUT, REALMS } from './data/world';
+import { DISTRICT_AIR, LAYOUT, leanDistrict, REALMS, VALE } from './data/world';
+import { kingdomNight } from './world/Kingdom';
 import { Inventory } from './items/Inventory';
 import { riverAt } from './world/Terrain';
 import { ITEMS } from './items/Items';
@@ -82,7 +83,7 @@ const world = area.heights;
 if (debugAt) (window as unknown as { __dbg: unknown }).__dbg = { h: (x: number, z: number) => world.heightAt(x, z), river: (x: number, z: number) => riverAt(x, z), rigs: () => rigs, combat: () => combat, npcs: () => area.npcs, audio, gl: () => renderer.gl, renderer, world: () => area, camera, terrain, sky, atmosphere: () => atmosphere, weather: () => weather };
 const atmosphere = new Atmosphere((x, z) => world.heightAt(x, z), new Vector3(LAYOUT.spawn.x, 0, LAYOUT.spawn.z));
 scene.add(atmosphere.group);
-const weather = new Weather(LAYOUT.rainZone, LAYOUT.snowZone);
+const weather = new Weather(LAYOUT.rainZone, LAYOUT.snowZones);
 scene.add(weather.group);
 const playerPos = new Vector3();
 /** Where the hero was at the start of the last fixed step, and where they are drawn (between it and now). */
@@ -177,6 +178,7 @@ const adventures = new Adventures({
 area.hooks.soundWanted = () => adventures.quests.stage('sound') === 'active';
 area.hooks.foundSound = () => adventures.foundSound();
 area.hooks.teleport = teleport;
+area.hooks.trip = (strength, seconds) => renderer.trip(strength, seconds);
 area.hooks.shoot = (from, s) => combat.hostileShot(from, s);
 area.hooks.hurt = (atk, poison) => combat.hazard(atk, poison);
 area.hooks.mire = (seconds) => combat.mire(seconds);
@@ -439,21 +441,27 @@ game
       playerPos.set(controller.pos.x, controller.pos.y, controller.pos.z);
       sky.update(dt, camera.position);
       moonFace.update(dt);
-      const auroraNear = Math.max(0, 1 - Math.hypot(playerPos.x - area.auroraCentre.x, playerPos.z - area.auroraCentre.z) / 90);
+      // (Strong over the church; full over the Dragon's Vale, where the reel's aurora hangs.)
+      const inVale = Math.hypot(playerPos.x - VALE.x, playerPos.z - VALE.z) < VALE.radius;
+      const auroraNear = inVale ? 1 : Math.max(0, 1 - Math.hypot(playerPos.x - area.auroraCentre.x, playerPos.z - area.auroraCentre.z) / 90);
       const kingNear = Math.max(0, Math.min(1, 1 - (Math.hypot(playerPos.x - 57, playerPos.z + 129) - 50) / 70));
       skyEvents.update(dt, camera.position, auroraNear, kingNear);
       area.update(dt, camera.position, playerPos, talking);
       atmosphere.update(dt, playerPos, camera.position);
       // Realm fog and the sunken city's bubbles.
       const realm = REALMS.find((r) => Math.hypot(playerPos.x - r.x, playerPos.z - r.z) < r.radius);
-      fogTarget.set(realm ? realm.fog.color : islandFog.color);
+      // The kingdom's quarters are moonlit night (the @returndark reels); its plaza and cups stay vaporwave.
+      const district = realm?.id === 'galaxy' ? leanDistrict(playerPos.x, playerPos.z) : null;
+      const air = district ? DISTRICT_AIR[district] : null;
+      fogTarget.set(air ? air.fog : realm ? realm.fog.color : islandFog.color);
       // The frog's dream: the fog drifts through every hue.
       if (realm?.cycle) fogTarget.setHSL((performance.now() / 1000 * 0.035) % 1, 0.7, 0.24);
       fog.color.lerp(fogTarget, Math.min(1, dt * 3));
-      fog.density += ((realm ? realm.fog.density : islandFog.density) - fog.density) * Math.min(1, dt * 3);
+      fog.density += ((air ? air.density : realm ? realm.fog.density : islandFog.density) - fog.density) * Math.min(1, dt * 3);
+      kingdomNight.value += ((air?.night ?? 0) - kingdomNight.value) * Math.min(1, dt * 1.5);
       bubbles.group.visible = !!realm?.underwater;
       // Each world has its own grade (bloom, saturation, lift); the renderer blends toward it.
-      renderer.setLook(LOOKS[realm?.id ?? 'island'] ?? LOOKS.island);
+      renderer.setLook(LOOKS[air?.look ?? realm?.id ?? 'island'] ?? LOOKS.island);
       sky.setPreset(SKIES[realm?.id ?? 'island'] ?? SKIES.island);
       // A realm with a sky of its own (the kingdom, the frog's dream) hides the island's moon, stars and aurora.
       sky.group.visible = skyEvents.group.visible = !realm?.ownSky;

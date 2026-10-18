@@ -475,6 +475,22 @@ export function poolWater(x: number, z: number, r: number, level: number): Landm
 }
 
 /**
+ * A still rectangle of reflecting water, `w` × `d` metres at `level`, turned `yaw` (the Lean Quarter's purple moat:
+ * pass lean colours). Colours as waterMaterial.
+ */
+export function waterSheet(x: number, z: number, w: number, d: number, level: number, colors: [number, number, number] = [0x071a66, 0x2c78ff, 0xa8d0ff], yaw = 0): Landmark {
+  const mat = waterMaterial(colors[0], colors[1], colors[2], 0);
+  const mesh = new Mesh(new PlaneGeometry(w, d), mat);
+  mesh.rotation.set(-Math.PI / 2, 0, yaw);
+  mesh.position.set(x, level, z);
+  mesh.renderOrder = 2;
+  const g = new Group();
+  g.add(mesh);
+  let t = 0;
+  return { object: g, footprints: [], update(dt) { t += dt; mat.uniforms.uTime.value = t; } };
+}
+
+/**
  * A stream running down a sloped bed (the forest gorge's floor): a ribbon through `points` ([x, z, surface y]),
  * `half` metres either side of its centre line, flowing from the first point to the last.
  */

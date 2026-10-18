@@ -1,7 +1,7 @@
 import type { BrainParams } from '../combat/EnemyBrain';
 import type { Element } from '../combat/Elements';
 
-export type EnemyKind = 'beast' | 'bucket' | 'crystalgolem' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity' | 'cyclops' | 'cyclops-lord' | 'blood-eye' | 'trip-wizard';
+export type EnemyKind = 'beast' | 'bucket' | 'crystalgolem' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity' | 'cyclops' | 'cyclops-lord' | 'blood-eye' | 'trip-wizard' | 'galaxy-knight' | 'mail-knight';
 
 export type BossAttackKind = 'slam' | 'boulder' | 'roar' | 'volley' | 'summon' | 'blink' | 'roots' | 'sweep' | 'breath' | 'charge' | 'bite' | 'logthrow' | 'punch' | 'grab' | 'cupmortar' | 'cupvolley' | 'snowstorm' | 'web' | 'webdrop' | 'hop' | 'kaleido' | 'eyebeam' | 'mirror' | 'glare' | 'thorns' | 'rainbow';
 
@@ -170,6 +170,18 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     kind: 'bucket', name: 'Bucket Mimic', maxHp: 520, def: 25, atk: 62, speed: 3.4, element: 'stone', hover: 0, bodyRadius: 0.5, height: 1.0,
     brain: { aggroRange: 10, attackRange: 2.0, windup: 0.4, recover: 0.8, attackCooldown: 0.5 }, respawn: 30, leash: 16, shards: [4, 9], drops: [{ itemId: 'rune-shard', chance: 0.4 }, { itemId: 'moon-dew', chance: 0.2 }],
   },
+  // Round 6, the Lean Quarter. DeaqHWJBBPw: knights in faceted blue mail and gold chains walking Bucket Street.
+  'mail-knight': {
+    kind: 'mail-knight', name: 'Chain-Mail Knight', maxHp: 980, def: 55, atk: 88, speed: 3.0, element: 'stone', hover: 0, bodyRadius: 0.55, height: 1.95,
+    brain: { aggroRange: 12, attackRange: 2.4, windup: 0.6, recover: 0.9, attackCooldown: 0.6 }, respawn: 60, leash: 18, shards: [8, 14],
+    drops: [{ itemId: 'rune-shard', chance: 0.5 }],
+  },
+  // DeOemU1BOZF: a knight in galaxy-patterned plate guarding the Skeleton Court's treasury.
+  'galaxy-knight': {
+    kind: 'galaxy-knight', stomp: true, name: 'Galaxy Knight', maxHp: 1900, def: 95, atk: 130, speed: 2.6, element: 'astral', hover: 0, bodyRadius: 0.7, height: 2.2,
+    brain: { aggroRange: 12, attackRange: 3.0, windup: 0.8, recover: 1.0, attackCooldown: 0.7 }, respawn: 75, leash: 16, shards: [14, 24],
+    drops: [{ itemId: 'star-chart', chance: 0.08 }, { itemId: 'rune-shard', chance: 0.7 }],
+  },
   // Dd0wR9Jh2lH: a humanoid of blue crystal shards walking rippled sand.
   crystalgolem: {
     kind: 'crystalgolem', stomp: true, name: 'Crystal Golem', maxHp: 1700, def: 90, atk: 120, speed: 2.4, element: 'stone', hover: 0, bodyRadius: 1.0, height: 2.6,
@@ -312,6 +324,10 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   // On the front of the pavilion's throne: its seat (x 1034.5–1036.5) is 0.82 m above the dais and his hips sit 0.58 m
   // above his feet, so a small imp on a big throne sits with his legs dangling over the edge.
   { kind: 'lean-chucker', x: 1034.3, z: -55, yaw: Math.PI, exact: true, sitY: 24.56 },
-  // The bucket mimics' street in the kingdom's west quarter (see GALAXY in data/world.ts).
-  { kind: 'bucket', x: 969, z: 20 }, { kind: 'bucket', x: 960, z: 22 }, { kind: 'bucket', x: 952, z: 18 }, { kind: 'bucket', x: 978, z: 18 },
+  // Bucket Street in the kingdom's west quarter (LEAN_QUARTER in data/world.ts): the mimics and the chain-mail knights.
+  { kind: 'bucket', x: 934, z: 15 }, { kind: 'bucket', x: 918, z: 21 }, { kind: 'bucket', x: 896, z: 13 },
+  { kind: 'bucket', x: 884, z: 23 }, { kind: 'bucket', x: 864, z: 16 }, { kind: 'bucket', x: 848, z: 20 },
+  { kind: 'mail-knight', x: 908, z: 18 }, { kind: 'mail-knight', x: 860, z: 18 },
+  // The Skeleton Court's treasury.
+  { kind: 'galaxy-knight', x: 958, z: -160 }, { kind: 'galaxy-knight', x: 968, z: -172 },
 ];

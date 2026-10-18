@@ -66,6 +66,10 @@ export const LOOKS: Record<string, Look> = {
   graveyard: { bloom: 0.65, radius: 0.6, threshold: 0.78, saturation: 1.15, contrast: 1.14, vignette: 0.62, exposure: 0.95, lift: [0.025, 0.008, 0.04] },
   sunken: { bloom: 0.7, radius: 0.7, threshold: 0.75, saturation: 1.15, contrast: 1.05, vignette: 0.55, exposure: 0.95, lift: [0.0, 0.015, 0.05] },
   treehouse: { bloom: 0.65, radius: 0.6, threshold: 0.78, saturation: 1.15, contrast: 1.08, vignette: 0.55, exposure: 1.0, lift: [0.01, 0.01, 0.04] },
+  // The kingdom's quarters at night (the @returndark reels): deep purple, glows that bloom, heavier vignette.
+  'lean-night': { bloom: 0.85, radius: 0.7, threshold: 0.68, saturation: 1.3, contrast: 1.14, vignette: 0.6, exposure: 0.95, lift: [0.012, 0.0, 0.05] },
+  vale: { bloom: 0.72, radius: 0.62, threshold: 0.76, saturation: 1.2, contrast: 1.1, vignette: 0.5, exposure: 0.95, lift: [0.0, 0.012, 0.04] },
+  'lean-snow': { bloom: 0.7, radius: 0.65, threshold: 0.75, saturation: 1.12, contrast: 1.12, vignette: 0.58, exposure: 0.92, lift: [0.0, 0.01, 0.055] },
 };
 
 /** Pixel-ratio range for the adaptive resolution governor and the frame-time band it keeps. */
