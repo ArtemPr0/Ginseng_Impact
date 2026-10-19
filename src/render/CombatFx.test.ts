@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { MeshStandardMaterial, PerspectiveCamera, type WebGLProgramParametersWithUniforms, type WebGLRenderer, Vector3 } from 'three';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  Color, type InstancedMesh, type Mesh, MeshStandardMaterial, PerspectiveCamera, type WebGLProgramParametersWithUniforms,
+  type WebGLRenderer, Vector3,
+} from 'three';
 import { COMBATFX_CLOCK, CombatFx, patchDissolve } from './CombatFx';
 
 const cam = new PerspectiveCamera();
@@ -98,6 +101,33 @@ describe('trails', () => {
     expect(fx.trailSlot('e')).toBe(slotA);
   });
 
+  it('a slot stolen from a live swing collapses onto its first sample before any update()', () => {
+    const fx = new CombatFx();
+    const far = new Vector3(30, 1, 30);
+    const farTip = new Vector3(30, 1.9, 30);
+    for (let frame = 0; frame < 2; frame++) {
+      for (const id of ['a', 'b', 'c', 'd']) fx.trail(id, far, farTip, 0xffffff, true);
+      fx.update(1 / 60, cam);
+    }
+    // Every slot is swinging with a rebuilt ribbon out at `far`; 'a' is the one fed least recently.
+    for (const id of ['b', 'c', 'd']) fx.trail(id, far, farTip, 0xffffff, true);
+    const slotA = fx.trailSlot('a');
+    fx.trail('e', A, B, 0xff2a2a, true);
+    expect(fx.trailSlot('e')).toBe(slotA);
+    const mesh = fx.group.children.filter((o) => o.name === 'trail')[slotA] as Mesh;
+    const pos = mesh.geometry.getAttribute('position');
+    const age = mesh.geometry.getAttribute('age');
+    expect(pos.count).toBe(48);
+    for (let v = 0; v < pos.count; v++) {
+      const sample = v % 2 === 0 ? A : B;
+      expect([pos.getX(v), pos.getY(v), pos.getZ(v)]).toEqual([Math.fround(sample.x), Math.fround(sample.y), Math.fround(sample.z)]);
+    }
+    expect(age.getX(0)).toBe(0);
+    expect(age.getX(1)).toBe(0);
+    for (let v = 2; v < age.count; v++) expect(age.getX(v)).toBe(1);
+    expect(mesh.visible).toBe(true);
+  });
+
   it('a trail nobody feeds any more turns itself off', () => {
     const fx = new CombatFx();
     fx.trail('a', A, B, 0xffffff, true);
@@ -151,10 +181,14 @@ describe('telegraphs and the rest', () => {
     expect(visible(fx)).toBe(0);
   });
 
-  it('dispose() empties the group', () => {
+  it('dispose() empties the group and disposes the instanced meshes', () => {
     const fx = new CombatFx();
+    const instanced = fx.group.children.filter((o) => (o as InstancedMesh).isInstancedMesh) as InstancedMesh[];
+    expect(instanced.map((m) => m.name).sort()).toEqual(['dust', 'flashes', 'sparks']);
+    const spies = instanced.map((m) => vi.spyOn(m, 'dispose'));
     fx.dispose();
     expect(fx.group.children.length).toBe(0);
+    for (const spy of spies) expect(spy).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -177,6 +211,46 @@ describe('patchDissolve', () => {
     expect(shader.vertexShader).toContain('vDissolveP');
     expect(shader.fragmentShader).toContain('discard');
     expect(shader.fragmentShader).toContain('totalEmissiveRadiance += uDissolveEdge');
+  });
+
+  it('patches a material once: a repeat call returns the same uniform and only retints the edge', () => {
+    const mat = new MeshStandardMaterial();
+    let chained = 0;
+    mat.onBeforeCompile = () => { chained++; };
+    const u = patchDissolve(mat, 0xff2a2a);
+    u.value = 0.7;
+    expect(patchDissolve(mat, 0x37f5ff)).toBe(u);
+    expect(patchDissolve(mat, 0x37f5ff)).toBe(u);
+    expect(mat.userData.dissolve).toBe(u);
+    expect(mat.customProgramCacheKey().split('dissolve').length).toBe(2);
+    const shader = {
+      uniforms: {} as Record<string, { value: unknown }>,
+      vertexShader: '#include <common>\n#include <worldpos_vertex>',
+      fragmentShader: '#include <common>\n#include <clipping_planes_fragment>\n#include <emissivemap_fragment>',
+    };
+    mat.onBeforeCompile(shader as unknown as WebGLProgramParametersWithUniforms, undefined as unknown as WebGLRenderer);
+    expect(chained).toBe(1);
+    // One copy of every declaration, or the program would not link (redefinition of vDissolveP, dsHash...).
+    expect(shader.vertexShader.split('varying vec3 vDissolveP;').length).toBe(2);
+    expect(shader.fragmentShader.split('uniform float uDissolve;').length).toBe(2);
+    expect(shader.fragmentShader.split('float dsHash(').length).toBe(2);
+    expect(shader.fragmentShader.split('float dsN =').length).toBe(2);
+    expect(shader.uniforms.uDissolve).toBe(u);
+    expect((shader.uniforms.uDissolveEdge.value as Color).equals(new Color(0x37f5ff))).toBe(true);
+  });
+
+  it('a clone of a patched material is patched afresh (its userData is only a JSON copy)', () => {
+    const mat = new MeshStandardMaterial();
+    const u = patchDissolve(mat, 0xff2a2a);
+    const clone = mat.clone();
+    expect(clone.userData.dissolve).not.toBe(u);
+    const v = patchDissolve(clone, 0xff2a2a);
+    expect(v).not.toBe(u);
+    expect(clone.userData.dissolve).toBe(v);
+    expect(clone.customProgramCacheKey()).toContain('dissolve');
+    const shader = { uniforms: {} as Record<string, { value: unknown }>, vertexShader: '#include <common>', fragmentShader: '#include <common>' };
+    clone.onBeforeCompile(shader as unknown as WebGLProgramParametersWithUniforms, undefined as unknown as WebGLRenderer);
+    expect(shader.uniforms.uDissolve).toBe(v);
   });
 
   it('chains an earlier onBeforeCompile', () => {

@@ -100,7 +100,11 @@ export class ThirdPersonCamera {
       this.shakeAmount *= Math.exp(-dt * 9);
     }
     if (this.kickVec.lengthSq() > 1e-8) {
-      this.camera.position.add(this.kickVec);
+      const p = this.camera.position;
+      p.add(this.kickVec);
+      // A kick reaches half a metre, enough to push the camera under the ground: clamp again where it landed.
+      const kickFloor = this.world.heightAt(p.x, p.z, p.y) + 0.5;
+      if (p.y < kickFloor) p.y = kickFloor;
       this.kickVec.multiplyScalar(Math.exp(-dt * 9));
       if (this.kickVec.lengthSq() < 1e-8) this.kickVec.set(0, 0, 0);
     }

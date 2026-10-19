@@ -114,6 +114,16 @@ const _d = new Vector3();
 const _m = new Matrix4();
 const _col = new Color();
 
+/** How many of the first `n` instances are alive at `now`: born, and younger than `life` (+ `spread` × their seed). */
+function countAlive(birth: Float32Array, n: number, now: number, life: number, spread = 0, seed?: Float32Array): number {
+  let alive = 0;
+  for (let i = 0; i < n; i++) {
+    const b = birth[i];
+    if (b <= now && now < b + life + (seed ? spread * seed[i] : 0)) alive++;
+  }
+  return alive;
+}
+
 /**
  * The culling sphere of an instanced pool whose instances move in the vertex shader: a box over every live
  * emission point (plus how far its particles can fly), kept as the mesh's boundingSphere. Never frustumCulled=false.
@@ -542,7 +552,8 @@ export class CombatFx {
 
   /** The slot an id's trail owns, or -1. */
   trailSlot(id: string): number {
-    return this.trails.findIndex((s) => s.id === id);
+    for (let i = 0; i < this.trails.length; i++) if (this.trails[i].id === id) return i;
+    return -1;
   }
 
   /**
@@ -558,6 +569,7 @@ export class CombatFx {
       if (slot) { slot.on = false; slot.offAt = now; slot.id = null; }
       return;
     }
+    const acquired = !slot;
     if (!slot) {
       slot = this.acquireTrail();
       if (!slot) return;
@@ -568,7 +580,6 @@ export class CombatFx {
       slot.on = true;
       (slot.mat.uniforms.uColor.value as Color).set(color);
       slot.mat.uniforms.uFade.value = 1;
-      slot.mesh.visible = true;
     }
     const i = slot.head;
     slot.guard[i * 3] = a.x; slot.guard[i * 3 + 1] = a.y; slot.guard[i * 3 + 2] = a.z;
@@ -578,6 +589,12 @@ export class CombatFx {
     slot.count = Math.min(TRAIL_N, slot.count + 1);
     slot.lastFed = now;
     slot.dirty = true;
+    if (acquired) {
+      // The slot may have been stolen from a live swing: collapse the ribbon onto this first sample now, so the
+      // previous owner's geometry can never be drawn, whether the caller feeds trails before or after update().
+      this.rebuildTrail(slot);
+      slot.mesh.visible = true;
+    }
   }
 
   private acquireTrail(): TrailSlot | undefined {
@@ -598,7 +615,7 @@ export class CombatFx {
     const stamp = s.stamp.array as Float32Array;
     let minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
     for (let j = 0; j < TRAIL_N; j++) {
-      // Oldest sample first; the ring's unused samples collapse onto the oldest one at full age (invisible).
+      // Oldest sample first; the ring's unused samples collapse onto the newest one at full age (zero area, invisible).
       const used = Math.min(j, n - 1);
       const idx = (s.head - n + used + TRAIL_N * 2) % TRAIL_N;
       const v = j * 2;
@@ -779,7 +796,8 @@ export class CombatFx {
 
   /** The slot a telegraph id owns, or -1. */
   telegraphSlot(id: number): number {
-    return this.telegraphs.findIndex((s) => s.mesh.visible && s.id === id);
+    for (let i = 0; i < this.telegraphs.length; i++) { const s = this.telegraphs[i]; if (s.mesh.visible && s.id === id) return i; }
+    return -1;
   }
 
   /**
@@ -788,7 +806,8 @@ export class CombatFx {
    */
   telegraph(id: number, kind: 'ring' | 'cone' | 'disc', at: Vector3, yaw: number, size: number, seconds: number, color: ColorRepresentation, halfAngle = 0.5): void {
     const now = COMBATFX_CLOCK.value;
-    let slot = this.telegraphs.find((s) => s.mesh.visible && s.id === id);
+    let slot: TelegraphSlot | undefined;
+    for (const s of this.telegraphs) if (s.mesh.visible && s.id === id) { slot = s; break; }
     if (!slot) {
       for (const s of this.telegraphs) if (!s.mesh.visible) { slot = s; break; }
       if (!slot) { slot = this.telegraphs[0]; for (const s of this.telegraphs) if (s.birth < slot.birth) slot = s; }
@@ -821,24 +840,22 @@ export class CombatFx {
 
   // ---------------------------------------------------------------- update
 
-  /** What is live right now (tests and the perf HUD). */
+  /**
+   * What is live right now, for the tests and the perf HUD. This is the one read that allocates (its result
+   * object): poll it when the HUD refreshes, not every frame.
+   */
   get live(): { trails: number; arcs: number; sparks: number; flashes: number; shocks: number; dust: number; telegraphs: number; rune: boolean } {
     const now = COMBATFX_CLOCK.value;
-    const alive = (birth: BufferAttribute, count: number, life: (i: number) => number) => {
-      let n = 0;
-      const b = birth.array as Float32Array;
-      for (let i = 0; i < count; i++) if (b[i] <= now && now < b[i] + life(i)) n++;
-      return n;
-    };
-    const seed = this.sparkSeed.array as Float32Array;
+    let trails = 0, arcs = 0, shocks = 0, telegraphs = 0;
+    for (const s of this.trails) if (s.mesh.visible) trails++;
+    for (const s of this.arcs) if (s.mesh.visible) arcs++;
+    for (const s of this.shocks) if (s.mesh.visible) shocks++;
+    for (const s of this.telegraphs) if (s.mesh.visible) telegraphs++;
     return {
-      trails: this.trails.filter((s) => s.mesh.visible).length,
-      arcs: this.arcs.filter((s) => s.mesh.visible).length,
-      sparks: this.sparkMesh.visible ? alive(this.sparkBirth, this.sparkMesh.count, (i) => 0.35 + 0.25 * seed[i]) : 0,
-      flashes: this.flashMesh.visible ? alive(this.flashBirth, this.flashMesh.count, () => FLASH_LIFE) : 0,
-      shocks: this.shocks.filter((s) => s.mesh.visible).length,
-      dust: this.dustMesh.visible ? alive(this.dustBirth, this.dustMesh.count, () => DUST_LIFE) : 0,
-      telegraphs: this.telegraphs.filter((s) => s.mesh.visible).length,
+      trails, arcs, shocks, telegraphs,
+      sparks: this.sparkMesh.visible ? countAlive(this.sparkBirth.array as Float32Array, this.sparkMesh.count, now, 0.35, 0.25, this.sparkSeed.array as Float32Array) : 0,
+      flashes: this.flashMesh.visible ? countAlive(this.flashBirth.array as Float32Array, this.flashMesh.count, now, FLASH_LIFE) : 0,
+      dust: this.dustMesh.visible ? countAlive(this.dustBirth.array as Float32Array, this.dustMesh.count, now, DUST_LIFE) : 0,
       rune: this.runeMesh.visible,
     };
   }
@@ -921,7 +938,10 @@ export class CombatFx {
     }
   }
 
-  /** Frees every geometry and material (the glow and puff textures are shared with the rest of the game and kept). */
+  /**
+   * Frees every geometry, material and instanced mesh (the instance-matrix buffers); the glow and puff textures
+   * are shared with the rest of the game and kept.
+   */
   dispose(): void {
     const seen = new Set<BufferGeometry>();
     for (const o of this.group.children) {
@@ -930,19 +950,38 @@ export class CombatFx {
       (m.material as ShaderMaterial | MeshBasicMaterial).dispose();
     }
     if (this.runeTex !== fallbackTex) this.runeTex.dispose();
+    this.sparkMesh.dispose();
+    this.flashMesh.dispose();
+    this.dustMesh.dispose();
     this.group.clear();
   }
 }
+
+/** The materials patchDissolve has patched, with their uniform and edge colour (the guard; see patchDissolve). */
+const dissolved = new WeakMap<MeshStandardMaterial, { amount: { value: number }; edge: Color }>();
 
 /**
  * Death by dissolve: pixels whose world-space noise falls under `value` are discarded, and a glowing edge in
  * `edge`'s colour burns just above the threshold. Ramp the returned uniform 0 → 1 over ~0.9 s. Works on skinned
  * and instanced meshes (the position is taken after the standard skinning chunk); chains any earlier
  * onBeforeCompile (the patchGlowCap pattern).
+ *
+ * Patches a material once: a respawned mob dies again with the same material copies, and a second patch chained
+ * onto the first would redeclare every varying and function and break the program. A repeat call returns the
+ * same uniform (also kept at `mat.userData.dissolve`) and only retints the edge; the caller sets the value back to
+ * 0 for each death. A clone of a patched material carries only a JSON copy of that userData, so it is patched
+ * afresh (the registry, not userData, is the guard).
  */
 export function patchDissolve(mat: MeshStandardMaterial, edge: ColorRepresentation): { value: number } {
+  const installed = dissolved.get(mat);
+  if (installed) {
+    installed.edge.set(edge);
+    return installed.amount;
+  }
   const amount = { value: 0 };
   const edgeColor = new Color(edge);
+  dissolved.set(mat, { amount, edge: edgeColor });
+  mat.userData.dissolve = amount;
   const prev = mat.onBeforeCompile;
   mat.onBeforeCompile = (shader, renderer) => {
     prev?.call(mat, shader, renderer);
