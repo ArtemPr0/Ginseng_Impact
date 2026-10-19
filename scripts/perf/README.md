@@ -18,3 +18,7 @@ Findings from the 2026-10-14 pass (M4 Max, Retina): repeated flora must be simpl
 every mesh is frustum-culled and flora is chunked; point lights go through `src/render/LightBudget.ts`; MSAA on a
 half-float target halved the frame rate (FXAA instead); bloom at quarter resolution; shadows redraw every second frame;
 transparent double-sided materials need `forceSinglePass` (else three.js re-resolves their program twice a frame).
+
+Audits (run.mjs bodies; each prints a list to read, see `.claude/skills/verify`): `audit/layout.js` (floating, buried,
+overlapping, inside buildings), `audit/glows.js` (flames and glows with nothing solid near), `audit/characters.js`
+(mobs and NPCs off the ground), `anim/stretch-all.js` and `anim/stretch-npcs.js` (skin tearing per clip).

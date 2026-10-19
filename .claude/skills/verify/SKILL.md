@@ -28,8 +28,17 @@ controller, combat (enemies), area (World), world (HeightWorld), tpc (camera rig
 | fps / CPU profile | `fps.mjs`, `prof.mjs` |
 | A mob in action: frames + state/clip/speed log | `node anim/capture.mjs "<url>|-" <kind> <prefix> [frames] [ms] [dist]` → `python3 anim/sheet.py <prefix> out.png` |
 | Every clip of a mob, frozen at fractions, lit | `FRACS=0.1,0.4,0.7 node anim/stage.mjs <kind> <prefix>` (STAGE_AT=x,z to move it onto dry land) → `COLS=6 python3 anim/stagesheet.py <prefix> out.png` |
+| Skin tearing on every mob / NPC body (% of surface stretched past 4x, worst moment per clip) | `node run.mjs "<url>" 6 anim/stretch-all.js`, `anim/stretch-npcs.js`: under ~5% is sound, 10-40% is a torn web or fan |
+| Things floating, buried, overlapping, inside buildings | `node run.mjs "http://127.0.0.1:4173/?at=0,40" 8 audit/layout.js` |
+| Glows and flames with nothing under them (torch flames on no torch, lamps off the wall) | `audit/glows.js` (same call) |
+| Mobs and NPCs off or under the ground | `audit/characters.js` (same call) |
 
 Gotchas
+- The audits list by-design items too (bridges and pinnacles over the void, lily pads on water, seated NPCs over their
+  seat's collider, the sky's eyes and clouds, swimming fish): read the list, look at each new entry, fix the rest.
+- A torn mob: `cut-triangles` for webs between limbs (list them in the page: triangles stretched past 3x joining the
+  two legs, or past 6x joining any two limbs, kept under ~2% of the surface), then `smooth-skin <in> <out> 8` for
+  weights that jump vertex to vertex (the rest of the fan). Never on the heroes without checking their cup grip.
 - Headless renders at ~5–15 fps and the loop caps a frame at 0.1 s: game time runs slower than wall time.
 - Drive input with `window.dispatchEvent(new KeyboardEvent('keydown', { code }))` (Space, Digit1-3, KeyW…).
 - Scripts that change enemy params (`o.brain.p.aggroRange = 0`) persist on that page: reload between runs.
