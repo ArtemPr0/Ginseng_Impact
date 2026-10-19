@@ -18,6 +18,7 @@ import { GALAXY, LEAN_QUARTER } from '../data/world';
 import { MODELS } from '../data/models';
 import { flagstoneFloor, cobbleFloor, rockTop, snowGround } from '../render/Floors';
 import { CHAPEL_DOOR } from './Interiors';
+import { landableIsland } from './Islands';
 import { glowSprite } from '../render/Glow';
 import { Glints, LEAN, meteors, mistLayers, ringedPlanet, skyVortex, tickLeanFx } from '../render/LeanFx';
 import { clipAbove, patchLitWindows } from '../render/Materials';
@@ -357,21 +358,18 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   for (let i = 0; i < 5; i++) { const a = -2.4 + i * 1.1; lamps.push({ x: D.x + Math.cos(a) * (D.r - 1.2), y: gy, z: D.z + Math.sin(a) * (D.r - 1.2), yaw: api.rnd() * 6, scale: 1 }); }
   api.flora('gothic-lamp', lamps);
   for (const l of lamps) { api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: l.x, z: l.z, r: 0.25, top: gy + 3.2 }] }); glow(0xffb050, 1.6, l.x, gy + 2.9, l.z, 0.55); }
-  // Two more islands in the sky: one with lamps and a dead tree, one carrying a tower with a giant cup on top.
+  // Two more islands in the sky, closer in from the plaza (they were too far to fly to) and solid to land on: one with a
+  // dead tree, one carrying a tower with a giant cup on top.
   {
-    const x = 1218, z = -42, base = gy + 8;
-    let a = Math.random() * 6;
-    api.place(modelLandmark('floating-island', x, z, base, { scale: 1.2, collider: 'none', update: (dt, root) => { a += dt; root.position.y = base + Math.sin(a * 0.4) * 0.8; } }));
-    glow(0xff6a20, 5, x, base + 2, z, 0.2);
+    const x = 1088, z = -50;
+    const { top } = landableIsland(api, x, z, gy + 4, { scale: 1.2, yaw: 0.4 });
+    glow(0xff6a20, 5, x, top - 6, z, 0.2);
   }
   {
-    // Still (a bobbing island would slide through its tower), and without its tree (the tower stands where it grew).
-    const ix = 1150, iz = -64, base = gy - 8;
-    const top = base + MODELS['floating-island'].height * 1.4 * ISLAND_TOP;
-    api.place(modelLandmark('floating-island', ix, iz, base, { scale: 1.4, collider: 'none', onLoad: (m) => restyle(m, (mat) => clipAbove(mat, top - 0.02)) }));
-    if (PRESENT_MODELS.has('floating-island')) api.group.add(rockTop(ix, iz, 8, top));
+    const ix = 1124, iz = -40, base = gy - 4;
+    const { top } = landableIsland(api, ix, iz, base, { scale: 1.4, tree: false });
     glow(0xff6a20, 5, ix, base + 2, iz, 0.2);
-    api.place(modelLandmark('round-tower', ix, iz, top, { collider: 'none' }));
+    api.place(modelLandmark('round-tower', ix, iz, top, { collider: 'manual', footprints: [{ kind: 'cyl', x: ix, z: iz, r: 3.2, top: top + MODELS['round-tower'].height * 0.85 }] }));
     // The cup rests on the tower's roof: its base ring (1.7 m across the radius) meets the cone 85% of the way up, and
     // the spire's tip ends inside the cup.
     const cupH = 7;

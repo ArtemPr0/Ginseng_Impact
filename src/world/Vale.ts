@@ -178,15 +178,15 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
 
   // --- East: the floating castle over the clouds, its chained platforms and lanterns ---
   {
-    const cx = X + 165, cz = Z + 10, cy = vy + 18;
-    let a = 0;
-    api.place(modelLandmark('floating-castle', cx, cz, cy, { yaw: face(Math.PI), collider: 'none', update: (dt, root) => { a += dt; root.position.y = cy + Math.sin(a * 0.25) * 1.2; } }));
+    // (Still and solid, as it looks, 35 m nearer the vale's edge: you can fly over and land on its rock and roofs.)
+    const cx = X + 130, cz = Z + 10, cy = vy + 18;
+    api.place(modelLandmark('floating-castle', cx, cz, cy, { yaw: face(Math.PI) }));
     // (Its falls only once there is a castle to pour them.)
     if (PRESENT_MODELS.has('floating-castle')) for (const [dx, dz, w] of [[-14, -6, 4], [-14, 9, 3]] as const) api.place(cascade({ x: cx + dx, z: cz + dz, top: cy + 12, height: 40, width: w, yaw: -Math.PI / 2, curve: 2 }));
-    const plats: Array<[number, number, number]> = [[X + 118, Z - 20, vy + 2], [X + 124, Z + 42, vy + 6], [X + 140, Z - 50, vy + 10], [X + 136, Z + 70, vy - 2]];
+    // (Two between the vale's edge and the castle, stepping stones to fly by; two beyond it. Clear of its 30 m rock.)
+    const plats: Array<[number, number, number]> = [[X + 106, Z - 6, vy + 3], [X + 108, Z + 30, vy + 7], [X + 152, Z - 22, vy + 11], [X + 150, Z + 44, vy + 2]];
     plats.forEach(([px, pz, py], i) => {
-      let b = i * 1.7;
-      api.place(modelLandmark('chained-platform', px, pz, py, { collider: 'none', update: (dt, root) => { b += dt; root.position.y = py + Math.sin(b * 0.4) * 0.6; root.rotation.y = Math.sin(b * 0.1) * 0.1; } }));
+      api.place(modelLandmark('chained-platform', px, pz, py, { yaw: i * 1.7 }));
       glow(LANTERN, 2.2, px, py + 1.4, pz, 0.55);
     });
     const vortex = skyVortex(380, [0x4a2a9a, 0xa04ab0]);

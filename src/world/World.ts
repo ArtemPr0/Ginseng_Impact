@@ -23,11 +23,12 @@ import { Noise2D } from './noise';
 import { witchStream } from './Stream';
 import { stoneHeadEyes } from './StoneHead';
 import { buildCryptRoom, buildTavernRoom } from './Interiors';
+import { landableIsland } from './Islands';
 import { buildTreeHouse } from './TreeHouse';
 import { buildDream, dreamWatchers } from './Dream';
 import { buildKingdom } from './Kingdom';
 import { buildLeanQuarter } from './LeanQuarter';
-import { type Bouncer, buildHeart, ISLAND_TOP } from './Heart';
+import { type Bouncer, buildHeart } from './Heart';
 import { buildGraveyard } from './Graveyard';
 import type { ModelRig } from '../models/ModelRig';
 import type { Interactable, Teleport } from './Interact';
@@ -687,8 +688,8 @@ export class World {
       const ix = WORLD.pond.x - 4;
       const iz = WORLD.pond.z - 9;
       const base = 24;
-      this.place(modelLandmark('floating-island', ix, iz, base, { collider: 'none', yaw: 0.8 }));
-      const top = base + MODELS['floating-island'].height * ISLAND_TOP;
+      // (Solid on top: you can fly up and land on it.)
+      const { top } = landableIsland({ place: (l) => this.place(l), get group() { return world0.target; } }, ix, iz, base, { yaw: 0.8 });
       for (const [dx, w] of [[-2.5, 3], [2.2, 2.2]] as const) this.place(waterfall(ix + dx, iz + 5, top, w, top - 1.0));
     }
     const unbuilt = (p: Placement): boolean => !this.heights.near(p.x, p.z, plantPad) && !this.heights.blocked(p.x, p.z);

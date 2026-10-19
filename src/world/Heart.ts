@@ -18,6 +18,7 @@ import { cascade } from './Falls';
 import { fire } from './Fire';
 import type { FloraOptions, Placement } from './Flora';
 import { modelLandmark } from './ModelLandmark';
+import { landableIsland } from './Islands';
 import type { ModelRig } from '../models/ModelRig';
 import type { RealmApi } from './Realms';
 import { EYE, RIVER_LEVEL, WORLD } from './Terrain';
@@ -128,17 +129,13 @@ export function buildHeart(api: HeartApi): { eye: ReturnType<typeof eyePool>; bo
   }
 
   // --- floating islands over the river: the west one pours three glowing falls into the eye ---
-  const islandH = MODELS['floating-island'].height;
-  api.place(modelLandmark('floating-island', -14, 12, 22, { collider: 'none' }));
+  // (Both still and solid on top: fly up and land on them.)
+  const { top: westTop } = landableIsland(api, -14, 12, 22);
   // Off the island's south rim (its rock is about 5.5 m across the middle), into the eye's west lobe.
   for (const [x, z, w] of [[-17.5, 16.6, 2.6], [-14, 17.2, 4], [-10.6, 16.6, 2.2]] as const) {
-    const top = 22 + islandH * ISLAND_TOP;
-    api.place(cascade({ x, z, top, height: top - RIVER_LEVEL, width: w, curve: 1.2 }));
+    api.place(cascade({ x, z, top: westTop, height: westTop - RIVER_LEVEL, width: w, curve: 1.2 }));
   }
-  {
-    const base = 34;
-    api.place(modelLandmark('floating-island', 18, -28, base, { collider: 'none', yaw: 2.2, update: (dt, root) => { void dt; root.position.y = base + Math.sin(performance.now() * 0.0004) * 0.6; } }));
-  }
+  landableIsland(api, 18, -28, 34, { yaw: 2.2 });
 
   // --- three koi pools stepping down beside the road, each spilling into the next and the last into the eye ---
   for (const t of LAYOUT.tiers) api.place(poolWater(t.x, t.z, t.r, t.water));
