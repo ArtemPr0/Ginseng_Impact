@@ -48,6 +48,8 @@ export interface NpcDef {
   sipAt?: number;
   /** Scale multiplier applied to the rig (ogres, trolls). */
   scale?: number;
+  /** Where his speech bubble floats, in metres over his feet (the model's height + 0.55 unless said): the Count's clears his carriage roof. */
+  bubbleAbove?: number;
 }
 
 export const NPC_DEFS: NpcDef[] = [
@@ -372,6 +374,9 @@ export const NPC_DEFS: NpcDef[] = [
     model: 'skeleton-lord', accent: PALETTE.dusk, cup: true,
     lines: ['Climb up, climb up. Smoke? It is purple, it is free, it is terrible for you.', 'A drink for the road. The road goes round the castle twice and back. We never arrive.', 'Take the reins if you like. The horses left years ago. The carriage did not notice.'],
     behaviour: { kind: 'stand', pose: 'sit', yaw: 0 },
+    // He sits 0.82 m up inside the carriage (Carriage.ts), whose roof is 3.2 m over its base: the bubble's lower edge
+    // rides over 0.4 m clear of it, so the cabin cuts none of it off from an ordinary camera angle.
+    bubbleAbove: 3.1,
   },
   {
     // The green dragon lying at the street's end (Vale.ts): he speaks from his head, his neck turning to you.
@@ -472,9 +477,10 @@ export class Npc {
 
   /**
    * Says the voice line now (also used when the player opens a conversation). An NPC without a recorded line shows
-   * one of his written ones in a bubble instead, his pose kept (a seated one stays seated).
+   * written line `line` in a bubble instead (his first, the one the talk panel opens on, unless another is asked for),
+   * his pose kept (a seated one stays seated).
    */
-  speak(gain = 1): void {
+  speak(gain = 1, line = 0): void {
     const v = this.def.voice;
     if (v) {
       if (this.speaking > 0) return;
@@ -485,14 +491,15 @@ export class Npc {
       return;
     }
     const bubble = this.bubbleFor();
-    if (bubble.sprite.visible || !this.def.lines.length) return;
-    bubble.say(this.def.lines[Math.floor(Math.random() * this.def.lines.length)], 2.4);
+    const text = this.def.lines[line] ?? this.def.lines[0];
+    if (bubble.sprite.visible || !text) return;
+    bubble.say(text, 2.4);
   }
 
-  /** The bubble over his head, made the first time he has something to say. */
+  /** The bubble over his head (or where his def puts it), made the first time he has something to say. */
   private bubbleFor(): SpeechBubble {
     if (!this.bubble) {
-      this.bubble = new SpeechBubble((MODELS[this.def.model]?.height ?? 1.8) + 0.55);
+      this.bubble = new SpeechBubble(this.def.bubbleAbove ?? (MODELS[this.def.model]?.height ?? 1.8) + 0.55);
       this.object.add(this.bubble.sprite);
     }
     return this.bubble;

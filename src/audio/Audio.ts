@@ -21,6 +21,8 @@ export class Audio {
   private readonly clips = new Map<string, Promise<AudioBuffer | null>>();
   /** The line each voice channel is saying (see voice). */
   private readonly voices = new Map<VoiceChannel, { src: AudioBufferSourceNode; gain: GainNode }>();
+  /** How many lines each channel has been asked for: the newest is the one that plays (see voice). */
+  private readonly voiceSeq = new Map<VoiceChannel, number>();
   /** A low-pass the whole mix runs through (wide open, except for the kingdom's underwater arrival). */
   private muffle: BiquadFilterNode | null = null;
   /** The kingdom's music while it plays: its bus, the hum, the step scheduler. */
@@ -450,11 +452,14 @@ export class Audio {
 
   /**
    * Plays a recorded line from public/audio (loaded once) on `channel`, the line that channel was still saying fading
-   * out under it: one speaker at a time among the NPCs, one among the mobs, the stone head on its own. Resolves to
-   * the line's length in seconds, 0 if unavailable.
+   * out under it: one speaker at a time among the NPCs, one among the mobs, the stone head on its own. A line whose
+   * clip is still loading when a newer one is asked for on its channel is dropped. Resolves to the line's length in
+   * seconds, 0 if it did not play.
    */
   async voice(url: string, gain = 1, channel: VoiceChannel = 'npc', rate = 1): Promise<number> {
     if (!this.ctx || gain <= 0.01) return 0;
+    const seq = (this.voiceSeq.get(channel) ?? 0) + 1;
+    this.voiceSeq.set(channel, seq);
     let p = this.clips.get(url);
     if (!p) {
       const ctx = this.ctx;
@@ -462,7 +467,8 @@ export class Audio {
       this.clips.set(url, p);
     }
     const buf = await p;
-    if (!buf || !this.ctx) return 0;
+    // (A newer line took the channel while this one loaded: it plays, this one does not.)
+    if (!buf || !this.ctx || this.voiceSeq.get(channel) !== seq) return 0;
     const src = this.ctx.createBufferSource();
     src.buffer = buf;
     src.playbackRate.value = rate;

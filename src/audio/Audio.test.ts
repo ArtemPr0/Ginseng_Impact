@@ -104,4 +104,17 @@ describe('Audio.voice', () => {
     expect(lines()).toHaveLength(1);
     expect(a.src.stopped).toHaveLength(0);
   });
+
+  it('a line still loading when a newer one takes its channel never plays: the newest wins', async () => {
+    const audio = unlocked();
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    vi.stubGlobal('fetch', async (url: string) => { if (url.endsWith('slow.mp3')) await gate; return { ok: true, arrayBuffer: async () => new ArrayBuffer(4) }; });
+    const slow = audio.voice('/audio/slow.mp3', 1, 'npc');
+    await audio.voice('/audio/b.mp3', 1, 'npc');
+    release();
+    expect(await slow).toBe(0);
+    expect(lines()).toHaveLength(1);
+    expect(lines()[0].src.stopped).toHaveLength(0);
+  });
 });
