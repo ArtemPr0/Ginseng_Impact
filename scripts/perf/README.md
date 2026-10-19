@@ -22,3 +22,27 @@ transparent double-sided materials need `forceSinglePass` (else three.js re-reso
 Audits (run.mjs bodies; each prints a list to read, see `.claude/skills/verify`): `audit/layout.js` (floating, buried,
 overlapping, inside buildings), `audit/glows.js` (flames and glows with nothing solid near), `audit/characters.js`
 (mobs and NPCs off the ground), `anim/stretch-all.js` and `anim/stretch-npcs.js` (skin tearing per clip).
+
+## Hero animation
+
+The heroes' moves are windows of their Meshy clips (`src/characters/heroClips.ts`), measured, never guessed:
+
+```bash
+node scripts/clip-strike.mjs public/models/knight.glb            # per clip: the blow (the hand's peak speed), wind-up, settle, other swings; jump arcs
+node scripts/clip-strike.mjs public/models/archer.glb lefthand   # another bone (a regex; the right side is preferred)
+node scripts/clip-strike.mjs public/models/knight.glb --curve Sword_Judgment   # that clip every 1/30 s: hand speed and height, hips height
+```
+
+To watch a move in the built game (same build/serve/headless-Chrome steps as above; the page must be in `?at=` mode):
+
+```bash
+node scripts/perf/anim/hero.mjs "http://127.0.0.1:4173/?at=0,59" light out/knight-light        # 24 PNG frames over 1.6 s + out/knight-light.json (the rig's state per frame)
+node scripts/perf/anim/hero.mjs - heavy out/archer-heavy archer                                 # '-' reuses the loaded page; the 4th argument picks the hero
+node scripts/perf/anim/hero.mjs - hurt out/knight-hurt knight 30 2                              # frames and seconds
+```
+
+Moves: `light` (three LMB presses 0.3 s apart), `heavy` (RMB held 1.2 s), `skill` (E), `burst` (Q), `dodge` (R), `jump`
+(Space), `run`, `sprint`, `hurt` (a flinch), `bighurt` (≥ 15 % of max HP: the whole reaction), `death`. The state log
+shows the clip playing, its time and rate (`held` while a charge or an apex is frozen), the attack kind and progress,
+hurt/dodge/dead and the hit-stop left; the damage frame should fall where the clip's blow is (`clip-strike.mjs`).
+`sheet.py` tiles the frames into a contact sheet.

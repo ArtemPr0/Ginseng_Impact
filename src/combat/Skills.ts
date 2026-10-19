@@ -46,11 +46,11 @@ export interface SkillDef {
 const deg = (d: number) => (d * Math.PI) / 180;
 const cone = (range: number, half: number): HitShape => ({ kind: 'cone', range, halfAngle: deg(half) });
 
-export interface ComboDef { durations: number[]; hitFraction: number; hits: AttackDef[] }
+/** What each hit of the light combo does; how long it takes and when it lands come from the hero's clips (heroClips.ts). */
+export interface ComboDef { hits: AttackDef[] }
 
 export const COMBO: Record<WeaponKind, ComboDef> = {
   sword: {
-    durations: [0.36, 0.36, 0.55], hitFraction: 0.45,
     hits: [
       { mult: 0.9, element: null, shape: cone(2.8, 70), knockback: 0.6, hitStop: 0.03 },
       { mult: 1.0, element: null, shape: cone(2.8, 70), knockback: 0.6, hitStop: 0.03 },
@@ -58,7 +58,6 @@ export const COMBO: Record<WeaponKind, ComboDef> = {
     ],
   },
   greatsword: {
-    durations: [0.55, 0.6, 0.85], hitFraction: 0.5,
     hits: [
       { mult: 1.2, element: null, shape: cone(3.3, 80), knockback: 1.2, hitStop: 0.05 },
       { mult: 1.3, element: null, shape: cone(3.3, 80), knockback: 1.2, hitStop: 0.05 },
@@ -66,7 +65,6 @@ export const COMBO: Record<WeaponKind, ComboDef> = {
     ],
   },
   bow: {
-    durations: [0.42, 0.42, 0.6], hitFraction: 0.55,
     hits: [
       { mult: 0.95, element: null, shape: { kind: 'bolt', range: 26, chains: 0, chainRange: 0 }, knockback: 0.5, hitStop: 0.02 },
       { mult: 0.95, element: null, shape: { kind: 'bolt', range: 26, chains: 0, chainRange: 0 }, knockback: 0.5, hitStop: 0.02 },
@@ -74,7 +72,6 @@ export const COMBO: Record<WeaponKind, ComboDef> = {
     ],
   },
   staff: {
-    durations: [0.4, 0.4, 0.5], hitFraction: 0.4,
     hits: [
       { mult: 0.85, element: 'own', shape: { kind: 'bolt', range: 15, chains: 0, chainRange: 0 }, knockback: 0.3, hitStop: 0.02 },
       { mult: 0.85, element: 'own', shape: { kind: 'bolt', range: 15, chains: 0, chainRange: 0 }, knockback: 0.3, hitStop: 0.02 },

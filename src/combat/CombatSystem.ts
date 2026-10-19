@@ -20,6 +20,7 @@ import { ELEMENT_COLOR, REACTIONS, applyElement, type Element, type ReactionId }
 import { Enemy, type EnemyHome } from './Enemy';
 import { LootField, rollDrops } from './Loot';
 import { BURST, COMBO, CYCLONE, SKILLS, type AttackDef, type BurstKind, type GroundEffectDef } from './Skills';
+import { comboTiming, heavyTiming, skillTiming } from '../characters/heroClips';
 import { disposeObject } from '../render/dispose';
 import { puffTexture } from '../render/Smoke';
 import { loadModel, ModelRig } from '../models/ModelRig';
@@ -106,6 +107,10 @@ const side = new Vector3();
 const want = new Vector3();
 const IFRAMES = 0.6;
 const BURST_MAX = 100;
+/** Seconds a fallen hero lies there (dying_backwards is down by then) before the party switches or wipes. */
+const DOWN_HOLD = 1.2;
+/** A hit of this share of max HP or more throws the whole body (the full Hit_Reaction); less is a flinch. */
+const BIG_HIT = 0.15;
 
 /**
  * Something that is not an enemy but reacts to being shot (the sky eyes, the eye pool): player shots that pass within
@@ -153,6 +158,11 @@ export class CombatSystem {
   burstEnergy = 0;
   private iframes = 0;
   private dodgeCd = 0;
+  /** What the hero's body is told: the last hit (how long ago, whether it was big), the dodge in progress, the fall. */
+  private hurt: { t: number; big: boolean } | null = null;
+  private dodge: { t: number } | null = null;
+  /** Down: the death clip plays for DOWN_HOLD seconds before the next hero takes over (or the fog takes the party). */
+  private downed: { t: number } | null = null;
   private readonly clouds: SmokeCloud[] = [];
   /** Mobs each caster has summoned (capped, and sent away with their caster). */
   private readonly summoned = new Map<number, Enemy[]>();
@@ -173,8 +183,9 @@ export class CombatSystem {
       this.spawnEnemy(ENEMY_DEFS[s.kind], at.x, at.z, false, { yaw: s.yaw, patrol: s.patrol, sitY: s.sitY });
     }
     for (const c of d.party.members) {
-      const combo = COMBO[c.weapon];
-      this.combos.set(c.id, new ComboTracker(combo.durations, combo.hitFraction));
+      // Each hit lasts as long as its clip cut and lands on the cut's measured blow (heroClips.ts).
+      const timing = comboTiming(c.id);
+      this.combos.set(c.id, new ComboTracker(timing.durations, timing.strikes));
       this.cooldowns.set(c.id, new Cooldown(SKILLS[c.id].cooldown));
       this.hp.set(c.id, c.maxHp);
     }
@@ -251,11 +262,11 @@ export class CombatSystem {
     return (w && ITEMS[w.itemId].element) || me.element;
   }
 
-  /** True while a swing or cast locks movement (spinning in the lean cyclone, Sir Aldric walks). */
+  /** True while a swing or cast locks movement (spinning in the lean cyclone, Sir Aldric walks), or the hero is down. */
   get busy(): boolean {
     const b = this.burstCast;
     const spinning = b?.kind === 'cyclone' && b.t >= CYCLONE.pour;
-    return this.combo.swinging || this.casting !== null || this.heavy !== null || (b !== null && !spinning);
+    return this.combo.swinging || this.casting !== null || this.heavy !== null || (b !== null && !spinning) || this.downed !== null;
   }
 
   /** The burst in progress (the rig animates the cyclone's pour and spin from it). */
@@ -267,21 +278,37 @@ export class CombatSystem {
     return this.heavyCharge;
   }
 
+  /** The last hit on the hero: seconds ago and whether it was big (for the body's reaction); undefined once it is old. */
+  get hurtState(): { t: number; big: boolean } | undefined {
+    return this.hurt ? { t: this.hurt.t, big: this.hurt.big } : undefined;
+  }
+
+  /** The dodge in progress: seconds since it began. */
+  get dodgeState(): { t: number } | undefined {
+    return this.dodge ? { t: this.dodge.t } : undefined;
+  }
+
+  /** The active hero has fallen (the death clip plays until the switch). */
+  get dead(): boolean {
+    return this.downed !== null;
+  }
+
   /** 0..1 animation progress for the rig, or undefined when idle. */
   get attackProgress(): number | undefined {
     if (this.burstCast) return Math.min(1, this.burstCast.t / BURST[this.active.id].time);
-    if (this.heavy) return Math.min(1, this.heavy.t / 0.8);
-    if (this.heavyCharge > 0) return Math.min(0.42, this.heavyCharge * 0.42);
-    if (this.casting) return Math.min(1, this.casting.t / SKILLS[this.casting.def.id].castTime);
+    if (this.heavy) return Math.min(1, this.heavy.t / heavyTiming(this.active.id).duration);
+    // Charging: the wind-up builds toward the held frame (the body holds it; Orlan's robe leans into it).
+    if (this.heavyCharge > 0) { const hold = heavyTiming(this.active.id).startAt; return Math.min(hold, this.heavyCharge * hold); }
+    if (this.casting) return Math.min(1, this.casting.t / skillTiming(this.casting.def.id).duration);
     return this.combo.swinging ? this.combo.progress : undefined;
   }
 
   /** Seconds the current swing or cast lasts, so the body's clip can be fitted to it. */
   get attackDuration(): number | undefined {
     if (this.burstCast) return BURST[this.active.id].time;
-    if (this.heavy) return 0.8;
+    if (this.heavy) return heavyTiming(this.active.id).duration;
     if (this.heavyCharge > 0) return undefined;
-    if (this.casting) return SKILLS[this.casting.def.id].castTime;
+    if (this.casting) return skillTiming(this.casting.def.id).duration;
     return this.combo.swinging ? this.combo.duration : undefined;
   }
 
@@ -297,6 +324,9 @@ export class CombatSystem {
     this.heavy = null;
     this.heavyCharge = 0;
     this.burstCast = null;
+    this.hurt = null;
+    this.dodge = null;
+    this.downed = null;
     for (const c of this.combos.values()) { c.swinging = false; c.swingTime = 0; }
   }
 
@@ -342,6 +372,14 @@ export class CombatSystem {
     this.iframes = Math.max(0, this.iframes - dt);
     this.dodgeCd = Math.max(0, this.dodgeCd - dt);
     this.frenzyLeft = Math.max(0, this.frenzyLeft - dt);
+    // What the body is shown: the hit and the dodge age out; a fallen hero lies there, then the party moves on.
+    if (this.hurt) { this.hurt.t += dt; if (this.hurt.t > 1.2) this.hurt = null; }
+    if (this.dodge) { this.dodge.t += dt; if (this.dodge.t > 1) this.dodge = null; }
+    if (this.downed) {
+      this.downed.t += dt;
+      if (this.downed.t >= DOWN_HOLD) { this.downed = null; this.finishDown(); return; }
+      return;
+    }
     for (const cd of this.cooldowns.values()) cd.update(dt);
     // (Taken off the list before it runs: a callback can wipe the party, which empties the list mid-loop.)
     for (let i = this.delayed.length - 1; i >= 0; i--) {
@@ -428,6 +466,7 @@ export class CombatSystem {
       this.heavy = null;
       this.heavyCharge = 0;
       for (const cb of this.combos.values()) { cb.swinging = false; }
+      this.dodge = { t: 0 };
       d.audio.dodge();
       d.onDodge?.();
     }
@@ -454,7 +493,9 @@ export class CombatSystem {
     }
     if ((input.heavyRelease || (!input.heavyHeld && this.heavyCharge > 0)) && this.heavyCharge > 0 && !this.heavy) {
       this.softLock(8);
-      this.heavy = { t: 0, fired: false, charge: this.heavyCharge };
+      // The swing picks up at the wind-up frame the charge held (heroClips.ts), and lands on the clip's blow.
+      const timing = heavyTiming(me.id);
+      this.heavy = { t: timing.startAt * timing.duration, fired: false, charge: this.heavyCharge };
       this.heavyCharge = 0;
       d.audio.swing(true);
       const ranged = me.weapon === 'staff' || me.weapon === 'bow';
@@ -462,8 +503,9 @@ export class CombatSystem {
       if (!ranged) this.vfx.slash(this.playerPos(), c.yaw, ELEMENT_COLOR[this.elementOf(me)], range, 1.25);
     }
     if (this.heavy) {
+      const timing = heavyTiming(me.id);
       this.heavy.t += dt;
-      if (!this.heavy.fired && this.heavy.t >= 0.8 * 0.6) {
+      if (!this.heavy.fired && this.heavy.t >= timing.duration * timing.strike) {
         this.heavy.fired = true;
         const ch = this.heavy.charge;
         const def: AttackDef = me.weapon === 'staff'
@@ -475,7 +517,7 @@ export class CombatSystem {
         if (ch > 0.5) this.vfx.shockwave(this.playerPos(), ELEMENT_COLOR[this.elementOf(me)], 4 + ch * 3);
         d.onShake?.(0.2 + ch * 0.4);
       }
-      if (this.heavy.t >= 0.8) this.heavy = null;
+      if (this.heavy.t >= timing.duration) this.heavy = null;
     }
 
     // --- skill ---
@@ -490,14 +532,16 @@ export class CombatSystem {
     }
     if (this.casting) {
       const skill = SKILLS[this.casting.def.id];
+      // The cast lasts as long as its clip cut and fires on the cut's measured blow (heroClips.ts).
+      const timing = skillTiming(this.casting.def.id);
       this.casting.t += dt;
-      if (!this.casting.fired && this.casting.t >= skill.castTime * skill.hitFraction) {
+      if (!this.casting.fired && this.casting.t >= timing.duration * timing.strike) {
         this.casting.fired = true;
         this.resolveAttack(this.casting.def, skill.attack);
         if (skill.ground) this.addZone({ ...skill.ground, element: this.elementOf(this.casting.def) }, this.atkOf(this.casting.def));
         this.vfx.burst(this.playerPos().clone().add(new Vector3(0, 1, 0)), ELEMENT_COLOR[this.elementOf(this.casting.def)], 16, 6);
       }
-      if (this.casting.t >= skill.castTime) this.casting = null;
+      if (this.casting.t >= timing.duration) this.casting = null;
     }
 
     // --- burst (Q): each hero's own ---
@@ -1643,12 +1687,14 @@ export class CombatSystem {
   }
 
   private damagePlayer(atk: number, _element: Element | null): void {
-    if (this.iframes > 0) return;
+    if (this.iframes > 0 || this.downed) return;
     const me = this.active;
     const dmg = computeDamage({ atk, multiplier: 1, defense: PLAYER_DEF });
     const hp = Math.max(0, this.hp.get(me.id)! - dmg);
     this.hp.set(me.id, hp);
     this.iframes = IFRAMES;
+    // The body reacts: a flinch, or the whole reaction for a big one.
+    this.hurt = { t: 0, big: dmg >= me.maxHp * BIG_HIT };
     const at = this.playerPos().clone().add(new Vector3(0, 1.9, 0));
     this.showNumber(at, dmg, PALETTE.blood, false);
     this.vfx.impact(at, PALETTE.blood, 1.6);
@@ -1658,15 +1704,30 @@ export class CombatSystem {
     if (hp <= 0) this.onCharacterDown();
   }
 
+  /** The active hero falls: everything they were doing stops and the death clip plays (finishDown follows). */
   private onCharacterDown(): void {
+    if (this.downed) return;
+    this.downed = { t: 0 };
+    this.casting = null;
+    this.heavy = null;
+    this.heavyCharge = 0;
+    this.burstCast = null;
+    this.grab = null;
+    this.iframes = DOWN_HOLD + 1;
+    this.d.hud.announce(`${this.active.name} falls`);
     // A ghoul who saw it gloats.
     const c = this.d.controller;
     const gloat = this.enemies.find((e) => e.alive && e.aggro && e.def.voices && Math.hypot(e.pos.x - c.pos.x, e.pos.z - c.pos.z) < 25);
     if (gloat) { this.voiceClock = 0; this.say(gloat, gloat.def.voices!.win); }
+  }
+
+  /** After the fall's hold: the next hero takes over, or, with nobody left, the fog takes the party. */
+  private finishDown(): void {
     const party = this.d.party;
+    // (Switched by hand during the hold: nothing to do.)
+    if ((this.hp.get(this.active.id) ?? 0) > 0) return;
     const next = party.members.findIndex((m) => (this.hp.get(m.id) ?? 0) > 0);
     if (next >= 0) {
-      this.d.hud.announce(`${this.active.name} falls`);
       this.d.onForceSwitch?.(next);
     } else {
       this.d.hud.announce('The fog takes you');

@@ -434,6 +434,8 @@ game
       const airborne = controller.mode === 'air' || controller.mode === 'fly';
       if (wasAirborne && !airborne) landedAt = performance.now() / 1000;
       wasAirborne = airborne;
+      // Hit-stop freezes the bodies on the blow (the hero's and the enemies'); the world's effects keep real time.
+      const animDt = game.hitStop > 0 ? 0 : dt;
       rig.animate({
         mode: controller.mode,
         speed: Math.hypot(controller.vel.x, controller.vel.z),
@@ -444,10 +446,13 @@ game
         landed: performance.now() / 1000 - landedAt,
         burst: combat.burstState,
         climbRate: controller.mode === 'climb' && dt > 0 ? (controller.pos.y - lastClimbY) / dt + Math.hypot(controller.vel.x, controller.vel.z) * 0.5 * Math.sign(controller.pos.y - lastClimbY || 1) : 0,
-      }, dt);
+        hurt: combat.hurtState,
+        dodge: combat.dodgeState,
+        dead: combat.dead,
+      }, animDt);
       lastClimbY = controller.pos.y;
-      // Benched party members are hidden: no need to animate them.
-      combat.render(dt);
+      // Benched party members are hidden: no need to animate them (companions animate in the fixed step, which hit-stop pauses).
+      combat.render(animDt);
       lightBudget.update(playerPos);
       focus.set(drawPos.x, drawPos.y + 1.4, drawPos.z);
       if (!input.locked && hud.panel === 'none') {

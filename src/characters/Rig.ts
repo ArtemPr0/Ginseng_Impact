@@ -1,4 +1,4 @@
-import { AdditiveBlending, type AnimationAction, type Bone, BufferAttribute, BufferGeometry, DoubleSide, Float32BufferAttribute, Group, LoopOnce, Matrix4, Mesh, MeshBasicMaterial, Quaternion, Vector3, type Object3D, type SkinnedMesh, type Sprite } from 'three';
+import { type AnimationAction, type Bone, Group, LoopOnce, Matrix4, Quaternion, Vector3, type Object3D, type SkinnedMesh, type Sprite } from 'three';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { loadModelOrWarn, ModelRig } from '../models/ModelRig';
 import { MissingModelPlaceholder } from '../models/Placeholder';
@@ -10,6 +10,7 @@ import { MODELS } from '../data/models';
 import type { Mode } from '../player/CharacterController';
 import type { CharacterDef, WeaponKind } from './roster';
 import { CYCLONE, type BurstKind } from '../combat/Skills';
+import { cutSeconds, cutStrike, heroClipsOf, moveCut, type ClipCut, type HeroClips } from './heroClips';
 
 export interface RigPose {
   mode: Mode;
@@ -31,12 +32,26 @@ export interface RigPose {
   burst?: { kind: BurstKind; t: number };
   /** Climbing: metres per second along the wall (up positive), so the climb clip keeps pace and stops when still. */
   climbRate?: number;
+  /** Took a hit `t` seconds ago; `big` (the caller decides: ≥ 15 % of max HP) plays the whole reaction, else a flinch layer. */
+  hurt?: { t: number; big: boolean };
+  /** A dodge began `t` seconds ago (the controller does the dash; the body rolls). */
+  dodge?: { t: number };
+  /** Down: the death clip, held on its last frame. */
+  dead?: boolean;
 }
 
 
 
-/** How far the weapon's tip sits from the hand, for the swing trail. */
+/** How far the weapon's tip sits from the hand, for a body whose weapon is baked into its mesh (weaponTips). */
 const WEAPON_REACH: Record<WeaponKind, number> = { sword: 1.1, greatsword: 1.6, bow: 0.7, staff: 1.5 };
+/**
+ * The guard and the tip of a held prop, metres up its own axis (props stand point-down with their feet at 0, scaled
+ * to their registry height, slid so the grip lands in the fist: greatsword.glb 1.45 m, grip 1.18 up; staff.glb
+ * 1.75 m, grip 1.05 up, the knob that casts at the top).
+ */
+const PROP_ENDS: Record<WeaponKind, [number, number]> = { greatsword: [0.95, 0.05], sword: [0.95, 0.05], staff: [1.0, 1.7], bow: [0.95, 0.05] };
+/** A small hit: the reaction's first `flinch` seconds, over the upper body, in `seconds`. */
+const FLINCH = { flinch: 0.55, seconds: 0.35 };
 /** Model pulled into the right hand while attacking; null when the body's own baked weapon does the job. */
 const WEAPON_MODEL: Record<WeaponKind, string | null> = { sword: null, greatsword: 'greatsword', bow: null, staff: 'staff' };
 /**
@@ -171,7 +186,8 @@ function bindFingers(model: ModelRig): Array<{ bone: Object3D; rest: Quaternion;
 }
 
 /**
- * A character body: a Meshy glTF driven by pose → clip mapping, with the weapon trail and Orlan's pipe smoke.
+ * A character body: a Meshy glTF driven by pose → clip mapping (a hero's moves are measured cuts, heroClips.ts), with
+ * the held props and Orlan's pipe smoke. The blade trail is CombatFx's (weaponTips gives it the blade's ends).
  * Until the model file exists the body is a MissingModelPlaceholder. The root sits at the feet; the caller
  * sets `root.rotation.y` from the controller yaw.
  */
@@ -196,16 +212,20 @@ export class Rig {
   private staticPhase = Math.random() * 6;
   /** The glow under Orlan's hem while he floats up a wall. */
   private climbGlow: Sprite | null = null;
-  private readonly trail: Mesh;
-  /** World-space effects: the trail and the pipe smoke. */
+  /** World-space effects (the pipe smoke, the cup's drops, Wren's sparkles). */
   private readonly fx = new Group();
-  private readonly trailPoints: Vector3[] = [];
-  private readonly trailPos: Float32BufferAttribute;
-  private readonly tipA = new Vector3();
-  private readonly tipB = new Vector3();
-  private readonly axis = new Vector3();
   private lastAttack: number | undefined;
-  private trailAttack: number | undefined;
+  /** The hero's measured clip windows (heroClips.ts); null for NPC bodies. `takeoff` is the jump's take-off window as a cut. */
+  private hero: HeroClips | null = null;
+  private takeoff: ClipCut | null = null;
+  /** The robe's hem-wind uniforms (patchRobeWind), driven harder while Orlan moves. */
+  private readonly robeWinds: Array<{ value: number }> = [];
+  /** A small hit's flinch layer over whatever the hero is doing, and when the last hurt and dodge were seen. */
+  private flinch: { action: AnimationAction; t: number } | null = null;
+  private lastHurt = -1;
+  private lastDodge = -1;
+  /** The gait playing ('walk' | 'run' | ''), for the walk↔run hysteresis. */
+  private gait = '';
   /** 0 on foot … 1 flying, eased, so take-off and landing blend. */
   private flight = 0;
   private flightTime = 0;
@@ -257,8 +277,8 @@ export class Rig {
   private carrying = false;
   /** Lean on the blade during the cyclone. */
   private readonly bladeGlows: Sprite[] = [];
-  /** Sir Aldric's one-armed swing from the air (the attack clip's right arm over the glide). */
-  private airSwing = false;
+  /** Sir Aldric's one-armed swing from the air (the attack cut's right arm over the glide). */
+  private airSwing: AnimationAction | null = null;
   /** Sounds the rig asks for (set by main). */
   static sound: { slurp(gain: number): void; rustle?(): void; munch?(): void } | null = null;
   /** Bones turned procedurally this frame, with their clip pose (see turn). */
@@ -266,34 +286,21 @@ export class Rig {
   private bones: Record<'hips' | 'spine0' | 'spine' | 'spine2' | 'neck' | 'head' | 'lArm' | 'rArm' | 'lForeArm' | 'rForeArm' | 'lUpLeg' | 'rUpLeg' | 'lLeg' | 'rLeg', Object3D | null> | null = null;
 
   constructor(readonly def: CharacterDef, modelId: string = def.id) {
-    // Weapon trail ribbon (world space).
-    const N = 18;
-    this.trailPos = new Float32BufferAttribute(new Float32Array(N * 2 * 3), 3);
-    const tg = new BufferGeometry();
-    tg.setAttribute('position', this.trailPos);
-    const idx: number[] = [];
-    for (let i = 0; i < N - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
-    tg.setIndex(idx);
-    const alphas = new Float32Array(N * 2);
-    for (let i = 0; i < N; i++) { alphas[i * 2] = alphas[i * 2 + 1] = 1 - i / N; }
-    tg.setAttribute('alpha', new BufferAttribute(alphas, 1));
-    this.trail = new Mesh(tg, new MeshBasicMaterial({ color: def.accent, transparent: true, opacity: 0.0, blending: AdditiveBlending, side: DoubleSide, forceSinglePass: true, depthWrite: false, toneMapped: false }));
-    this.trail.frustumCulled = false;
-    this.trail.visible = false;
-    this.fx.add(this.trail);
-    for (let i = 0; i < N; i++) this.trailPoints.push(new Vector3(), new Vector3());
     // Marker until the Meshy file arrives.
     this.placeholder = new MissingModelPlaceholder(def.accent);
     this.root.add(this.placeholder.group);
     void loadModelOrWarn(modelId, def.name).then((g) => { if (g) this.useModel(modelId, g); });
   }
 
-  /** Installs a loaded glTF as the body (the trail stays). */
+  /** Installs a loaded glTF as the body (the world-space effects stay). */
   useModel(id: string, gltf: GLTF): void {
     if (this.placeholder) { this.root.remove(this.placeholder.group); this.placeholder = null; }
     if (this.model) this.root.remove(this.model.root);
     this.model = new ModelRig(id, gltf);
     this.root.add(this.model.root);
+    this.hero = heroClipsOf(id);
+    this.takeoff = this.hero ? { key: this.hero.jump.key, from: this.hero.jump.takeoff[0], to: this.hero.jump.takeoff[1], groundHips: true } : null;
+    this.gait = '';
     this.hand = this.model.bone(HAND_BONE);
     this.offHand = this.model.bone(OFF_HAND_BONE);
     const hand = MODELS[id]?.hand;
@@ -304,7 +311,17 @@ export class Rig {
     }
     const propId = WEAPON_MODEL[this.def.weapon];
     if (propId && (this.hand || this.anchor)) void loadModelOrWarn(propId, MODELS[propId]?.label).then((g) => { if (g) this.attachProp(propId, g); });
-    if (MODELS[id]?.robe) for (const mat of this.model.materials) { patchRobeWind(mat, this.model.rawHeight * 0.55, 0.05); mat.needsUpdate = true; }
+    if (MODELS[id]?.robe) for (const mat of this.model.materials) {
+      patchRobeWind(mat, this.model.rawHeight * 0.55, 0.05);
+      // The hem's wind strength lives in a uniform the patch makes at compile time: caught here so the walk can raise it.
+      const patched = mat.onBeforeCompile;
+      mat.onBeforeCompile = (shader, renderer) => {
+        patched.call(mat, shader, renderer);
+        const u = shader.uniforms.uRobeStrength as { value: number } | undefined;
+        if (u && !this.robeWinds.includes(u)) this.robeWinds.push(u);
+      };
+      mat.needsUpdate = true;
+    }
     const anchor = MODELS[id]?.smoke;
     if (anchor) {
       // On the pipe's bowl (wizard.glb, measured: right of the beard at chest height); the smoke itself is world-space.
@@ -383,7 +400,7 @@ export class Rig {
     this.cup.group.visible = !climbing;
     if (climbing) return;
     const cyclone = pose.burst?.kind === 'cyclone' ? pose.burst.t : -1;
-    const calm = pose.mode === 'ground' && pose.attack === undefined && !pose.charging && pose.speed < 5.5;
+    const calm = pose.mode === 'ground' && pose.attack === undefined && !pose.charging && pose.speed < 5.5 && !pose.hurt && !pose.dodge && !pose.dead;
     if (!this.sip) {
       this.sipIn -= dt;
       if (this.sipIn <= 0 && calm) {
@@ -688,13 +705,12 @@ export class Rig {
     this.turn(bn.rArm, FORWARD, -1.25 * ramp);
     this.turn(bn.lArm, FORWARD, 0.95 * ramp);
     // Lean flung off the blade's tip, out along the turn.
-    if (ramp > 0.5 && Math.random() < 0.85) {
-      this.weaponTips();
+    if (ramp > 0.5 && Math.random() < 0.85 && this.weaponTips(_a, _b)) {
       const d = this.freeDrop();
       if (d) {
-        d.s.position.copy(this.tipB);
-        const ox = this.tipB.x - this.root.position.x;
-        const oz = this.tipB.z - this.root.position.z;
+        d.s.position.copy(_b);
+        const ox = _b.x - this.root.position.x;
+        const oz = _b.z - this.root.position.z;
         d.v.set(-oz * 4 + ox * 2.5, 1.5 + Math.random() * 1.5, ox * 4 + oz * 2.5);
       }
     }
@@ -728,7 +744,7 @@ export class Rig {
     const m = this.model;
     if (!m || m.id !== 'archer' || !this.bones) return;
     const bn = this.bones;
-    const calm = pose.mode === 'ground' && pose.attack === undefined && !pose.charging && pose.speed < 0.3;
+    const calm = pose.mode === 'ground' && pose.attack === undefined && !pose.charging && pose.speed < 0.3 && !pose.hurt && !pose.dodge && !pose.dead;
     m.root.updateWorldMatrix(true, true);
     m.frame.getWorldQuaternion(_fq);
     LATERAL.set(1, 0, 0).applyQuaternion(_fq);
@@ -1098,19 +1114,24 @@ export class Rig {
     this.propRig = rig;
   }
 
-  /** Scales the weapon prop in while attacking and away afterwards; a boneless body also swings it. */
+  /**
+   * The weapon prop is always in the hand (scaled in once, when it loads; put away only on a wall or in the water);
+   * a boneless body also swings it, the thrust landing on the move's measured strike.
+   */
   private animateProp(pose: RigPose, dt: number): void {
     if (!this.prop) return;
-    const want = pose.attack !== undefined ? 1 : 0;
+    const want = pose.mode === 'climb' || pose.mode === 'swim' ? 0 : 1;
     this.propShown += (want - this.propShown) * Math.min(1, dt * (want ? 14 : 6));
     const s = this.propBase * Math.max(0.001, this.propShown);
     this.prop.scale.setScalar(s);
     this.prop.visible = this.propShown > 0.03;
     if (this.anchor) {
       // Drawn upright at the side, then levelled at the target for the strike and held while the bolt flies.
+      const cut = this.hero ? moveCut(this.hero, pose.attackKind) : null;
+      const strike = cut ? cutStrike(cut) : 0.45;
       const a = pose.attack ?? 1;
-      const raise = a < 0.25 ? a / 0.25 : a < 0.75 ? 1 : 1 - (a - 0.75) / 0.25;
-      const thrust = Math.sin(Math.min(1, a / 0.45) * Math.PI * 0.5);
+      const raise = a < strike * 0.55 ? a / (strike * 0.55) : a < 0.75 ? 1 : 1 - (a - 0.75) / 0.25;
+      const thrust = Math.sin(Math.min(1, a / strike) * Math.PI * 0.5);
       const target = pose.attack === undefined ? 0 : 0.25 + raise * 0.95 * thrust;
       this.anchor.rotation.x += (target - this.anchor.rotation.x) * Math.min(1, dt * 18);
       this.anchor.position.y = (MODELS[this.model?.id ?? '']?.hand?.y ?? 1) + raise * 0.12;
@@ -1180,20 +1201,51 @@ export class Rig {
     // Orlan's robe floats him: a slow bob, leaning into the stroke.
     if (pose.mode === 'swim') { bob = Math.sin(t * 0.8) * 0.05; lean = Math.sin(t * 0.4) * 0.04; drift = 0; tilt = pose.speed > 0.3 ? 0.12 : 0.03; }
     if (pose.attack !== undefined) {
+      // Leans into the cast: wound up until the move's measured strike (HERO_CLIPS.wizard), then thrown forward.
+      const cut = this.hero ? moveCut(this.hero, pose.attackKind) : null;
+      const strike = cut ? cutStrike(cut) : 0.3;
       const a = pose.attack;
-      const windup = a < 0.3 ? a / 0.3 : 1 - (a - 0.3) / 0.7;
-      lean = 0.18 * windup - 0.28 * (1 - windup) * (a > 0.3 ? 1 : 0);
+      const windup = a < strike ? a / strike : 1 - (a - strike) / Math.max(0.05, 1 - strike);
+      lean = 0.18 * windup - 0.28 * (1 - windup) * (a > strike ? 1 : 0);
       scaleY = 1 + windup * 0.04;
     }
-    if (pose.landed !== undefined && pose.landed < 0.25) { bob -= 0.05 * (1 - pose.landed / 0.25); }
+    // Landing: a dip and a squash that spring back.
+    if (pose.landed !== undefined && pose.landed < 0.3) { const k = 1 - pose.landed / 0.3; bob -= 0.08 * k; scaleY *= 1 - 0.05 * k; }
+    // A hit rocks him back; a dodge leans him into the dash; down, he keels over backwards and stays there.
+    if (pose.hurt && pose.hurt.t < 0.35) { const k = 1 - pose.hurt.t / 0.35; tilt -= (pose.hurt.big ? 0.35 : 0.18) * k; bob -= 0.03 * k; }
+    if (pose.dodge && pose.dodge.t < 0.5) tilt += 0.3 * Math.sin((pose.dodge.t / 0.5) * Math.PI);
+    let ease = 8;
+    if (pose.dead) { tilt = -1.45; bob = -0.25; lean = 0; wobble = 0; drift = 0; ease = 3; }
     r.position.y = bob;
     r.position.x += (drift - r.position.x) * Math.min(1, dt * 6);
     r.rotation.z += (lean - r.rotation.z) * Math.min(1, dt * 6);
     r.rotation.y += (wobble - r.rotation.y) * Math.min(1, dt * 6);
-    r.rotation.x += (tilt - r.rotation.x) * Math.min(1, dt * 8);
+    r.rotation.x += (tilt - r.rotation.x) * Math.min(1, dt * ease);
     r.scale.set(1, scaleY, 1);
+    // The hem blows harder while he moves.
+    const wind = pose.speed > 0.3 || pose.mode === 'fly' ? 0.09 : 0.05;
+    for (const u of this.robeWinds) u.value += (wind - u.value) * Math.min(1, dt * 4);
     m.update(dt);
     this.smoke?.update(dt, pose.speed > 0.3);
+  }
+
+  /** A hero's cut, registered on the body on first use (`hero:<id>`); null when its source clip is not on this body. */
+  private heroCut(id: string, src: ClipCut): string | null {
+    return this.model?.cut(`hero:${id}`, src) ? `hero:${id}` : null;
+  }
+
+  /**
+   * The clip key a swing or cast of `kind` plays on this body: the hero's measured cut (heroClips.ts), or the plain
+   * registry clip for an NPC body (a witch's cast, a companion's swing).
+   */
+  private moveKey(kind: RigPose['attackKind']): string {
+    const hero = this.hero;
+    const generic = kind === 'heavy' ? 'heavy' : kind === 'skill' || kind === 'burst' ? 'cast' : 'attack';
+    if (!hero) return generic;
+    const cut = moveCut(hero, kind);
+    if (!cut) return generic;
+    const id = kind === 'heavy' ? 'heavy' : kind === 'skill' ? 'skill' : kind === 'burst' ? 'burst' : `attack${kind}`;
+    return this.heroCut(id, cut) ?? this.heroCut('attack0', hero.attack[0]) ?? 'attack';
   }
 
   /** Maps a pose to a model clip. One-shot clips (attacks, hits) restart only when a new swing begins. */
@@ -1201,33 +1253,65 @@ export class Rig {
     const m = this.model!;
     const v = pose.speed;
     if (!m.hasClips) { this.driveStaticModel(m, pose, dt); return; }
+    const hero = this.hero;
     // The cyclone is spun by hand over the walk; from the air Wren shoots off her bow and Sir Aldric swings one-armed,
     // so the body keeps its flying pose.
     const cyclone = pose.burst?.kind === 'cyclone';
     const airStrike = pose.mode === 'fly' && pose.attack !== undefined && (m.id === 'archer' || m.id === 'knight');
-    const swing = m.id === 'knight' ? m.layer('attack', RIGHT_ARM) : null;
-    if (swing) {
-      if (airStrike) {
-        if (!this.airSwing) { swing.reset(); swing.play(); this.airSwing = true; }
+    if (m.id === 'knight') {
+      // The attack cut's right arm over the glide, scrubbed by the swing's progress.
+      const swing = airStrike ? m.layer(this.moveKey(pose.attackKind), RIGHT_ARM) : null;
+      if (this.airSwing && this.airSwing !== swing) { this.airSwing.stop(); this.airSwing = null; }
+      if (swing) {
+        if (!this.airSwing) { swing.reset(); swing.play(); this.airSwing = swing; }
         swing.time = swing.getClip().duration * Math.min(0.98, pose.attack!);
         swing.paused = true;
         swing.setEffectiveWeight(SIP.weight * this.flight);
-      } else if (this.airSwing) { swing.stop(); this.airSwing = false; }
+      }
     }
-    if (pose.attack !== undefined && !cyclone && !airStrike) {
+    const hurtFor = hero ? cutSeconds(m.id, hero.hit) : 0;
+    const dodgeFor = hero ? cutSeconds(m.id, hero.dodge) : 0;
+    const bigHurt = !!hero && !!pose.hurt?.big && pose.hurt.t < hurtFor;
+    const dodging = !!hero && !!pose.dodge && pose.dodge.t < dodgeFor;
+    const freshHurt = !!pose.hurt && (this.lastHurt < 0 || pose.hurt.t < this.lastHurt);
+    const freshDodge = !!pose.dodge && (this.lastDodge < 0 || pose.dodge.t < this.lastDodge);
+    if (hero && pose.dead) {
+      // Down: the death clip once, held on its last frame.
+      const key = this.heroCut('death', hero.death);
+      if (key) { if (m.playing !== key) m.play(key, { once: true, fade: hero.death.fade ?? 0.15, speed: hero.death.speed ?? 1 }); }
+      else if (m.playing !== 'death' && !m.play('death', true)) m.play('idle');
+    } else if (hero && dodging) {
+      const key = this.heroCut('dodge', hero.dodge);
+      if (key && (freshDodge || m.playing !== key)) m.play(key, { once: true, fitTo: dodgeFor, fade: hero.dodge.fade ?? 0.06, restart: true, at: pose.dodge!.t / dodgeFor });
+    } else if (hero && bigHurt) {
+      const key = this.heroCut('hit', hero.hit);
+      if (key && (freshHurt || m.playing !== key)) m.play(key, { once: true, fitTo: hurtFor, fade: hero.hit.fade ?? 0.06, restart: true, at: pose.hurt!.t / hurtFor });
+    } else if (pose.attack !== undefined && !cyclone && !airStrike) {
       const k = pose.attackKind;
-      const clip = k === 'heavy' ? 'heavy' : k === 'skill' || k === 'burst' ? 'cast' : 'attack';
-      this.shotClip = clip;
+      const key = this.moveKey(k);
+      const cut = hero ? moveCut(hero, k) : null;
+      this.shotClip = k === 'heavy' ? 'heavy' : k === 'skill' || k === 'burst' ? 'cast' : 'attack';
       // A new swing starts when the progress counter restarts or the attack kind changes.
       const fresh = this.lastAttack === undefined || pose.attack < this.lastAttack || this.lastKind !== k;
+      const duration = pose.attackDuration ?? (cut ? cutSeconds(m.id, cut) : 0.6);
       if (pose.charging) {
-        // Hold the heavy swing at its wind-up while the charge builds.
-        if (fresh || m.playing !== clip) { if (!m.play(clip, true, 0.9)) m.play('attack', true, 0.9); }
-        m.holdAt(0.3);
+        // Hold the heavy at its wind-up while the charge builds: the charge clip when there is one (Wren aims), else
+        // the heavy cut itself, frozen at heavyHold.
+        if (hero) {
+          const held = hero.charge ?? hero.heavy;
+          const holdKey = hero.charge ? this.heroCut('charge', hero.charge) ?? key : key;
+          if (fresh || m.playing !== holdKey) { if (!m.play(holdKey, { once: true, fade: held.fade ?? 0.12, speed: held.speed ?? 1 })) m.play('attack', true, 0.9); }
+          m.holdAt(hero.heavyHold);
+        } else {
+          if (fresh || m.playing !== key) { if (!m.play(key, true, 0.9)) m.play('attack', true, 0.9); }
+          m.holdAt(0.3);
+        }
         this.wasCharging = true;
-      } else if (fresh || m.playing !== clip) {
-        if (this.wasCharging && m.playing === clip) m.resumeFit(pose.attackDuration ?? 0.6);
-        else if (!m.play(clip, true, 1, pose.attackDuration)) m.play('attack', true, 1, pose.attackDuration);
+      } else if (fresh || m.playing !== key || this.wasCharging) {
+        // Released: the held wind-up plays on through the blow in what is left of the swing; a swing started fresh is
+        // fitted to its game duration and picks up at the progress the game is already at.
+        if (this.wasCharging && m.playing === key) m.resumeFit(Math.max(0.05, (1 - pose.attack) * duration));
+        else if (!m.play(key, { once: true, fitTo: duration, fade: cut?.fade ?? (hero ? 0.08 : 0.18), restart: true, at: pose.attack })) m.play('attack', true, 1, duration);
         this.wasCharging = false;
       }
       this.lastKind = k;
@@ -1236,9 +1320,16 @@ export class Rig {
       const generic = pose.pose === 'sit' || pose.pose === 'drink' || pose.pose === 'read' || pose.pose === 'throne' || pose.pose === 'sitSword' || pose.pose === 'fish' || pose.pose === 'row' ? 'sit' : pose.pose === 'kneel' ? 'kneel' : 'idle';
       if (!m.play(pose.pose) && !m.play(generic)) m.play('idle');
     } else if (pose.mode === 'air') {
-      // Take off quickly, then freeze at the apex pose until the ground comes back.
-      if (m.playing !== 'jump' && !m.play('jump', true, 1.6)) m.play('idle');
-      m.holdAt(0.45);
+      const up = hero && this.takeoff ? this.heroCut('jumpUp', this.takeoff) : null;
+      if (up) {
+        // The crouch and the spring at 1×, then the tuck held at the apex until the ground comes back.
+        if (m.playing !== up) m.play(up, { once: true, fade: 0.1 });
+        m.holdAt(Math.min(0.995, hero!.jump.apex));
+      } else {
+        // Take off quickly, then freeze at the apex pose until the ground comes back.
+        if (m.playing !== 'jump' && !m.play('jump', true, 1.6)) m.play('idle');
+        m.holdAt(0.45);
+      }
     } else if (pose.mode === 'fly') {
       if (!m.play('fly')) m.play('idle', false, 0.6);
       // Riding the bow wants still arms: Wren's idle gestures freely, so it is held on a calm frame.
@@ -1256,14 +1347,21 @@ export class Rig {
       if (v > 0.3) { if (!m.play('swim', false, Math.max(0.7, v / 2.6))) m.play('walk', false, 0.6); }
       else if (!m.play('swimIdle')) m.play('idle');
     }
-    // (A little hysteresis: a speed hovering at the threshold does not flip between the run and the walk.)
-    else if (v > (m.playing === 'run' ? 5.1 : 5.9)) { if (!m.play('run', false, v / 7)) m.play('walk', false, v / 4); }
-    else if (v > 0.3) { if (!m.play('walk', false, Math.max(0.6, v / 4))) m.play('run', false, v / 7); }
-    else {
-      m.play('idle');
-      // Wren's idle clip stretches her arms up and out; she stands easy on its calm first frame (animateSnack adds
-      // the breathing and the mushrooms).
-      if (m.id === 'archer') m.freezeAt(SHROOM.frame);
+    else this.ground(pose, v);
+    // A small hit: the reaction's flinch over the upper body, on top of whatever he is doing, eased in and out.
+    if (hero && freshHurt && !pose.hurt!.big) {
+      const h = hero.hit;
+      const from = h.from ?? 0;
+      const key = this.heroCut('flinch', { key: h.key, from, to: Math.min(h.to ?? from + FLINCH.flinch, from + FLINCH.flinch) });
+      const a = key ? m.layerOnce(key, hero.hitLayer, 0, FLINCH.seconds) : null;
+      if (this.flinch) this.flinch.action.stop();
+      this.flinch = a ? { action: a, t: 0 } : null;
+    }
+    if (this.flinch) {
+      const f = this.flinch;
+      f.t += dt;
+      if (f.t >= FLINCH.seconds) { f.action.stop(); this.flinch = null; }
+      else f.action.setEffectiveWeight(SIP.weight * Math.sin((f.t / FLINCH.seconds) * Math.PI));
     }
     // Wren turns side-on for a shot (her whole body on foot; in the air flyPose twists only her spine).
     if (m.id === 'archer') {
@@ -1274,10 +1372,57 @@ export class Rig {
     m.update(dt);
     this.smoke?.update(dt, v > 0.3);
     this.lastAttack = pose.attack;
+    this.lastHurt = pose.hurt?.t ?? -1;
+    this.lastDodge = pose.dodge?.t ?? -1;
     if (pose.attack === undefined) { this.lastKind = undefined; this.wasCharging = false; }
   }
 
-  /** World-space effects (the weapon trail, pipe smoke): add them to the scene next to the root. */
+  /** On the ground and doing nothing else: the landing crouch just after a jump, else the gait. */
+  private ground(pose: RigPose, v: number): void {
+    const m = this.model!;
+    const hero = this.hero;
+    if (hero && pose.landed !== undefined && pose.mode === 'ground') {
+      // The impact crouch (shorter when he lands running), then the gait fades in over it.
+      const land = hero.jump.land;
+      const landFor = cutSeconds(m.id, land) * (v > 0.5 ? 0.5 : 1);
+      const key = pose.landed < landFor ? this.heroCut('jumpLand', land) : null;
+      if (key) {
+        if (m.playing !== key) m.play(key, { once: true, fade: land.fade ?? 0.08, speed: land.speed ?? 1, at: pose.landed / Math.max(0.05, cutSeconds(m.id, land)) });
+        this.gait = '';
+        return;
+      }
+    }
+    if (v <= 0.3) {
+      m.play('idle', { fade: 0.12 });
+      // Wren's idle clip stretches her arms up and out; she stands easy on its calm first frame (animateSnack adds
+      // the breathing and the mushrooms).
+      if (m.id === 'archer') m.freezeAt(SHROOM.frame);
+      this.gait = '';
+      return;
+    }
+    const walk = hero ? m.strideSpeed(hero.walk) : 0;
+    const run = hero ? m.strideSpeed(hero.run) : 0;
+    if (!hero || (walk <= 0 && run <= 0)) {
+      // (A little hysteresis: a speed hovering at the threshold does not flip between the run and the walk.)
+      if (v > (m.playing === 'run' ? 5.1 : 5.9)) { if (!m.play('run', false, v / 7)) m.play('walk', false, v / 4); }
+      else if (!m.play('walk', false, Math.max(0.6, v / 4))) m.play('run', false, v / 7);
+      return;
+    }
+    // The gait whose natural pace is nearest the real one (switched only 0.2 m/s past the crossover, either way),
+    // played at the rate that keeps the feet planted, within 0.6–1.6×: no skating along at 2.6× any more.
+    const cross = walk > 0 && run > 0 ? Math.sqrt(walk * run) : walk > 0 ? Infinity : 0;
+    let gait = this.gait;
+    if (gait !== 'walk' && gait !== 'run') gait = v > cross ? 'run' : 'walk';
+    else if (gait === 'walk' && v > cross + 0.2) gait = 'run';
+    else if (gait === 'run' && v < cross - 0.2) gait = 'walk';
+    if (gait === 'run' && run <= 0) gait = 'walk';
+    if (gait === 'walk' && walk <= 0) gait = 'run';
+    const rate = Math.min(1.6, Math.max(0.6, v / (gait === 'run' ? run : walk)));
+    m.play(gait === 'run' ? hero.run : hero.walk, { speed: rate, fade: this.gait === '' ? 0.12 : 0.25 });
+    this.gait = gait;
+  }
+
+  /** World-space effects (the pipe smoke, the cup's drops, Wren's sparkles): add them to the scene next to the root. */
   get trailObject(): Object3D {
     return this.fx;
   }
@@ -1364,46 +1509,33 @@ export class Rig {
     }
     else this.placeholder?.update(dt);
     this.animateProp(pose, dt);
-    this.animateTrail(pose, dt);
   }
 
-  /** Weapon tip positions: from the model's hand bone when it has one, else a fixed offset in front of the root. */
-  private weaponTips(): void {
+  /**
+   * The weapon's guard and tip, world space (the ends of a blade trail; the staff's grip and its casting knob): the
+   * held prop's own points (PROP_ENDS), else the hand bone and a reach along it for a weapon baked into the body, else
+   * a point in front of the root. False until the body has loaded.
+   */
+  weaponTips(guard: Vector3, tip: Vector3): boolean {
+    if (this.propRig && this.prop) {
+      const [g, t] = PROP_ENDS[this.def.weapon];
+      this.prop.updateWorldMatrix(true, true);
+      this.propRig.root.localToWorld(guard.set(0, g, 0));
+      this.propRig.root.localToWorld(tip.set(0, t, 0));
+      return true;
+    }
+    if (!this.model) return false;
     const reach = WEAPON_REACH[this.def.weapon];
     if (this.hand) {
       this.hand.updateWorldMatrix(true, false);
-      this.hand.getWorldPosition(this.tipA);
-      this.axis.set(0, 1, 0).transformDirection(this.hand.matrixWorld);
-      this.tipB.copy(this.tipA).addScaledVector(this.axis, reach);
-      return;
+      this.hand.getWorldPosition(guard);
+      _ax.set(0, 1, 0).transformDirection(this.hand.matrixWorld);
+      tip.copy(guard).addScaledVector(_ax, reach);
+      return true;
     }
     this.root.updateWorldMatrix(true, false);
-    this.tipA.set(0.5, 1.1, 0).applyMatrix4(this.root.matrixWorld);
-    this.tipB.set(0.5 + reach, 1.2, 0).applyMatrix4(this.root.matrixWorld);
-  }
-
-  private animateTrail(pose: RigPose, dt: number): void {
-    const active = pose.attack !== undefined && this.def.weapon !== 'staff' && this.def.weapon !== 'bow';
-    const mat = this.trail.material as MeshBasicMaterial;
-    if (active) {
-      this.weaponTips();
-      for (let i = this.trailPoints.length - 2; i >= 2; i -= 2) {
-        this.trailPoints[i].copy(this.trailPoints[i - 2]);
-        this.trailPoints[i + 1].copy(this.trailPoints[i - 1]);
-      }
-      if (this.trailAttack === undefined || pose.attack! < this.trailAttack) {
-        for (let i = 0; i < this.trailPoints.length; i += 2) { this.trailPoints[i].copy(this.tipA); this.trailPoints[i + 1].copy(this.tipB); }
-      }
-      this.trailPoints[0].copy(this.tipA);
-      this.trailPoints[1].copy(this.tipB);
-      for (let i = 0; i < this.trailPoints.length; i++) this.trailPos.setXYZ(i, this.trailPoints[i].x, this.trailPoints[i].y, this.trailPoints[i].z);
-      this.trailPos.needsUpdate = true;
-      this.trail.visible = true;
-      mat.opacity = pose.attack! > 0.3 ? 0.55 : 0.0;
-    } else {
-      mat.opacity = Math.max(0, mat.opacity - dt * 4);
-      if (mat.opacity <= 0) this.trail.visible = false;
-    }
-    this.trailAttack = pose.attack;
+    guard.set(0.5, 1.1, 0).applyMatrix4(this.root.matrixWorld);
+    tip.set(0.5 + reach, 1.2, 0).applyMatrix4(this.root.matrixWorld);
+    return true;
   }
 }

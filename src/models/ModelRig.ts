@@ -1,8 +1,9 @@
-import { AnimationAction, AnimationClip, AnimationMixer, Box3, DoubleSide, Group, LoopOnce, LoopRepeat, Mesh, type MeshStandardMaterial, Object3D, PropertyBinding, Quaternion, QuaternionKeyframeTrack, type SkinnedMesh, Vector3, VectorKeyframeTrack } from 'three';
+import { AnimationAction, AnimationClip, AnimationMixer, AnimationUtils, Box3, DoubleSide, Group, LoopOnce, LoopRepeat, Mesh, type MeshStandardMaterial, Object3D, PropertyBinding, Quaternion, QuaternionKeyframeTrack, type SkinnedMesh, Vector3, VectorKeyframeTrack } from 'three';
 import { warnMissing } from './Placeholder';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { MODELS, type ModelDef } from '../data/models';
+import type { ClipCut } from '../characters/heroClips';
 
 const loader = new GLTFLoader();
 const files = new Map<string, Promise<GLTF | null>>();
@@ -141,6 +142,56 @@ function pinRoot(clip: AnimationClip): void {
   }
 }
 
+/**
+ * A window cut out of a clip drops every track whose keys all lie outside it (a bone keyed only at the clip's ends):
+ * those bones would keep whatever the last clip left them. They get one key, the source posed at the window's start.
+ */
+function fillMissing(src: AnimationClip, out: AnimationClip, at: number): void {
+  const have = new Set(out.tracks.map((t) => t.name));
+  for (const t of src.tracks) {
+    if (have.has(t.name) || !t.times.length) continue;
+    // (Every track makes its own interpolant; the typings leave the factory out.)
+    const sampler = (t as unknown as { createInterpolant(): { evaluate(time: number): ArrayLike<number> } }).createInterpolant();
+    const value = sampler.evaluate(Math.min(at, t.times[t.times.length - 1]));
+    const one = t.clone();
+    one.times = new Float32Array([0]);
+    one.values = Float32Array.from(value);
+    out.tracks.push(one);
+  }
+}
+
+/**
+ * The hips never wander on x/z (held at the source clip's first key: the controller owns every step, lunge and leap;
+ * Sword_Judgment travels a metre, Hit_Reaction nearly as much) and, with `ground`, never rise above their rest either:
+ * a jump clip's leap is the controller's business, its crouches (below rest) stay.
+ */
+function pinHips(src: AnimationClip, out: AnimationClip, ground: boolean): void {
+  const rest = src.tracks.find((t) => /hips\.position$/i.test(t.name));
+  const t = out.tracks.find((x) => /hips\.position$/i.test(x.name));
+  if (!rest || !t) return;
+  const v = t.values as Float32Array;
+  const r = rest.values;
+  for (let i = 0; i < v.length; i += 3) { v[i] = r[0]; if (ground) v[i + 1] = Math.min(v[i + 1], r[1]); v[i + 2] = r[2]; }
+}
+
+export interface PlayOptions {
+  /** A one-shot (attacks, hits, deaths): clamps on its last frame. */
+  once?: boolean;
+  /** Playback rate (ignored when `fitTo` is set). */
+  speed?: number;
+  /** Play the whole clip in this many seconds: its rate is clamped to 0.5–2.5×. */
+  fitTo?: number;
+  /** Crossfade seconds from whatever is playing (0.18 by default). */
+  fade?: number;
+  /**
+   * Asking again for the one-shot that is already playing starts it over on a twin action, crossfaded over the old
+   * swing's tail, instead of popping the same action back to its first frame.
+   */
+  restart?: boolean;
+  /** Start this far into the clip, 0..1. */
+  at?: number;
+}
+
 const mirrored = new WeakMap<AnimationClip, AnimationClip>();
 
 /**
@@ -245,6 +296,13 @@ export class ModelRig {
   private readonly mixer: AnimationMixer;
   private readonly actions = new Map<string, AnimationAction>();
   private readonly layers = new Map<string, AnimationAction>();
+  /** Windows cut out of the clips (cut), by id, and what they were cut from. */
+  private readonly cuts = new Map<string, AnimationAction | null>();
+  private readonly cutSrcs = new Map<string, ClipCut>();
+  /** A second action per clip, so a re-triggered one-shot can crossfade over its own tail (play's `restart`). */
+  private readonly twins = new Map<AnimationAction, AnimationAction>();
+  /** Every bone's rest, before any clip: the symmetric pose a mirror is solved from. */
+  private readonly bindPose: Array<{ bone: Object3D; q: Quaternion; p: Vector3 }> = [];
   private current: AnimationAction | null = null;
   private currentKey = '';
   readonly height: number;
@@ -315,6 +373,7 @@ export class ModelRig {
     this.frame = holder;
     this.height = def.height;
     this.mixer = new AnimationMixer(scene);
+    scene.traverse((o) => { if ((o as { isBone?: boolean }).isBone) this.bindPose.push({ bone: o, q: o.quaternion.clone(), p: o.position.clone() }); });
     // Clips played left for right (Sir Aldric's idle: the forward, bent arm holds his cup in the left hand).
     const flip = new Set((def.mirror ?? []).flatMap((k) => (def.clips?.[k] ?? k).toLowerCase().split('|')));
     let flipped = false;
@@ -355,6 +414,8 @@ export class ModelRig {
   private readonly found = new Map<string, AnimationAction | null>();
 
   private find(key: ClipKey | string): AnimationAction | null {
+    const cut = this.cuts.get(key);
+    if (cut) return cut;
     let hit = this.found.get(key);
     if (hit === undefined) { hit = this.lookup(key); this.found.set(key, hit); }
     return hit;
@@ -372,25 +433,49 @@ export class ModelRig {
   }
 
   /**
-   * Crossfades to a clip. `once` clips (attacks, hits) clamp on their last frame. `fitTo` plays the whole clip
-   * in that many seconds, so a swing finishes exactly when the game's attack window does.
+   * Crossfades to a clip (or a cut). `once` clips (attacks, hits) clamp on their last frame. `fitTo` plays the whole
+   * clip in that many seconds, so a swing finishes exactly when the game's attack window does. The positional form
+   * `play(key, once, speed, fitTo)` and the options form `play(key, { once, speed, fitTo, fade, restart, at })` do the
+   * same thing. (The fade never warps: a warped crossfade would throw the fitted rate away and end the clip at 1×.)
    */
-  play(key: ClipKey | string, once = false, speed = 1, fitTo?: number): boolean {
-    const action = this.find(key);
+  play(key: ClipKey | string, onceOrOpts: boolean | PlayOptions = false, speed = 1, fitTo?: number): boolean {
+    const o: PlayOptions = typeof onceOrOpts === 'object' ? onceOrOpts : { once: onceOrOpts, speed, fitTo };
+    let action = this.find(key);
     if (!action) return false;
+    const once = !!o.once;
+    const rate = (a: AnimationAction): number => (o.fitTo ? Math.min(2.5, Math.max(0.5, a.getClip().duration / Math.max(0.05, o.fitTo))) : o.speed ?? 1);
+    const same = !!this.current && this.current.getClip() === action.getClip();
     // Asking again for the clip that is playing keeps it going (and lets go of a holdAt freeze).
-    if (this.current === action && !once) { action.timeScale = speed; action.paused = false; return true; }
+    if (same && !once) { this.current!.timeScale = rate(this.current!); this.current!.paused = false; return true; }
+    if (same && once) action = o.restart ? this.twin(this.current!) : this.current!;
     action.reset();
     action.setLoop(once ? LoopOnce : LoopRepeat, Infinity);
     action.clampWhenFinished = once;
-    action.timeScale = fitTo ? Math.max(0.3, action.getClip().duration / Math.max(0.05, fitTo)) : speed;
+    action.timeScale = rate(action);
     action.enabled = true;
     action.weight = key === 'idle' ? MODELS[this.id]?.idleBlend ?? 1 : 1;
-    if (this.current && this.current !== action) { action.crossFadeFrom(this.current, 0.18, true); }
+    if (o.at) action.time = action.getClip().duration * Math.max(0, Math.min(0.999, o.at));
+    if (this.current && this.current !== action) action.crossFadeFrom(this.current, o.fade ?? 0.18, false);
     action.play();
     this.current = action;
     this.currentKey = key;
     return true;
+  }
+
+  /** The other action of this clip (made once): two can crossfade into each other. */
+  private twin(a: AnimationAction): AnimationAction {
+    let t = this.twins.get(a);
+    if (!t) {
+      t = new AnimationAction(this.mixer, a.getClip());
+      this.twins.set(a, t);
+      this.twins.set(t, a);
+    }
+    return t;
+  }
+
+  /** The action playing now (tools read its time and rate). */
+  get action(): AnimationAction | null {
+    return this.current;
   }
 
   get playing(): string {
@@ -421,11 +506,59 @@ export class ModelRig {
   playStrike(key: ClipKey | string, seconds: number): boolean {
     const action = this.find(key);
     if (!action) return false;
-    const name = action.getClip().name.toLowerCase();
-    let at = 0.4;
-    for (const [re, f] of STRIKE_AT) if (re.test(name)) { at = f; break; }
+    const at = this.strikeOf(key);
     const speed = Math.min(4, Math.max(0.35, (action.getClip().duration * at) / Math.max(0.05, seconds)));
     return this.play(key, true, speed);
+  }
+
+  /** Where the blow of `key` lands, 0..1: a cut's measured strike, else the STRIKE_AT guess for the clip's name. */
+  strikeOf(key: ClipKey | string): number {
+    const src = this.cutSrcs.get(key);
+    if (src?.strike !== undefined) return src.strike;
+    const name = this.clipName(key);
+    for (const [re, f] of STRIKE_AT) if (re.test(name)) return f;
+    return 0.4;
+  }
+
+  /**
+   * A window of a clip as its own action under `id` (made once): `src.from`–`src.to` seconds of the source clip
+   * (30 fps frames, AnimationUtils.subclip), mirrored first when asked, every bone keyed (fillMissing), the hips held
+   * in place on x/z unless `keepRoot`, and kept on the ground for a jump (pinHips). Null when the source clip is not on
+   * this body.
+   */
+  cut(id: string, src: ClipCut): AnimationAction | null {
+    const had = this.cuts.get(id);
+    if (had !== undefined) return had;
+    const base = this.find(src.key);
+    if (!base) { this.cuts.set(id, null); return null; }
+    let clip = base.getClip();
+    if (src.mirror) clip = this.mirrored(clip);
+    const from = Math.max(0, src.from ?? 0);
+    const to = Math.max(from + 1 / 30, Math.min(clip.duration, src.to ?? clip.duration));
+    const fps = 30;
+    // (Half a frame either side: a key at exactly `from` or `to` is kept whatever the float rounding of time × fps.)
+    const out = AnimationUtils.subclip(clip, `${clip.name}#${id}`, Math.round(from * fps) - 0.5, Math.round(to * fps) + 0.5, fps);
+    fillMissing(clip, out, from);
+    if (!src.keepRoot) pinHips(clip, out, !!src.groundHips);
+    out.resetDuration();
+    const a = this.mixer.clipAction(out);
+    this.cuts.set(id, a);
+    this.cutSrcs.set(id, src);
+    return a;
+  }
+
+  /** The clip played left for right, registered as `<name>#m` (made once; the registry's own mirrors are reused). */
+  private mirrored(clip: AnimationClip): AnimationClip {
+    const key = `${clip.name}#m`.toLowerCase();
+    const had = this.actions.get(key);
+    if (had) return had.getClip();
+    // The mirror is solved from the symmetric rest pose: put the bones back for the solve, then restore the posed state.
+    const posed = this.bindPose.map((b) => ({ bone: b.bone, q: b.bone.quaternion.clone(), p: b.bone.position.clone() }));
+    for (const b of this.bindPose) { b.bone.quaternion.copy(b.q); b.bone.position.copy(b.p); }
+    const m = mirrorClip(clip, this.scene, this.frame);
+    for (const b of posed) { b.bone.quaternion.copy(b.q); b.bone.position.copy(b.p); }
+    this.actions.set(key, this.mixer.clipAction(m));
+    return m;
   }
 
   /**
@@ -469,6 +602,23 @@ export class ModelRig {
       a = this.mixer.clipAction(new AnimationClip(id, clip.duration, tracks));
       this.layers.set(id, a);
     }
+    return a;
+  }
+
+  /**
+   * A layer played once from its start: `key` cut down to the bones matching `bones` (see layer), at `weight` against
+   * the base clip's 1 (30 all but replaces those bones), fitted to `fitTo` seconds when given. It switches itself off
+   * when it ends; the caller may ease its weight meanwhile (setEffectiveWeight). Null when the clip is not on this body.
+   */
+  layerOnce(key: ClipKey | string, bones: RegExp, weight = 30, fitTo?: number): AnimationAction | null {
+    const a = this.layer(key, bones);
+    if (!a) return null;
+    a.reset();
+    a.setLoop(LoopOnce, 1);
+    a.clampWhenFinished = false;
+    a.timeScale = fitTo ? Math.min(2.5, Math.max(0.5, a.getClip().duration / Math.max(0.05, fitTo))) : 1;
+    a.setEffectiveWeight(weight);
+    a.play();
     return a;
   }
 
