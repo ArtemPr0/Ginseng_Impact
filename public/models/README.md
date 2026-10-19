@@ -12,24 +12,22 @@ glb ("All added", "One file") → `node scripts/model-tools.mjs optimize <downlo
 Models should face +X; set `yaw` in the registry if a file faces another way. Clip names match by substring
 with alternatives (`"slam|attack|punch"`).
 
-201 registered, 168 present, 33 files to generate (33 ids).
+202 registered, 169 present, 33 files to generate (33 ids).
 
 | id | file | height (m) | what | status |
 |---|---|---|---|---|
-| `knight` | knight.glb | 1.95 |  | present |
-| `archer` | archer.glb | 1.8 |  | present |
 | `wizard` | wizard.glb | 1.85 |  | present |
 | `staff` | staff.glb | 1.75 |  | present |
 | `bow` | archer-bow.glb | 1.5 |  | present |
 | `greatsword` | greatsword.glb | 1.45 |  | present |
 | `yeti` | yeti.glb | 3.2 |  | present |
-| `shade` | horned-shade.glb | 10 |  | present |
+| `shade` | horned-shade.glb | 4.5 |  | present |
 | `warden` | antlered-warden.glb | 6.5 |  | present |
 | `wyrm` | moon-wyrm.glb | 3 |  | present |
 | `troll` | rock-troll.glb | 3.2 |  | present |
 | `lurker` | lake-lurker.glb | 2.8 |  | present |
 | `marshdemon` | marsh-demon.glb | 5 |  | present |
-| `hollowking` | hollow-king.glb | 10 |  | present |
+| `hollowking` | hollow-king.glb | 25 |  | present |
 | `rivershade` | river-shade.glb | 3 | hooded river shade with glowing eyes (DeUydbMvKqC, DeWZT3jvPCG) | present |
 | `passbeast` | fog-beast.glb | 2.4 | red-eyed black beast of the mountain pass (DeXeZ7rhGVi) | present |
 | `beast` | fog-beast.glb | 1.5 | red-eyed black beast (DeXeZ7rhGVi) | present |
@@ -85,7 +83,6 @@ with alternatives (`"slam|attack|punch"`).
 | `witch-cook` | witch-cook.glb | 1.8 | skeleton cook in a chef hat with a spoon (Mother Marrow) | present |
 | `bride` | bride.glb | 1.8 | the Pale Bride | present |
 | `maiden` | maiden.glb | 1.68 | Elowen of the flower garden | present |
-| `wanderer` | wanderer.glb | 1.85 | hooded wanderer with a lantern (the Lanternbearer) | present |
 | `wizard-npc` | wizard-npc.glb | 1.8 | wizard NPC (Mirren, Sel) | present |
 | `gnome` | gnome.glb | 1.15 | gnome astronomer with a telescope (Pim) | present |
 | `frog-monk` | frog-monk.glb | 1.75 | frog monk reading a book (Brother Croak) | present |
@@ -147,11 +144,15 @@ with alternatives (`"slam|attack|punch"`).
 | `skeleton-lord` | skeleton-lord.glb | 1.9 | skeleton lord in a black fur cloak and gold chains (DeXn5rSPxR8) | present |
 | `blue-knight` | blue-knight.glb | 1.95 | blue plate knight with a goblet (DeXn5rSPxR8) | present |
 | `skeleton-king` | skeleton-king.glb | 2.0 | crowned skeleton king with gold chains and a galaxy cloak (DeOemU1BOZF) | present |
+| `diamond-wizard` | skeleton-wizard.glb | 1.9 | Old Hollowstaff, the diamond-throwing skeleton wizard (DeaqHWJBBPw) | present |
 | `skeleton-wizard` | skeleton-wizard.glb | 1.9 | skeleton wizard with a gold crystal staff (DeaqHWJBBPw) | present |
 | `galaxy-wizard` | galaxy-wizard.glb | 1.9 | galaxy-robed wizard pouring a glowing potion (DeQ-NnpvqF6) | present |
 | `galaxy-king` | galaxy-king.glb | 2.2 | crowned galaxy king with glowing eyes (Dd0wR9Jh2lH) | present |
 | `void-monk` | void-monk.glb | 1.85 | hooded monk whose face is a galaxy (DdyN2PNyIxb) | present |
 | `bucket` | bucket-mimic.glb | 1.0 | tooth-grinning bucket mimic on skeletal legs (DeaqHWJBBPw) | present |
+| `fish-guard` | fish-guard.glb | 2.0 | fish-headed guard in barnacled bronze armour with a trident (the Sunken City) | present |
+| `angler` | angler.glb | 1.9 | anglerfish man with a needle-toothed underbite and a lure (the Sunken City) | present |
+| `sea-castle` | sea-castle.glb | 22 | coral-crusted stone castle round an open courtyard, corner towers and an arched gate, kelp and anemones (the Sunken City) | present |
 | `sunken-tavern` | sunken-tavern.glb | 9 | underwater tavern with jellyfish windows and bottle shelves (DeVj-Z8POjl) | present |
 | `coral-throne` | coral-throne.glb | 2.4 | coral throne (DeVj-Z8POjl) | present |
 | `jellyfish` | jellyfish.glb | 0.9 | glowing jellyfish (DeVj-Z8POjl) | present |

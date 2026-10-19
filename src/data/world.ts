@@ -144,7 +144,6 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   // The Lean Quarter (round 6, see LEAN_QUARTER): the Skeleton Court, Bucket Street, the snow chapel, the sky dock.
   // On the dragon throne's seat (ray-probed: 25.38, its front edge at z -171.1), hips 0.12 over it, 0.3 in from the edge.
   'skeleton-king': { x: 1000, z: -171.0, y: 24.76 },
-  'skeleton-wizard': { x: 900, z: 18 },
   'galaxy-wizard': { x: 872, z: -18 },
   // The lord at the front of the pavilion's settee (ray-probed: seat 25.03, 1.8 m deep, front edge x 1042.4; sat at
   // its back his shins sank into it), Sir Cobalt on a stool at his side.
@@ -167,8 +166,8 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   // The Dragon's Vale (Vale.ts): the reader on the dragon's claw, the street's folk.
   'dragon-reader': { x: 995.0, z: 904.6, dy: 0.02 },
   'vale-knight': { x: 1004.5, z: 958 }, 'vale-beggar': { x: 994.4, z: 966, dy: 0.02 }, 'vale-merchant': { x: 1005.0, z: 941.4 },
-  // Behind his counter in the sunken tavern's face (Sunken.ts).
-  'fish-king': { x: -1000, z: -93.8 },
+  // Behind his counter in the sea castle's courtyard, his throne at his back (Sunken.ts).
+  'fish-king': { x: -1000, z: -68.6 },
 };
 
 /**

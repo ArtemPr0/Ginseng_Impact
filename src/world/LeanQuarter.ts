@@ -196,21 +196,7 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
     glow(PALETTE.dusk, 1.8, x, gy + 2, z, 0.45);
   }
   api.flora('purple-mushroom', shrooms, { shadows: false });
-  // The skeleton wizard's floating diamonds, circling him (Old Hollowstaff stands mid-street, NPCs.ts).
-  {
-    const cx = 900, cz = 18;
-    const gems: Placement[] = [];
-    for (let i = 0; i < 9; i++) gems.push({ x: cx, y: gy + 2, z: cz, yaw: 0, scale: 0.35 + api.rnd() * 0.25 });
-    api.flora('gem', gems, { shadows: false, update: (t, ps) => {
-      ps.forEach((p, i) => { const a = t * 0.6 + (i / ps.length) * Math.PI * 2; p.x = cx + Math.cos(a) * 1.5; p.z = cz + Math.sin(a) * 1.5; p.y = gy + 1.6 + Math.sin(t * 1.3 + i) * 0.5; p.yaw = t * 2 + i; });
-      return true;
-    } });
-    const orbit = new Group();
-    for (let i = 0; i < 3; i++) { const o = glowSprite(i % 2 ? 0xff5ad6 : 0x7a3cff, 1.4, 0.55, true); orbit.add(o); }
-    fx.add(orbit);
-    updates.push(() => { const t = performance.now() / 1000; orbit.children.forEach((o, i) => { const a = t * 0.9 + i * 2.1; o.position.set(cx + Math.cos(a) * 2.4, gy + 2.6 + Math.sin(t + i) * 0.4, cz + Math.sin(a) * 2.4); }); });
-    for (let i = 0; i < 6; i++) glints.add(new Vector3(cx, gy + 1.9, cz), new Vector3(), 1.6);
-  }
+  // (Old Hollowstaff, mid-street, is the diamond-throwing boss now: his diamonds circle him (Enemy orbitGems).)
   // The star brewer's tower at the street's north-west corner (DeQ-NnpvqF6).
   api.place(modelLandmark('round-tower', 872, -26, gy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'cyl', x: 872, z: -26, r: 3.6, top: gy + 22 }] }));
   // The lean castle at the street's west end, its windows burning purple, lean pouring off its front into the moat.

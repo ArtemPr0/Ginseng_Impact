@@ -93,22 +93,38 @@ const pinned = new WeakSet<AnimationClip>();
 const faced = new WeakMap<AnimationClip, number>();
 const _q = new Quaternion();
 const _y = new Quaternion();
-const _f = new Vector3();
 const UP = new Vector3(0, 1, 0);
 
-/** Keeps only `keep` of the hips' and spine's twist about the vertical in every key of the clip (see ModelDef.faceForward). */
-function faceForward(clip: AnimationClip, keep: number): void {
+/** A bone's rest rotation and the world's up direction in its parent's frame (both at bind, before any clip). */
+export interface BoneRest { q: Quaternion; up: Vector3 }
+
+const _d = new Quaternion();
+const _ri = new Quaternion();
+
+/**
+ * Keeps only `keep` of the hips' and spine's twist about the vertical in every key of the clip (see
+ * ModelDef.faceForward). The twist is measured as the turn from the bone's rest rotation about the world's up axis in
+ * its parent's frame: reading a "forward" off the bone itself went wrong for a body whose hips lean at rest (the rock
+ * troll's tilt 68°: an attack's pitch read as a 114° turn, and the correction swung its chest away from its target).
+ */
+function faceForward(clip: AnimationClip, keep: number, rest: Map<string, BoneRest>): void {
   if (faced.has(clip)) return;
   faced.set(clip, keep);
   for (const t of clip.tracks) {
     // The hips carry most of the turn; the spine adds its own twist on top.
     if (!/(hips|spine\d?)\.quaternion$/i.test(t.name)) continue;
+    const r = rest.get(t.name.slice(0, -'.quaternion'.length));
+    const up = r?.up ?? UP;
+    if (r) _ri.copy(r.q).invert(); else _ri.identity();
     const v = t.values;
     for (let i = 0; i < v.length; i += 4) {
       _q.set(v[i], v[i + 1], v[i + 2], v[i + 3]);
-      _f.set(0, 0, 1).applyQuaternion(_q);
-      const yaw = Math.atan2(_f.x, _f.z);
-      _y.setFromAxisAngle(UP, (keep - 1) * yaw);
+      // The turn from rest (in the parent's frame), and its twist about the up axis (swing-twist decomposition).
+      _d.copy(_q).multiply(_ri);
+      let twist = 2 * Math.atan2(_d.x * up.x + _d.y * up.y + _d.z * up.z, _d.w);
+      if (twist > Math.PI) twist -= Math.PI * 2;
+      if (twist < -Math.PI) twist += Math.PI * 2;
+      _y.setFromAxisAngle(up, (keep - 1) * twist);
       _q.premultiply(_y);
       v[i] = _q.x; v[i + 1] = _q.y; v[i + 2] = _q.z; v[i + 3] = _q.w;
     }
@@ -301,10 +317,20 @@ export class ModelRig {
     // Clips played left for right (Sir Aldric's idle: the forward, bent arm holds his cup in the left hand).
     const flip = new Set((def.mirror ?? []).flatMap((k) => (def.clips?.[k] ?? k).toLowerCase().split('|')));
     let flipped = false;
+    // The hips' and spine's rest rotations and the up axis in their parents' frames, for faceForward.
+    const rest = new Map<string, BoneRest>();
+    if (def.faceForward !== undefined) {
+      scene.updateMatrixWorld(true);
+      scene.traverse((o) => {
+        if (!/(hips|spine\d?)$/i.test(o.name) || !o.parent) return;
+        const pq = o.parent.getWorldQuaternion(new Quaternion()).invert();
+        rest.set(o.name, { q: o.quaternion.clone(), up: new Vector3(0, 1, 0).applyQuaternion(pq).normalize() });
+      });
+    }
     for (let clip of gltf.animations) {
       if (PIN_ROOT.test(clip.name)) pinRoot(clip);
       // (Only the fighting clips: a sit or a talk keeps its own body turn, or the hips spin away from the legs.)
-      if (def.faceForward !== undefined && !CALM_CLIP.test(clip.name)) faceForward(clip, def.faceForward);
+      if (def.faceForward !== undefined && !CALM_CLIP.test(clip.name)) faceForward(clip, def.faceForward, rest);
       if (!flipped && flip.has(clip.name.toLowerCase())) { clip = mirrorClip(clip, scene, holder); flipped = true; }
       this.actions.set(clip.name.toLowerCase(), this.mixer.clipAction(clip));
     }

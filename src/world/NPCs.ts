@@ -227,12 +227,7 @@ export const NPC_DEFS: NpcDef[] = [
     behaviour: { kind: 'stand', pose: 'throne', yaw: Math.PI / 2 },
     shop: [{ itemId: 'moon-dew', price: 26 }, { itemId: 'star-chart', price: 200 }],
   },
-  {
-    id: 'skeleton-wizard', name: 'Old Hollowstaff', title: 'Skeleton Wizard of the Bucket Street', weapon: 'staff',
-    model: 'skeleton-wizard', accent: PALETTE.dusk,
-    lines: ['The buckets bite. They were wells once, and wells resent being dry.', 'My staff is gold because the crystal insisted.', 'Purple mushrooms mean the street is safe. Mostly.'],
-    behaviour: { kind: 'stand', yaw: 0 },
-  },
+  // (Old Hollowstaff, the skeleton wizard of the bucket street, is a boss now: data/enemies 'diamond-wizard'.)
   {
     id: 'galaxy-wizard', name: 'The Star Brewer', title: 'Wizard of the Round Tower', weapon: 'staff',
     model: 'galaxy-wizard', accent: PALETTE.dusk,
@@ -400,7 +395,7 @@ export const NPC_DEFS: NpcDef[] = [
     behaviour: { kind: 'loop', path: [[-1000.8, 50], [-999.4, 36], [-1000.6, 24], [-999.4, 36]], speed: 0.8 },
   },
   {
-    id: 'fish-king', name: 'The Fish King', title: 'Host of the Sunken Tavern', weapon: 'staff',
+    id: 'fish-king', name: 'The Fish King', title: 'Host of the Sea Castle', weapon: 'staff',
     model: 'fish-king', accent: PALETTE.rune,
     lines: ['Welcome under the lake. Breathe if you like; it changes nothing down here.', 'The jellyfish are the lamps. The lamps are rude.', 'Drink from the purple chalice. Forty shards, and you will float a little.'],
     behaviour: { kind: 'stand', pose: 'offer', yaw: Math.PI / 2 },

@@ -1,7 +1,8 @@
 import { loadModelOrWarn, ModelRig, yawToRotation } from '../models/ModelRig';
 import { MissingModelPlaceholder } from '../models/Placeholder';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { Box3, Group, type Object3D, Quaternion, type Sprite, Vector3 } from 'three';
+import { Box3, Color, Group, type Object3D, Quaternion, type Sprite, Vector3 } from 'three';
+import { MODELS, type ModelDef } from '../data/models';
 import { glowSprite } from '../render/Glow';
 import { LeanBubble } from '../render/LeanBubble';
 import { patchTrippy } from '../render/Materials';
@@ -182,6 +183,86 @@ export class Enemy {
     } else this.object.add(this.model.root);
     this.object.scale.setScalar(1);
     if (!this.alive) this.model.play('death', true);
+    const held = MODELS[id]?.held;
+    if (held) void loadModelOrWarn(held.model, MODELS[held.model]?.label).then((g) => { if (g) this.hold(held, g); });
+    if (this.def.orbitGems && !this.gems) void loadModelOrWarn('gem', MODELS.gem?.label).then((g) => { if (g) this.buildGems(g, this.def.orbitGems!); });
+  }
+
+  /** The diamonds circling the body (EnemyDef.orbitGems), each with its glint, and when each grows back. */
+  private gems: { group: Group; list: Array<{ obj: Group; back: number }>; t: number } | null = null;
+
+  private buildGems(gltf: GLTF, n: number): void {
+    const group = new Group();
+    const list: Array<{ obj: Group; back: number }> = [];
+    for (let i = 0; i < n; i++) {
+      const rig = new ModelRig('gem', gltf, { cloneMaterials: true });
+      for (const m of rig.materials) { m.color.set(0xe9f2ff); m.emissive.set(0x6a8cff); m.emissiveIntensity = 0.5; }
+      const obj = new Group();
+      rig.root.scale.setScalar(0.5 + (i % 3) * 0.15);
+      obj.add(rig.root, glowSprite(0xdff2ff, 0.7, 0.45, true));
+      group.add(obj);
+      list.push({ obj, back: 0 });
+    }
+    this.gems = { group, list, t: Math.random() * 10 };
+    // (In the scene, not on the body: the body's turn and scale would carry them.)
+    this.object.parent?.add(group);
+  }
+
+  /** Circles the diamonds round the body: a slow ring at chest height, bobbing; a thrown one grows back in. */
+  private animateGems(dt: number): void {
+    const g = this.gems;
+    if (!g) return;
+    if (!g.group.parent && this.object.parent) this.object.parent.add(g.group);
+    g.t += dt;
+    g.group.visible = this.alive && this.object.visible;
+    const n = g.list.length;
+    g.list.forEach((d, i) => {
+      const a = g.t * 0.7 + (i / n) * Math.PI * 2;
+      d.obj.position.set(this.pos.x + Math.cos(a) * 1.6, this.pos.y + 1.5 + Math.sin(g.t * 1.3 + i) * 0.45, this.pos.z + Math.sin(a) * 1.6);
+      d.obj.rotation.y = g.t * 2 + i;
+      d.back = Math.max(0, d.back - dt);
+      d.obj.scale.setScalar(d.back > 0 ? Math.max(0.001, 1 - d.back / 4) ** 3 : 1);
+    });
+  }
+
+  /** Takes the circling diamond nearest `to` (it grows back in 4 s): where it was, or null when all are gone. */
+  takeGem(to: { x: number; y: number; z: number }): Vector3 | null {
+    const g = this.gems;
+    if (!g) return null;
+    let best: { obj: Group; back: number } | null = null;
+    let bd = Infinity;
+    for (const d of g.list) {
+      if (d.back > 0) continue;
+      const dd = (d.obj.position.x - to.x) ** 2 + (d.obj.position.z - to.z) ** 2;
+      if (dd < bd) { bd = dd; best = d; }
+    }
+    if (!best) return null;
+    best.back = 4;
+    return best.obj.position.clone();
+  }
+
+  /** Puts a weapon in the right hand (ModelDef.held), seated the way the heroes hold that model (its `grip`). */
+  private hold(held: NonNullable<ModelDef['held']>, gltf: GLTF): void {
+    const hand = this.model?.bone(/right.?hand$/i);
+    if (!this.model || !hand) return;
+    const rig = new ModelRig(held.model, gltf, { cloneMaterials: true });
+    for (const m of rig.materials) {
+      if (held.tint !== undefined) m.color.lerp(new Color(held.tint), 0.6);
+      if (held.glow && m.map) { m.emissiveMap = m.map; m.emissive.set(held.tint ?? 0xffffff); m.emissiveIntensity = held.glow; }
+      m.needsUpdate = true;
+    }
+    const grip = MODELS[held.model]?.grip ?? { x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0, slide: 0 };
+    const pivot = new Group();
+    pivot.position.set(grip.x, grip.y, grip.z);
+    pivot.rotation.set(grip.rx, grip.ry, grip.rz);
+    rig.root.position.y = grip.slide;
+    pivot.add(rig.root);
+    const holder = new Group();
+    holder.add(pivot);
+    this.model.root.updateWorldMatrix(true, true);
+    const ws = hand.getWorldScale(new Vector3());
+    holder.scale.setScalar(1 / Math.max(1e-4, ws.y));
+    hand.add(holder);
   }
 
   get alive(): boolean {
@@ -535,6 +616,7 @@ export class Enemy {
   /** `far`: beyond animation range, so the skeleton holds its pose (state, position and shrink still update). */
   animate(dt: number, far = false): void {
     if (this.hopT >= 0) { this.hopT += dt; if (this.hopT >= this.hopLen) this.hopT = -1; }
+    this.animateGems(dt);
     this.object.position.set(this.pos.x, this.pos.y + this.hopLift, this.pos.z);
     this.flashLeft = Math.max(0, this.flashLeft - dt);
     if (this.bubble) { this.animateBubble(dt); return; }

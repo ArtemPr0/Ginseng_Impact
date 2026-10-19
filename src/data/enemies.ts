@@ -1,9 +1,9 @@
 import type { BrainParams } from '../combat/EnemyBrain';
 import type { Element } from '../combat/Elements';
 
-export type EnemyKind = 'beast' | 'bucket' | 'crystalgolem' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity' | 'cyclops' | 'cyclops-lord' | 'blood-eye' | 'trip-wizard' | 'galaxy-knight' | 'mail-knight';
+export type EnemyKind = 'beast' | 'bucket' | 'crystalgolem' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity' | 'cyclops' | 'cyclops-lord' | 'blood-eye' | 'trip-wizard' | 'galaxy-knight' | 'mail-knight' | 'diamond-wizard' | 'fish-guard' | 'angler';
 
-export type BossAttackKind = 'slam' | 'boulder' | 'roar' | 'volley' | 'summon' | 'blink' | 'roots' | 'sweep' | 'breath' | 'charge' | 'bite' | 'logthrow' | 'punch' | 'grab' | 'cupmortar' | 'cupvolley' | 'snowstorm' | 'web' | 'webdrop' | 'hop' | 'kaleido' | 'eyebeam' | 'mirror' | 'glare' | 'thorns' | 'rainbow';
+export type BossAttackKind = 'slam' | 'boulder' | 'roar' | 'volley' | 'summon' | 'blink' | 'roots' | 'sweep' | 'breath' | 'charge' | 'bite' | 'logthrow' | 'punch' | 'grab' | 'cupmortar' | 'cupvolley' | 'snowstorm' | 'web' | 'webdrop' | 'hop' | 'kaleido' | 'eyebeam' | 'mirror' | 'glare' | 'thorns' | 'rainbow' | 'diamond';
 
 export interface BossAttack { kind: BossAttackKind; range: number; windup: number; recover: number; weight: number }
 
@@ -55,6 +55,8 @@ export interface EnemyDef {
   beamColor?: number;
   /** Its texture glows (emissive from its own colours) at this strength: the Blood Eye burns in the night. */
   glow?: number;
+  /** Diamonds circling it (gem.glb), this many: its 'diamond' attack throws the one nearest the hero. */
+  orbitGems?: number;
   /** Lines it says (ids in data/voices): when it spots you, as it throws, as it dies, and when you fall. */
   voices?: { aggro: string[]; attack: string[]; death: string[]; win: string[] };
 }
@@ -145,6 +147,14 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     attacks: [{ kind: 'cupvolley', range: 20, windup: 1.0, recover: 1.3, weight: 3 }, { kind: 'cupmortar', range: 20, windup: 0.8, recover: 1.0, weight: 2 }, { kind: 'sweep', range: 3, windup: 0.6, recover: 1.0, weight: 1 }],
     drops: [{ itemId: 'rune-shard', chance: 1 }, { itemId: 'moon-dew', chance: 1 }], voices: GHOUL_VOICES,
   },
+  // Old Hollowstaff on the bucket street (DeaqHWJBBPw's skeleton wizard): his diamonds circle him, and the one
+  // nearest you is thrown at you; it grows back in a few seconds.
+  'diamond-wizard': {
+    kind: 'diamond-wizard', name: 'Old Hollowstaff', title: 'Who Throws His Diamonds', maxHp: 4800, def: 60, atk: 115, speed: 3.0, element: 'astral', hover: 0, bodyRadius: 0.7, height: 1.9, boss: true,
+    brain: { aggroRange: 15, attackRange: 18, windup: 0.6, recover: 0.6, attackCooldown: 0.5, preferredRange: 9 }, respawn: 220, leash: 18, shards: [140, 210],
+    attacks: [{ kind: 'diamond', range: 20, windup: 0.5, recover: 0.5, weight: 5 }, { kind: 'blink', range: 12, windup: 0.5, recover: 0.4, weight: 1 }, { kind: 'sweep', range: 3, windup: 0.6, recover: 1.0, weight: 1 }],
+    drops: [{ itemId: 'rune-shard', chance: 1 }, { itemId: 'star-chart', chance: 0.4 }], collapse: true, orbitGems: 9,
+  },
   // Yung Lean himself, off his throne when you challenge him: digital snow, cups, his ghouls.
   'rift-king': {
     kind: 'rift-king', name: 'Yung Lean', title: 'King of the Sad Side of the World', maxHp: 9000, def: 80, atk: 135, speed: 3.6, element: 'astral', hover: 0, bodyRadius: 0.7, height: 1.85, boss: true,
@@ -175,6 +185,17 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     kind: 'mail-knight', name: 'Chain-Mail Knight', maxHp: 980, def: 55, atk: 88, speed: 3.0, element: 'stone', hover: 0, bodyRadius: 0.55, height: 1.95,
     brain: { aggroRange: 12, attackRange: 2.4, windup: 0.6, recover: 0.9, attackCooldown: 0.6 }, respawn: 60, leash: 18, shards: [8, 14],
     drops: [{ itemId: 'rune-shard', chance: 0.5 }],
+  },
+  // The sea king's castle in the Sunken City: fish-headed guards with tridents at its gate, anglerfish men in its lane.
+  'fish-guard': {
+    kind: 'fish-guard', name: 'Castle Fishguard', maxHp: 1100, def: 55, atk: 92, speed: 3.2, element: 'tide', hover: 0, bodyRadius: 0.55, height: 2.0,
+    brain: { aggroRange: 10, attackRange: 2.6, windup: 0.6, recover: 0.9, attackCooldown: 0.6 }, respawn: 70, leash: 10, shards: [10, 16],
+    drops: [{ itemId: 'rune-shard', chance: 0.4 }],
+  },
+  angler: {
+    kind: 'angler', name: 'Deep Angler', maxHp: 900, def: 40, atk: 98, speed: 3.6, element: 'tide', hover: 0, bodyRadius: 0.55, height: 1.9,
+    brain: { aggroRange: 9, attackRange: 2.4, windup: 0.5, recover: 0.8, attackCooldown: 0.5 }, respawn: 70, leash: 9, shards: [10, 16],
+    drops: [{ itemId: 'moon-dew', chance: 0.3 }],
   },
   // DeOemU1BOZF: a knight in galaxy-patterned plate guarding the Skeleton Court's treasury.
   'galaxy-knight': {
@@ -211,9 +232,10 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     drops: [{ itemId: 'glacier-maul', chance: 1 }, { itemId: 'yeti-pelt', chance: 1 }, { itemId: 'moon-dew', chance: 1 }],
   },
   shade: {
-    kind: 'shade', name: 'The Horned Shade', title: 'Sovereign of the Drowned Ruins', maxHp: 6200, def: 50, atk: 130, speed: 3.0, element: 'astral', hover: 0.6, bodyRadius: 3.4, height: 10, boss: true,
-    brain: { aggroRange: 18, attackRange: 14, windup: 0.8, recover: 1.1, attackCooldown: 0.7, preferredRange: 8 }, respawn: 240, leash: 28, shards: [160, 240],
-    attacks: [{ kind: 'volley', range: 16, windup: 0.9, recover: 1.0, weight: 3 }, { kind: 'summon', range: 20, windup: 1.2, recover: 1.6, weight: 1 }, { kind: 'blink', range: 16, windup: 0.5, recover: 0.4, weight: 2 }, { kind: 'sweep', range: 4, windup: 0.6, recover: 1.0, weight: 3 }],
+    // (4.5 m, haunting the cathedral's nave: at 10 m out on the shore he towered over everything.)
+    kind: 'shade', name: 'The Horned Shade', title: 'Who Haunts the Cathedral', maxHp: 6200, def: 50, atk: 130, speed: 3.0, element: 'astral', hover: 0.3, bodyRadius: 1.5, height: 4.5, boss: true,
+    brain: { aggroRange: 14, attackRange: 12, windup: 0.8, recover: 1.1, attackCooldown: 0.7, preferredRange: 7 }, respawn: 240, leash: 11, shards: [160, 240],
+    attacks: [{ kind: 'volley', range: 14, windup: 0.9, recover: 1.0, weight: 3 }, { kind: 'summon', range: 16, windup: 1.2, recover: 1.6, weight: 1 }, { kind: 'blink', range: 10, windup: 0.5, recover: 0.4, weight: 2 }, { kind: 'sweep', range: 3, windup: 0.6, recover: 1.0, weight: 3 }],
     drops: [{ itemId: 'horn-staff', chance: 1 }, { itemId: 'shade-horn', chance: 1 }, { itemId: 'star-chart', chance: 0.5 }],
   },
   rivershade: {
@@ -255,9 +277,10 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     drops: [{ itemId: 'horned-glaive', chance: 1 }, { itemId: 'demon-horn', chance: 1 }, { itemId: 'star-chart', chance: 0.5 }],
   },
   hollowking: {
-    kind: 'hollowking', name: 'The Hollow King', title: 'Whose Heart Is a Kingdom', maxHp: 12000, def: 110, atk: 180, speed: 0, element: 'astral', hover: 0, bodyRadius: 2.5, height: 10, boss: true, leash: 1,
-    brain: { aggroRange: 24, attackRange: 24, windup: 1.2, recover: 1.6, attackCooldown: 1.0 }, respawn: 400, shards: [320, 460],
-    attacks: [{ kind: 'volley', range: 24, windup: 1.2, recover: 1.4, weight: 3 }, { kind: 'summon', range: 24, windup: 1.4, recover: 1.8, weight: 2 }, { kind: 'roar', range: 18, windup: 1.2, recover: 1.6, weight: 1 }],
+    // (25 m seated: a king the size of a hill.)
+    kind: 'hollowking', name: 'The Hollow King', title: 'Whose Heart Is a Kingdom', maxHp: 12000, def: 110, atk: 180, speed: 0, element: 'astral', hover: 0, bodyRadius: 6.2, height: 25, boss: true, leash: 1,
+    brain: { aggroRange: 34, attackRange: 34, windup: 1.2, recover: 1.6, attackCooldown: 1.0 }, respawn: 400, shards: [320, 460],
+    attacks: [{ kind: 'volley', range: 34, windup: 1.2, recover: 1.4, weight: 3 }, { kind: 'summon', range: 34, windup: 1.4, recover: 1.8, weight: 2 }, { kind: 'roar', range: 26, windup: 1.2, recover: 1.6, weight: 1 }],
     drops: [{ itemId: 'hollow-crown', chance: 1 }, { itemId: 'king-rib', chance: 1 }, { itemId: 'star-chart', chance: 1 }],
   },
   croc: {
@@ -281,7 +304,7 @@ export interface EnemySpawn { kind: EnemyKind; x: number; z: number; yaw?: numbe
 export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   // Bosses
   { kind: 'yeti', x: 72, z: -94 },          // frozen grove, north-east
-  { kind: 'shade', x: 66, z: -130 },        // the drowned stones on the north shore
+  { kind: 'shade', x: 68, z: -18, exact: true },  // in the cathedral's nave, under the candles
   { kind: 'warden', x: 68, z: 38 },         // the clearing in the east forest, under the rain
   { kind: 'wyrm', x: 106, z: 22 },          // circling the lonely wizard tower
   { kind: 'rivershade', x: -62, z: 16 },    // rising from the witch stream by the bridge
@@ -328,6 +351,11 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'bucket', x: 934, z: 15 }, { kind: 'bucket', x: 918, z: 21 }, { kind: 'bucket', x: 896, z: 13 },
   { kind: 'bucket', x: 884, z: 23 }, { kind: 'bucket', x: 864, z: 16 }, { kind: 'bucket', x: 848, z: 20 },
   { kind: 'mail-knight', x: 908, z: 18 }, { kind: 'mail-knight', x: 860, z: 18 },
+  { kind: 'diamond-wizard', x: 900, z: 18, exact: true, yaw: 0 },  // mid-street, where Old Hollowstaff stood
   // The Skeleton Court's treasury.
   { kind: 'galaxy-knight', x: 958, z: -160 }, { kind: 'galaxy-knight', x: 968, z: -172 },
+  // The sea king's castle (Sunken.ts): two guards at its gate, two anglers in the lane behind the throne, two more by
+  // the courtyard's walls.
+  { kind: 'fish-guard', x: -1006, z: -60.5, exact: true, yaw: Math.PI / 2 }, { kind: 'fish-guard', x: -994, z: -60.5, exact: true, yaw: Math.PI / 2 },
+  { kind: 'angler', x: -1000, z: -80, exact: true, yaw: Math.PI / 2 }, { kind: 'angler', x: -1000, z: -88, exact: true, yaw: Math.PI / 2 },
 ];

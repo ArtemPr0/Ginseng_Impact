@@ -53,7 +53,7 @@ interface Projectile {
   seed: number;
 }
 
-type ProjectileKind = 'bolt' | 'arrow' | 'log' | 'ring' | 'fire' | 'cup' | 'trip' | 'web' | 'orb';
+type ProjectileKind = 'bolt' | 'arrow' | 'log' | 'ring' | 'fire' | 'cup' | 'trip' | 'web' | 'orb' | 'gem';
 
 /** A shot from something that is not an enemy (witches, the snail, the dragon), aimed at the hero. */
 export interface HostileShot { speed: number; color: number; atk: number; kind?: ProjectileKind; size?: number; radius?: number; poison?: { dps: number; seconds: number }; spread?: number }
@@ -95,6 +95,9 @@ const MIRROR_DEF: EnemyDef = {
 const SUMMON_CAP = 4;
 let thrownCup: GLTF | null = null;
 void loadModel('lean-cup').then((g) => { thrownCup = g; });
+/** A diamond Old Hollowstaff throws (gem.glb). */
+let thrownGem: GLTF | null = null;
+void loadModel('gem').then((g) => { thrownGem = g; });
 
 const PLAYER_DEF = 30;
 const aim = new Vector3();
@@ -207,7 +210,7 @@ export class CombatSystem {
     const i = this.projectiles.indexOf(p);
     if (i < 0) return;
     this.d.scene.remove(p.object);
-    disposeObject(p.object, p.kind === 'cup');
+    disposeObject(p.object, p.kind === 'cup' || p.kind === 'gem');
     this.projectiles.splice(i, 1);
   }
 
@@ -580,6 +583,7 @@ export class CombatSystem {
       if (p.kind === 'arrow' || p.kind === 'ring' || p.kind === 'trip' || p.kind === 'web') p.object.lookAt(aim.copy(p.object.position).add(p.vel));
       if (p.kind === 'web') p.object.rotateZ(dt * 3);
       else if (p.kind === 'log' || p.kind === 'cup') { p.object.rotation.x += dt * 7; p.object.rotation.y += dt * 1.3; }
+      else if (p.kind === 'gem') { p.object.rotation.y += dt * 12; p.object.rotation.x += dt * 3; }
       else if (p.kind === 'fire') p.object.scale.setScalar(1 + (2.5 - p.life) * 0.6);
       else p.object.rotation.y += dt * 12;
       // (Asked as a point, not a person: the ground query keeps a body's head room under overhangs, which would
@@ -862,6 +866,16 @@ export class CombatSystem {
     const color = ELEMENT_COLOR[e.def.element];
     const sc = e.def.scale ?? 1;
     switch (kind) {
+      case 'diamond': {
+        // The circling diamond nearest the hero, thrown straight at them, leading a little.
+        const from = e.takeGem(c.pos);
+        if (!from) { this.enemyBolt(e, 0, 14); break; }
+        const to = new Vector3(c.pos.x + c.vel.x * 0.25, c.pos.y + 1, c.pos.z + c.vel.z * 0.25);
+        const vel = to.sub(from).normalize().multiplyScalar(17);
+        this.spawnProjectile(from, vel, 'enemy', e.def.atk, 1.15, e.def.element, 0.75, 0xdff2ff, 0, 0, 1.5, 0, 1, 'gem');
+        this.d.audio.swing(false);
+        break;
+      }
       case 'slam': {
         const r = e.def.bodyRadius * sc + 6;
         this.vfx.shockwave(at, color, r * 1.6);
@@ -1380,6 +1394,16 @@ export class CombatSystem {
       lean.rotation.x = -Math.PI / 2;
       lean.position.y = 0.17 * size;
       object.add(lean, glowSprite(0xb36bff, 1.1 * size, 0.6, true));
+      object.position.copy(from);
+    } else if (kind === 'gem') {
+      // One of Old Hollowstaff's diamonds, spinning as it flies, with its glint.
+      if (thrownGem) {
+        const rig = new ModelRig('gem', thrownGem, { cloneMaterials: true });
+        for (const m of rig.materials) { m.color.set(0xe9f2ff); m.emissive.set(0x8aa8ff); m.emissiveIntensity = 0.7; }
+        rig.root.scale.setScalar(0.7 * size);
+        object.add(rig.root);
+      }
+      object.add(glowSprite(0xdff2ff, 1.2 * size, 0.6, true));
       object.position.copy(from);
     } else if (kind === 'orb') {
       // A tripping orb: a bright core and a halo, both running through every colour.

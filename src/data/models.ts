@@ -51,6 +51,11 @@ export interface ModelDef {
    * `slide` metres along its own up axis so the grip lands in the fist (props stand upright, point down).
    */
   grip?: { x: number; y: number; z: number; rx: number; ry: number; rz: number; slide: number };
+  /**
+   * A weapon a mob holds in its right hand (its mesh came without one): the model by id (seated with that model's
+   * `grip`), re-coloured `tint`, its texture glowing `glow`.
+   */
+  held?: { model: string; tint?: number; glow?: number };
 }
 
 /**
@@ -89,14 +94,16 @@ export const MODELS: Record<string, ModelDef> = {
   greatsword: { file: 'greatsword.glb', height: 1.45, label: "Sir Aldric's hand-and-a-half sword (knight.png)", grip: { x: 0, y: 0.08, z: 0.02, rx: -Math.PI / 2, ry: 0, rz: 0, slide: -1.18 } },
   // Bosses and mobs
   // Meshy animate exports bundle every added preset into one GLB; clip names are the preset's English ids.
-  yeti: { file: 'yeti.glb', height: 3.2, faceForward: 0.25, armDamp: 0.45, clips: BOSS_CLIPS },
-  shade: { file: 'horned-shade.glb', height: 10, armDamp: 0.7, idleBlend: 0.3, faceForward: 0.25, clips: BOSS_CLIPS },
+  // (Remade 2026-10-19: a clean full-body A-pose yeti; the old mesh had its arms fused to its flanks, damped and cut.)
+  yeti: { file: 'yeti.glb', height: 3.2, faceForward: 0.4, clips: BOSS_CLIPS },
+  shade: { file: 'horned-shade.glb', height: 4.5, armDamp: 0.7, idleBlend: 0.3, faceForward: 0.25, clips: BOSS_CLIPS },
   warden: { file: 'antlered-warden.glb', height: 6.5, faceForward: 0.25, clips: BOSS_CLIPS },
   wyrm: { file: 'moon-wyrm.glb', height: 3, yOffset: 0, clips: { idle: 'fly|idle|hover', fly: 'fly|idle', attack: 'bite|attack' } },
-  troll: { file: 'rock-troll.glb', height: 3.2, yaw: Math.PI, armDamp: 0.6, faceForward: 0.25, clips: BOSS_CLIPS },
+  // (Its face is local +z like every Meshy body: a half turn here made it fight with its back to you.)
+  troll: { file: 'rock-troll.glb', height: 3.2, armDamp: 0.6, faceForward: 0.25, clips: BOSS_CLIPS },
   lurker: { file: 'lake-lurker.glb', height: 2.8, faceForward: 0.25, clips: BOSS_CLIPS },
   marshdemon: { file: 'marsh-demon.glb', height: 5, faceForward: 0.25, clips: BOSS_CLIPS },
-  hollowking: { file: 'hollow-king.glb', height: 10, clips: BOSS_CLIPS },
+  hollowking: { file: 'hollow-king.glb', height: 25, clips: BOSS_CLIPS },
   rivershade: { file: 'river-shade.glb', height: 3, faceForward: 0.3, label: 'hooded river shade with glowing eyes (DeUydbMvKqC, DeWZT3jvPCG)' },
   passbeast: { file: 'fog-beast.glb', height: 2.4, faceForward: 0.2, label: 'red-eyed black beast of the mountain pass (DeXeZ7rhGVi)', clips: { idle: 'combat_stance|idle_02|idle', walk: 'monster_walk|crawl|walking', run: 'running|run', attack: 'attack', roar: 'zombie_scream|scream', hit: 'hit_reaction|hit', death: 'dying|death' } },
   beast: { file: 'fog-beast.glb', height: 1.5, faceForward: 0.2, label: 'red-eyed black beast (DeXeZ7rhGVi)', clips: { idle: 'combat_stance|idle_02|idle', walk: 'monster_walk|crawl|walking', run: 'running|run', attack: 'attack', roar: 'zombie_scream|scream', hit: 'hit_reaction|hit', death: 'dying|death' } },
@@ -222,12 +229,17 @@ export const MODELS: Record<string, ModelDef> = {
   'skeleton-lord': { file: 'skeleton-lord.glb', height: 1.9, label: 'skeleton lord in a black fur cloak and gold chains (DeXn5rSPxR8)', clips: NPC_CLIPS('sit') },
   'blue-knight': { file: 'blue-knight.glb', height: 1.95, label: 'blue plate knight with a goblet (DeXn5rSPxR8)', clips: NPC_CLIPS('drink') },
   'skeleton-king': { file: 'skeleton-king.glb', height: 2.0, label: 'crowned skeleton king with gold chains and a galaxy cloak (DeOemU1BOZF)', clips: NPC_CLIPS('sit') },
+  // Old Hollowstaff as the boss he became (enemy kind = model id): his casting clip throws the diamonds.
+  'diamond-wizard': { file: 'skeleton-wizard.glb', height: 1.9, label: 'Old Hollowstaff, the diamond-throwing skeleton wizard (DeaqHWJBBPw)', faceForward: 0.5, clips: { idle: 'idle_02|idle', walk: 'walking|walk', run: 'running|run', attack: 'mage_soell_cast|cast', cast: 'mage_soell_cast|cast' } },
   'skeleton-wizard': { file: 'skeleton-wizard.glb', height: 1.9, label: 'skeleton wizard with a gold crystal staff (DeaqHWJBBPw)', clips: NPC_CLIPS('idle') },
   'galaxy-wizard': { file: 'galaxy-wizard.glb', height: 1.9, label: 'galaxy-robed wizard pouring a glowing potion (DeQ-NnpvqF6)', clips: NPC_CLIPS('idle') },
   'galaxy-king': { file: 'galaxy-king.glb', height: 2.2, label: 'crowned galaxy king with glowing eyes (Dd0wR9Jh2lH)', clips: NPC_CLIPS('sit') },
   'void-monk': { file: 'void-monk.glb', height: 1.85, label: 'hooded monk whose face is a galaxy (DdyN2PNyIxb)', clips: NPC_CLIPS('idle') },
   bucket: { file: 'bucket-mimic.glb', height: 1.0, label: 'tooth-grinning bucket mimic on skeletal legs (DeaqHWJBBPw)', clips: BOSS_CLIPS },
   // The sunken city under the lake (DeVj-Z8POjl)
+  'fish-guard': { file: 'fish-guard.glb', height: 2.0, label: 'fish-headed guard in barnacled bronze armour with a trident (the Sunken City)', clips: BOSS_CLIPS },
+  angler: { file: 'angler.glb', height: 1.9, label: 'anglerfish man with a needle-toothed underbite and a lure (the Sunken City)', clips: BOSS_CLIPS },
+  'sea-castle': stat('sea-castle.glb', 22, 'coral-crusted stone castle round an open courtyard, corner towers and an arched gate, kelp and anemones (the Sunken City)'),
   'sunken-tavern': stat('sunken-tavern.glb', 9, 'underwater tavern with jellyfish windows and bottle shelves (DeVj-Z8POjl)'),
   'coral-throne': stat('coral-throne.glb', 2.4, 'coral throne (DeVj-Z8POjl)'),
   jellyfish: stat('jellyfish.glb', 0.9, 'glowing jellyfish (DeVj-Z8POjl)'),
@@ -260,8 +272,8 @@ export const MODELS: Record<string, ModelDef> = {
   'giant-skull': { ...stat('giant-skull.glb', 7, 'giant ancient skull with a snake coiled round it (DefYcvutTow)'), tint: 0xcfc4a8 },
   // Round 6 (2026-10-18): the @returndark reels. Characters carry their cup, tankard or book in the mesh.
   // Yung Lean's kingdom, the Lean Quarter.
-  'galaxy-knight': { file: 'galaxy-knight.glb', height: 2.2, faceForward: 0.3, label: 'knight in galaxy-patterned plate with a spiked helm and a galaxy-swirl greatsword (DeOemU1BOZF)', clips: BOSS_CLIPS },
-  'mail-knight': { file: 'mail-knight.glb', height: 1.95, faceForward: 0.3, label: 'knight in faceted blue chain mail and a gold chain with a crystal spear (DeaqHWJBBPw)', clips: BOSS_CLIPS },
+  'galaxy-knight': { file: 'galaxy-knight.glb', height: 2.2, faceForward: 0.3, label: 'knight in galaxy-patterned plate with a spiked helm and a galaxy-swirl greatsword (DeOemU1BOZF)', held: { model: 'greatsword', tint: 0x6a4dff, glow: 0.55 }, clips: BOSS_CLIPS },
+  'mail-knight': { file: 'mail-knight.glb', height: 1.95, faceForward: 0.3, label: 'knight in faceted blue chain mail and a gold chain with a crystal spear (DeaqHWJBBPw)', held: { model: 'staff', tint: 0x9fd4ff, glow: 0.35 }, clips: BOSS_CLIPS },
   'skeleton-red': { file: 'skeleton-red.glb', height: 1.85, label: 'green-eyed skeleton with gold grills in a red fur coat sipping a double cup (DeldocTvFiB)', clips: NPC_CLIPS('drink') },
   'skeleton-witch': { file: 'skeleton-witch.glb', height: 2.1, label: 'skeleton in a tall black witch hat and gold chain sipping a double cup (DeldocTvFiB)', clips: NPC_CLIPS('drink') },
   'gold-knight': { file: 'gold-knight.glb', height: 2.0, label: 'dark blue knight with gold trim and a skull medallion raising a glowing cup (DeldocTvFiB)', clips: NPC_CLIPS('drink') },
