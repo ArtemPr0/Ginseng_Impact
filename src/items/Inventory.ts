@@ -4,7 +4,7 @@ export interface InvEntry { uid: number; itemId: string; count: number; equipped
 
 let nextUid = 1;
 
-/** Pure inventory: stacks, equipment per character, Moon Shards. */
+/** Pure inventory: stacks, equipment per character, diamonds (the currency, `shards`). */
 export class Inventory {
   readonly entries: InvEntry[] = [];
   shards = 0;

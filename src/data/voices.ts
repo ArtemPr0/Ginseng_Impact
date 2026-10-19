@@ -43,7 +43,7 @@ export const VOICES: Record<string, VoiceLine> = {
   'rower-wife': { text: 'Ha! Mine already did. Twice.', voice: 'Reed (English (UK))', rate: 170, pitch: 0.9 },
   'rower-yeah': { text: "That's the spirit! Drink up. You'll row forever.", voice: 'Daniel', rate: 175, pitch: 0.95 },
   // Dunmar, the knight at the door of Yung Lean's hall, stepping aside (the user's line, verbatim).
-  'guard-cool': { text: "I didn't know you were cool like that.", voice: 'Daniel', rate: 160, pitch: 0.86, fx: HALL },
+  'guard-cool': { text: "I didn't know you were chill like that.", voice: 'Daniel', rate: 160, pitch: 0.86, fx: HALL },
   // Yung Lean on his porcelain throne: slow, monotone, a little melancholy, Swedish (the user's lines, verbatim).
   'lean-greet': { text: 'Welcome to the palace. Keep your boots clean, the porcelain cracks easily... What brings you to the sad side of the world?', voice: 'Alva', rate: 128, pitch: 0.93, fx: LEAN },
   'lean-quest': { text: 'The world is getting quiet, stranger. The silence is creeping into the neon valleys. Take this blade, go into the mist, and bring back the sound.', voice: 'Alva', rate: 125, pitch: 0.93, fx: LEAN },

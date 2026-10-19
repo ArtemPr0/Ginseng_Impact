@@ -1,5 +1,5 @@
 import { Color, Group, type Mesh, type MeshStandardMaterial, type Object3D, Vector3 } from 'three';
-import { ANCHORS, CRYPT_ROOM, ISLAND_PORTALS, LAYOUT, REALMS, SUNKEN, TAVERN_ROOM, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
+import { ANCHORS, CRYPT_ROOM, GALAXY, ISLAND_PORTALS, LAYOUT, REALMS, SUNKEN, TAVERN_ROOM, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
 import { PALETTE } from '../render/palette';
 import { glowSprite } from '../render/Glow';
@@ -24,6 +24,7 @@ import { witchStream } from './Stream';
 import { stoneHeadEyes } from './StoneHead';
 import { buildCryptRoom, buildTavernRoom } from './Interiors';
 import { landableIsland } from './Islands';
+import { CARRIAGE } from './Carriage';
 import { buildTreeHouse } from './TreeHouse';
 import { buildDream, dreamWatchers } from './Dream';
 import { buildKingdom } from './Kingdom';
@@ -752,6 +753,10 @@ export class World {
     const kingdom = buildKingdom(realmApi, { soundWanted: () => this.hooks.soundWanted?.() ?? false, foundSound: () => this.hooks.foundSound?.() });
     this.interactables.push(...kingdom.interactables);
     this.interactables.push(...buildLeanQuarter(realmApi, { trip: (s, sec) => this.hooks.trip?.(s, sec) }).interactables);
+    // The carriage at the lean castle's bridge, Count Rattlewheel inside (world/Carriage.ts; main.ts drives it).
+    this.enterZone(GALAXY.id);
+    this.interactables.push(...CARRIAGE.build(realmApi, 840, 12, -Math.PI / 2, (x, z, y) => this.heights.heightAt(x, z, y), (s, sec) => this.hooks.trip?.(s, sec)));
+    this.enterZone(null);
     // Behind the demon church's door: the Alley of Graves.
     {
       const dx = LAYOUT.church.x + MODELS.church.height * 0.4 + 0.8;
@@ -823,6 +828,7 @@ export class World {
     // The crypt bar's skeletons: green eyes, and gold grills catching the candlelight.
     this.enterZone(CRYPT_ROOM.id);
     for (const n of this.npcs) if (n.def.id.startsWith('crypt-')) { vfx(skullEyes(n)); if (n.def.id !== 'crypt-bones') vfx(grillSparkle(n)); }
+    CARRIAGE.passenger = this.npcs.find((n) => n.def.id === 'carriage-count') ?? null;
     const waxwick = this.npcs.find((n) => n.def.id === 'waxwick');
     if (waxwick) { this.enterZone(TAVERN_ROOM.id); vfx(candleCrown(waxwick)); }
     this.enterZone(null);

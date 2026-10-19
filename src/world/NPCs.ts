@@ -99,7 +99,8 @@ export const NPC_DEFS: NpcDef[] = [
   },
   {
     id: 'watcher-knight', name: 'Dunmar', title: 'Guard of the Porcelain Hall', weapon: 'sword',
-    model: 'knight-npc', accent: PALETTE.electric,
+    // (The chain-mail knight of Bucket Street, DeaqHWJBBPw: the court's guard wears the faceted mail now.)
+    model: 'mail-knight', accent: PALETTE.electric,
     lines: ['The King is inside. Mind the porcelain.', 'I stand here so the snow stays out. Mostly it does not.'],
     // In the doorway of Yung Lean's hall (its opening is x 997-1003 at z -53.5), stepping aside for the hero.
     behaviour: { kind: 'guard', yaw: Math.PI / 2, aside: [1004.6, -51.8], asideYaw: Math.PI, trigger: 7, line: 'guard-cool', pose: 'watch' },
@@ -364,6 +365,13 @@ export const NPC_DEFS: NpcDef[] = [
     lines: ['Three braids for three wars. The fourth is for the ale.', 'If the head on the hill ever opens its eyes, I am leaving.'],
     behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI * 0.75 },
     sipAt: 0.42,
+  },
+  {
+    // In the black-and-gold carriage at the lean castle's bridge (world/Carriage.ts carries him about).
+    id: 'carriage-count', name: 'Count Rattlewheel', title: 'Who Rides to Nowhere in Style', weapon: 'sword',
+    model: 'skeleton-lord', accent: PALETTE.dusk, cup: true,
+    lines: ['Climb up, climb up. Smoke? It is purple, it is free, it is terrible for you.', 'A drink for the road. The road goes round the castle twice and back. We never arrive.', 'Take the reins if you like. The horses left years ago. The carriage did not notice.'],
+    behaviour: { kind: 'stand', pose: 'sit', yaw: 0 },
   },
   {
     // The green dragon lying at the street's end (Vale.ts): he speaks from his head, his neck turning to you.

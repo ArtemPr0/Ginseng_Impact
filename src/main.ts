@@ -19,6 +19,7 @@ import { ThirdPersonCamera } from './player/ThirdPersonCamera';
 import { Atmosphere } from './render/Atmosphere';
 import { PALETTE } from './render/palette';
 import { LOOKS, Renderer } from './render/Renderer';
+import { CARRIAGE } from './world/Carriage';
 import { SKIES, Sky } from './render/Sky';
 import { faceMoon } from './render/MoonFace';
 import { SkyEvents } from './render/SkyEvents';
@@ -78,6 +79,15 @@ const light = { hemi: 0.7, moon: 1.5, fill: 0.75, cameraFill: 0 };
 const lightSky = new Color(PALETTE.cobalt), lightGround = new Color(PALETTE.abyss), lightFill = new Color(0x8fa5f0);
 const lightTo = new Color();
 const fillFixed = new Vector3(), fillCam = new Vector3(), fillAim = new Vector3();
+/** On the carriage's bench, facing where it goes. */
+const benchAt = new Vector3();
+function pinToCarriage(): void {
+  CARRIAGE.bench(benchAt);
+  controller.pos.x = benchAt.x; controller.pos.y = benchAt.y; controller.pos.z = benchAt.z;
+  controller.vel.x = controller.vel.y = controller.vel.z = 0;
+  controller.mode = 'ground';
+  controller.yaw = CARRIAGE.heading;
+}
 /** The hero's height last frame, for the climb clip's pace. */
 let lastClimbY = 0;
 
@@ -360,6 +370,12 @@ game
       adventures.update(dt);
       controller.speedScale = combat.webbed > 0 ? 0 : combat.slowed > 0 ? 0.6 : combat.mired > 0 ? 0.55 : 1;
       if (adventures.riding) { if (space) adventures.leaveBoat(); }
+      // Driving the carriage: W/S and A/D take the reins, Space climbs down.
+      else if (CARRIAGE.driving) {
+        if (space) { CARRIAGE.driving = false; CARRIAGE.speed = 0; controller.vel.y = 5; controller.mode = 'air'; }
+        else CARRIAGE.drive(input.locked ? (input.isDown('KeyW') ? 1 : 0) - (input.isDown('KeyS') ? 1 : 0) : 0, input.locked ? (input.isDown('KeyA') ? 1 : 0) - (input.isDown('KeyD') ? 1 : 0) : 0, dt);
+        if (CARRIAGE.driving) pinToCarriage();
+      }
       // In a giant's fist: no moving until thrown.
       else if (combat.held) { /* the combat system carries the hero */ }
       else stepController(controller, {
@@ -408,10 +424,11 @@ game
     render(alpha, dt) {
       // In a boat the river carries you even while a conversation pauses the game.
       adventures.pinToBoat();
+      if (CARRIAGE.driving) pinToCarriage();
       const rig = rigs[party.activeIndex];
       // Drawn between the last two fixed steps (smooth on 120/144 Hz screens); a jump of metres is a teleport.
       drawPos.set(controller.pos.x, controller.pos.y, controller.pos.z);
-      if (!adventures.riding && !game.paused && drawPos.distanceToSquared(prevPos) < 16) drawPos.lerpVectors(prevPos, drawPos, Math.min(1, alpha));
+      if (!adventures.riding && !CARRIAGE.driving && !game.paused && drawPos.distanceToSquared(prevPos) < 16) drawPos.lerpVectors(prevPos, drawPos, Math.min(1, alpha));
       rig.root.position.copy(drawPos);
       rig.root.rotation.y = yawToRotation(controller.yaw);
       const airborne = controller.mode === 'air' || controller.mode === 'fly';

@@ -34,9 +34,9 @@ function floorMaterial(body: string, decl = '', uniforms: Record<string, { value
       }`,
     fragmentShader: /* glsl */ `
       varying vec2 vP;
-      ${decl}
       #include <fog_pars_fragment>
       ${NOISE}
+      ${decl}
       void main() {
         vec3 c;
         ${body}
@@ -175,4 +175,61 @@ export function darkHollow(x: number, y: number, z: number, r: number, color: nu
   m.position.set(x, y, z);
   m.renderOrder = -1;
   return m;
+}
+
+/**
+ * The Lean Quarter's floors as one ground (they were four rectangles meeting in straight seams): flagstones in the
+ * court, cobbles down Bucket Street, purple-cracked flagstones in the castle yard, snow in the chapel's quarter. Where
+ * two meet they blend over several metres along a wandering, noise-warped border, and they fray out onto the plaza's
+ * porcelain in patches. Rectangles are [x0, x1, z0, z1]; nothing is drawn outside them (the void) or in the moat.
+ */
+export function quarterFloor(r: { court: readonly number[]; street: readonly number[]; yard: readonly number[]; snow: readonly number[]; plaza: readonly number[]; moat: readonly number[] }, y: number): Mesh {
+  const v4 = (a: readonly number[]) => new Vector4(a[0], a[1], a[2], a[3]);
+  const x0 = Math.min(r.court[0], r.street[0], r.yard[0], r.snow[0], r.plaza[0]), x1 = Math.max(r.court[1], r.street[1], r.yard[1], r.snow[1], r.plaza[1]);
+  const z0 = Math.min(r.court[2], r.street[2], r.yard[2], r.snow[2], r.plaza[2]), z1 = Math.max(r.court[3], r.street[3], r.yard[3], r.snow[3], r.plaza[3]);
+  const m = floorMaterial(/* glsl */ `
+    // Inside the quarters only (raw position: the edges over the void stay where the colliders are).
+    float inside = min(min(sdRect(vP, uCourt), sdRect(vP, uStreet)), min(min(sdRect(vP, uYard), sdRect(vP, uSnow)), sdRect(vP, uPlaza)));
+    if (inside > 0.0 || sdRect(vP, uMoat) < 0.0) discard;
+    // Each ground's share: inside its own rectangle, fading across a border warped by noise.
+    vec2 q = vP + (vec2(fbm(vP * 0.045), fbm(vP * 0.045 + 17.0)) - 0.5) * 16.0;
+    float B = 5.0;
+    float wC = 1.0 - smoothstep(-B, B, sdRect(q, uCourt));
+    float wS = 1.0 - smoothstep(-B, B, sdRect(q, uStreet));
+    float wY = 1.0 - smoothstep(-B, B, sdRect(q, uYard));
+    float wN = 1.0 - smoothstep(-B, B, sdRect(q, uSnow));
+    float sum = wC + wS + wY + wN;
+    // On the plaza: the grounds fray out over the porcelain in patches, then stop.
+    if (sdRect(vP, uPlaza) < 0.0 && sum < fbm(vP * 0.9 + 3.0) * 1.1 + 0.05) discard;
+    sum = max(sum, 1e-3);
+    c = (flagstone(vP, vec3(0.45, 0.15, 0.9)) * wC + cobble(vP) * wS + flagstone(vP, vec3(0.3, 0.1, 0.6)) * wY + snow(vP) * wN) / sum;`,
+  /* glsl */ `
+    uniform vec4 uCourt; uniform vec4 uStreet; uniform vec4 uYard; uniform vec4 uSnow; uniform vec4 uPlaza; uniform vec4 uMoat;
+    float sdRect(vec2 p, vec4 r) { vec2 c = vec2(r.x + r.y, r.z + r.w) * 0.5; vec2 h = vec2(r.y - r.x, r.w - r.z) * 0.5; vec2 d = abs(p - c) - h; return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0); }
+    vec3 flagstone(vec2 p, vec3 glow) {
+      vec2 cl = cells(p * 0.55);
+      float seam = smoothstep(0.06, 0.0, cl.y - cl.x);
+      float stone = hash(floor(p * 0.55 + cl.x));
+      vec3 c = mix(vec3(0.06, 0.07, 0.13), vec3(0.13, 0.14, 0.24), stone) * (0.75 + 0.35 * fbm(p * 0.9));
+      c *= 1.0 - seam * 0.7;
+      float crack = smoothstep(0.03, 0.0, abs(fbm(p * 0.25) - 0.5)) * 0.8;
+      return c + glow * (seam * 0.25 + crack * 0.35);
+    }
+    vec3 cobble(vec2 p) {
+      vec2 cl = cells(p * 1.4);
+      float stone = smoothstep(0.75, 0.1, cl.x);
+      float gap = smoothstep(0.1, 0.0, cl.y - cl.x);
+      float tone = hash(floor(p * 1.4 + cl.x * 3.0));
+      vec3 c = mix(vec3(0.16, 0.22, 0.3), vec3(0.42, 0.52, 0.64), tone * 0.6 + 0.2) * (0.35 + 0.75 * stone);
+      return mix(c, vec3(0.02, 0.04, 0.06), gap);
+    }
+    vec3 snow(vec2 p) {
+      float drift = fbm(p * 0.12);
+      vec3 c = mix(vec3(0.24, 0.3, 0.46), vec3(0.5, 0.57, 0.76), drift) * (0.82 + 0.18 * fbm(p * 1.1));
+      float sparkle = step(0.985, hash(floor(p * 18.0))) * (0.5 + 0.5 * sin(dot(cameraPosition.xz, vec2(3.1, 2.3)) + hash(floor(p * 18.0)) * 40.0));
+      return c + vec3(0.6, 0.7, 0.9) * sparkle;
+    }`,
+  { uCourt: { value: v4(r.court) }, uStreet: { value: v4(r.street) }, uYard: { value: v4(r.yard) }, uSnow: { value: v4(r.snow) }, uPlaza: { value: v4(r.plaza) }, uMoat: { value: v4(r.moat) } });
+  // (Over the plaza's porcelain mirror, 1 cm above it, so the frayed patches lie on it.)
+  return plane(m, (x0 + x1) / 2, (z0 + z1) / 2, x1 - x0, z1 - z0, y + 0.012);
 }

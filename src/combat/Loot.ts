@@ -5,6 +5,13 @@ import { surface } from '../render/Materials';
 import { glowSprite } from '../render/Glow';
 import { disposeObject } from '../render/dispose';
 import type { DropEntry } from '../data/enemies';
+import { MODELS } from '../data/models';
+import { loadModel, ModelRig } from '../models/ModelRig';
+import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
+/** The diamond the mobs drop (loaded once; until then a plain crystal stands in). */
+let gemModel: GLTF | null = null;
+void loadModel('gem').then((g) => { gemModel = g; });
 
 export type Drop = { kind: 'item'; itemId: string; count: number } | { kind: 'shards'; amount: number };
 
@@ -50,8 +57,14 @@ export class LootField {
     const object = new Group();
     let spin = 1.5;
     if (drop.kind === 'shards') {
-      const m = new Mesh(new OctahedronGeometry(0.16, 0), new MeshBasicMaterial({ color: new Color(PALETTE.moon).multiplyScalar(1.4), toneMapped: false }));
-      object.add(m, glowSprite(PALETTE.electric, 0.9, 0.7, true));
+      // A little cut diamond (gem.glb, the stone that floated over the lean castle's gate), sparkling: the currency.
+      if (gemModel) {
+        const rig = new ModelRig('gem', gemModel, { cloneMaterials: true });
+        for (const mat of rig.materials) { mat.color.set(0xeaf4ff); mat.emissive.set(0x7fa8ff); mat.emissiveIntensity = 0.7; mat.metalness = 0.3; mat.roughness = 0.15; }
+        rig.root.scale.setScalar(0.3 / MODELS.gem.height);
+        object.add(rig.root);
+      } else object.add(new Mesh(new OctahedronGeometry(0.14, 0), new MeshBasicMaterial({ color: new Color(PALETTE.moon).multiplyScalar(1.4), toneMapped: false })));
+      object.add(glowSprite(0xdff2ff, 0.7, 0.6, true));
       spin = 4;
     } else {
       const def = ITEMS[drop.itemId];

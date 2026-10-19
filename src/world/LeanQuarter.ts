@@ -16,8 +16,9 @@
 import { Color, Group, type MeshStandardMaterial, type Mesh, Vector3 } from 'three';
 import { GALAXY, LEAN_QUARTER } from '../data/world';
 import { MODELS } from '../data/models';
-import { flagstoneFloor, cobbleFloor, rockTop, snowGround } from '../render/Floors';
+import { quarterFloor, rockTop } from '../render/Floors';
 import { CHAPEL_DOOR } from './Interiors';
+import { fountain } from '../render/Fountain';
 import { landableIsland } from './Islands';
 import { glowSprite } from '../render/Glow';
 import { Glints, LEAN, meteors, mistLayers, ringedPlanet, skyVortex, tickLeanFx } from '../render/LeanFx';
@@ -81,11 +82,9 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   const rect = (r: readonly [number, number, number, number]) => ({ x: (r[0] + r[1]) / 2, z: (r[2] + r[3]) / 2, w: r[1] - r[0], d: r[3] - r[2] });
   const solid = (r: readonly [number, number, number, number], top: number): Footprint => { const c = rect(r); return { kind: 'box', x: c.x, z: c.z, hw: c.w / 2, hd: c.d / 2, top }; };
   const wall = (x: number, z: number, hw: number, hd: number): Footprint => ({ kind: 'box', x, z, hw, hd, top: gy + 6 });
-  const court = rect(Q.court), street = rect(Q.street), moat = rect(Q.moat), yard = rect(Q.castleYard), snow = rect(Q.snow);
-  api.group.add(flagstoneFloor(court.x, court.z, court.w, court.d, gy));
-  api.group.add(cobbleFloor(street.x, street.z, street.w, street.d, gy));
-  api.group.add(flagstoneFloor(yard.x, yard.z, yard.w, yard.d, gy, new Color(0.3, 0.1, 0.6)));
-  api.group.add(snowGround(snow.x, snow.z, snow.w, snow.d, gy));
+  const court = rect(Q.court), moat = rect(Q.moat), snow = rect(Q.snow);
+  // One ground for all the quarters, blending where they meet and fraying onto the plaza (render/Floors quarterFloor).
+  api.group.add(quarterFloor({ court: Q.court, street: Q.street, yard: Q.castleYard, snow: Q.snow, plaza: [940, 1060, -85, 75], moat: Q.moat }, gy));
   api.place({ object: new Group(), footprints: [
     solid(Q.court, gy), solid(Q.street, gy), solid(Q.castleYard, gy), solid(Q.snow, gy), solid(Q.moat, gy - 2.2),
     // Unseen walls round the quarters (the plaza's east edge stays open onto the lean waves).
@@ -122,7 +121,9 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
     const z = -126;
     api.place(modelLandmark('lean-fountain', x, z, gy, { footprints: [{ kind: 'cyl', x, z, r: 1.6, top: gy + 1 }] }));
     glow(LEAN, 4.5, x, gy + 1.4, z, 0.55);
-    if (PRESENT_MODELS.has('lean-fountain')) api.place(cascade({ x, z, top: gy + 3.1, height: 1.6, width: 0.8, curve: 0.3, color: LEAN_FALL }));
+    // Its water, on its own tiers (lean-fountain.glb at 3 m, measured: the basin's water 1.29 m up, 1.25 m across the
+    // radius; the bowl's lip 2.37 m, 0.62 m; the finial's top 2.95 m). It used to be one flat ribbon off to the side.
+    if (PRESENT_MODELS.has('lean-fountain')) api.vfx(fountain(x, z, gy, { basinY: 1.29, basinR: 1.25, bowlY: 2.37, bowlR: 0.62, jetY: 2.95 }, LEAN_FALL));
     const at = new Vector3(x, gy + 1, z);
     interactables.push({
       pos: at, range: 2.8, zone: R.id,
@@ -206,25 +207,21 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   api.place(waterSheet(moat.x, moat.z, moat.w, moat.d, gy - 0.35, [0x1a0640, 0x7a32e0, 0xe0b8ff]));
   // (Swimmable: its bed is 2.2 m down.)
   api.water?.(Q.moat[0], Q.moat[1], Q.moat[2], Q.moat[3], gy - 0.35);
-  for (const z of [5, 10.5, 25.5, 31]) api.place(cascade({ x: 815.5, z, top: gy + 15, height: 15.2, width: 2.4, yaw: Math.PI / 2, curve: 1, color: LEAN_FALL }));
+  // The lean pours off the castle itself (its collider probed: the keep's front 14 m up at x 809, the terrace before it
+  // 7 m up to x 811; the falls hung in mid-air 10 m in front of it before): the keep's two spill onto the terrace, the
+  // terrace's four into the moat.
+  if (PRESENT_MODELS.has('castle')) {
+    for (const z of [16, 20]) api.place(cascade({ x: 809.6, z, top: gy + 14, height: 7.2, width: 1.6, yaw: Math.PI / 2, curve: 0.5, color: LEAN_FALL }));
+    for (const z of [10.5, 15.5, 20.5, 25.5]) api.place(cascade({ x: 811.6, z, top: gy + 7, height: 7.4, width: 2.2, yaw: Math.PI / 2, curve: 0.9, color: LEAN_FALL }));
+  }
   // The bridge to the gate, purple flames at its ends.
   api.place(floorSlab(moat.x, C.z, gy, moat.w + 0.4, 7));
   for (const dz of [-4, 4]) for (const x of [829.4, 814.8]) {
     api.place(modelLandmark('torch-post', x, C.z + dz, gy, { footprints: [{ kind: 'cyl', x, z: C.z + dz, r: 0.25, top: gy + 2.4 }] }));
     api.vfx(fire(x, gy + 2.3, C.z + dz, 0.4, x > 820 ? 8 : 0, PURPLE_FIRE));
   }
-  // The carriage drawn up before the bridge (DeXn5rSPxR8), and the gold gem turning over the gate.
-  api.place(modelLandmark('carriage', 840, C.z - 6, gy, { yaw: face(Math.PI) }));
-  {
-    let a = 0;
-    const gemY = gy + 21;
-    api.place(modelLandmark('gem', 816, C.z, gemY, { scale: 5, collider: 'none', onLoad: (m) => restyle(m, (mat) => { mat.color.setRGB(1, 0.72, 0.18); mat.emissive.setRGB(0.45, 0.28, 0.02); mat.metalness = 0.6; mat.roughness = 0.25; }),
-      update: (dt, root) => { a += dt; root.rotation.y = a * 0.6; root.position.y = gemY + Math.sin(a * 0.9) * 0.5; } }));
-    if (PRESENT_MODELS.has('gem')) {
-      glow(0xffc040, 7, 816, gemY + 1.2, C.z, 0.45);
-      glints.add(new Vector3(816, gemY + 1.2, C.z), new Vector3(), 1.4);
-    }
-  }
+  // The carriage drawn up before the bridge (DeXn5rSPxR8): you can ride it (Carriage.ts). The gold gem that floated
+  // over the gate is the diamonds the mobs drop now.
   // A purple vortex turning in the sky over the castle, and crystals growing in its yard.
   {
     const vortex = skyVortex(320);
