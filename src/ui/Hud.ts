@@ -1,7 +1,7 @@
 import type { CharacterDef } from '../characters/roster';
-import { ELEMENT_COLOR } from '../characters/roster';
+import { ELEMENT_COLOR, ROSTER } from '../characters/roster';
 import type { Element } from '../combat/Elements';
-import { ITEMS, RARITY_NAME } from '../items/Items';
+import { ITEMS, RARITY_NAME, canWield } from '../items/Items';
 import type { Inventory } from '../items/Inventory';
 import type { NpcDef } from '../world/NPCs';
 import { glyph } from './glyphs';
@@ -22,12 +22,56 @@ export interface HudActions {
 
 export type Panel = 'none' | 'talk' | 'shop' | 'inventory';
 
+export interface BannerOpts {
+  /** How long the banner stays, in seconds (2.2 by default). */
+  seconds?: number;
+  /** A higher priority goes ahead of the lower ones still waiting (0 by default); the banner on screen always finishes. */
+  priority?: number;
+}
+
+/** A breath of dark between two banners, so the second one visibly steps in (the fade is 120 ms). */
+const BANNER_GAP = 0.2;
+
+/**
+ * The banner line, one message at a time: the next shows once the current one has had its seconds, in order of arrival
+ * (a higher priority jumps the ones still waiting, never the one on screen). Pure: the HUD lends it show/hide and a timer.
+ */
+export class BannerQueue {
+  private readonly waiting: Array<{ text: string; seconds: number; priority: number }> = [];
+  private busy = false;
+
+  constructor(private readonly io: { show(text: string): void; hide(): void; after(seconds: number, fn: () => void): void }) {}
+
+  push(text: string, { seconds = 2.2, priority = 0 }: BannerOpts = {}): void {
+    // Behind everything waiting with the same or a higher priority, ahead of the lower ones.
+    let i = this.waiting.length;
+    while (i > 0 && this.waiting[i - 1].priority < priority) i--;
+    this.waiting.splice(i, 0, { text, seconds, priority });
+    if (!this.busy) this.next();
+  }
+
+  private next(): void {
+    const item = this.waiting.shift();
+    if (!item) { this.busy = false; return; }
+    this.busy = true;
+    this.io.show(item.text);
+    this.io.after(item.seconds, () => {
+      this.io.hide();
+      this.io.after(BANNER_GAP, () => this.next());
+    });
+  }
+}
+
 /** DOM HUD: Genshin layout, dark-fantasy skin. Panels (talk, shop, inventory) take the pointer. */
 export class Hud {
   private readonly root: HTMLElement;
   private readonly q = <T extends HTMLElement>(sel: string): T => this.root.querySelector(sel) as T;
   private readonly bars = new Map<number, HTMLElement>();
-  private bannerTimer = 0;
+  private readonly banners = new BannerQueue({
+    show: (text) => { const b = this.q('#hud-banner'); b.textContent = text; b.classList.add('show'); },
+    hide: () => this.q('#hud-banner').classList.remove('show'),
+    after: (seconds, fn) => { window.setTimeout(fn, Math.round(seconds * 1000)); },
+  });
   /** What the HUD last drew (it only touches the DOM when something changed). */
   private interactText: string | null = null;
   private interactShown = false;
@@ -232,12 +276,9 @@ export class Hud {
     window.setTimeout(() => this.root.classList.remove('hurt'), 160);
   }
 
-  announce(text: string): void {
-    const banner = this.q('#hud-banner');
-    banner.textContent = text;
-    banner.classList.add('show');
-    window.clearTimeout(this.bannerTimer);
-    this.bannerTimer = window.setTimeout(() => banner.classList.remove('show'), 2200);
+  /** A line across the screen for `seconds` (2.2 by default); later calls wait their turn (see BannerQueue). */
+  announce(text: string, opts: BannerOpts = {}): void {
+    this.banners.push(text, opts);
   }
 
   setParty(defs: readonly CharacterDef[], activeIndex: number): void {
@@ -397,19 +438,20 @@ export class Hud {
   private renderInventory(): void {
     const inv = this.inventory!;
     const me = this.activeChar!;
+    const heroName = (id: string) => ROSTER.find((c) => c.id === id)?.name ?? id;
     const el = this.q('#hud-dialog');
     const groups: Record<string, string[]> = { weapon: [], consumable: [], charm: [], key: [], material: [] };
     for (const e of inv.entries) {
       const d = ITEMS[e.itemId];
       const stats = d.atk ? `+${d.atk} ATK${d.element ? ` · ${d.element}` : ''} · ${d.weaponClass}` : d.heal ? `heals ${d.heal}` : d.dmgMult ? `+${Math.round((d.dmgMult - 1) * 100)}% damage` : RARITY_NAME[d.rarity];
       let btn = '';
-      if (d.kind === 'weapon') btn = e.equippedBy ? `<span class="tag">equipped by ${e.equippedBy}</span>` : `<button data-act="equip" data-uid="${e.uid}" ${d.weaponClass === me.weapon ? '' : 'disabled'}>Equip on ${me.name}</button>`;
+      if (d.kind === 'weapon') btn = e.equippedBy ? `<span class="tag">equipped by ${heroName(e.equippedBy)}</span>` : `<button data-act="equip" data-uid="${e.uid}" ${canWield(me.weapon, d.weaponClass) ? '' : 'disabled'}>Equip on ${me.name}</button>`;
       else if (d.kind === 'consumable') btn = `<button data-act="use" data-uid="${e.uid}">Use</button>`;
       if (!e.equippedBy && d.kind !== 'key') btn += `<button class="ghost" data-act="drop" data-uid="${e.uid}">Drop</button>`;
       groups[d.kind].push(`<div class="row"><span class="item r${d.rarity}">${d.name}${e.count > 1 ? ` ×${e.count}` : ''}</span><span class="desc">${stats}</span><span class="btns">${btn}</span></div>`);
     }
     const section = (title: string, rows: string[]) => rows.length ? `<div class="col-title">${title}</div>${rows.join('')}` : '';
-    el.innerHTML = `<div class="dlg-head"><div class="dlg-name">Satchel</div><div class="dlg-title">◆ ${inv.shards} Diamonds · ${me.name} wields a ${me.weapon}</div></div>
+    el.innerHTML = `<div class="dlg-head"><div class="dlg-name">Satchel</div><div class="dlg-title">◆ ${inv.shards} Moon Shards · ${me.name} wields a ${me.weapon}</div></div>
       <div class="inv-list">${section('Weapons', groups.weapon)}${section('Consumables', groups.consumable)}${section('Charms', groups.charm)}${section('Keys', groups.key)}${section('Materials', groups.material)}${inv.entries.length ? '' : '<div class="empty">Empty. The fog owes you nothing yet.</div>'}</div>
       <div class="dlg-buttons"><button data-act="close">Close (I)</button></div>`;
     this.wire(el, (act, b) => {
