@@ -12,28 +12,37 @@ import { PALETTE } from './palette';
 
 /**
  * Linear-space grade, folded into the output pass just before tone mapping so it costs no extra full-screen pass:
- * the trip warp (swirl, ripple, RGB split, hue drift), saturation, a cobalt lift in the shadows, contrast and a
- * cinematic vignette.
+ * the trip warp (swirl, ripple, RGB split, hue drift), the hit pulse (a short radial RGB split and a brightness
+ * lift on the trip's split path), saturation, a cobalt lift in the shadows, contrast and a cinematic vignette.
  */
-const GRADE_UNIFORMS = 'uniform vec3 uLift; uniform float uVignette; uniform float uContrast; uniform float uSaturation; uniform float uTrip; uniform float uTime;';
+const GRADE_UNIFORMS = 'uniform vec3 uLift; uniform float uVignette; uniform float uContrast; uniform float uSaturation; uniform float uTrip; uniform float uPulse; uniform float uTime;';
 const GRADE_GLSL = /* glsl */ `
   {
     vec2 uv = vUv;
     vec3 col;
-    if (uTrip > 0.001) {
-      // Trip: the frame swirls around the centre, breathes in rings and splits into colour fringes.
-      vec2 c = uv - 0.5;
-      float r = length(c);
-      float a = atan(c.y, c.x) + uTrip * (0.9 * sin(uTime * 0.6) + 0.5) * (1.0 - smoothstep(0.0, 0.75, r)) * 1.4;
-      r *= 1.0 + uTrip * 0.035 * sin(r * 34.0 - uTime * 5.0);
-      uv = 0.5 + vec2(cos(a), sin(a)) * r;
-      vec2 split = normalize(c + 1e-4) * uTrip * 0.012;
-      col = vec3(texture2D(tDiffuse, uv + split).r, texture2D(tDiffuse, uv).g, texture2D(tDiffuse, uv - split).b);
-      // Hue drift: rotate the colour around the grey axis.
-      float h = uTrip * (uTime * 1.3 + r * 9.0);
-      vec3 k = vec3(0.57735);
-      col = col * cos(h) + cross(k, col) * sin(h) + k * dot(k, col) * (1.0 - cos(h));
-      col = max(col, 0.0) * (1.0 + uTrip * 0.25);
+    vec2 c = uv - 0.5;
+    float r = length(c);
+    // One RGB split serves the trip and the pulse (whose fringe grows toward the frame's edge); at uPulse 0 this
+    // is exactly the trip's own split, and with both at 0 the frame passes through untouched.
+    float split = max(uTrip, uPulse * (0.25 + r));
+    if (split > 0.001) {
+      if (uTrip > 0.001) {
+        // Trip: the frame swirls around the centre and breathes in rings.
+        float a = atan(c.y, c.x) + uTrip * (0.9 * sin(uTime * 0.6) + 0.5) * (1.0 - smoothstep(0.0, 0.75, r)) * 1.4;
+        r *= 1.0 + uTrip * 0.035 * sin(r * 34.0 - uTime * 5.0);
+        uv = 0.5 + vec2(cos(a), sin(a)) * r;
+      }
+      vec2 sp = normalize(c + 1e-4) * split * 0.012;
+      col = vec3(texture2D(tDiffuse, uv + sp).r, texture2D(tDiffuse, uv).g, texture2D(tDiffuse, uv - sp).b);
+      if (uTrip > 0.001) {
+        // Hue drift: rotate the colour around the grey axis.
+        float h = uTrip * (uTime * 1.3 + r * 9.0);
+        vec3 k = vec3(0.57735);
+        col = col * cos(h) + cross(k, col) * sin(h) + k * dot(k, col) * (1.0 - cos(h));
+        col = max(col, 0.0) * (1.0 + uTrip * 0.25);
+      }
+      // The pulse's brightness lift, gone with it (small: the frame must stay deep blue, not go pale).
+      col = col * (1.0 + uPulse * 0.2) + uPulse * 0.015;
     } else {
       col = gl_FragColor.rgb;
     }
@@ -99,6 +108,7 @@ export class Renderer {
   private tripLevel = 0;
   private tripUntil = 0;
   private tripPeak = 0;
+  private pulseLevel = 0;
   private frameIndex = 0;
   private width = 1;
   private height = 1;
@@ -129,7 +139,7 @@ export class Renderer {
     const output = new OutputPass();
     this.grade = {
       uLift: { value: new Vector3(...this.look.lift) }, uVignette: { value: this.look.vignette }, uContrast: { value: this.look.contrast },
-      uSaturation: { value: this.look.saturation }, uTrip: { value: 0 }, uTime: { value: 0 },
+      uSaturation: { value: this.look.saturation }, uTrip: { value: 0 }, uPulse: { value: 0 }, uTime: { value: 0 },
     };
     Object.assign(output.uniforms, this.grade);
     output.material.fragmentShader = output.material.fragmentShader
@@ -200,6 +210,19 @@ export class Renderer {
     return this.tripLevel;
   }
 
+  /**
+   * A hit pulse: a short radial RGB split and brightness lift at `strength` (0..1) that decays over ~0.25 s (bursts,
+   * reactions, boss kills). Overlapping pulses keep the strongest.
+   */
+  pulse(strength: number): void {
+    this.pulseLevel = Math.min(1, Math.max(this.pulseLevel, strength));
+  }
+
+  /** Current pulse level, 0..1. */
+  get pulseAmount(): number {
+    return this.pulseLevel;
+  }
+
   private blendLook(dt: number): void {
     const k = 1 - Math.exp(-dt * 2.5);
     const l = this.look;
@@ -226,6 +249,10 @@ export class Renderer {
     this.tripLevel += (want - this.tripLevel) * (1 - Math.exp(-dt * (want > this.tripLevel ? 4 : 0.8)));
     if (this.tripLevel < 0.002 && want === 0) this.tripLevel = 0;
     this.grade.uTrip.value = this.tripLevel;
+    // The pulse is gone (5 %) a quarter of a second after the hit.
+    this.pulseLevel *= Math.exp(-dt * 12);
+    if (this.pulseLevel < 0.004) this.pulseLevel = 0;
+    this.grade.uPulse.value = this.pulseLevel;
     this.grade.uTime.value = now % 1000;
   }
 
