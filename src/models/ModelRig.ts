@@ -76,11 +76,12 @@ const STRIDE_RATE: Array<[RegExp, number]> = [
 
 /**
  * Where in an action clip the blow lands (fraction of its length), from the hand bones' fastest swing / lowest
- * reach: Meshy's Attack swings at ~38%, the ground slam lands at ~60%, casts release around 45%.
+ * reach: Meshy's Attack swings at ~38%, the ground slam lands at ~60%, casts release around 45%, the over-shoulder
+ * throw lets go at ~78% (the hands come over the head and down in front).
  */
 const STRIKE_AT: Array<[RegExp, number]> = [
   [/charged_ground_slam|slam/, 0.6], [/charged_spell_cast/, 0.45], [/mage_s\w*_cast|spell/, 0.32], [/zombie_scream|scream/, 0.3],
-  [/shouting|shout|roar/, 0.2], [/attack|punch|slash|bite/, 0.38],
+  [/shouting|shout|roar/, 0.2], [/over_shoulder_throw|throw/, 0.78], [/attack|punch|slash|bite/, 0.38],
 ];
 
 /** Clips that are not fighting (see ModelDef.faceForward): sitting, standing up, talking, drinking, kneeling. */

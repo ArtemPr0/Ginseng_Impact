@@ -76,12 +76,12 @@ const stat = (file: string, height: number, label: string): ModelDef => ({ file,
 
 /**
  * Clip lookup for Meshy animate exports: every added preset lands in one GLB named by the preset's English id
- * (Combat_Stance, Walking, Charged_Ground_Slam, Shouting_Angrily, Hit_Reaction, dying_backwards, ...).
+ * (Combat_Stance, Walking, Charged_Ground_Slam, Over_Shoulder_Throw, Shouting_Angrily, Hit_Reaction, dying_backwards, ...).
  * Each entry lists alternatives; the first that matches a clip name (by substring) wins.
  */
 const BOSS_CLIPS: Partial<Record<ClipName, string>> = {
   idle: 'combat_stance|stance|idle', walk: 'walking|walk', run: 'running|run', attack: 'charged_ground_slam|slam|attack|punch|smash|charged_spell|spell|cast',
-  heavy: 'attack|punch|slam|spell|cast', roar: 'shouting|scream|roar|taunt', hit: 'hit_reaction|hit', death: 'dying|death|dead|fall',
+  heavy: 'attack|punch|slam|spell|cast', throw: 'over_shoulder_throw|throw', roar: 'shouting|scream|roar|taunt', hit: 'hit_reaction|hit', death: 'dying|death|dead|fall',
 };
 
 export const MODELS: Record<string, ModelDef> = {
