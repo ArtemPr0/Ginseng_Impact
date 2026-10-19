@@ -281,6 +281,8 @@ export class World {
   private target!: Group;
   private zone: string | null = null;
   private readonly realmGroups = new Map<string, Group>();
+  /** Swimmable water out in the realms (the vale's river, the lean moat): surface `level` over [x0, x1] × [z0, z1]. */
+  private readonly waterZones: Array<{ x0: number; x1: number; z0: number; z1: number; level: number }> = [];
   private readonly zoneOf = new Map<object, string | null>();
   private here: string | null | undefined = undefined;
   private readonly extras: Array<{ update: (dt: number) => void }> = [];
@@ -289,8 +291,18 @@ export class World {
 
   constructor(readonly terrain: Terrain) {
     this.heights = new HeightWorld(terrain);
-    // The great river is the swimmable water (the lily pond and the pools are only knee to waist deep).
-    this.heights.water = (x, z) => (riverAt(x, z) > 0.3 ? RIVER_LEVEL : null);
+    // The great river is the swimmable water (the lily pond and the pools are only knee to waist deep), and the realms'
+    // rivers and moats (RealmApi.water).
+    this.heights.water = (x, z) => {
+      if (riverAt(x, z) > 0.3) return RIVER_LEVEL;
+      for (const w of this.waterZones) if (x > w.x0 && x < w.x1 && z > w.z0 && z < w.z1) return w.level;
+      return null;
+    };
+    // Out in a realm flight's ceiling counts from the realm's floor, not from the void beside it.
+    this.heights.flyFloor = (x, z) => {
+      const realm = REALMS.find((r) => Math.abs(x - r.x) < r.radius + 120 && Math.abs(z - r.z) < r.radius + 120);
+      return realm ? realm.y : 0;
+    };
     this.target = this.group;
     const rnd = rng(4242);
     const world0 = this;
@@ -700,6 +712,7 @@ export class World {
       get group() { return world.target; },
       realm: (id) => this.enterZone(id),
       place: (l) => this.place(l), flora, vfx, h, rnd: rrnd,
+      water: (x0, x1, z0, z1, level) => { this.waterZones.push({ x0, x1, z0, z1, level }); },
       shoot: (from, s) => this.hooks.shoot?.(from, s),
     };
     this.portals.push(...buildRealms(realmApi));

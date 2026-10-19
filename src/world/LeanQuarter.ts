@@ -86,7 +86,7 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   api.group.add(flagstoneFloor(yard.x, yard.z, yard.w, yard.d, gy, new Color(0.3, 0.1, 0.6)));
   api.group.add(snowGround(snow.x, snow.z, snow.w, snow.d, gy));
   api.place({ object: new Group(), footprints: [
-    solid(Q.court, gy), solid(Q.street, gy), solid(Q.castleYard, gy), solid(Q.snow, gy), solid(Q.moat, gy - 1.2),
+    solid(Q.court, gy), solid(Q.street, gy), solid(Q.castleYard, gy), solid(Q.snow, gy), solid(Q.moat, gy - 2.2),
     // Unseen walls round the quarters (the plaza's east edge stays open onto the lean waves).
     wall(1000, -185.5, 60.5, 0.5), wall(1060.5, -135, 0.5, 50), wall(939.5, -112.5, 0.5, 72.5),
     wall(860, -40.5, 80.5, 0.5), wall(779.5, 17.5, 0.5, 58), wall(820, 75.5, 40, 0.5),
@@ -217,6 +217,8 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   const C = Q.castle;
   api.place(modelLandmark('castle', C.x, C.z, gy, { yaw: face(0), onLoad: (m) => restyle(m, (mat) => patchLitWindows(mat, 2.6, new Color(0.7, 0.3, 1.0))) }));
   api.place(waterSheet(moat.x, moat.z, moat.w, moat.d, gy - 0.35, [0x1a0640, 0x7a32e0, 0xe0b8ff]));
+  // (Swimmable: its bed is 2.2 m down.)
+  api.water?.(Q.moat[0], Q.moat[1], Q.moat[2], Q.moat[3], gy - 0.35);
   for (const z of [5, 10.5, 25.5, 31]) api.place(cascade({ x: 815.5, z, top: gy + 15, height: 15.2, width: 2.4, yaw: Math.PI / 2, curve: 1, color: LEAN_FALL }));
   // The bridge to the gate, purple flames at its ends.
   api.place(floorSlab(moat.x, C.z, gy, moat.w + 0.4, 7));

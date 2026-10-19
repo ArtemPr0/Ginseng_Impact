@@ -47,6 +47,8 @@ export interface ControllerInput {
   descend?: boolean;
   /** Edge: stop flying and fall. */
   stopFly?: boolean;
+  /** Keep the altitude while flying (a swing or cast in the air, when the move keys are locked). */
+  hold?: boolean;
 }
 
 export interface WorldQuery {
@@ -58,6 +60,16 @@ export interface WorldQuery {
   waterAt?(x: number, z: number): number | null;
   /** Upward speed when feet land at height `y` on a springy surface (a mushroom cap), or null. */
   bounceAt?(x: number, z: number, y: number): number | null;
+  /**
+   * Where flight's ceiling counts from when the ground below is lower: a realm's floor level out over its void (the
+   * void reads far below, which would put the ceiling under the floor and sink the hero however long Space is held).
+   */
+  flyFloorAt?(x: number, z: number): number;
+}
+
+/** The highest a flying hero may climb at (x, z): the flight ceiling over the ground there, or over the realm's floor. */
+export function flightCeiling(world: WorldQuery, x: number, z: number, ground: number): number {
+  return Math.max(ground, world.flyFloorAt?.(x, z) ?? ground) + CONTROLLER.flyCeiling;
 }
 
 /** True when (x, z) is water deep enough to swim in for feet at `y`; returns the surface height (else null). */
@@ -103,7 +115,11 @@ export const CONTROLLER = {
   walkableGradient: 1.2,
   slideSpeed: 5,
   climbSpeed: 2.2,
-  climbDrain: 10,
+  /** Stamina per second climbing, and hanging still on the wall (a rest: the tall peak goes in one bar). */
+  climbDrain: 3.5,
+  climbRestDrain: 0.5,
+  /** Stamina needed to start a climb (an empty bar must refill a little before the hero grabs the wall again). */
+  climbMinStamina: 6,
   climbJumpSpeed: 7,
   climbPush: 3,
   /** A rise taller than this within one step is a wall, whatever the sampled gradient says. */
@@ -275,7 +291,7 @@ export function stepController(s: ControllerState, input: ControllerInput, world
       const rise = ground - oldY;
       const steep = (ahead.g > CONTROLLER.walkableGradient && rise > 0.05) || rise > CONTROLLER.stepHeight;
       if (steep) {
-        if (wantsMove && s.stamina > 0) {
+        if (wantsMove && s.stamina >= CONTROLLER.climbMinStamina) {
           // Stay at the base; climbing moves us from here.
           s.climbDir = { x: mx, z: mz };
           s.vel.x = s.vel.z = s.vel.y = 0;
@@ -411,7 +427,7 @@ export function stepController(s: ControllerState, input: ControllerInput, world
         s.climbDir = { x: ux, z: uz };
       }
       s.yaw = Math.atan2(uz, ux);
-      spendStamina(s, CONTROLLER.climbDrain * dt);
+      spendStamina(s, (wantsMove ? CONTROLLER.climbDrain : CONTROLLER.climbRestDrain) * dt);
       spent = true;
       if (input.jump || s.stamina <= 0) {
         s.vel.x = -ux * CONTROLLER.climbPush;
@@ -479,10 +495,13 @@ export function stepController(s: ControllerState, input: ControllerInput, world
       }
       const boost = input.sprint && wantsMove;
       const ground = world.heightAt(s.pos.x, s.pos.z, s.pos.y);
-      const climbing = !!input.ascend && s.pos.y - ground < CONTROLLER.flyCeiling;
+      const climbing = !!input.ascend && s.pos.y < flightCeiling(world, s.pos.x, s.pos.z, ground);
+      // Holding the climb key at the ceiling hovers there (it used to let the hero sink).
+      const hovering = (!!input.ascend && !climbing) || (!!input.hold && !input.descend);
       spendStamina(s, (CONTROLLER.flyDrain + (climbing ? CONTROLLER.flyClimbDrain : 0) + (boost ? CONTROLLER.flyBoostDrain : 0)) * dt);
       spent = true;
       if (climbing) s.vel.y = approach(s.vel.y, CONTROLLER.flyClimbSpeed, 12 * dt);
+      else if (hovering) s.vel.y = approach(s.vel.y, 0, 12 * dt);
       else if (input.descend) s.vel.y = approach(s.vel.y, -CONTROLLER.flyDiveSpeed, 18 * dt);
       else s.vel.y = approach(s.vel.y, -CONTROLLER.flyFallSpeed, CONTROLLER.flyFallAccel * dt);
       const speed = wantsMove ? (boost ? CONTROLLER.flyBoostSpeed : CONTROLLER.flySpeed) * moveScale * s.speedScale : 0;

@@ -13,7 +13,7 @@
  */
 import { Color, Group, type Mesh, type MeshStandardMaterial, Vector3 } from 'three';
 import { ISLAND_PORTALS, VALE } from '../data/world';
-import { cobbleFloor, grassGround } from '../render/Floors';
+import { cobbleFloor, grassGround, seabed } from '../render/Floors';
 import { glowSprite } from '../render/Glow';
 import { horizonMoon, skyVortex } from '../render/LeanFx';
 import { patchLitWindows } from '../render/Materials';
@@ -77,15 +77,19 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
   api.vfx({ group: fx, update: (dt) => { for (const u of updates) u(dt); } });
   // Ground: night grass everywhere, a muddy cobbled street up the middle; unseen walls at the edges.
   const x0 = X - 110, x1 = X + 100, z0 = Z - 120, z1 = Z + 125;
-  api.group.add(grassGround((x0 + x1) / 2, (z0 + z1) / 2, x1 - x0, z1 - z0, vy));
+  const riverX = X - 45;
+  // (The grass stops at the river's banks: one sheet over everything hid the water under it.)
+  api.group.add(grassGround((x0 + riverX - 5) / 2, (z0 + z1) / 2, riverX - 5 - x0, z1 - z0, vy));
+  api.group.add(grassGround((riverX + 5 + x1) / 2, (z0 + z1) / 2, x1 - riverX - 5, z1 - z0, vy));
+  // The river's silt bed, seen through the water.
+  api.group.add(seabed(riverX, (z0 + z1) / 2, 10, z1 - z0, vy - 2.2));
   // (A couple of centimetres over the grass, or the two planes fight for the same pixels.)
   api.group.add(cobbleFloor(X, Z + 50, 12, 130, vy + 0.02, 0, 0.7));
-  const riverX = X - 45;
   api.place({ object: new Group(), footprints: [
     { kind: 'box', x: (riverX + 5 + x1) / 2, z: (z0 + z1) / 2, hw: (x1 - riverX - 5) / 2, hd: (z1 - z0) / 2, top: vy },
     { kind: 'box', x: (x0 + riverX - 5) / 2, z: (z0 + z1) / 2, hw: (riverX - 5 - x0) / 2, hd: (z1 - z0) / 2, top: vy },
-    // The river's bed, a metre down.
-    { kind: 'box', x: riverX, z: (z0 + z1) / 2, hw: 5, hd: (z1 - z0) / 2, top: vy - 1.2 },
+    // The river's bed, deep enough to swim (wading into a bed under a painted surface looked like sinking into the ground).
+    { kind: 'box', x: riverX, z: (z0 + z1) / 2, hw: 5, hd: (z1 - z0) / 2, top: vy - 2.2 },
     { kind: 'box', x: x0 - 0.5, z: (z0 + z1) / 2, hw: 0.5, hd: (z1 - z0) / 2 + 1, top: vy + 6 }, { kind: 'box', x: x1 + 0.5, z: (z0 + z1) / 2, hw: 0.5, hd: (z1 - z0) / 2 + 1, top: vy + 6 },
     { kind: 'box', x: (x0 + x1) / 2, z: z0 - 0.5, hw: (x1 - x0) / 2 + 1, hd: 0.5, top: vy + 6 }, { kind: 'box', x: (x0 + x1) / 2, z: z1 + 0.5, hw: (x1 - x0) / 2 + 1, hd: 0.5, top: vy + 6 },
   ] });
@@ -149,6 +153,7 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
 
   // --- West: the river, the stone bridge between braziers, the crowned head on its hill ---
   api.place(waterSheet(riverX, (z0 + z1) / 2, 10, z1 - z0, vy - 0.35, [0x041628, 0x1c5a8a, 0xa8d0ff]));
+  api.water?.(riverX - 5, riverX + 5, z0, z1, vy - 0.35);
   const bridgeZ = Z + 40;
   api.place(floorSlab(riverX, bridgeZ, vy, 11, 5));
   api.place(modelLandmark('witch-bridge', riverX, bridgeZ, vy - 1.2, { yaw: face(0), collider: 'none' }));

@@ -29,6 +29,8 @@ export interface RigPose {
   charging?: boolean;
   /** The hero's burst (Q) in progress: which one and seconds since it began. */
   burst?: { kind: BurstKind; t: number };
+  /** Climbing: metres per second along the wall (up positive), so the climb clip keeps pace and stops when still. */
+  climbRate?: number;
 }
 
 
@@ -192,6 +194,8 @@ export class Rig {
   /** Orlan's pipe. */
   private smoke: PipeSmoke | null = null;
   private staticPhase = Math.random() * 6;
+  /** The glow under Orlan's hem while he floats up a wall. */
+  private climbGlow: Sprite | null = null;
   private readonly trail: Mesh;
   /** World-space effects: the trail and the pipe smoke. */
   private readonly fx = new Group();
@@ -366,6 +370,10 @@ export class Rig {
     const m = this.model;
     if (!this.cup || !this.cupPivot || !m) return;
     if (!this.cupFingers) this.fitCup();
+    // On a wall both hands climb: the cup is tucked away until he is off the rock (the fingers follow the clip).
+    const climbing = pose.mode === 'climb';
+    this.cup.group.visible = !climbing;
+    if (climbing) return;
     const cyclone = pose.burst?.kind === 'cyclone' ? pose.burst.t : -1;
     const calm = pose.mode === 'ground' && pose.attack === undefined && !pose.charging && pose.speed < 5.5;
     if (!this.sip) {
@@ -1093,6 +1101,20 @@ export class Rig {
     }
     if (pose.mode === 'air') { bob = 0.1; lean = 0; tilt = -0.15; }
     if (pose.mode === 'fly') { bob = 0; lean = 0; drift = 0; wobble = 0; }
+    // Orlan floats up a wall rather than climbing it: leaning back from the rock, rising in slow surges, robe swaying,
+    // a glow under his hem.
+    const climbing = pose.mode === 'climb';
+    if (climbing) {
+      const rate = Math.abs(pose.climbRate ?? 0);
+      this.staticPhase += dt * rate * 1.5;
+      bob = Math.sin(t * 2.2) * (0.03 + rate * 0.03);
+      lean = Math.sin(t * 0.7) * 0.06;
+      drift = 0;
+      wobble = Math.sin(t * 0.5) * 0.05;
+      tilt = -0.12;
+    }
+    if (!this.climbGlow && climbing) { this.climbGlow = glowSprite(0x8b3dff, 1.1, 0.55, true); this.climbGlow.position.set(0, 0.05, 0); r.parent?.add(this.climbGlow); }
+    if (this.climbGlow) this.climbGlow.visible = climbing;
     // Orlan's robe floats him: a slow bob, leaning into the stroke.
     if (pose.mode === 'swim') { bob = Math.sin(t * 0.8) * 0.05; lean = Math.sin(t * 0.4) * 0.04; drift = 0; tilt = pose.speed > 0.3 ? 0.12 : 0.03; }
     if (pose.attack !== undefined) {
@@ -1160,7 +1182,13 @@ export class Rig {
       // Riding the bow wants still arms: Wren's idle gestures freely, so it is held on a calm frame.
       if (m.id === 'archer' && m.playing === 'idle') m.freezeAt(this.seat.frame);
     }
-    else if (pose.mode === 'climb') { if (!m.play('climb')) m.play('idle', false, 0.5); }
+    else if (pose.mode === 'climb') {
+      // The wall climb (a Meshy preset on the heroes' shared skeleton), hand over hand at the pace of the climb; still on
+      // the wall it holds the grip, climbing down it plays backwards.
+      const rate = pose.climbRate ?? 0;
+      const speed = Math.abs(rate) < 0.1 ? 0 : Math.max(-1.6, Math.min(1.6, rate / 1.2));
+      if (!m.play('climb', false, speed)) m.play('idle', false, 0.5);
+    }
     else if (pose.mode === 'swim') {
       // Strokes matched to the speed through the water; treading water when still.
       if (v > 0.3) { if (!m.play('swim', false, Math.max(0.7, v / 2.6))) m.play('walk', false, 0.6); }

@@ -158,7 +158,8 @@ describe('stepController — climb', () => {
   it('blocks walking up a steep slope with empty stamina', () => {
     const s = createControllerState({ x: 0, y: 0, z: 0 });
     s.stamina = 0;
-    run({ ...idle(), move: { x: 1, z: 0 } }, 120, wall, s);
+    // (Half a second: after that the bar refills and the hero may grab the wall again.)
+    run({ ...idle(), move: { x: 1, z: 0 } }, 30, wall, s);
     expect(s.mode).toBe('ground');
     expect(s.pos.y).toBeLessThan(0.5);
   });

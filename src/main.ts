@@ -78,6 +78,8 @@ const light = { hemi: 0.7, moon: 1.5, fill: 0.75, cameraFill: 0 };
 const lightSky = new Color(PALETTE.cobalt), lightGround = new Color(PALETTE.abyss), lightFill = new Color(0x8fa5f0);
 const lightTo = new Color();
 const fillFixed = new Vector3(), fillCam = new Vector3(), fillAim = new Vector3();
+/** The hero's height last frame, for the climb clip's pace. */
+let lastClimbY = 0;
 
 const terrain = new Terrain();
 scene.add(terrain.mesh);
@@ -370,6 +372,7 @@ game
         ascend: input.isDown('Space'),
         descend: input.isDown('KeyC'),
         stopFly: input.locked && input.justPressed('KeyX'),
+        hold: combat.busy || combat.charging > 0,
       }, world, dt);
       // Portals: step into one to cross between the island and the realms.
       portalCooldown -= dt;
@@ -423,7 +426,9 @@ game
         charging: combat.charging > 0,
         landed: performance.now() / 1000 - landedAt,
         burst: combat.burstState,
+        climbRate: controller.mode === 'climb' && dt > 0 ? (controller.pos.y - lastClimbY) / dt + Math.hypot(controller.vel.x, controller.vel.z) * 0.5 * Math.sign(controller.pos.y - lastClimbY || 1) : 0,
       }, dt);
+      lastClimbY = controller.pos.y;
       // Benched party members are hidden: no need to animate them.
       combat.render(dt);
       lightBudget.update(playerPos);

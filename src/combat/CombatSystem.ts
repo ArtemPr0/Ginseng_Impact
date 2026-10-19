@@ -409,12 +409,11 @@ export class CombatSystem {
     }
     const grounded = c.mode === 'ground';
     const flying = c.mode === 'fly';
-    // From the air: Wren shoots off the bow she rides, Orlan casts as he floats, Sir Aldric swings at whatever is
-    // close (his charged swing and the skills want his feet on the ground).
+    // From the air: Wren shoots off the bow she rides, Orlan casts as he floats, Sir Aldric swings from under his cape:
+    // every hero's attacks, skill and burst work in flight as on the ground.
     const canShoot = grounded || flying;
-    const canHeavy = grounded || (flying && me.weapon !== 'greatsword');
-    const burstKind = BURST[me.id].kind;
-    const canBurst = grounded || (flying && burstKind !== 'cyclone');
+    const canHeavy = grounded || flying;
+    const canBurst = grounded || flying;
 
     // --- dodge (a short cooldown: no chaining rolls into permanent invulnerability) ---
     if (input.dodge && grounded && !this.burstCast && this.dodgeCd <= 0) {
@@ -476,7 +475,7 @@ export class CombatSystem {
 
     // --- skill ---
     const cd = this.cooldowns.get(me.id)!;
-    if (input.skill && grounded && !this.busy && this.heavyCharge === 0 && cd.ready) {
+    if (input.skill && (grounded || flying) && !this.busy && this.heavyCharge === 0 && cd.ready) {
       this.softLock(9);
       cd.use();
       this.casting = { def: me, t: 0, fired: false };
@@ -499,7 +498,7 @@ export class CombatSystem {
     // --- burst (Q): each hero's own ---
     if (input.burst && canBurst && !this.busy && this.heavyCharge === 0 && this.burstEnergy >= BURST_MAX) {
       this.burstEnergy = 0;
-      this.burstCast = { t: 0, fired: false, kind: burstKind, shots: 0, tick: 0 };
+      this.burstCast = { t: 0, fired: false, kind: BURST[me.id].kind, shots: 0, tick: 0 };
       this.iframes = Math.max(this.iframes, 1.0);
       d.audio.burst();
       d.sky.setBloodMoon(true);
@@ -652,7 +651,7 @@ export class CombatSystem {
 
     this.vfx.update(dt);
     d.hud.setHp(this.hp.get(me.id)!, me.maxHp);
-    d.hud.setSkill(SKILLS[me.id].name, cd.fraction, cd.ready && grounded);
+    d.hud.setSkill(SKILLS[me.id].name, cd.fraction, cd.ready && (grounded || flying));
     d.hud.setBurst(this.burstEnergy / BURST_MAX, this.burstEnergy >= BURST_MAX && canBurst, BURST[me.id].name);
     d.hud.setCharge(this.heavyCharge);
     d.hud.setShards(d.inventory.shards);

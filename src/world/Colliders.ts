@@ -142,6 +142,9 @@ export class HeightWorld implements WorldQuery {
   /** Where the water is (surface height at x, z, or null): the controller swims there when it is deep enough. */
   water: ((x: number, z: number) => number | null) | null = null;
 
+  /** Where flight's ceiling counts from over the void (a realm's floor level), or null (the ground below). */
+  flyFloor: ((x: number, z: number) => number) | null = null;
+
   /** Springy surfaces (giant mushroom caps): landing on one within `r` of (x, z) at height `top` throws you up at `v`. */
   readonly bouncers: Array<{ x: number; z: number; r: number; top: number; v: number }> = [];
 
@@ -155,6 +158,10 @@ export class HeightWorld implements WorldQuery {
 
   waterAt(x: number, z: number): number | null {
     return this.water ? this.water(x, z) : null;
+  }
+
+  flyFloorAt(x: number, z: number): number {
+    return this.flyFloor ? this.flyFloor(x, z) : this.heightAt(x, z);
   }
 
   /** True when (x, z) lies within `pad` (≤ 2 m) of a footprint's reach — a cheap "keep clear of buildings" test. */

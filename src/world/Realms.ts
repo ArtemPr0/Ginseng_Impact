@@ -28,6 +28,8 @@ export interface RealmApi {
   vfx(f: { group: Group; update(dt: number): void }): void;
   /** A shot at the hero from something in this world (the dragon's fire). */
   shoot?(from: Vector3, s: HostileShot): void;
+  /** Swimmable water (a realm's river or moat): surface `level` over [x0, x1] × [z0, z1]. */
+  water?(x0: number, x1: number, z0: number, z1: number, level: number): void;
   /** Terrain height on the island. */
   h(x: number, z: number): number;
   rnd(): number;

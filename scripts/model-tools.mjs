@@ -31,9 +31,11 @@
  *   node scripts/model-tools.mjs cut-triangles <in.glb> <out.glb> <triangles.json>
  *       Deletes the listed triangles (indices into the first primitive, as the game loads it): the webs a stretch
  *       survey in the running game finds between limbs that the mesh fused (see .claude/skills/verify).
- *   node scripts/model-tools.mjs clip <in.glb> <out.glb>
+ *   node scripts/model-tools.mjs clip <in.glb> <out.glb> [nameRegex] [--rot-only]
  *       Keeps only the node hierarchy and animations (drops meshes, skins, materials, textures), so one
  *       animation export becomes a ~100 KB file the game layers onto the base model (see models.ts clipFiles).
+ *       With a name pattern only the matching clips stay; --rot-only drops translation and scale tracks (a clip
+ *       borrowed from another Meshy rig of the same skeleton: its root motion and bone lengths are not the target's).
  *   node scripts/model-tools.mjs import <downloaded.glb> <name> [clipKey]
  *       Convenience: with a clipKey writes public/models/<name>-<clipKey>.glb (clip only), otherwise
  *       public/models/<name>.glb (optimized).
@@ -389,10 +391,14 @@ async function cutTriangles(inPath, outPath, listPath) {
   console.log(`cut-triangles ${inPath}: ${idx.length / 3 - keep.length / 3} of ${idx.length / 3} triangles removed`);
 }
 
-async function clip(inPath, outPath) {
+async function clip(inPath, outPath, nameRe, rotOnly = false) {
   const doc = await io.read(inPath);
   const root = doc.getRoot();
-  if (root.listAnimations().length === 0) throw new Error(`${inPath} has no animations`);
+  if (nameRe) for (const an of root.listAnimations()) if (!new RegExp(nameRe, 'i').test(an.getName())) an.dispose();
+  if (rotOnly) for (const an of root.listAnimations()) for (const ch of an.listChannels()) {
+    if (ch.getTargetPath() !== 'rotation') { ch.getSampler()?.dispose(); ch.dispose(); }
+  }
+  if (root.listAnimations().length === 0) throw new Error(`${inPath} has no animations${nameRe ? ` matching ${nameRe}` : ''}`);
   for (const n of root.listNodes()) { n.setMesh(null); n.setSkin(null); }
   for (const m of root.listMeshes()) m.dispose();
   for (const s of root.listSkins()) s.dispose();
@@ -413,7 +419,7 @@ async function main() {
   if (cmd === 'cut-fused-limbs') return cutFusedLimbs(a, b, c === '--dry');
   if (cmd === 'fix-arm-flank') return fixArmFlank(a, b, c === '--dry');
   if (cmd === 'cut-triangles') return cutTriangles(a, b, c);
-  if (cmd === 'clip') return clip(a, b);
+  if (cmd === 'clip') return clip(a, b, c && c !== '--rot-only' ? c : undefined, process.argv.includes('--rot-only'));
   if (cmd === 'import') {
     const name = b;
     if (c) return clip(a, resolve('public/models', `${name}-${c}.glb`));
