@@ -12,7 +12,14 @@ node scripts/perf/prof.mjs 6                                     # GPU string + 
 node scripts/perf/alloc.mjs 6                                    # allocation rate (incl. collected) by call site
 node scripts/perf/shot.mjs "<url>" out.png 30                     # screenshot after 30 s
 node scripts/perf/eval.mjs "<js>"                                 # evaluate on the loaded page (window.__dbg in ?at= mode)
+node scripts/perf/run.mjs "<url>|-" <loadSeconds> body.js         # evaluate an async body (return a value), then CONSOLE: [...]
 ```
+
+`run.mjs` prints the body's result, then one line `CONSOLE: <json array>`: every uncaught exception, `console.error` /
+`console.warn` and browser-level error or warning (a failed load) from the navigation until the body returned, each as
+`{level, text, url?, line?}` — `CONSOLE: []` when the page was clean (capped at 200 entries). The result stays the first
+line(s) as before. `CDP_PORT=9344 node scripts/perf/run.mjs …` drives a Chrome launched with another
+`--remote-debugging-port`.
 
 Findings from the 2026-10-14 pass (M4 Max, Retina): repeated flora must be simplified hard (`scripts/lod-pass.mjs`);
 every mesh is frustum-culled and flora is chunked; point lights go through `src/render/LightBudget.ts`; MSAA on a
@@ -22,3 +29,6 @@ transparent double-sided materials need `forceSinglePass` (else three.js re-reso
 Audits (run.mjs bodies; each prints a list to read, see `.claude/skills/verify`): `audit/layout.js` (floating, buried,
 overlapping, inside buildings), `audit/glows.js` (flames and glows with nothing solid near), `audit/characters.js`
 (mobs and NPCs off the ground), `anim/stretch-all.js` and `anim/stretch-npcs.js` (skin tearing per clip).
+
+Play checks (run.mjs bodies that drive the hero, see `play/README.md`): `play/walk.js` (holds W for 20 s: sinking,
+floating, bouncing, stuck) and `play/talk.js` (F on the nearest NPC, answer 1, Escape: the dialogue panel's text).
