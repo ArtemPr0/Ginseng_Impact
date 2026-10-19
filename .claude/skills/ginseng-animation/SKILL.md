@@ -18,6 +18,11 @@ Bodies are Meshy GLBs rigged by Meshy (biped) with Meshy presets; the game layer
 | Serves at a counter | Idle_02, Talk_with_Hands_Open | `pose: 'offer'` |
 | Mob | Combat_Stance, Walking, Running, Attack / Charged_Ground_Slam, Hit_Reaction, dying_backwards | `clips: BOSS_CLIPS` |
 
+Every rig already has Walking and Running. In Meshy's Russian UI the presets are "Холостой ход 1" (exports as
+Idle_02), "Стоять и пить" (Stand_and_Drink), "Боевой Идель" (Combat_Stance), "Атака" (Attack), "Реакция на удар"
+(Hit_Reaction), "Умирая задом наперед" (dying_backwards). A body over 300k faces must be remeshed (free, 30K) before
+it can be rigged; a failed rig often succeeds on a retry.
+
 Model the prop in the hand (the cup, the tankard, the book): it is part of the mesh and moves with the clip. Only
 the hero's cup is a separate prop (it needs solved fingers, below).
 

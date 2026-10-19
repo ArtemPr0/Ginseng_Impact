@@ -36,7 +36,19 @@ ground headlessly before planning island placements (the island is crowded).
 Place by id (`modelLandmark`, `floraSet`, `Rig`/NPC defs); nothing shows until the file exists, so the layout can
 be written first. Add the reel's effects (skill `ginseng-effects`): light, mist, falls, sparkle, sky.
 
+Once the GLBs are in, check every placement in game (a guess made before the model existed is often wrong):
+- **NPCs stand on the highest collider surface at their anchor.** An anchor in a pillar, a table, a stall or a roof
+  puts them on top of it; out in a realm a seat must use the realm floor, not the island terrain (it is the void).
+  Probe `heights.heightAt(x, z, y)` over a grid round the spot and read the numbers; use `dy`, or an absolute `y`
+  for a model that is one piece with its seat (the plague doctor and his chest).
+- **Closed models have no inside.** A booth, hut or stall window is part of the mesh: put the keeper at its front.
+- **Facing is measured, not assumed.** A model's front can sit 30–45° off what `face()` expects (the lean dragon):
+  shoot it from the court and turn it. Box footprints turn the other way from model yaw (local x runs along
+  (cos rotY, sin rotY)): use `rotY: -yaw` for a box under a model placed with `yaw`.
+- Props that belong to a character (the reader's book) go where the body actually is in its pose: shoot a close-up.
+
 ## 5. Verify against the reel
 
 For every reel: a sheet of its frames beside headless captures from the matching spots (skill `verify`), each
-subject ticked off or listed as missing (model not made yet, or a gap). Report gaps honestly.
+subject ticked off or listed as missing (model not made yet, or a gap). Report gaps honestly. Judge the mood too:
+a reel shot inside (a tavern, a crypt bar) is not matched by the same characters standing outdoors.

@@ -19,7 +19,8 @@ effect lives in `src/render/` (allowed by `npm run audit:procedural`); world fil
 | Still water sheet / moat | `waterSheet(x, z, w, d, level, [deep, shallow, foam])` (world/Water.ts) | Lean moat `[0x1a0640, 0x7a32e0, 0xe0b8ff]`. |
 | Smoke (vape, chimney, pipe) | `new PipeSmoke(color)`; emitter at the mouth/chimney; `update(dt)` | Purple `0xb36bff`; chimney `0x9aa6c0` with the emitter scaled ×6. |
 | Snow / rain | `LAYOUT.snowZones`, `LAYOUT.rainZone` (render/Weather.ts) | Add a zone for a new snowy place; ground with `snowGround()`. |
-| Floors | `snowGround`, `flagstoneFloor`, `cobbleFloor(.., tone)`, `grassGround`, `seabed` (render/Floors.ts) | Unlit shader planes: keep colours dark (cobbles `tone` 0.45 underwater, 0.7 at night). |
+| Floors | `snowGround`, `flagstoneFloor`, `cobbleFloor(.., tone)`, `grassGround`, `seabed`, `rockTop` (render/Floors.ts) | Unlit shader planes. Write colours as they should look on screen: `floorMaterial` converts them to linear (without that 0.13 showed as 0.4). Stack overlapping floors 2–3 cm apart or they z-fight. |
+| A floating island you can stand on | `clipAbove(mat, y)` on the island's cloned materials (render/Materials.ts) + `rockTop(x, z, r, y)` | `floating-island` carries a giant dead tree: clip it away at the floor and add an ordinary `dead-forest-tree`. A bobbing island must not carry anything static. |
 | Underwater | `waterCeiling`, `lightShafts`, `causticFloor`, `risingBubbles`, `tickUnderwater(dt)` (render/Underwater.ts) | Caustics faint (0.16); shafts billboard in their shader; the ceiling takes fog. |
 | Sky objects | `skyVortex(size, colors)`, `ringedPlanet(r)`, `meteors(center, r, h)`, `horizonMoon(size)` | Moons dimmed below bloom; vortex `[0x4a2a9a, 0xa04ab0]` reads purple, not neon pink. |
 | Night per district | `DISTRICT_AIR` + `leanDistrict()` (data/world.ts), `kingdomNight` (Kingdom.ts) | Fog, sky darkening, renderer look (`LOOKS`). |
@@ -29,7 +30,8 @@ effect lives in `src/render/` (allowed by `npm run audit:procedural`); world fil
 ## Rules
 
 1. **Darkness first.** The reels are night scenes: dark floor, dark fog, glows on top. If a screenshot looks pale,
-   the culprit is usually an unlit floor colour, a mist layer, a bright sky object or the CD-moon bloom.
+   the culprit is usually an unlit floor colour, a mist layer, a bright sky object or the CD-moon bloom. Check a
+   floor against the reel frame side by side, not alone.
 2. **Gate on the source.** A fall, jet, drip or glint that comes *from* a model only exists once that model's file
    does (`PRESENT_MODELS`), or it pours from thin air.
 3. **Budget.** ≤ 6 live point lights (LightBudget), ~10 transparent planes in one view, shared clocks
