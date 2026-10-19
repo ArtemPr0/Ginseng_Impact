@@ -24,6 +24,8 @@ effect lives in `src/render/` (allowed by `npm run audit:procedural`); world fil
 | Underwater | `waterCeiling`, `lightShafts`, `causticFloor`, `risingBubbles`, `tickUnderwater(dt)` (render/Underwater.ts) | Caustics faint (0.16); shafts billboard in their shader; the ceiling takes fog. |
 | Sky objects | `skyVortex(size, colors)`, `ringedPlanet(r)`, `meteors(center, r, h)`, `horizonMoon(size)` | Moons dimmed below bloom; vortex `[0x4a2a9a, 0xa04ab0]` reads purple, not neon pink. |
 | Night per district | `DISTRICT_AIR` + `leanDistrict()` (data/world.ts), `kingdomNight` (Kingdom.ts) | Fog, sky darkening, renderer look (`LOOKS`). |
+| Light per place | `ZONE_LIGHT` (data/world.ts), blended in main.ts | Hemisphere colours, moon, fill. `cameraFill: 1` swings the fill behind the camera so characters keep true colours at night (white mimics, a green dragon); floors are unlit and stay dark. Rooms: moon 0, warm fill. |
+| A room (indoors) | a small realm with `ownSky` + `indoors`, `darkHollow(x, y, z, r, fogColor)` round it, `plankFloor(.., pools)` (render/Floors.ts) | world/Interiors.ts. The hollow must write depth or the island's cloud sea shows through gaps. `patchRetint(mat, tint)` re-colours a reused model's texture (the drowned tavern's face as a warm hearth wall). |
 | Lit windows | `patchLitWindows(mat, strength, glow)` (render/Materials.ts) | Lights warm texels: never on thatch or warm roofs (glow sprites at the windows instead). |
 | Glow halo | `glowSprite(color, size, opacity, fog)` (render/Glow.ts) | The cheapest light: lanterns, jellyfish, gems. |
 

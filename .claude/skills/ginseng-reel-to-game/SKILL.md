@@ -46,6 +46,18 @@ Once the GLBs are in, check every placement in game (a guess made before the mod
   shoot it from the court and turn it. Box footprints turn the other way from model yaw (local x runs along
   (cos rotY, sin rotY)): use `rotY: -yaw` for a box under a model placed with `yaw`.
 - Props that belong to a character (the reader's book) go where the body actually is in its pose: shoot a close-up.
+- **Anything placed for a realm goes into that realm's group** (`enterZone(realm.id)`): the island's group is hidden
+  while the player is in a realm, so a seat barrel placed with the island zone never shows.
+- A clip named `Sit_and_Drink` is a seated pose: give that NPC a seat (`SEATED` + `dy`), or it squats in mid-air.
+
+## Interiors
+
+A reel shot indoors (a tavern, a crypt bar) gets a room behind a door: a small realm (`ownSky`, `indoors`, dark fog,
+its own `LOOKS` and `ZONE_LIGHT` entries) entered and left by `Interactable`s (world/Interiors.ts). The walls are a
+Meshy model: reuse one (a facade as the far wall, shelves and barrel stacks down the sides, darkness past them) or
+generate a room with a **"cutaway diorama ... open front"** prompt (text-to-3D; the crypt bar came out right first
+time). Rooms with a roof get `collider: 'none'` and hand-made boxes measured by vertical ray picks over a grid
+(floor, counters, vaults); a baked grid would make the roof the floor.
 
 ## 5. Verify against the reel
 
