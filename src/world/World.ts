@@ -1,5 +1,5 @@
 import { Color, Group, type Mesh, type MeshStandardMaterial, type Object3D, Vector3 } from 'three';
-import { ANCHORS, ISLAND_PORTALS, LAYOUT, REALMS, SUNKEN, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
+import { ANCHORS, CRYPT_ROOM, ISLAND_PORTALS, LAYOUT, REALMS, SUNKEN, TAVERN_ROOM, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
 import { PALETTE } from '../render/palette';
 import { glowSprite } from '../render/Glow';
@@ -22,6 +22,7 @@ import { yawToRotation } from '../models/ModelRig';
 import { Noise2D } from './noise';
 import { witchStream } from './Stream';
 import { stoneHeadEyes } from './StoneHead';
+import { buildCryptRoom, buildTavernRoom } from './Interiors';
 import { buildTreeHouse } from './TreeHouse';
 import { buildDream, dreamWatchers } from './Dream';
 import { buildKingdom } from './Kingdom';
@@ -113,6 +114,26 @@ function grillSparkle(npc: Npc): { group: Group; update(dt: number): void } {
   };
 }
 
+/** The crypt skeletons' eyes burn green in their sockets (DeldocTvFiB), a little in front of and above the head joint. */
+function skullEyes(npc: Npc): { group: Group; update(dt: number): void } {
+  const group = new Group();
+  const eyes = [-1, 1].map((side) => { const s = glowSprite(PALETTE.witch, 0.13, 0.9, true); group.add(s); return { s, side }; });
+  let head: Object3D | null = null;
+  const at = new Vector3();
+  return {
+    group,
+    update: () => {
+      if (!head && npc.rig.model) head = npc.rig.model.bone(/head$/i);
+      group.visible = !!head;
+      if (!head) return;
+      head.getWorldPosition(at);
+      for (const { s, side } of eyes) {
+        s.position.set(at.x + Math.cos(npc.yaw) * 0.1 + Math.sin(npc.yaw) * side * 0.035, at.y + 0.09, at.z + Math.sin(npc.yaw) * 0.1 - Math.cos(npc.yaw) * side * 0.035);
+      }
+    },
+  };
+}
+
 /** The diver's brass helmet: its porthole glows white (DeVj-Z8POjl's kelp road), just in front of his head joint. */
 function helmetGlow(npc: Npc): { group: Group; update(dt: number): void } {
   const group = new Group();
@@ -132,6 +153,37 @@ function helmetGlow(npc: Npc): { group: Group; update(dt: number): void } {
   };
 }
 
+/**
+ * Waxwick's head of candles burns (Dd5Bqt7vQ5T's toast): a warm halo over the cluster and a few flickering flames on
+ * its wicks, following his head joint.
+ */
+function candleCrown(npc: Npc): { group: Group; update(dt: number): void } {
+  const group = new Group();
+  const halo = glowSprite(0xffb050, 1.1, 0.5, true);
+  const flames = [0, 1, 2, 3, 4].map(() => glowSprite(0xffd890, 0.16, 0.95, true));
+  group.add(halo, ...flames);
+  let head: Object3D | null = null;
+  const at = new Vector3();
+  let t = 0;
+  return {
+    group,
+    update: (dt) => {
+      t += dt;
+      if (!head && npc.rig.model) head = npc.rig.model.bone(/head$/i);
+      group.visible = !!head;
+      if (!head) return;
+      head.getWorldPosition(at);
+      halo.position.set(at.x, at.y + 0.28, at.z);
+      flames.forEach((f, i) => {
+        const a = i * 1.26 + 0.4;
+        const r = i === 0 ? 0 : 0.09;
+        f.position.set(at.x + Math.cos(a) * r, at.y + 0.36 - (i === 0 ? 0 : 0.05) + Math.sin(t * 13 + i * 2) * 0.008, at.z + Math.sin(a) * r);
+        f.scale.setScalar(0.16 * (0.85 + Math.sin(t * 17 + i * 3) * 0.15));
+      });
+    },
+  };
+}
+
 /** Candle-lit windows for a house model: each mesh gets its own material copy with the lit-window glow. */
 function litWindows(m: ModelRig): void {
   m.root.traverse((o) => {
@@ -147,7 +199,7 @@ function litWindows(m: ModelRig): void {
 const CAMPFIRE = { x: -24, z: 52 };
 const CAMPFIRE_SEATS = new Set(['rattle', 'bone', 'marrow']);
 /** NPCs who sit on a barrel. */
-const SEATED = new Set(['rattle', 'bone', 'marrow', 'moss', 'sentry', 'vale-beggar', 'court-knight', 'dock-knight', 'dragon-reader']);
+const SEATED = new Set(['rattle', 'bone', 'marrow', 'moss', 'sentry', 'vale-beggar', 'court-knight', 'dock-knight', 'dragon-reader', 'crypt-bones']);
 /**
  * The lantern in the rider's right hand, in horse-rider.glb's own frame (forward is -x, the rider's right -z, y up
  * from the hooves): the centre of its lit glass (the texels of the flame, averaged), less the fire's own lift.
@@ -655,6 +707,10 @@ export class World {
     const treeHouse = buildTreeHouse(realmApi, (x, y, z, yaw, name) => this.hooks.teleport?.(x, y, z, yaw, name), FACE_DOOR(h));
     this.interactables.push(...treeHouse.interactables);
     ANCHORS.brother = { ...treeHouse.brotherAt, y: treeHouse.floorY };
+    // The vale tavern's taproom behind its front door.
+    this.interactables.push(...buildTavernRoom(realmApi, (x, y, z, yaw, name) => this.hooks.teleport?.(x, y, z, yaw, name)));
+    // The crypt bar under the Lean Quarter's snow chapel.
+    this.interactables.push(...buildCryptRoom(realmApi, (x, y, z, yaw, name) => this.hooks.teleport?.(x, y, z, yaw, name)));
     buildDream(realmApi);
     for (const w of dreamWatchers) this.watchers.push({ zone: 'dream', update: w });
     const kingdom = buildKingdom(realmApi, { soundWanted: () => this.hooks.soundWanted?.() ?? false, foundSound: () => this.hooks.foundSound?.() });
@@ -684,8 +740,12 @@ export class World {
       // realm's floor under any roof (as the NPCs below).
       const ground = h(bx, bz);
       const by = ground < -20 ? this.heights.heightAt(bx, bz, ground) : ground;
+      // (In the sitter's realm's group: the island's group is hidden while the player is in a realm.)
+      const realm = REALMS.find((r) => Math.hypot(bx - r.x, bz - r.z) < r.radius);
+      this.enterZone(realm ? realm.id : null);
       this.place(modelLandmark('barrel', bx, bz, by, { scale: 0.5 / MODELS.barrel.height, collider: 'none' }));
     }
+    this.enterZone(null);
     // The Antlered King perches on the front edge of his throne's seat (squatting, not sunk into the back).
     {
       const th = LAYOUT.throne;
@@ -721,6 +781,11 @@ export class World {
     if (brother) { this.enterZone(TREEHOUSE_ROOM.id); vfx(grillSparkle(brother)); }
     const diver = this.npcs.find((n) => n.def.id === 'diver');
     if (diver) { this.enterZone(SUNKEN.id); vfx(helmetGlow(diver)); }
+    // The crypt bar's skeletons: green eyes, and gold grills catching the candlelight.
+    this.enterZone(CRYPT_ROOM.id);
+    for (const n of this.npcs) if (n.def.id.startsWith('crypt-')) { vfx(skullEyes(n)); if (n.def.id !== 'crypt-bones') vfx(grillSparkle(n)); }
+    const waxwick = this.npcs.find((n) => n.def.id === 'waxwick');
+    if (waxwick) { this.enterZone(TAVERN_ROOM.id); vfx(candleCrown(waxwick)); }
     this.enterZone(null);
   }
 

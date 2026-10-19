@@ -8,7 +8,7 @@ import { ROSTER } from './characters/roster';
 import { CombatSystem } from './combat/CombatSystem';
 import { Game } from './core/Game';
 import { Input } from './core/Input';
-import { DISTRICT_AIR, LAYOUT, leanDistrict, REALMS, VALE } from './data/world';
+import { DISTRICT_AIR, LAYOUT, leanDistrict, REALMS, VALE, ZONE_LIGHT } from './data/world';
 import { kingdomNight } from './world/Kingdom';
 import { Inventory } from './items/Inventory';
 import { riverAt } from './world/Terrain';
@@ -73,6 +73,11 @@ moon.shadow.normalBias = 0.5;
 moon.shadow.radius = 3;
 const hemi = new HemisphereLight(PALETTE.cobalt, PALETTE.abyss, 0.7);
 scene.add(moon, moon.target, fill, fill.target, hemi, sky.group, skyEvents.group);
+// The place's light (ZONE_LIGHT), blended toward each frame.
+const light = { hemi: 0.7, moon: 1.5, fill: 0.75, cameraFill: 0 };
+const lightSky = new Color(PALETTE.cobalt), lightGround = new Color(PALETTE.abyss), lightFill = new Color(0x8fa5f0);
+const lightTo = new Color();
+const fillFixed = new Vector3(), fillCam = new Vector3(), fillAim = new Vector3();
 
 const terrain = new Terrain();
 scene.add(terrain.mesh);
@@ -460,6 +465,7 @@ game
       fog.density += ((air ? air.density : realm ? realm.fog.density : islandFog.density) - fog.density) * Math.min(1, dt * 3);
       kingdomNight.value += ((air?.night ?? 0) - kingdomNight.value) * Math.min(1, dt * 1.5);
       bubbles.group.visible = !!realm?.underwater;
+      atmosphere.group.visible = !realm?.indoors;
       // Each world has its own grade (bloom, saturation, lift); the renderer blends toward it.
       renderer.setLook(LOOKS[air?.look ?? realm?.id ?? 'island'] ?? LOOKS.island);
       sky.setPreset(SKIES[realm?.id ?? 'island'] ?? SKIES.island);
@@ -470,11 +476,26 @@ game
       if (inKingdom !== wasInKingdom) { audio.kingdom(inKingdom); wasInKingdom = inKingdom; }
       bubbles.update(dt, camera.position);
       if (weather.update(dt, playerPos, world.ceilingAt(playerPos.x, playerPos.z, playerPos.y) < playerPos.y + 40) > 0) sky.flash = 1;
-      hemi.intensity = 0.7 + sky.flash * 2.2;
-      moon.intensity = 1.5 + sky.flash * 1.5;
+      const zl = ZONE_LIGHT[district ? 'lean' : realm?.id ?? 'island'] ?? ZONE_LIGHT.island;
+      const lk = Math.min(1, dt * 2);
+      light.hemi += (zl.hemi - light.hemi) * lk;
+      light.moon += (zl.moon - light.moon) * lk;
+      light.fill += (zl.fill - light.fill) * lk;
+      light.cameraFill += (zl.cameraFill - light.cameraFill) * lk;
+      hemi.color.copy(lightSky.lerp(lightTo.set(zl.sky), lk));
+      hemi.groundColor.copy(lightGround.lerp(lightTo.set(zl.ground), lk));
+      fill.color.copy(lightFill.lerp(lightTo.set(zl.fillColor), lk));
+      hemi.intensity = light.hemi + sky.flash * 2.2;
+      moon.intensity = light.moon + sky.flash * 1.5;
       moon.position.copy(playerPos).addScaledVector(sky.moonDir, 240);
       moon.target.position.copy(playerPos);
-      fill.position.set(playerPos.x + 70, playerPos.y + 60, playerPos.z + 110);
+      fill.intensity = light.fill;
+      // The fill from the south-east, or swung round to shine from just above the camera along its view.
+      fillFixed.set(playerPos.x + 70, playerPos.y + 60, playerPos.z + 110);
+      camera.getWorldDirection(fillAim);
+      fillCam.copy(camera.position).addScaledVector(fillAim, -40);
+      fillCam.y = camera.position.y + 18;
+      fill.position.lerpVectors(fillFixed, fillCam, light.cameraFill);
       fill.target.position.copy(playerPos);
       hud.setLocked(input.locked);
       if (input.hold && !audio.suspended) { input.hold = false; hud.setPress('CLICK TO ENTER THE FOG'); }

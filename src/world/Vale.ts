@@ -1,8 +1,8 @@
 /**
  * The Dragon's Vale (reel Dd5Bqt7vQ5T), reached through the lantern arch at the east end of the island's village
  * street. Walking north from the arch:
- *  - the tavern yard: long tables, a campfire, the candle-headed man and the dwarves raising candle-lit tankards
- *    (NPCs.ts);
+ *  - the tavern yard: long tables and a campfire before the tavern, whose door leads into the taproom where the
+ *    candle-headed man and the dwarves raise candle-lit tankards (Interiors.ts);
  *  - the village street: thatched houses with warm windows and smoking chimneys, lanterns on their fronts, stalls,
  *    villagers, a beggar on a barrel;
  *  - at the street's end, a huge green dragon lying behind the last houses, a hooded mage reading on its claw;
@@ -93,7 +93,7 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
   api.place(portal(X, vy + 2.4, VALE_ARRIVAL.z + 8, 1.7, { vertical: true, facing: -Math.PI / 2, colors: [0x0a2a1a, 0xffb050] }));
   links.push(link(new Vector3(X, vy + 1, VALE_ARRIVAL.z + 8), 1.6, 3, A.x - 3, A.z, Math.PI, 'The Village'));
 
-  // --- The tavern yard (the reel's tavern: the candle-headed man and the dwarves toasting) ---
+  // --- The tavern yard (the reel's toast is inside: Interiors.ts, through the tavern's front door) ---
   api.place(modelLandmark('tavern', X + 24, Z + 76, vy, { yaw: face(Math.PI) }));
   for (const z of [Z + 73, Z + 78.4]) {
     api.flora('tavern-table', [{ x: X + 15, y: vy, z, yaw: 0, scale: 1.2 }]);

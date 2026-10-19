@@ -6,8 +6,8 @@
  *  - Bucket Street and the lean castle, west (DeaqHWJBBPw, DeXn5rSPxR8): purple houses, the bucket mimics and the
  *    chain-mail knights, the skeleton wizard in his floating diamonds, a castle pouring lean falls into its moat,
  *    a carriage at the gate under a floating gold gem;
- *  - the snow chapel, south-west (DeldocTvFiB): snow, a ruined chapel among graves and bare trees, the crypt bar of
- *    sipping skeletons before a wall of skulls, the plague doctor on his treasure wagon;
+ *  - the snow chapel, south-west (DeldocTvFiB): snow, a ruined chapel among graves and bare trees, the plague doctor
+ *    on his treasure wagon; the chapel's door leads down to the crypt bar of sipping skeletons (Interiors.ts);
  *  - the sky dock, east (Den1ausBXai, DeYtKbMh76x): a floating island past the cup islands where a black dragon
  *    lounges with a knight and a skeleton tends the sky bar, a giant cup on a tower, islands with lamps.
  * Every structure is a Meshy model by id (nothing shows until its file exists); floors, mist, falls, flames,
@@ -17,6 +17,7 @@ import { Color, Group, type MeshStandardMaterial, type Mesh, Vector3 } from 'thr
 import { GALAXY, LEAN_QUARTER } from '../data/world';
 import { MODELS } from '../data/models';
 import { flagstoneFloor, cobbleFloor, rockTop, snowGround } from '../render/Floors';
+import { CHAPEL_DOOR } from './Interiors';
 import { glowSprite } from '../render/Glow';
 import { Glints, LEAN, meteors, mistLayers, ringedPlanet, skyVortex, tickLeanFx } from '../render/LeanFx';
 import { clipAbove, patchLitWindows } from '../render/Materials';
@@ -283,7 +284,7 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   const clearOfPath = (x: number, z: number) => path.every(([px, pz]) => Math.hypot(px - x, pz - z) > 5);
   for (let i = 0; i < 160 && graveSets.grave.length + graveSets['rune-grave'].length + graveSets['grave-cross'].length < 36; i++) {
     const x = 866 + api.rnd() * 88, z = 92 + api.rnd() * 78;
-    if (!clearOfPath(x, z) || Math.hypot(x - CH.x, z - CH.z) < 10 || Math.hypot(x - 872, z - 110) < 12 || Math.hypot(x - 931, z - 124) < 7) continue;
+    if (!clearOfPath(x, z) || Math.hypot(x - CH.x, z - CH.z) < 10 || Math.hypot(x - 931, z - 124) < 7) continue;
     const kind = (['grave', 'rune-grave', 'grave-cross'] as const)[i % 3];
     graveSets[kind].push({ x, y: gy - 0.05, z, yaw: face(Math.atan2(gate.z - z, gate.x - x)) + (api.rnd() - 0.5) * 0.4, scale: 0.8 + api.rnd() * 0.4 });
   }
@@ -298,25 +299,8 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   }
   api.flora('dead-forest-tree', trees);
   for (const t of trees) api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: t.x, z: t.z, r: 0.35 * t.scale, top: gy + 6 }] });
-  // The crypt bar: skeletons sipping at a stone counter before a wall of skulls; Sir Gilt toasting the dead.
-  {
-    const bx = 872, bz = 110;
-    api.flora('tavern-table', [{ x: bx + 0.8, y: gy, z: bz - 2.2, yaw: 0, scale: 1.3 }]);
-    api.place({ object: new Group(), footprints: [{ kind: 'box', x: bx + 0.8, z: bz - 2.2, hw: 2.1, hd: 0.7, top: gy + 1.2 }] });
-    const skulls: Placement[] = [];
-    for (let i = 0; i < 9; i++) {
-      const a = Math.PI * 1.1 + (i / 8) * Math.PI * 0.8;
-      for (const lift of [0, 1.1]) skulls.push({ x: bx + Math.cos(a) * 6.5, y: gy + lift, z: bz + 2 + Math.sin(a) * -5.5, yaw: api.rnd() * 6, scale: 1 + api.rnd() * 0.3 });
-    }
-    api.flora('skull-pile', skulls);
-    for (const s of skulls) if (s.y === gy) api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: s.x, z: s.z, r: 0.9, top: gy + 2.4 }] });
-    const candles: Placement[] = [];
-    for (let i = 0; i < 7; i++) candles.push({ x: bx - 1 + i * 0.6, y: gy + 1.22, z: bz - 2.5 + (api.rnd() - 0.5) * 0.3, yaw: 0, scale: 0.8 + api.rnd() * 0.5 });
-    api.flora('candle', candles, { shadows: false });
-    for (const c of candles) glow(0xffb050, 0.8, c.x, c.y + 0.35, c.z, 0.5);
-    for (const [x, z] of [[869.6, 106.2], [872.8, 106.2], [876, 106.6]]) glints.add(new Vector3(x, gy + 1.6, z), new Vector3(), 0.08);
-    glow(0xffa040, 9, bx, gy + 3, bz, 0.12);
-  }
+  // The crypt bar is below, through the chapel's door (Interiors.ts): candlelight from the stair.
+  glow(0xffa040, 3.2, CHAPEL_DOOR.x, gy + 1.4, CHAPEL_DOOR.z, 0.35);
   // The plague doctor on his treasure chest among the trees (one model with the chest, NPCs.ts): the chest is solid.
   api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: 931, z: 124.6, r: 1.15, top: gy + 1.3 }] });
   glow(0xffa040, 2.2, 929.6, gy + 1.8, 123, 0.5);

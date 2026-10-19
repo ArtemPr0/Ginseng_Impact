@@ -311,31 +311,31 @@ export const NPC_DEFS: NpcDef[] = [
     id: 'crypt-red', name: 'Rattlebones', title: 'Regular of the Crypt Bar', weapon: 'sword',
     model: 'skeleton-red', accent: PALETTE.witch,
     lines: ['Green eyes? Lean does that. To skeletons.', 'This coat was red when I bought it. So was I.', 'Cheers to the snow. It never asks for anything.'],
-    behaviour: { kind: 'stand', pose: 'drink', yaw: -Math.PI / 2 },
+    behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI * 0.4 },
     sipAt: 0.42,
   },
   {
     id: 'crypt-witch', name: 'Mother Grin', title: 'Who Wears the Tall Hat', weapon: 'staff',
     model: 'skeleton-witch', accent: PALETTE.dusk,
     lines: ['The hat stays on. The head under it is optional.', 'Gold teeth, gold chain, purple cup. A lady keeps standards.'],
-    behaviour: { kind: 'stand', pose: 'drink', yaw: -Math.PI / 2 },
+    behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI * 0.42 },
     sipAt: 0.42,
   },
   {
     id: 'crypt-bones', name: 'Knuckles', title: 'Who Counts the Skulls', weapon: 'sword',
     model: 'skeleton', accent: PALETTE.moon,
     lines: ['Four hundred and twelve skulls on that wall. I check every night.', 'Some of them are friends. Some of them owe me a drink.'],
-    behaviour: { kind: 'stand', pose: 'drink', yaw: -Math.PI / 2 },
+    behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI },
     sipAt: 0.42,
   },
   {
     id: 'gold-knight', name: 'Sir Gilt', title: 'Who Toasts the Dead', weapon: 'sword',
     model: 'gold-knight', accent: PALETTE.dusk,
     lines: ['To the dead! They are excellent company and never leave early.', 'The skulls behind me were knights. Raise your cup to them.'],
-    behaviour: { kind: 'stand', pose: 'drink', yaw: -Math.PI * 0.6 },
+    behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI / 2 },
     sipAt: 0.42,
   },
-  // --- Round 6: the Dragon's Vale (Dd5Bqt7vQ5T) ---
+  // --- Round 6: the Dragon's Vale (Dd5Bqt7vQ5T); the toasters stand round the long table in its tavern (Interiors.ts) ---
   {
     id: 'waxwick', name: 'Waxwick', title: 'The Man With the Candle Head', weapon: 'staff',
     model: 'candle-head', accent: PALETTE.moon,
@@ -347,14 +347,14 @@ export const NPC_DEFS: NpcDef[] = [
     id: 'brannoc', name: 'Brannoc', title: 'Dwarf of the Blue Mail', weapon: 'sword',
     model: 'dwarf', accent: PALETTE.electric,
     lines: ['Raise it higher! The candle in the cup is for luck, not for drinking.', 'The dragon? He sleeps through the singing. We have checked.'],
-    behaviour: { kind: 'stand', pose: 'drink', yaw: -Math.PI / 2 },
+    behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI / 4 },
     sipAt: 0.42,
   },
   {
     id: 'hilde', name: 'Hilde', title: 'Dwarf of the Braided Beard', weapon: 'sword',
     model: 'dwarf', accent: PALETTE.blood,
     lines: ['Three braids for three wars. The fourth is for the ale.', 'If the head on the hill ever opens its eyes, I am leaving.'],
-    behaviour: { kind: 'stand', pose: 'drink', yaw: -Math.PI * 0.6 },
+    behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI * 0.75 },
     sipAt: 0.42,
   },
   {

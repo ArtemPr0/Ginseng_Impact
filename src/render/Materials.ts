@@ -334,6 +334,29 @@ export function patchLitWindows(mat: MeshStandardMaterial, strength = 2.2, glow 
   mat.needsUpdate = true;
 }
 
+/**
+ * Re-colours a model's texture: its colours drain to their brightness and take `tint` instead, keeping its warm bright
+ * texels (painted fire, candle flames) as they are. The drowned tavern's blue-green stone becomes the vale tavern's
+ * soot-warm hearth wall this way.
+ */
+export function patchRetint(mat: MeshStandardMaterial, tint: Color): void {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (shader, renderer) => {
+    prev?.call(mat, shader, renderer);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        {
+          vec3 c = diffuseColor.rgb;
+          float l = dot(c, vec3(0.3, 0.6, 0.1));
+          float flame = smoothstep(0.1, 0.3, c.r - c.b) * smoothstep(0.3, 0.6, c.r);
+          diffuseColor.rgb = mix(vec3(${tint.r.toFixed(3)}, ${tint.g.toFixed(3)}, ${tint.b.toFixed(3)}) * (0.25 + l * 1.5), c, flame);
+        }`);
+  };
+  const prevKey = mat.customProgramCacheKey.bind(mat);
+  mat.customProgramCacheKey = () => `${prevKey()}|retint:${tint.getHexString()}`;
+  mat.needsUpdate = true;
+}
+
 /** Turns a figure to weathered stone (the dream's hooded statues): its colours drain to grey, mottled and mossy. */
 export function patchStone(mat: MeshStandardMaterial): void {
   mat.roughness = 1;

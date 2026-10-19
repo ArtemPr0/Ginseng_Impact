@@ -1,9 +1,10 @@
 /**
  * Floors drawn by shader on flat realm slabs (terrain, like the island's ground): fresh snow with a trodden path
- * (DeldocTvFiB's chapel), dark cracked flagstones (Def4LDkxikA's fountain hall), and wet cobbles (DeVj-Z8POjl's
- * drowned street). Each is a plane laid just over its slab's collider top.
+ * (DeldocTvFiB's chapel), dark cracked flagstones (Def4LDkxikA's fountain hall), wet cobbles (DeVj-Z8POjl's
+ * drowned street) and the planks of the vale's tavern (Dd5Bqt7vQ5T). Each is a plane laid just over its slab's
+ * collider top.
  */
-import { CircleGeometry, Color, Mesh, PlaneGeometry, ShaderMaterial, Vector2 } from 'three';
+import { BackSide, CircleGeometry, Color, Mesh, MeshBasicMaterial, PlaneGeometry, ShaderMaterial, SphereGeometry, Vector2, Vector4 } from 'three';
 
 const NOISE = /* glsl */ `
 float hash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
@@ -138,5 +139,40 @@ export function rockTop(x: number, z: number, r: number, y: number): Mesh {
   m.rotation.x = -Math.PI / 2;
   m.position.set(x, y + 0.012, z);
   m.receiveShadow = true;
+  return m;
+}
+
+/**
+ * Worn tavern planks, dark with soot and spilt ale. The floor is unlit, so the firelight is painted on: each pool
+ * (x, z, radius, strength) brightens and warms the boards round a hearth or a chandelier (at most four).
+ */
+export function plankFloor(x: number, z: number, w: number, d: number, y: number, pools: Array<[number, number, number, number]> = []): Mesh {
+  const P = [0, 1, 2, 3].map((i) => new Vector4(...(pools[i] ?? [0, 0, 1, 0])));
+  const m = floorMaterial(/* glsl */ `
+    float row = floor(vP.y / 0.32);
+    float along = vP.x + hash(vec2(row, 3.0)) * 7.0;
+    float board = floor(along / 2.4);
+    float tone = hash(vec2(row, board));
+    float grain = fbm(vec2(along * 1.6, vP.y * 18.0));
+    c = mix(vec3(0.07, 0.04, 0.025), vec3(0.15, 0.085, 0.045), tone * 0.6 + grain * 0.4);
+    float seam = smoothstep(0.035, 0.0, fract(vP.y / 0.32) * 0.32) + smoothstep(0.03, 0.0, fract(along / 2.4) * 2.4);
+    c *= 1.0 - min(seam, 1.0) * 0.6;
+    c *= 0.75 + 0.25 * fbm(vP * 0.4);
+    float lit = 0.0;
+    for (int i = 0; i < 4; i++) { vec2 q = (vP - uPools[i].xy) / uPools[i].z; lit += uPools[i].w * exp(-dot(q, q) * 2.0); }
+    c *= 0.6 + lit;
+    c += vec3(0.09, 0.035, 0.0) * lit * lit;`,
+  'uniform vec4 uPools[4];', { uPools: { value: P } });
+  return plane(m, x, z, w, d, y);
+}
+
+/**
+ * The dark round an interior realm (the tavern, the crypt): a sphere seen from inside in the room's fog colour, so
+ * past the walls there is only shadow, not the renderer's clear colour or the island's cloud sea far below.
+ */
+export function darkHollow(x: number, y: number, z: number, r: number, color: number): Mesh {
+  const m = new Mesh(new SphereGeometry(r, 24, 12), new MeshBasicMaterial({ color, side: BackSide, fog: false }));
+  m.position.set(x, y, z);
+  m.renderOrder = -1;
   return m;
 }

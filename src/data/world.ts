@@ -146,15 +146,18 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   bartender: { x: 1173.0, z: 10.1 }, 'dock-knight': { x: 1181, z: 7.5, dy: 0.02 },
   // On the quarter's floor (24, GALAXY.y): his chest is one model with him, and its collider would lift them both.
   'plague-doctor': { x: 931, z: 124.6, y: 24 },
-  'crypt-red': { x: 869.6, z: 106.2 }, 'crypt-witch': { x: 872.8, z: 106.2 }, 'crypt-bones': { x: 876, z: 106.6 },
-  'gold-knight': { x: 884, z: 116 },
+  // Down in the crypt bar (Interiors.ts, CRYPT_ROOM): two along the west counter facing the way in, Knuckles on a
+  // barrel against the east counter facing them; Sir Gilt before the back counter's skulls.
+  'crypt-red': { x: -1001.9, z: 1299.6 }, 'crypt-witch': { x: -1001.9, z: 1301.3 }, 'crypt-bones': { x: -998.7, z: 1300.6, dy: 0.02 },
+  'gold-knight': { x: -1000.4, z: 1297.4 },
   yunglean: { x: 1000, z: -74.6, dy: 0.8 },
   'void-monk': { x: 1008, z: 66 },
   // Behind their stalls between the purple houses of the bucket street (Realms.ts places the stalls).
   'market-a': { x: 915, z: 6.4 }, 'market-b': { x: 879, z: 29.6 },
-  // The Dragon's Vale (Vale.ts): the tavern yard's toasters, the reader on the dragon's claw, the street's folk.
-  // Round the second yard table (z 978.4, x 1013.1..1016.9): the dwarves on its far side, Waxwick across from them.
-  waxwick: { x: 1015, z: 977.2 }, brannoc: { x: 1014.2, z: 979.6 }, hilde: { x: 1016, z: 979.6 },
+  // Inside the vale's tavern (Interiors.ts, TAVERN_ROOM): Waxwick behind the long table with the hearth at his back,
+  // a dwarf at each end of it (the table: x -1001.6..-998.4, z 999.6..1000.8).
+  waxwick: { x: -1000, z: 999.05 }, brannoc: { x: -1002.2, z: 1000.3 }, hilde: { x: -997.8, z: 1000.3 },
+  // The Dragon's Vale (Vale.ts): the reader on the dragon's claw, the street's folk.
   'dragon-reader': { x: 995.0, z: 904.6, dy: 0.02 },
   'vale-knight': { x: 1004.5, z: 958 }, 'vale-beggar': { x: 994.4, z: 966, dy: 0.02 }, 'vale-merchant': { x: 1005.0, z: 941.4 },
   // Behind his counter in the sunken tavern's face (Sunken.ts).
@@ -181,6 +184,8 @@ export interface RealmDef {
   cycle?: boolean;
   /** Has its own sky dome: the island's moon, stars and aurora are switched off there. */
   ownSky?: boolean;
+  /** A room (the tavern, the crypt): the island's drifting mist and motes stay outside. */
+  indoors?: boolean;
 }
 
 /** The galaxy city beyond the portal (DeOemU1BOZF, DeaqHWJBBPw, DeXn5rSPxR8, DeQ-NnpvqF6, Dd0wR9Jh2lH, DdyN2PNyIxb, DdnJDwBMUoj). */
@@ -229,6 +234,22 @@ export const DISTRICT_AIR: Record<LeanDistrict, { fog: number; density: number; 
   snow: { fog: 0x1c2644, density: 0.014, night: 1, look: 'lean-snow' },
   dock: { fog: 0x2a1446, density: 0.006, night: 0.55, look: 'galaxy' },
 };
+/**
+ * How each place is lit (main.ts blends toward it): the hemisphere's sky and ground colours and strength, the moon's
+ * strength, the fill light's colour and strength, and how far the fill swings round behind the camera (0: fixed in
+ * the south-east; 1: from the camera, so whoever you look at is lit from the front). The reels' characters keep their
+ * true colours at night (white mimics, a green dragon); under the island's cobalt sky alone they read blue-black.
+ * Keys: a realm id, 'lean' for the kingdom's night quarters; anything else is lit like the island.
+ */
+export interface ZoneLight { sky: number; ground: number; hemi: number; moon: number; fill: number; fillColor: number; cameraFill: number }
+export const ZONE_LIGHT: Record<string, ZoneLight> = {
+  island: { sky: 0x1a2cff, ground: 0x0a0f2e, hemi: 0.7, moon: 1.5, fill: 0.75, fillColor: 0x8fa5f0, cameraFill: 0 },
+  lean: { sky: 0x5a4ab8, ground: 0x150a2a, hemi: 0.75, moon: 1.3, fill: 1.1, fillColor: 0xe6dcff, cameraFill: 1 },
+  vale: { sky: 0x3a4ac0, ground: 0x0a1a1a, hemi: 0.7, moon: 1.4, fill: 1.0, fillColor: 0xe0e6ff, cameraFill: 1 },
+  // Indoors: no moon; the hearth and the candles light the room (their own point lights), a dim warm fill for faces.
+  'tavern-room': { sky: 0x6a3a1c, ground: 0x180a04, hemi: 0.7, moon: 0, fill: 0.85, fillColor: 0xffb878, cameraFill: 1 },
+  'crypt-room': { sky: 0x3a3048, ground: 0x0a0806, hemi: 0.6, moon: 0, fill: 0.7, fillColor: 0xffc890, cameraFill: 1 },
+};
 /** The sunken city under the lake (DeVj-Z8POjl). */
 export const SUNKEN: RealmDef = { id: 'sunken', name: 'The Sunken City', x: -1000, z: 0, y: -48, radius: 160, fog: { color: 0x0a3a4e, density: 0.024 }, underwater: true };
 /** The round room inside the tree house trunk (Goldgrin's brother). */
@@ -247,7 +268,17 @@ export const GRAVEYARD: RealmDef = { id: 'graveyard', name: 'The Alley of Graves
  * the aurora, and a castle floating over the clouds beyond. The island's sky shows over it (the VALE preset).
  */
 export const VALE: RealmDef = { id: 'vale', name: "The Dragon's Vale", x: 1000, z: 900, y: 0, radius: 190, fog: { color: 0x0c2032, density: 0.008 } };
-export const REALMS: readonly RealmDef[] = [GALAXY, SUNKEN, TREEHOUSE_ROOM, DREAM, GRAVEYARD, VALE];
+/**
+ * Inside the vale's tavern (Dd5Bqt7vQ5T's toast): a firelit room behind the tavern's door, its own small realm. Soot
+ * dark beyond the hearth wall and the barrel stacks (its own dark, no sky).
+ */
+export const TAVERN_ROOM: RealmDef = { id: 'tavern-room', name: 'The Candle Tavern', x: -1000, z: 1000, y: 0, radius: 30, fog: { color: 0x140a06, density: 0.045 }, ownSky: true, indoors: true };
+/**
+ * The crypt bar under the snow chapel (DeldocTvFiB): green-eyed skeletons sipping at a stone bar under a vault, skulls
+ * and melting candles, Sir Gilt toasting the dead. Its own dark, no sky.
+ */
+export const CRYPT_ROOM: RealmDef = { id: 'crypt-room', name: 'The Crypt Bar', x: -1000, z: 1300, y: 0, radius: 30, fog: { color: 0x0b0a10, density: 0.04 }, ownSky: true, indoors: true };
+export const REALMS: readonly RealmDef[] = [GALAXY, SUNKEN, TREEHOUSE_ROOM, DREAM, GRAVEYARD, VALE, TAVERN_ROOM, CRYPT_ROOM];
 
 /** Portal ends on the island. */
 export const ISLAND_PORTALS = {

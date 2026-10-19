@@ -70,6 +70,10 @@ export const LOOKS: Record<string, Look> = {
   'lean-night': { bloom: 0.85, radius: 0.7, threshold: 0.68, saturation: 1.3, contrast: 1.14, vignette: 0.6, exposure: 0.95, lift: [0.012, 0.0, 0.05] },
   vale: { bloom: 0.72, radius: 0.62, threshold: 0.76, saturation: 1.2, contrast: 1.1, vignette: 0.5, exposure: 0.95, lift: [0.0, 0.012, 0.04] },
   'lean-snow': { bloom: 0.7, radius: 0.65, threshold: 0.75, saturation: 1.12, contrast: 1.12, vignette: 0.58, exposure: 0.92, lift: [0.0, 0.01, 0.055] },
+  // Indoors by firelight (Dd5Bqt7vQ5T's tavern): candles bloom, the shadows lift warm, the corners close in.
+  'tavern-room': { bloom: 0.85, radius: 0.7, threshold: 0.7, saturation: 1.15, contrast: 1.1, vignette: 0.65, exposure: 1.0, lift: [0.025, 0.01, 0.0] },
+  // The crypt bar (DeldocTvFiB): cold stone, candle pools, green eyes that bloom.
+  'crypt-room': { bloom: 0.85, radius: 0.7, threshold: 0.68, saturation: 1.15, contrast: 1.14, vignette: 0.68, exposure: 0.98, lift: [0.012, 0.008, 0.02] },
 };
 
 /** Pixel-ratio range for the adaptive resolution governor and the frame-time band it keeps. */
