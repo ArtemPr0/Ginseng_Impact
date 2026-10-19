@@ -275,6 +275,8 @@ export const MODELS: Record<string, ModelDef> = {
   gem: { ...stat('gem.glb', 0.5, 'faceted cut gemstone (DeXn5rSPxR8, DeaqHWJBBPw)'), tint: 0xe9f2ff },
   stalactite: { ...stat('stalactite.glb', 3.0, 'hanging blue crystal stalactite cluster (DeOemU1BOZF)'), tint: 0x6a7dff },
   'skull-pile': { ...stat('skull-pile.glb', 1.6, 'heap of old skulls (DeldocTvFiB)'), tint: 0xb9ad94 },
+  // A room with a vaulted roof, open at the front: walked inside (Interiors.ts gives it hand-measured colliders).
+  'crypt-bar': stat('crypt-bar.glb', 8, 'vaulted stone crypt bar, open at the front: an L-shaped bar with skull panels and stools, candle sconces (DeldocTvFiB)'),
   'snow-chapel': stat('snow-chapel.glb', 10, 'ruined gothic stone chapel with snow on its roof and ledges (DeldocTvFiB)'),
   'snow-pillar': { ...stat('snow-pillar.glb', 2.6, 'square stone gate pillar capped with snow (DeldocTvFiB)'), tint: 0x6d7686 },
   'broken-gate': { ...stat('broken-gate.glb', 1.9, 'broken leaning wooden gate (DeldocTvFiB)'), tint: 0x4a3a2c },
