@@ -15,7 +15,7 @@ import { cobbleSpots, floraSet, ringSpots, type Placement } from './Flora';
 import { orchardSpots } from './Footprints';
 import { Grass } from './Grass';
 import type { Landmark } from './Landmarks';
-import { modelLandmark, riverDrifter, walkerLandmark } from './ModelLandmark';
+import { modelLandmark, type ModelLandmark, riverDrifter, walkerLandmark } from './ModelLandmark';
 import { Npc, NPC_DEFS } from './NPCs';
 import { Rig } from '../characters/Rig';
 import { yawToRotation } from '../models/ModelRig';
@@ -293,6 +293,8 @@ export class World {
    * body's sit pose puts them somewhere else: Old Moss hovered 0.9 m beside his) and the sitter settles onto it.
    */
   private readonly seatFits: Array<{ id: string; barrel: Group; top: number; wait: number }> = [];
+  /** The sitters' seats by NPC id (Croak's boulder goes with him when he is carried off in the sack and put down). */
+  private readonly seats = new Map<string, ModelLandmark>();
   /** Swimmable water out in the realms (the vale's river, the lean moat): surface `level` over [x0, x1] × [z0, z1]. */
   private readonly waterZones: Array<{ x0: number; x1: number; z0: number; z1: number; level: number }> = [];
   private readonly zoneOf = new Map<object, string | null>();
@@ -790,6 +792,7 @@ export class World {
       const seatId = SEAT_MODEL[id] ?? 'barrel';
       const barrel = modelLandmark(seatId, bx, bz, by, { scale: 0.5 / MODELS[seatId].height, collider: 'none' });
       this.place(barrel);
+      this.seats.set(id, barrel);
       if (!CAMPFIRE_SEATS.has(id)) this.seatFits.push({ id, barrel: barrel.root, top: by + 0.5, wait: 0.6 });
     }
     this.enterZone(null);
@@ -864,6 +867,32 @@ export class World {
     this.heights.add(...l.footprints);
     this.landmarks.push(l);
     this.zoneOf.set(l, this.zone);
+  }
+
+  /** An NPC's seat (Croak's boulder): Adventures hides it while he is carried in the sack. */
+  seatOf(id: string): ModelLandmark | undefined {
+    return this.seats.get(id);
+  }
+
+  /**
+   * Moves an NPC into a zone's group (Croak climbing out of the sack wherever the player is) so it is drawn and
+   * updated there, with its seat put down at its feet and fitted under its hips again once it sits (see seatFits).
+   */
+  moveNpcToZone(npc: Npc, id: string | null): void {
+    const was = this.zone;
+    this.enterZone(id);
+    this.target.add(npc.object);
+    this.zoneOf.set(npc, id);
+    const seat = this.seats.get(npc.def.id);
+    if (seat) {
+      this.target.add(seat.object);
+      this.zoneOf.set(seat, id);
+      seat.root.position.copy(npc.pos);
+      const i = this.seatFits.findIndex((f) => f.id === npc.def.id);
+      if (i >= 0) this.seatFits.splice(i, 1);
+      this.seatFits.push({ id: npc.def.id, barrel: seat.root, top: npc.pos.y + 0.5, wait: 0.6 });
+    }
+    this.enterZone(was);
   }
 
   /** True where flora may grow: on the island, off the road, not in water or chasm, on gentle ground, clear of buildings. */
