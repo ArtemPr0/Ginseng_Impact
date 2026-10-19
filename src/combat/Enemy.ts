@@ -62,7 +62,11 @@ export class Enemy {
   defDown = { amount: 0, left: 0 };
   private knock = { x: 0, z: 0 };
   private flashLeft = 0;
-  private deadFor = 0;
+  /** Seconds since it died. */
+  deadFor = 0;
+  /** Climbing out of a grave: seconds left of the climb, and its length (it rises from 1.9 m under the ground). */
+  private graveRise = 0;
+  private graveRiseLen = 1;
   private time = 0;
   private stepPhase = 0;
   /** Set by the combat system: dust + shake on heavy footsteps and slams. */
@@ -186,6 +190,14 @@ export class Enemy {
     const held = MODELS[id]?.held;
     if (held) void loadModelOrWarn(held.model, MODELS[held.model]?.label).then((g) => { if (g) this.hold(held, g); });
     if (this.def.orbitGems && !this.gems) void loadModelOrWarn('gem', MODELS.gem?.label).then((g) => { if (g) this.buildGems(g, this.def.orbitGems!); });
+  }
+
+  /** Climbs out of the ground over `seconds` (standing up as it comes), then fights. */
+  riseFromGrave(seconds: number): void {
+    this.graveRise = this.graveRiseLen = seconds;
+    this.rising = seconds;
+    this.brain.state = 'chase';
+    this.brain.stateTime = 0;
   }
 
   /** The diamonds circling the body (EnemyDef.orbitGems), each with its glint, and when each grows back. */
@@ -383,6 +395,7 @@ export class Enemy {
         this.brain.stateTime = 0;
       }
     }
+    if (this.graveRise > 0) this.graveRise = Math.max(0, this.graveRise - dt);
     if (this.rising > 0) {
       this.rising -= dt;
       this.yaw += Math.atan2(Math.sin(Math.atan2(dz, dx) - this.yaw), Math.cos(Math.atan2(dz, dx) - this.yaw)) * Math.min(1, dt * 3);
@@ -617,7 +630,9 @@ export class Enemy {
   animate(dt: number, far = false): void {
     if (this.hopT >= 0) { this.hopT += dt; if (this.hopT >= this.hopLen) this.hopT = -1; }
     this.animateGems(dt);
-    this.object.position.set(this.pos.x, this.pos.y + this.hopLift, this.pos.z);
+    // Out of the grave: up through the ground fast at first, slowing as the feet come out.
+    const sink = this.graveRise > 0 ? -1.9 * Math.pow(this.graveRise / this.graveRiseLen, 1.6) : 0;
+    this.object.position.set(this.pos.x, this.pos.y + this.hopLift + sink, this.pos.z);
     this.flashLeft = Math.max(0, this.flashLeft - dt);
     if (this.bubble) { this.animateBubble(dt); return; }
     if (this.model) {

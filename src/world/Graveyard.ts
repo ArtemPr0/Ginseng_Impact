@@ -10,6 +10,7 @@ import { ENEMY_SPAWNS } from '../data/enemies';
 import { GRAVEYARD } from '../data/world';
 import { MODELS } from '../data/models';
 import { fireflies } from '../render/Fireflies';
+import { patchRetint } from '../render/Materials';
 import { glowSprite } from '../render/Glow';
 import { PALETTE } from '../render/palette';
 import type { Footprint, HeightWorld } from './Colliders';
@@ -170,10 +171,30 @@ export function buildGraveyard(api: GraveyardApi): { links: PortalLink[]; intera
     return { x: sp.x - Math.cos(yaw) * 0.28, y: y0, z: sp.z - Math.sin(yaw) * 0.28, yaw: rnd() * 6, scale: 0.5 / MODELS.boulder.height };
   });
   api.flora('boulder', seats);
+  // A small glowing toadstool by an open grave (it was a bare glow in the ground): jump on its cap and it squashes and
+  // flings you high.
   const graveZ = R.z - 15;
-  api.heights.bouncers.push({ x: R.x, z: graveZ, r: 1.2, top: y0, v: 18 });
-  const pit = glowSprite(PALETTE.witch, 3, 0.45, true);
-  pit.position.set(R.x, y0 + 0.4, graveZ);
+  const capTop = y0 + 1.0;
+  api.heights.bouncers.push({ x: R.x, z: graveZ, r: 0.95, top: capTop, v: 18 });
+  let squash = -1;
+  // (purple-mushroom.glb re-coloured toxic green.)
+  const SHROOM = MODELS['purple-mushroom'].height;
+  api.place(modelLandmark('purple-mushroom', R.x, graveZ, y0, {
+    collider: 'manual', footprints: [{ kind: 'cyl', x: R.x, z: graveZ, r: 0.7, top: capTop }],
+    scale: 1.1 / SHROOM,
+    onLoad: (m) => restyle(m, (mat) => { patchRetint(mat, new Color(0.35, 1.0, 0.25)); if (mat.map) mat.emissiveMap = mat.map; mat.emissive.set(0x2a9a18); mat.emissiveIntensity = 0.7; }),
+    update: (dt, root, _m, player) => {
+      const on = Math.hypot(player.x - R.x, player.z - graveZ) < 0.95 && Math.abs(player.y - capTop) < 0.3;
+      if (on && squash < 0) squash = 0;
+      if (squash >= 0) { squash += dt; if (squash > 0.45) squash = -1; }
+      const k = squash >= 0 ? Math.sin((squash / 0.45) * Math.PI) : 0;
+      // (Its registry scale on the root: the squash rides on top of it.)
+      const base = 1.1 / SHROOM;
+      root.scale.set(base * (1 + 0.25 * k), base * (1 - 0.4 * k + 0.12 * Math.max(0, Math.sin((squash / 0.45) * Math.PI * 2 - Math.PI))), base * (1 + 0.25 * k));
+    },
+  }));
+  const pit = glowSprite(PALETTE.witch, 2.2, 0.4, true);
+  pit.position.set(R.x, capTop + 0.1, graveZ);
   api.group.add(pit);
   api.place(modelLandmark('ring-portal', R.x, R.z - 45, y0, { collider: 'none', scale: 1.6 }));
 

@@ -267,12 +267,20 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
       } else api.place(modelLandmark('snow-pillar', px, pz, gy, { scale: 0.8, footprints: [{ kind: 'box', x: px, z: pz, hw: 0.45, hd: 0.45, top: gy + 2.1 }] }));
     }
   }
+  // Snowed-in cottages along the graveyard's edges, their windows lit (the quarter stood bare but for the chapel).
+  const cottages: Array<[number, number, number]> = [[865.5, 100, 0], [865.5, 120, 0], [954.5, 150, Math.PI], [954.5, 168, Math.PI]];
+  for (const [hx, hz, yaw] of cottages) {
+    api.place(modelLandmark('village-house', hx, hz, gy, { yaw: face(yaw), footprints: [{ kind: 'box', x: hx, z: hz, hw: 3.3, hd: 3.3, top: gy + 6 }],
+      onLoad: (m) => restyle(m, (mat) => { mat.color.lerp(new Color(0xdfe8ff), 0.35); patchLitWindows(mat, 2.2); }) }));
+    glow(0xffa040, 2, hx + Math.cos(yaw) * 3.6, gy + 2.4, hz, 0.5);
+  }
+  const clearOfCottages = (x: number, z: number) => cottages.every(([hx, hz]) => Math.hypot(hx - x, hz - z) > 6);
   // Graves in the snow either side of the path, bare black trees round the edges.
   const graveSets: Record<string, Placement[]> = { grave: [], 'rune-grave': [], 'grave-cross': [] };
   const clearOfPath = (x: number, z: number) => path.every(([px, pz]) => Math.hypot(px - x, pz - z) > 5);
   for (let i = 0; i < 160 && graveSets.grave.length + graveSets['rune-grave'].length + graveSets['grave-cross'].length < 36; i++) {
     const x = 866 + api.rnd() * 88, z = 92 + api.rnd() * 78;
-    if (!clearOfPath(x, z) || Math.hypot(x - CH.x, z - CH.z) < 10 || Math.hypot(x - 931, z - 124) < 7) continue;
+    if (!clearOfPath(x, z) || !clearOfCottages(x, z) || Math.hypot(x - CH.x, z - CH.z) < 10 || Math.hypot(x - 931, z - 124) < 7) continue;
     const kind = (['grave', 'rune-grave', 'grave-cross'] as const)[i % 3];
     graveSets[kind].push({ x, y: gy - 0.05, z, yaw: face(Math.atan2(gate.z - z, gate.x - x)) + (api.rnd() - 0.5) * 0.4, scale: 0.8 + api.rnd() * 0.4 });
   }
@@ -282,7 +290,7 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
     const edge = i % 4;
     const x = edge === 0 ? 863 + api.rnd() * 5 : edge === 1 ? 952 + api.rnd() * 5 : 866 + api.rnd() * 86;
     const z = edge === 2 ? 170 + api.rnd() * 3 : 95 + api.rnd() * 75;
-    if (!clearOfPath(x, z) || Math.hypot(x - CH.x, z - CH.z) < 9) continue;
+    if (!clearOfPath(x, z) || !clearOfCottages(x, z) || Math.hypot(x - CH.x, z - CH.z) < 9) continue;
     trees.push({ x, y: gy - 0.1, z, yaw: api.rnd() * 6, scale: 0.8 + api.rnd() * 0.5 });
   }
   api.flora('dead-forest-tree', trees);

@@ -10,6 +10,7 @@ import { ITEMS } from '../items/Items';
 import type { ControllerState, WorldQuery } from '../player/CharacterController';
 import type { Party } from '../player/Party';
 import { PALETTE } from '../render/palette';
+import { GRAVEYARD } from '../data/world';
 import { surface } from '../render/Materials';
 import type { Sky } from '../render/Sky';
 import type { Hud } from '../ui/Hud';
@@ -334,6 +335,7 @@ export class CombatSystem {
   }
 
   update(dt: number, input: CombatInput): void {
+    this.updateGraveRising(dt);
     const d = this.d;
     const c = d.controller;
     const me = this.active;
@@ -1494,6 +1496,42 @@ export class CombatSystem {
   hazard(atk: number, poison?: { dps: number; seconds: number }): void {
     this.damagePlayer(atk, 'rot');
     if (poison) this.poisonPlayer(poison.dps, poison.seconds);
+  }
+
+  /** Skeletons risen in the Alley of Graves (alive or a heap), and the time to the next. */
+  private readonly risen: Enemy[] = [];
+  private riseIn = 3;
+
+  /**
+   * The Alley of Graves keeps its dead restless: while you walk it, every 6-10 s a skeleton climbs out of the ground at
+   * the foot of the graves near you (up to six standing at once), in a spray of earth and a green glow. Heaps are
+   * cleared away; leaving the alley lays the rest back down.
+   */
+  private updateGraveRising(dt: number): void {
+    const c = this.d.controller;
+    const R = GRAVEYARD;
+    const inAlley = Math.abs(c.pos.x - R.x) < 25 && c.pos.z < R.z + 82 && c.pos.z > R.z - 44;
+    for (let i = this.risen.length - 1; i >= 0; i--) {
+      const e = this.risen[i];
+      if ((!e.alive && e.deadFor > 6) || !inAlley) { this.despawn(e); this.risen.splice(i, 1); }
+    }
+    if (!inAlley) { this.riseIn = 3; return; }
+    this.riseIn -= dt;
+    if (this.riseIn > 0 || this.risen.filter((e) => e.alive).length >= 6) return;
+    this.riseIn = 6 + Math.random() * 4;
+    // Ahead of you more often than behind, at the foot of the graves' wall on either side of the alley.
+    const side = Math.random() < 0.5 ? -1 : 1;
+    const z = Math.max(R.z - 40, Math.min(R.z + 78, c.pos.z + (Math.random() < 0.7 ? -1 : 1) * (7 + Math.random() * 9)));
+    const x = R.x + side * 2.3;
+    const e = this.spawnEnemy(ENEMY_DEFS['grave-skeleton'], x, z, true, { yaw: side > 0 ? Math.PI : 0 });
+    // (Risen to hunt you down the whole alley.)
+    e.brain.p.aggroRange = 30;
+    e.riseFromGrave(2.2);
+    const at = new Vector3(x, R.y + 0.15, z);
+    this.vfx.burst(at, 0x3a2c1e, 26, 3.2, 0.55);
+    this.vfx.burst(at, 0x6a5238, 12, 2, 0.4);
+    this.vfx.impact(at.clone().setY(R.y + 0.6), PALETTE.witch, 2.4);
+    this.risen.push(e);
   }
 
   /** A boss that is not in the spawn list (Yung Lean off his throne): placed, angry, never respawning. */

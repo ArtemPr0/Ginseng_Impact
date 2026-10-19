@@ -163,6 +163,8 @@ export const MODELS: Record<string, ModelDef> = {
   'knight-seated': { file: 'knight-seated.glb', height: 1.95, label: 'caped greatsword knight sitting on the cliff (Sir Halvard)', clips: NPC_CLIPS('sit') },
   'knight-rose': { file: 'knight-rose.glb', height: 1.95, label: 'black knight offering a rose (Sir Corvin)', clips: NPC_CLIPS('offer') },
   skeleton: { file: 'skeleton.glb', height: 1.75, label: 'skeletons at the campfire (DdjlyzyOcnK)', clips: { ...NPC_CLIPS('sit'), attack: 'attack', hit: 'hit_reaction|hit', stand: 'sit_to_stand|stand', death: 'dying|death' } },
+  // The skeletons that climb out of the Alley of Graves (enemy kind = model id): the campfire skeleton's body, standing.
+  'grave-skeleton': { file: 'skeleton.glb', height: 1.75, label: 'skeletons rising from the graves (the Alley of Graves)', clips: { ...NPC_CLIPS('idle'), idle: 'idle_02|combat_stance|idle', attack: 'attack', hit: 'hit_reaction|hit', stand: 'sit_to_stand|stand', death: 'dying|death' } },
   'skeleton-banner': { file: 'skeleton-banner.glb', height: 1.85, label: 'skeleton standard-bearer with banner and trident (Hollow Jack)', clips: NPC_CLIPS('banner') },
   'witch-cook': { file: 'witch-cook.glb', height: 1.8, label: 'skeleton cook in a chef hat with a spoon (Mother Marrow)', clips: NPC_CLIPS('stir') },
   bride: { file: 'bride.glb', height: 1.8, label: 'the Pale Bride', clips: NPC_CLIPS('walk') },

@@ -1,7 +1,7 @@
 import type { BrainParams } from '../combat/EnemyBrain';
 import type { Element } from '../combat/Elements';
 
-export type EnemyKind = 'beast' | 'bucket' | 'crystalgolem' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity' | 'cyclops' | 'cyclops-lord' | 'blood-eye' | 'trip-wizard' | 'galaxy-knight' | 'mail-knight' | 'diamond-wizard' | 'fish-guard' | 'angler';
+export type EnemyKind = 'beast' | 'bucket' | 'crystalgolem' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity' | 'cyclops' | 'cyclops-lord' | 'blood-eye' | 'trip-wizard' | 'galaxy-knight' | 'mail-knight' | 'diamond-wizard' | 'fish-guard' | 'angler' | 'grave-skeleton';
 
 export type BossAttackKind = 'slam' | 'boulder' | 'roar' | 'volley' | 'summon' | 'blink' | 'roots' | 'sweep' | 'breath' | 'charge' | 'bite' | 'logthrow' | 'punch' | 'grab' | 'cupmortar' | 'cupvolley' | 'snowstorm' | 'web' | 'webdrop' | 'hop' | 'kaleido' | 'eyebeam' | 'mirror' | 'glare' | 'thorns' | 'rainbow' | 'diamond';
 
@@ -167,6 +167,12 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     kind: 'skeleton', name: 'Campfire Skeleton', maxHp: 560, def: 22, atk: 72, speed: 3.2, element: 'fog', hover: 0, bodyRadius: 0.45, height: 1.75,
     brain: { aggroRange: 10, attackRange: 1.9, windup: 0.55, recover: 0.9, attackCooldown: 0.6 }, respawn: 90, leash: 16, shards: [6, 12],
     drops: [{ itemId: 'old-bone', chance: 1 }, { itemId: 'old-bone', chance: 0.5 }], seated: true, collapse: true,
+  },
+  // Out of the ground of the Alley of Graves while you walk it (CombatSystem.updateGraveRising): never respawned.
+  'grave-skeleton': {
+    kind: 'grave-skeleton', name: 'Risen Skeleton', maxHp: 420, def: 18, atk: 64, speed: 3.0, element: 'fog', hover: 0, bodyRadius: 0.45, height: 1.75,
+    brain: { aggroRange: 12, attackRange: 1.9, windup: 0.55, recover: 0.9, attackCooldown: 0.7 }, respawn: 120, leash: 22, shards: [3, 7],
+    drops: [{ itemId: 'old-bone', chance: 0.4 }], collapse: true,
   },
   // The giant who hauls logs on his back: leave him be and he walks his road; hit him and he throws the logs.
   loggiant: {
@@ -352,6 +358,13 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'bucket', x: 884, z: 23 }, { kind: 'bucket', x: 864, z: 16 }, { kind: 'bucket', x: 848, z: 20 },
   { kind: 'mail-knight', x: 908, z: 18 }, { kind: 'mail-knight', x: 860, z: 18 },
   { kind: 'diamond-wizard', x: 900, z: 18, exact: true, yaw: 0 },  // mid-street, where Old Hollowstaff stood
+  // The Dragon's Vale's fields (it stood empty): fog beasts roaming the east meadow and the river's far bank, crystal
+  // golems in the stones under the crowned head, a pack by the floating castle's cliff.
+  { kind: 'beast', x: 1045, z: 960 }, { kind: 'beast', x: 1052, z: 966 }, { kind: 'beast', x: 1060, z: 900 },
+  { kind: 'beast', x: 1072, z: 860 }, { kind: 'beast', x: 1066, z: 852 }, { kind: 'beast', x: 930, z: 990 },
+  { kind: 'crystalgolem', x: 930, z: 905 }, { kind: 'crystalgolem', x: 922, z: 940 },
+  // The snow quarter of the Lean Quarter: skeletons stalking the graves round the chapel.
+  { kind: 'grave-skeleton', x: 880, z: 140 }, { kind: 'grave-skeleton', x: 925, z: 160 }, { kind: 'grave-skeleton', x: 940, z: 100 }, { kind: 'grave-skeleton', x: 875, z: 165 },
   // The Skeleton Court's treasury.
   { kind: 'galaxy-knight', x: 958, z: -160 }, { kind: 'galaxy-knight', x: 968, z: -172 },
   // The sea king's castle (Sunken.ts): two guards at its gate, two anglers in the lane behind the throne, two more by
