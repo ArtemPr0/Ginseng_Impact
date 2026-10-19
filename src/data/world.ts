@@ -165,6 +165,8 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   waxwick: { x: -1000, z: 999.05 }, brannoc: { x: -1002.2, z: 1000.3 }, hilde: { x: -997.8, z: 1000.3 },
   // The Dragon's Vale (Vale.ts): the reader on the dragon's claw, the street's folk.
   'dragon-reader': { x: 995.0, z: 904.6, dy: 0.02 },
+  // Before the green dragon's head (his neck turns to watch you; Vale.ts).
+  'vale-dragon': { x: 996.5, z: 908 },
   'vale-knight': { x: 1004.5, z: 958 }, 'vale-beggar': { x: 994.4, z: 966, dy: 0.02 }, 'vale-merchant': { x: 1005.0, z: 941.4 },
   // Behind his counter in the sea castle's courtyard, his throne at his back (Sunken.ts).
   'fish-king': { x: -1000, z: -68.6 },

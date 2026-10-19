@@ -13,10 +13,11 @@
  */
 import { Color, Group, type Mesh, type MeshStandardMaterial, Vector3 } from 'three';
 import { ISLAND_PORTALS, VALE } from '../data/world';
+import { MODELS } from '../data/models';
 import { cobbleFloor, grassGround, seabed } from '../render/Floors';
 import { glowSprite } from '../render/Glow';
 import { horizonMoon, skyVortex } from '../render/LeanFx';
-import { patchLitWindows } from '../render/Materials';
+import { patchLitWindows, patchNeckTurn } from '../render/Materials';
 import { PipeSmoke } from '../render/Smoke';
 import { cascade } from './Falls';
 import { fire } from './Fire';
@@ -145,8 +146,23 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
   // --- The green dragon lying behind the last houses, the reader on its claw ---
   // Twice the registry size: in the reel he looms over the roofs, head raised, at the end of the street (facing up it).
   // (Tinted greener: under the vale's blue moon his dark green scales read blue-black.)
+  // His head turns to watch you as you come up the street (the neck measured on green-dragon.glb: it rises from the
+  // body at z 0.2 on the line x -0.3 and ends at the snout, z 0.89, model units); talk to him at his head (NPCs.ts).
+  const neckTurn = { value: 0 };
+  const DRAGON_UNIT = (MODELS['green-dragon'].height * 2) / 1.114;
+  const neckRoot = new Vector3(X - 0.28 * DRAGON_UNIT, vy, Z - 8 + 0.2 * DRAGON_UNIT);
   api.place(modelLandmark('green-dragon', X, Z - 8, vy, { yaw: face(Math.PI / 2), scale: 2,
-    onLoad: (m) => restyle(m, (mat) => { mat.color.multiply(new Color(0.8, 1.35, 0.85)); mat.emissive.setRGB(0.008, 0.03, 0.012); }) }));
+    onLoad: (m) => restyle(m, (mat) => {
+      mat.color.multiply(new Color(0.8, 1.35, 0.85)); mat.emissive.setRGB(0.008, 0.03, 0.012);
+      patchNeckTurn(mat, { pivot: [-0.28, 0.2], z0: 0.2, z1: 0.55, yMin: -0.05, xCenter: -0.3, xHalf: 0.42, turn: neckTurn });
+    }),
+    update: (dt, _root, _m, player) => {
+      // Toward you (the model faces +z: a turn about y of atan2(dx, dz)), within what a neck can do, eased.
+      const dx = player.x - neckRoot.x, dz = player.z - neckRoot.z;
+      const near = Math.hypot(dx, dz) < 70;
+      const want = near ? Math.max(-0.75, Math.min(0.75, Math.atan2(dx, dz))) : 0;
+      neckTurn.value += (want - neckTurn.value) * Math.min(1, dt * 1.5);
+    } }));
   // The reader sits on a stool against the front of his left claw, reading to him, the book open in his lap.
   api.place(modelLandmark('spell-book', X - 5, Z + 4.72, vy + 0.42, { scale: 0.8, collider: 'none' }));
   glow(0x7fd8ff, 0.9, X - 5, vy + 0.72, Z + 4.72, 0.45);

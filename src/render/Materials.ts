@@ -357,6 +357,35 @@ export function patchRetint(mat: MeshStandardMaterial, tint: Color): void {
   mat.needsUpdate = true;
 }
 
+/**
+ * A creature's head that turns to watch you (a static model: the vale's green dragon): vertices in its neck and head
+ * swing about the vertical through `pivot` (the neck's root, model units) by `turn.value` radians, fully past `z1`
+ * along the neck and not at all before `z0`, only above `yMin` and within `xHalf` of the neck's line `xCenter` (the
+ * wings and claws stay put).
+ */
+export function patchNeckTurn(mat: MeshStandardMaterial, o: { pivot: [number, number]; z0: number; z1: number; yMin: number; xCenter: number; xHalf: number; turn: { value: number } }): void {
+  const prev = mat.onBeforeCompile;
+  const f = (v: number) => v.toFixed(4);
+  mat.onBeforeCompile = (shader, renderer) => {
+    prev?.call(mat, shader, renderer);
+    shader.uniforms.uNeckTurn = o.turn;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uNeckTurn;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        {
+          float w = smoothstep(${f(o.z0)}, ${f(o.z1)}, transformed.z) * smoothstep(${f(o.yMin - 0.12)}, ${f(o.yMin + 0.08)}, transformed.y)
+            * (1.0 - smoothstep(${f(o.xHalf * 0.6)}, ${f(o.xHalf)}, abs(transformed.x - (${f(o.xCenter)}))));
+          float a = uNeckTurn * w;
+          vec2 d = transformed.xz - vec2(${f(o.pivot[0])}, ${f(o.pivot[1])});
+          float c = cos(a), s = sin(a);
+          transformed.xz = vec2(${f(o.pivot[0])}, ${f(o.pivot[1])}) + vec2(c * d.x + s * d.y, -s * d.x + c * d.y);
+        }`);
+  };
+  const prevKey = mat.customProgramCacheKey.bind(mat);
+  mat.customProgramCacheKey = () => `${prevKey()}|neckturn`;
+  mat.needsUpdate = true;
+}
+
 /** Turns a figure to weathered stone (the dream's hooded statues): its colours drain to grey, mottled and mossy. */
 export function patchStone(mat: MeshStandardMaterial): void {
   mat.roughness = 1;

@@ -34,6 +34,9 @@ export interface NpcDef {
   shop?: ShopEntry[];
   /** Holds a lean cup (a body whose mesh has none: the drink clip lifts an empty hand otherwise). */
   cup?: boolean;
+  /** No body of its own (it speaks for a landmark: the vale's green dragon), talked to within `talkRange` metres. */
+  invisible?: boolean;
+  talkRange?: number;
   /** Hire as a companion for this many shards. */
   hire?: { cost: number; atk: number; maxHp: number; ranged: boolean };
   /**
@@ -363,6 +366,13 @@ export const NPC_DEFS: NpcDef[] = [
     sipAt: 0.42,
   },
   {
+    // The green dragon lying at the street's end (Vale.ts): he speaks from his head, his neck turning to you.
+    id: 'vale-dragon', name: 'Verdigris', title: 'The Dragon Who Sleeps Behind the Vale', weapon: 'staff',
+    model: 'wizard-npc', accent: PALETTE.witch, invisible: true, talkRange: 10,
+    lines: ['Small one. You walk loud. The reader only now got me to sleep.', 'The castle over the clouds was mine once. I let them keep it; the view bored me.', 'The head on the hill was a king who tried to ride me. He is resting now. Forever, mostly.', 'Bring the reader more books. Chapter nine is wearing thin.'],
+    behaviour: { kind: 'stand', yaw: Math.PI / 2 },
+  },
+  {
     id: 'dragon-reader', name: 'The Dragon\'s Reader', title: 'Who Reads Him to Sleep', weapon: 'staff',
     model: 'wizard-npc', accent: PALETTE.rune,
     lines: ['Chapter nine. He likes chapter nine; he snores through the rest.', 'Do not wake him. His dreams are the only thing keeping the castle in the air.', 'The book glows when the story is true.'],
@@ -440,6 +450,7 @@ export class Npc {
   constructor(readonly def: NpcDef, start: { x: number; z: number }, private readonly heightAt: (x: number, z: number, y?: number) => number) {
     this.rig = new Rig({ id: def.id, name: def.name, title: def.title, element: 'fog', weapon: def.weapon, maxHp: 1, atk: 1, accent: def.accent }, def.model);
     this.object = this.rig.root;
+    if (def.invisible) { this.object.visible = false; this.object.userData.hidden = true; }
     if (def.cup) this.rig.holdCup();
     if (def.scale && def.scale !== 1) this.object.scale.setScalar(def.scale);
     this.pos.set(start.x, heightAt(start.x, start.z), start.z);
@@ -485,6 +496,7 @@ export class Npc {
 
   /** Distance from the player at which the talk prompt appears. */
   get talkRange(): number {
+    if (this.def.talkRange) return this.def.talkRange;
     return 4.2 * (this.def.scale ?? 1) * Math.max(1, (MODELS[this.def.model]?.height ?? 1.8) / 1.8);
   }
 

@@ -366,14 +366,17 @@ export function buildDream(api: RealmApi): void {
 
   api.vfx({ group: new Group(), update: (dt) => { for (const f of anim) f(dt); } });
 
-  // The Frog King, enormous, rising out of the horizon and turning to watch you.
-  const faceAt = new Vector3(R.x, R.y - 6, R.z - 118);
+  // The Frog King, enormous, squatting at the floor's far edge and turning to watch you (he sat 6 m sunk into the floor:
+  // his belly vanished into it).
+  const faceAt = new Vector3(R.x, R.y, R.z - 128);
   const face = modelLandmark('frogking', faceAt.x, faceAt.z, faceAt.y, {
-    collider: 'none', scale: 34 / MODELS.frogking.height, clip: 'idle',
+    collider: 'manual', footprints: [{ kind: 'cyl', x: faceAt.x, z: faceAt.z, r: 13, top: faceAt.y + 22 }],
+    scale: 34 / MODELS.frogking.height, clip: 'idle',
     update: (dt, root, _m, player) => {
       const want = Math.atan2(player.x - faceAt.x, player.z - faceAt.z);
       root.rotation.y += Math.atan2(Math.sin(want - root.rotation.y), Math.cos(want - root.rotation.y)) * Math.min(1, dt * 0.6);
-      root.position.y = faceAt.y + Math.sin(t * 0.4) * 1.2;
+      // A slow breath: he swells, never lifts off the floor.
+      root.scale.setScalar((34 / MODELS.frogking.height) * (1 + Math.sin(t * 0.4) * 0.015));
     },
   });
   api.place(face);
