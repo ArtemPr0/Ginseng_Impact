@@ -3,6 +3,19 @@ import type { Element } from '../combat/Elements';
 export type ItemKind = 'weapon' | 'consumable' | 'material' | 'charm' | 'key';
 export type WeaponClass = 'sword' | 'greatsword' | 'staff' | 'bow';
 
+/** What each hero's weapon hand (roster `WeaponKind`, the same names) accepts: a greatsword hand also takes a sword. */
+export const WEAPON_ACCEPTS: Record<WeaponClass, readonly WeaponClass[]> = {
+  greatsword: ['greatsword', 'sword'],
+  sword: ['sword'],
+  bow: ['bow'],
+  staff: ['staff'],
+};
+
+/** Whether a hero with `weaponKind` can wield an item of `itemClass` (false for an item with no class). */
+export function canWield(weaponKind: WeaponClass, itemClass: WeaponClass | undefined): boolean {
+  return itemClass !== undefined && WEAPON_ACCEPTS[weaponKind].includes(itemClass);
+}
+
 export interface ItemDef {
   id: string;
   name: string;

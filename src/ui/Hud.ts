@@ -1,7 +1,7 @@
 import type { CharacterDef } from '../characters/roster';
-import { ELEMENT_COLOR } from '../characters/roster';
+import { ELEMENT_COLOR, ROSTER } from '../characters/roster';
 import type { Element } from '../combat/Elements';
-import { ITEMS, RARITY_NAME } from '../items/Items';
+import { ITEMS, RARITY_NAME, canWield } from '../items/Items';
 import type { Inventory } from '../items/Inventory';
 import type { NpcDef } from '../world/NPCs';
 import { glyph } from './glyphs';
@@ -22,12 +22,84 @@ export interface HudActions {
 
 export type Panel = 'none' | 'talk' | 'shop' | 'inventory';
 
+export interface BannerOpts {
+  /** How long the banner stays, in seconds (2.2 by default), while nothing waits behind it. */
+  seconds?: number;
+  /** A higher priority goes ahead of the ones still waiting and cuts a lower one on screen short (0 by default). */
+  priority?: number;
+}
+
+/** A breath of dark between two banners, so the second one visibly steps in (the fade is 120 ms). */
+const BANNER_GAP = 0.2;
+/** The least a banner stays once another waits behind it: long enough to read, short enough that nothing queues for long. */
+const BANNER_MIN = 0.5;
+
+/**
+ * The banner line, one message at a time, in order of arrival. A banner keeps the screen for its seconds while nothing waits;
+ * once a message of its own priority or higher is waiting it yields as soon as it has had BANNER_MIN, and a higher priority
+ * cuts it short at once, so a backlog never holds a warning for long. Pure: the HUD lends it show/hide and a timer.
+ */
+export class BannerQueue {
+  private readonly waiting: Array<{ text: string; seconds: number; priority: number }> = [];
+  /** The banner on screen: whether it has had its BANNER_MIN, and the cancel of the timer that will take it down. */
+  private current: { priority: number; settled: boolean; cancel: () => void } | null = null;
+  /** In the breath between two banners. */
+  private resting = false;
+
+  constructor(private readonly io: { show(text: string): void; hide(): void; after(seconds: number, fn: () => void): () => void }) {}
+
+  push(text: string, { seconds = 2.2, priority = 0 }: BannerOpts = {}): void {
+    // Behind everything waiting with the same or a higher priority, ahead of the lower ones.
+    let i = this.waiting.length;
+    while (i > 0 && this.waiting[i - 1].priority < priority) i--;
+    this.waiting.splice(i, 0, { text, seconds, priority });
+    const cur = this.current;
+    if (!cur) { if (!this.resting) this.next(); return; }
+    // A higher priority takes the screen now; an equal one as soon as the banner there has had its BANNER_MIN.
+    if (priority > cur.priority || (priority === cur.priority && cur.settled)) this.takeDown();
+  }
+
+  /** Whether something of at least `priority` is waiting (the first in line has the highest). */
+  private waitingFor(priority: number): boolean {
+    return this.waiting.length > 0 && this.waiting[0].priority >= priority;
+  }
+
+  private next(): void {
+    const item = this.waiting.shift();
+    if (!item) return;
+    const cur = { priority: item.priority, settled: false, cancel: () => {} };
+    this.current = cur;
+    this.io.show(item.text);
+    const head = Math.min(BANNER_MIN, item.seconds);
+    cur.cancel = this.io.after(head, () => {
+      cur.settled = true;
+      if (item.seconds <= head || this.waitingFor(cur.priority)) this.takeDown();
+      else cur.cancel = this.io.after(item.seconds - head, () => this.takeDown());
+    });
+  }
+
+  /** Takes the banner down; after the breath, the next one waiting goes up. */
+  private takeDown(): void {
+    const cur = this.current;
+    if (!cur) return;
+    cur.cancel();
+    this.current = null;
+    this.io.hide();
+    this.resting = true;
+    this.io.after(BANNER_GAP, () => { this.resting = false; this.next(); });
+  }
+}
+
 /** DOM HUD: Genshin layout, dark-fantasy skin. Panels (talk, shop, inventory) take the pointer. */
 export class Hud {
   private readonly root: HTMLElement;
   private readonly q = <T extends HTMLElement>(sel: string): T => this.root.querySelector(sel) as T;
   private readonly bars = new Map<number, HTMLElement>();
-  private bannerTimer = 0;
+  private readonly banners = new BannerQueue({
+    show: (text) => { const b = this.q('#hud-banner'); b.textContent = text; b.classList.add('show'); },
+    hide: () => this.q('#hud-banner').classList.remove('show'),
+    after: (seconds, fn) => { const id = window.setTimeout(fn, Math.round(seconds * 1000)); return () => window.clearTimeout(id); },
+  });
   /** What the HUD last drew (it only touches the DOM when something changed). */
   private interactText: string | null = null;
   private interactShown = false;
@@ -232,12 +304,9 @@ export class Hud {
     window.setTimeout(() => this.root.classList.remove('hurt'), 160);
   }
 
-  announce(text: string): void {
-    const banner = this.q('#hud-banner');
-    banner.textContent = text;
-    banner.classList.add('show');
-    window.clearTimeout(this.bannerTimer);
-    this.bannerTimer = window.setTimeout(() => banner.classList.remove('show'), 2200);
+  /** A line across the screen for `seconds` (2.2 by default); later calls wait their turn, a higher `priority` cuts in (see BannerQueue). */
+  announce(text: string, opts: BannerOpts = {}): void {
+    this.banners.push(text, opts);
   }
 
   setParty(defs: readonly CharacterDef[], activeIndex: number): void {
@@ -397,19 +466,20 @@ export class Hud {
   private renderInventory(): void {
     const inv = this.inventory!;
     const me = this.activeChar!;
+    const heroName = (id: string) => ROSTER.find((c) => c.id === id)?.name ?? id;
     const el = this.q('#hud-dialog');
     const groups: Record<string, string[]> = { weapon: [], consumable: [], charm: [], key: [], material: [] };
     for (const e of inv.entries) {
       const d = ITEMS[e.itemId];
       const stats = d.atk ? `+${d.atk} ATK${d.element ? ` · ${d.element}` : ''} · ${d.weaponClass}` : d.heal ? `heals ${d.heal}` : d.dmgMult ? `+${Math.round((d.dmgMult - 1) * 100)}% damage` : RARITY_NAME[d.rarity];
       let btn = '';
-      if (d.kind === 'weapon') btn = e.equippedBy ? `<span class="tag">equipped by ${e.equippedBy}</span>` : `<button data-act="equip" data-uid="${e.uid}" ${d.weaponClass === me.weapon ? '' : 'disabled'}>Equip on ${me.name}</button>`;
+      if (d.kind === 'weapon') btn = e.equippedBy ? `<span class="tag">equipped by ${heroName(e.equippedBy)}</span>` : `<button data-act="equip" data-uid="${e.uid}" ${canWield(me.weapon, d.weaponClass) ? '' : 'disabled'}>Equip on ${me.name}</button>`;
       else if (d.kind === 'consumable') btn = `<button data-act="use" data-uid="${e.uid}">Use</button>`;
       if (!e.equippedBy && d.kind !== 'key') btn += `<button class="ghost" data-act="drop" data-uid="${e.uid}">Drop</button>`;
       groups[d.kind].push(`<div class="row"><span class="item r${d.rarity}">${d.name}${e.count > 1 ? ` ×${e.count}` : ''}</span><span class="desc">${stats}</span><span class="btns">${btn}</span></div>`);
     }
     const section = (title: string, rows: string[]) => rows.length ? `<div class="col-title">${title}</div>${rows.join('')}` : '';
-    el.innerHTML = `<div class="dlg-head"><div class="dlg-name">Satchel</div><div class="dlg-title">◆ ${inv.shards} Diamonds · ${me.name} wields a ${me.weapon}</div></div>
+    el.innerHTML = `<div class="dlg-head"><div class="dlg-name">Satchel</div><div class="dlg-title">◆ ${inv.shards} Moon Shards · ${me.name} wields a ${me.weapon}</div></div>
       <div class="inv-list">${section('Weapons', groups.weapon)}${section('Consumables', groups.consumable)}${section('Charms', groups.charm)}${section('Keys', groups.key)}${section('Materials', groups.material)}${inv.entries.length ? '' : '<div class="empty">Empty. The fog owes you nothing yet.</div>'}</div>
       <div class="dlg-buttons"><button data-act="close">Close (I)</button></div>`;
     this.wire(el, (act, b) => {

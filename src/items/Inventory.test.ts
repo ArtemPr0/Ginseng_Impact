@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Inventory } from './Inventory';
+import { WEAPON_ACCEPTS } from './Items';
 
 describe('Inventory', () => {
   it('stacks materials and consumables, keeps weapons as separate entries', () => {
@@ -56,5 +57,36 @@ describe('Inventory', () => {
     expect(inv.damageMult()).toBe(1);
     inv.add('lunar-charm');
     expect(inv.damageMult()).toBeCloseTo(1.15);
+  });
+
+  it('lets the knight (a greatsword hand) equip a sword or a greatsword, never a bow', () => {
+    expect(WEAPON_ACCEPTS.greatsword).toEqual(['greatsword', 'sword']);
+    expect(WEAPON_ACCEPTS.sword).toEqual(['sword']);
+    expect(WEAPON_ACCEPTS.bow).toEqual(['bow']);
+    expect(WEAPON_ACCEPTS.staff).toEqual(['staff']);
+    const inv = new Inventory();
+    const blade = inv.add('mist-blade'); // Yung Lean's reward: a sword
+    const maul = inv.add('glacier-maul'); // a greatsword
+    const bow = inv.add('hunters-bow');
+    expect(inv.equip(blade, 'knight', 'greatsword')).toBe(true);
+    expect(inv.equipped('knight')?.itemId).toBe('mist-blade');
+    expect(inv.equip(bow, 'knight', 'greatsword')).toBe(false);
+    expect(inv.equipped('knight')?.itemId).toBe('mist-blade');
+    expect(inv.equip(maul, 'knight', 'greatsword')).toBe(true);
+    expect(inv.equipped('knight')?.itemId).toBe('glacier-maul');
+    // A sword hand takes no greatsword, a bow hand only bows.
+    expect(inv.equip(maul, 'vesper', 'sword')).toBe(false);
+    expect(inv.equip(blade, 'archer', 'bow')).toBe(false);
+    expect(inv.equip(bow, 'archer', 'bow')).toBe(true);
+  });
+
+  it('counts only the strongest charm carried, not every charm stacked', () => {
+    const inv = new Inventory();
+    inv.add('lunar-charm'); // +15%
+    inv.add('hollow-crown'); // +30%
+    inv.add('antler-signet'); // +25%
+    expect(inv.damageMult()).toBeCloseTo(1.3);
+    inv.remove('hollow-crown');
+    expect(inv.damageMult()).toBeCloseTo(1.25);
   });
 });

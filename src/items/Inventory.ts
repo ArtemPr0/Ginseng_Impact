@@ -1,10 +1,10 @@
-import { ITEMS, type ItemDef, type WeaponClass } from './Items';
+import { ITEMS, canWield, type ItemDef, type WeaponClass } from './Items';
 
 export interface InvEntry { uid: number; itemId: string; count: number; equippedBy?: string }
 
 let nextUid = 1;
 
-/** Pure inventory: stacks, equipment per character, diamonds (the currency, `shards`). */
+/** Pure inventory: stacks, equipment per character, Moon Shards (the currency, `shards`). */
 export class Inventory {
   readonly entries: InvEntry[] = [];
   shards = 0;
@@ -50,11 +50,12 @@ export class Inventory {
     return left === 0;
   }
 
+  /** Equips the entry on the character whose weapon hand is `weaponClass` (it takes every class WEAPON_ACCEPTS lists for it). */
   equip(uid: number, characterId: string, weaponClass: WeaponClass): boolean {
     const e = this.entries.find((x) => x.uid === uid);
     if (!e) return false;
     const d = this.def(e.itemId);
-    if (d.kind !== 'weapon' || d.weaponClass !== weaponClass) return false;
+    if (d.kind !== 'weapon' || !canWield(weaponClass, d.weaponClass)) return false;
     for (const other of this.entries) if (other.equippedBy === characterId) other.equippedBy = undefined;
     e.equippedBy = characterId;
     return true;
@@ -86,11 +87,12 @@ export class Inventory {
     return true;
   }
 
+  /** The strongest charm carried counts, and only that one (charms do not stack; the charm slot comes later). */
   damageMult(): number {
     let m = 1;
     for (const e of this.entries) {
       const d = this.def(e.itemId);
-      if (d.dmgMult) m *= d.dmgMult;
+      if (d.dmgMult && d.dmgMult > m) m = d.dmgMult;
     }
     return m;
   }
