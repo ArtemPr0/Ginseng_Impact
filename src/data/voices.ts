@@ -24,6 +24,8 @@ export const VOICES: Record<string, VoiceLine> = {
   'king-ask': { text: 'The Warden. My own antlered warden has taken my castle, and the throne within it. Kill it, and I will reward you... very generously.', voice: 'Daniel', rate: 150, pitch: 0.84, fx: HALL },
   'king-wait': { text: 'The Warden still breathes. I can hear it chewing my furniture.', voice: 'Daniel', rate: 155, pitch: 0.84, fx: HALL },
   'king-thanks': { text: 'It is dead? Then the castle is mine again. Take it, all of it. I said generously, and I meant it.', voice: 'Daniel', rate: 150, pitch: 0.84, fx: HALL },
+  // Goldgrin, the gnome of the purple cup, between sips (its file predates this table: the Grandpa voice up into a gnome, as measured).
+  'where-is-young-lean': { text: 'Where is Young Lean?', voice: 'Grandpa (English (UK))', rate: 130, pitch: 1.25 },
   // Goldgrin's brother, inside the tree house.
   'brother-greet': { text: 'Yo. You know my brother Goldgrin? Always asking where Yung Lean is. Find him, get a cup signed, bring it here. I pay good. Diamond-grill good.', voice: 'Eddy (English (US))', rate: 185, pitch: 1.18 },
   'brother-wait': { text: 'No cup, no shards. Yung Lean is somewhere past the portal. Sad, and rich.', voice: 'Eddy (English (US))', rate: 185, pitch: 1.18 },
@@ -33,7 +35,7 @@ export const VOICES: Record<string, VoiceLine> = {
   'frog-wait': { text: 'Croak is still out there. Try the shady places. He likes the shady places.', voice: 'Grandpa (English (UK))', rate: 150, pitch: 0.82, fx: CROAK },
   'frog-reward': { text: 'My boy, home in a sack! You have my thanks, stranger. As a sign of respect... you may lick me.', voice: 'Grandpa (English (UK))', rate: 145, pitch: 0.82, fx: CROAK },
   'frog-declined': { text: 'Suit yourself. Here, take some shards instead.', voice: 'Grandpa (English (UK))', rate: 150, pitch: 0.82, fx: CROAK },
-  'frog-licked': { text: 'Hold still. This will only take about two minutes.', voice: 'Grandpa (English (UK))', rate: 140, pitch: 0.82, fx: CROAK },
+  'frog-licked': { text: 'Hold still. This will only take about four minutes.', voice: 'Grandpa (English (UK))', rate: 140, pitch: 0.82, fx: CROAK },
   'frog-anytime': { text: 'Ah, my friend. You can lick me any time you want.', voice: 'Grandpa (English (UK))', rate: 145, pitch: 0.82, fx: CROAK },
   'croak-busted': { text: "Ribbit. Whatever my dad told you, it's not mine.", voice: 'Junior', rate: 190, pitch: 1.2, fx: CROAK },
   'croak-bagged': { text: 'Hey! Hey! Not the sack again!', voice: 'Junior', rate: 200, pitch: 1.25, fx: CROAK },

@@ -1611,7 +1611,7 @@ export class CombatSystem {
     const d = Math.hypot(e.pos.x - c.pos.x, e.pos.z - c.pos.z);
     if (d > 30) return;
     this.voiceClock = 2.2;
-    void this.d.audio.voice(voiceUrl(lines[Math.floor(Math.random() * lines.length)]), Math.max(0.25, 1 - d / 30));
+    void this.d.audio.voice(voiceUrl(lines[Math.floor(Math.random() * lines.length)]), Math.max(0.25, 1 - d / 30), 'mob');
   }
 
   /** A burst cup leaves a puddle of lean that slows whoever stands in it. */

@@ -200,7 +200,7 @@ export const NPC_DEFS: NpcDef[] = [
     model: 'cup-gnome', accent: PALETTE.dusk,
     lines: ['Where is Young Lean?', 'Tall fella. Sad songs. Big coat. You seen him?', 'Two cups. One for me, one for when he shows up.'],
     behaviour: { kind: 'stand', pose: 'drink', yaw: Math.atan2(59 - 64, 0 - 6.5) },
-    voice: { url: '/audio/where-is-young-lean.mp3', caption: 'Where is Young Lean?', every: 7, range: 16 },
+    voice: { url: voiceUrl('where-is-young-lean'), caption: VOICES['where-is-young-lean'].text, every: 7, range: 16 },
     sipAt: 0.34,
   },
   // --- Fifth batch of reels ---
@@ -433,7 +433,7 @@ export class Npc {
   private wanderWait = 0;
   private speed = 0;
   /** Sound hooks, set once by main.ts (NPCs never import the audio engine). */
-  static sound: { voice(url: string, gain: number): Promise<number>; slurp(gain: number): void } | null = null;
+  static sound: { voice(url: string, gain: number, channel?: 'npc' | 'mob' | 'head'): Promise<number>; slurp(gain: number): void } | null = null;
   private bubble: SpeechBubble | null = null;
   private voiceWait = 4;
   private speaking = 0;
@@ -468,21 +468,34 @@ export class Npc {
       this.pos.y = heightAt(this.pos.x, this.pos.z);
     }
     if (def.voice) this.voiceWait = def.voice.firstAfter ?? this.voiceWait;
-    // A guard speaks his line too (as he steps aside), so he gets a bubble even without a voice of his own.
-    if (def.voice || def.behaviour.kind === 'guard') {
-      this.bubble = new SpeechBubble((MODELS[def.model]?.height ?? 1.8) + 0.55);
-      this.object.add(this.bubble.sprite);
-    }
   }
 
-  /** Says the voice line now (also used when the player opens a conversation). */
+  /**
+   * Says the voice line now (also used when the player opens a conversation). An NPC without a recorded line shows
+   * one of his written ones in a bubble instead, his pose kept (a seated one stays seated).
+   */
   speak(gain = 1): void {
     const v = this.def.voice;
-    if (!v || this.speaking > 0) return;
-    this.speaking = 2.6;
-    this.voiceWait = v.every;
-    this.bubble?.say(v.caption, 2.4);
-    void Npc.sound?.voice(v.url, gain);
+    if (v) {
+      if (this.speaking > 0) return;
+      this.speaking = 2.6;
+      this.voiceWait = v.every;
+      this.bubbleFor().say(v.caption, 2.4);
+      void Npc.sound?.voice(v.url, gain, 'npc');
+      return;
+    }
+    const bubble = this.bubbleFor();
+    if (bubble.sprite.visible || !this.def.lines.length) return;
+    bubble.say(this.def.lines[Math.floor(Math.random() * this.def.lines.length)], 2.4);
+  }
+
+  /** The bubble over his head, made the first time he has something to say. */
+  private bubbleFor(): SpeechBubble {
+    if (!this.bubble) {
+      this.bubble = new SpeechBubble((MODELS[this.def.model]?.height ?? 1.8) + 0.55);
+      this.object.add(this.bubble.sprite);
+    }
+    return this.bubble;
   }
 
   /** Voice lines and sips for NPCs that have them; `d` is the distance to the player. */
@@ -534,7 +547,7 @@ export class Npc {
         if (d < b.trigger) {
           this.guard = 'step';
           const v = VOICES[b.line];
-          if (v) { this.bubble?.say(v.text, 3); this.speaking = 2.4; void Npc.sound?.voice(voiceUrl(b.line), 1); }
+          if (v) { this.bubbleFor().say(v.text, 3); this.speaking = 2.4; void Npc.sound?.voice(voiceUrl(b.line), 1); }
           this.onStepAside?.();
         }
       } else if (this.guard === 'step') {

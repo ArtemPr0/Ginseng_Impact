@@ -66,7 +66,7 @@ export function stoneHeadEyes(): Landmark {
       if (wait <= 0 && d < HEAR) {
         const id = LINES[Math.floor(Math.random() * LINES.length)];
         bubble.say(VOICES[id].text, 3);
-        void Npc.sound?.voice(voiceUrl(id), Math.max(0.35, 1 - d / HEAR));
+        void Npc.sound?.voice(voiceUrl(id), Math.max(0.35, 1 - d / HEAR), 'head');
         flare = 1;
         wait = 14 + Math.random() * 12;
       }

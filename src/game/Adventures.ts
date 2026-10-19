@@ -88,7 +88,7 @@ export class Adventures {
   }
 
   /** Plays a dialogue line's recorded voice as it opens. */
-  readonly onLine = (node: DialogueNode): void => { if (node.voice) void this.d.audio.voice(node.voice, 1); };
+  readonly onLine = (node: DialogueNode): void => { if (node.voice) void this.d.audio.voice(node.voice, 1, 'npc'); };
 
   private npc(id: string): Npc | undefined {
     return this.d.world.npcs.find((n) => n.def.id === id);
