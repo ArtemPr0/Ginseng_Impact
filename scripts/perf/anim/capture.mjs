@@ -1,8 +1,9 @@
 // node capture.mjs <url> <kind> <out-prefix> [frames=16] [intervalMs=180] [dist=9]
 // Puts the player near a mob, pins a side camera, records frames + the mob's state/clip per frame.
 import { writeFileSync } from 'node:fs';
+const CDP = 'http://127.0.0.1:' + (process.env.CDP_PORT ?? '9333'); // CDP_PORT selects the headless Chrome (default 9333)
 const [url, kind, prefix, frames = '16', interval = '180', dist = '9'] = process.argv.slice(2);
-const list = await (await fetch('http://127.0.0.1:9333/json/list')).json();
+const list = await (await fetch(CDP + '/json/list')).json();
 const page = list.find((t) => t.type === 'page');
 const ws = new WebSocket(page.webSocketDebuggerUrl);
 await new Promise((r) => (ws.onopen = r));

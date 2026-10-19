@@ -1,6 +1,7 @@
 // Allocation profile (including collected objects) over a steady-state window on the loaded page.
+const CDP = 'http://127.0.0.1:' + (process.env.CDP_PORT ?? '9333'); // CDP_PORT selects the headless Chrome (default 9333)
 const secs = Number(process.argv[2] ?? 6);
-const list = await (await fetch('http://127.0.0.1:9333/json/list')).json();
+const list = await (await fetch(CDP + '/json/list')).json();
 const page = list.find((t) => t.type === 'page');
 const ws = new WebSocket(page.webSocketDebuggerUrl);
 await new Promise((r) => (ws.onopen = r));

@@ -1,9 +1,10 @@
 // Minimal CDP driver: node shot.mjs <url> <out.png> [waitSeconds] [js-to-run-before-shot]
+const CDP = 'http://127.0.0.1:' + (process.env.CDP_PORT ?? '9333'); // CDP_PORT selects the headless Chrome (default 9333)
 const [url, out, wait = '20', js = ''] = process.argv.slice(2);
 const { writeFileSync } = await import('node:fs');
-const list = await (await fetch('http://127.0.0.1:9333/json/list')).json();
+const list = await (await fetch(CDP + '/json/list')).json();
 let page = list.find((t) => t.type === 'page');
-if (!page) page = await (await fetch('http://127.0.0.1:9333/json/new?about:blank', { method: 'PUT' })).json();
+if (!page) page = await (await fetch(CDP + '/json/new?about:blank', { method: 'PUT' })).json();
 const ws = new WebSocket(page.webSocketDebuggerUrl);
 await new Promise((r) => (ws.onopen = r));
 let id = 0; const pending = new Map();
