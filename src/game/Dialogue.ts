@@ -84,6 +84,7 @@ export function dialogueFor(npcId: string, w: DialogueWorld): DialogueNode | nul
     }
     case 'frogking': {
       const s = q.stage('croak');
+      const lick: DialogueChoice = { label: '*lick*', run: () => { w.lick(); return 'close'; } };
       if (s === 'none') {
         return say('frog-ask', [
           { label: "I'll find him.", run: () => { q.set('croak', 'active'); w.announce('Quest · The Prodigal Croak'); return 'close'; } },
@@ -94,16 +95,13 @@ export function dialogueFor(npcId: string, w: DialogueWorld): DialogueNode | nul
       if (s === 'returned') {
         return say('frog-reward', [
           { label: 'No, you must be sick or something', run: () => { w.pay(400); q.set('croak', 'done'); w.announce('The Prodigal Croak · complete'); return say('frog-declined', [LEAVE]); } },
-          { label: 'Uhh... sure', run: () => { q.set('croak', 'done'); w.announce('The Prodigal Croak · complete'); return say('frog-licked', [{ label: '*lick*', run: () => { w.lick(); return 'close'; } }]); } },
+          { label: 'Uhh... sure', run: () => { q.set('croak', 'done'); w.announce('The Prodigal Croak · complete'); return say('frog-licked', [lick]); } },
         ]);
       }
       // Once you have been to the dream and back, the door stays open.
-      if (s === 'done' && q.stage('trip') === 'done') {
-        return say('frog-anytime', [
-          { label: '*lick*', run: () => { w.lick(); return 'close'; } },
-          { label: 'Not today.' },
-        ]);
-      }
+      if (s === 'done' && q.stage('trip') === 'done') return say('frog-anytime', [lick, { label: 'Not today.' }]);
+      // Took the shards instead? The lick was earned all the same: the dream is still there to enter.
+      if (s === 'done') return { line: 'Changed your mind? You may still lick me.', choices: [lick, { label: 'Not today.' }] };
       return null;
     }
     case 'croak': {

@@ -97,13 +97,22 @@ export class Adventures {
   private bagCroak(): void {
     const croak = this.npc('croak');
     if (croak) { croak.hidden = true; croak.object.visible = false; }
+    this.showSeat(false);
     this.quests.set('croak', 'bagged');
     void this.d.audio.voice(voiceUrl('croak-bagged'), 1);
     this.d.hud.announce('Croak is in the sack');
   }
 
-  /** Puts the sack down where the hero stands: Croak climbs out there (home, if it is by his father). */
-  private dropSack(): void {
+  /** Croak's boulder: out of sight while he is in the sack (and left so when the island is shown again). */
+  private showSeat(on: boolean): void {
+    const seat = this.d.world.seatOf('croak');
+    if (!seat) return;
+    seat.root.visible = on;
+    seat.root.userData.hidden = !on;
+  }
+
+  /** Puts the sack down where the hero stands, in `zone`: Croak climbs out there (home, if it is by his father). */
+  private dropSack(zone: string | null): void {
     const c = this.d.controller;
     const croak = this.npc('croak');
     if (croak) {
@@ -123,6 +132,9 @@ export class Adventures {
       croak.yaw = Math.atan2(c.pos.z - croak.pos.z, c.pos.x - croak.pos.x);
     }
     this.quests.set('croak', home ? 'returned' : 'active');
+    // Out where the hero is (the island or a realm), sat on his boulder again: the world moves both into that zone.
+    this.showSeat(true);
+    if (croak) this.d.world.moveNpcToZone(croak, zone);
     this.d.hud.announce(home ? 'Croak is home' : 'Croak climbs out of the sack');
     this.d.audio.footstep();
   }
@@ -221,10 +233,9 @@ export class Adventures {
     c.mode = 'air';
   }
 
-  /** F, before loot and talk: put the sack down, talk to the rowers, or use the nearest door or boat. */
+  /** F, before loot and talk: talk to the rowers, use the nearest door or boat, or put the sack down. */
   interact(zone: string | null): { label: string; act(): void } | null {
     if (this.riding) return { label: 'Talk to the rowers', act: () => this.openRowers?.() };
-    if (this.quests.stage('croak') === 'bagged') return { label: 'Put the sack down', act: () => this.dropSack() };
     const p = this.d.controller.pos;
     let best: { label: string; act(): void } | null = null;
     let bd = Infinity;
@@ -235,7 +246,19 @@ export class Adventures {
       const dist = Math.hypot(it.pos.x - p.x, it.pos.z - p.z);
       if (dist < it.range && dist < bd && Math.abs(it.pos.y - p.y) < 4) { bd = dist; best = { label, act: () => it.act() }; }
     }
-    return best;
+    if (this.quests.stage('croak') !== 'bagged') return best;
+    // The sack goes down by his father, or where nothing else is in reach: a door or boat wins, and so does someone
+    // to talk to (null: main.ts offers the talk), so carrying Croak never takes F away from the world.
+    const drop = { label: 'Put the sack down', act: () => this.dropSack(zone) };
+    const king = this.npc('frogking');
+    if (king && Math.hypot(king.pos.x - p.x, king.pos.z - p.z) < HOME_RANGE) return drop;
+    if (best) return best;
+    return this.someoneNear(p) ? null : drop;
+  }
+
+  /** Someone to talk to within reach of `p` (as main.ts measures it for the talk prompt). */
+  private someoneNear(p: { x: number; y: number; z: number }): boolean {
+    return this.d.world.npcs.some((n) => !n.hidden && Math.hypot(n.pos.x - p.x, n.pos.z - p.z) < n.talkRange && Math.abs(n.pos.y - p.y) < 6);
   }
 
   /** Set by main: opens the rowers' conversation. */

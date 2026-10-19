@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { VOICES } from '../data/voices';
+import { dialogueFor, type DialogueWorld } from './Dialogue';
 import { Quests } from './Quests';
 
 describe('Quests', () => {
@@ -25,5 +27,46 @@ describe('Quests', () => {
     q.kill('warden');
     expect(q.stage('throne')).toBe('slain');
     expect(changes).toBe(2);
+  });
+});
+
+/** The Frog King's hollow: what his conversation does to the game, counted. */
+function hollow(q: Quests): { w: DialogueWorld; n: { paid: number; licks: number } } {
+  const n = { paid: 0, licks: 0 };
+  const quiet = () => {};
+  const w: DialogueWorld = {
+    quests: q, pay: (x) => { n.paid += x; }, give: quiet, has: () => false, take: () => false,
+    bagCroak: quiet, lick: () => { n.licks++; }, drinkAle: quiet, challengeKing: quiet, announce: quiet,
+  };
+  return { w, n };
+}
+
+describe('The Frog King', () => {
+  it('still offers the lick to a player who took the shards instead', () => {
+    const q = new Quests();
+    const { w, n } = hollow(q);
+    q.set('croak', 'returned');
+    const reward = dialogueFor('frogking', w)!;
+    expect(reward.line).toBe(VOICES['frog-reward'].text);
+    reward.choices.find((c) => c.label.startsWith('No'))!.run!();
+    expect(n.paid).toBe(400);
+    expect(q.stage('croak')).toBe('done');
+    expect(q.stage('trip')).toBe('none');
+    // Back another day: the dream is not lost.
+    const later = dialogueFor('frogking', w)!;
+    expect(later.line).toBe('Changed your mind? You may still lick me.');
+    expect(later.choices.find((c) => c.label === '*lick*')!.run!()).toBe('close');
+    expect(n.licks).toBe(1);
+  });
+
+  it('keeps the door to the dream open once you have been and come back', () => {
+    const q = new Quests();
+    const { w, n } = hollow(q);
+    q.set('croak', 'done');
+    q.set('trip', 'done');
+    const node = dialogueFor('frogking', w)!;
+    expect(node.line).toBe(VOICES['frog-anytime'].text);
+    node.choices.find((c) => c.label === '*lick*')!.run!();
+    expect(n.licks).toBe(1);
   });
 });
