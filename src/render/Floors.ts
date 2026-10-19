@@ -5,21 +5,7 @@
  * collider top.
  */
 import { BackSide, CircleGeometry, Color, Mesh, MeshBasicMaterial, PlaneGeometry, ShaderMaterial, SphereGeometry, Vector2, Vector4 } from 'three';
-
-const NOISE = /* glsl */ `
-float hash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
-float vnoise(vec2 p) { vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
-float fbm(vec2 p) { float v = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { v += a * vnoise(p); p *= 2.03; a *= 0.5; } return v; }
-// Cells: distance to the nearest seed and to the second nearest (stones, cracks).
-vec2 cells(vec2 p) {
-  vec2 i = floor(p); vec2 f = fract(p); float d1 = 8.0, d2 = 8.0;
-  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
-    vec2 g = vec2(x, y); vec2 o = vec2(hash(i + g), hash(i + g + 17.3));
-    float d = length(g + o - f);
-    if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) d2 = d;
-  }
-  return vec2(d1, d2);
-}`;
+import { GLSL_NOISE, GLSL_SDRECT } from './glsl';
 
 /** A lit floor: the shader's colour shaded by the scene's fog (the realms are foggy). */
 function floorMaterial(body: string, decl = '', uniforms: Record<string, { value: unknown }> = {}): ShaderMaterial {
@@ -35,7 +21,7 @@ function floorMaterial(body: string, decl = '', uniforms: Record<string, { value
     fragmentShader: /* glsl */ `
       varying vec2 vP;
       #include <fog_pars_fragment>
-      ${NOISE}
+      ${GLSL_NOISE}
       ${decl}
       void main() {
         vec3 c;
@@ -205,7 +191,7 @@ export function quarterFloor(r: { court: readonly number[]; street: readonly num
     c = (flagstone(vP, vec3(0.45, 0.15, 0.9)) * wC + cobble(vP) * wS + flagstone(vP, vec3(0.3, 0.1, 0.6)) * wY + snow(vP) * wN) / sum;`,
   /* glsl */ `
     uniform vec4 uCourt; uniform vec4 uStreet; uniform vec4 uYard; uniform vec4 uSnow; uniform vec4 uPlaza; uniform vec4 uMoat;
-    float sdRect(vec2 p, vec4 r) { vec2 c = vec2(r.x + r.y, r.z + r.w) * 0.5; vec2 h = vec2(r.y - r.x, r.w - r.z) * 0.5; vec2 d = abs(p - c) - h; return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0); }
+    ${GLSL_SDRECT}
     vec3 flagstone(vec2 p, vec3 glow) {
       vec2 cl = cells(p * 0.55);
       float seam = smoothstep(0.06, 0.0, cl.y - cl.x);

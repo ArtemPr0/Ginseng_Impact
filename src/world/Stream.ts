@@ -12,6 +12,7 @@ import { Rig } from '../characters/Rig';
 import { yawToRotation } from '../models/ModelRig';
 import { WITCH } from '../characters/roster';
 import { glowSprite, glowTexture } from '../render/Glow';
+import { GLSL_HASH, GLSL_VNOISE } from '../render/glsl';
 import { PALETTE } from '../render/palette';
 import type { HostileShot } from '../combat/CombatSystem';
 import type { Landmark } from './Landmarks';
@@ -32,8 +33,8 @@ const STREAM_FRAG = /* glsl */ `
 uniform float uTime; uniform vec3 uDeep; uniform vec3 uBright; uniform vec3 uFoam;
 varying vec2 vUv; varying vec3 vWorld; varying vec3 vView;
 // Sine-free hash (Hoskins): the sin() kind loses precision at world coordinates and draws stripes.
-float hash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
-float vnoise(vec2 p) { vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
+${GLSL_HASH}
+${GLSL_VNOISE}
 void main() {
   // Flow: swirling noise carried downstream at one speed (a speed that varied across the channel would shear the
   // pattern further every second, into streaks), domain-warped so it eddies.
