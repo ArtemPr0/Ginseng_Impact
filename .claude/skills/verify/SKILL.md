@@ -39,6 +39,10 @@ Gotchas
 - A torn mob: `cut-triangles` for webs between limbs (list them in the page: triangles stretched past 3x joining the
   two legs, or past 6x joining any two limbs, kept under ~2% of the surface), then `smooth-skin <in> <out> 8` for
   weights that jump vertex to vertex (the rest of the fan). Never on the heroes without checking their cup grip.
+- A limb modelled fused to the body (the yeti's hands on his thighs, forearms against his flanks) moves rigidly as a
+  sheet the stretch survey cannot see: start from the raw rig, then `fix-arm-flank`, `fix-misbound`, `cut-fused-limbs`,
+  `drop-islands`, `fill-holes` (caps each limb's side of a cut apart), `smooth-skin 8`, and `doubleSided` in its
+  registry entry. Look at every clip close up: a cut-free forearm with no cap reads as a flat pale plank.
 - Headless renders at ~5–15 fps and the loop caps a frame at 0.1 s: game time runs slower than wall time.
 - Drive input with `window.dispatchEvent(new KeyboardEvent('keydown', { code }))` (Space, Digit1-3, KeyW…).
 - Scripts that change enemy params (`o.brain.p.aggroRange = 0`) persist on that page: reload between runs.

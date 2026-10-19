@@ -165,6 +165,7 @@ export class Enemy {
   /** A giant eye's tilt pivot and living iris (def.eye). */
   private eyePivot: Group | null = null;
   private eyeIris: EyeIris | null = null;
+  private eyeTilt = 0;
 
   /** Installs the loaded glTF as the body (its own material copies, so hit flashes stay per enemy). */
   useModel(id: string, gltf: GLTF): void {
@@ -180,8 +181,12 @@ export class Enemy {
       this.eyePivot = new Group();
       this.eyePivot.position.y = cy;
       this.model.root.position.y -= cy;
-      this.eyeIris = new EyeIris((box.max.y - box.min.y) * 0.2, this.def.eye.iris);
-      this.eyeIris.group.position.set(0, 0, box.max.z + 0.05);
+      // Laid on the eyeball over its painted iris and pupil (one pupil, not two drifting apart).
+      const H = box.max.y - box.min.y, eye = this.def.eye;
+      this.eyeIris = new EyeIris(eye.size * H, eye.iris, eye.ball * H);
+      const [ax, ay] = eye.axis;
+      this.eyeIris.group.quaternion.setFromUnitVectors(new Vector3(0, 0, 1), new Vector3(ax, ay, Math.sqrt(Math.max(0, 1 - ax * ax - ay * ay))));
+      this.eyeTilt = Math.asin(ay);
       this.eyePivot.add(this.model.root, this.eyeIris.group);
       this.object.add(this.eyePivot);
     } else this.object.add(this.model.root);
@@ -331,7 +336,8 @@ export class Enemy {
       const dist = Math.hypot(player.x - this.pos.x, player.z - this.pos.z);
       const dy = player.y + 1 - (this.pos.y + this.eyePivot.position.y);
       const pitch = Math.max(-0.9, Math.min(0.9, Math.atan2(dy, Math.max(1, dist))));
-      this.eyePivot.rotation.x += (-pitch - this.eyePivot.rotation.x) * Math.min(1, dt * 3);
+      // (Plus the tilt that brings the eye's own line of sight, not the ball's front, onto the hero.)
+      this.eyePivot.rotation.x += (this.eyeTilt - pitch - this.eyePivot.rotation.x) * Math.min(1, dt * 3);
       this.eyeIris.update(dt, this.hp / this.def.maxHp, 1 - Math.min(1, dist / 30));
     }
     this.time += dt;

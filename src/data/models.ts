@@ -40,6 +40,11 @@ export interface ModelDef {
   mirror?: ClipName[];
   /** 0..1: how strongly the idle clip poses the body (a floating spirit should not crouch in a boxer's stance). */
   idleBlend?: number;
+  /**
+   * Draw both faces of the mesh: where a limb fused to the body was cut free (the yeti's hands lay on his thighs),
+   * the gap shows the fur's inside instead of the sky through it.
+   */
+  doubleSided?: boolean;
   /** A boneless robe/cloak model: the rig animates it procedurally (hover, sway, hem wind) instead of clips. */
   robe?: boolean;
   /** Human-readable name for the missing-model warning and placeholder. */
@@ -95,7 +100,7 @@ export const MODELS: Record<string, ModelDef> = {
   // Bosses and mobs
   // Meshy animate exports bundle every added preset into one GLB; clip names are the preset's English ids.
   // (Remade 2026-10-19: a clean full-body A-pose yeti; the old mesh had its arms fused to its flanks, damped and cut.)
-  yeti: { file: 'yeti.glb', height: 3.2, faceForward: 0.4, clips: BOSS_CLIPS },
+  yeti: { file: 'yeti.glb', height: 3.2, faceForward: 0.25, armDamp: 0.45, doubleSided: true, clips: BOSS_CLIPS },
   shade: { file: 'horned-shade.glb', height: 4.5, armDamp: 0.7, idleBlend: 0.3, faceForward: 0.25, clips: BOSS_CLIPS },
   warden: { file: 'antlered-warden.glb', height: 6.5, faceForward: 0.25, clips: BOSS_CLIPS },
   wyrm: { file: 'moon-wyrm.glb', height: 3, yOffset: 0, clips: { idle: 'fly|idle|hover', fly: 'fly|idle', attack: 'bite|attack' } },

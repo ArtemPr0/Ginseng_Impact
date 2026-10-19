@@ -1,9 +1,10 @@
 /**
  * The Blood Eye's living iris (shot-013226), drawn over the model's painted one: a blue iris with a black pupil that
- * follows the hero, snaps narrow when hit, and a bloodshot red that spreads as it weakens. A disc on the eyeball's
- * front, in a shader.
+ * follows the hero, snaps narrow when hit, and a bloodshot red that spreads as it weakens. A cap of a sphere laid on
+ * the eyeball's front (a flat disc stood out from the ball and its pupil slid off the painted one as you circled it),
+ * in a shader.
  */
-import { CircleGeometry, Color, Group, Mesh, ShaderMaterial } from 'three';
+import { BufferAttribute, Color, Group, Mesh, ShaderMaterial, SphereGeometry } from 'three';
 
 const FRAG = /* glsl */ `
 uniform vec3 uIris; uniform float uPupil; uniform float uBlood; uniform float uTime; uniform float uFlash; varying vec2 vUv;
@@ -31,13 +32,20 @@ export class EyeIris {
   private flash = 0;
   private t = 0;
 
-  constructor(radius: number, iris: number) {
+  /** `radius` of the iris, on a ball of radius `ball` centred on the group, its middle toward +z. */
+  constructor(radius: number, iris: number, ball: number) {
     this.mat = new ShaderMaterial({
       uniforms: { uIris: { value: new Color(iris) }, uPupil: { value: 0.32 }, uBlood: { value: 0 }, uTime: { value: 0 }, uFlash: { value: 0 } },
       vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
       fragmentShader: FRAG, transparent: true, depthWrite: false,
     });
-    const disc = new Mesh(new CircleGeometry(radius, 40), this.mat);
+    // The cap: the ball's surface out to the iris's edge, pole toward +z, its uv the front view (r = 1 at the rim).
+    const cap = Math.asin(Math.min(1, radius / ball));
+    const geo = new SphereGeometry(ball, 48, 12, 0, Math.PI * 2, 0, cap);
+    geo.rotateX(Math.PI / 2);
+    const pos = geo.attributes.position, uv = geo.attributes.uv as BufferAttribute;
+    for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i) / radius * 0.5 + 0.5, pos.getY(i) / radius * 0.5 + 0.5);
+    const disc = new Mesh(geo, this.mat);
     disc.renderOrder = 3;
     this.group.add(disc);
   }

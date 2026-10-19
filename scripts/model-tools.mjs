@@ -36,6 +36,17 @@
  *       Meshy's extra Bone_NNN chains and _End leaves): distance to each bone's segment (its joint to its child's) in
  *       bind pose, the two nearest blended. For an auto-rig gone wrong (the grave cyclops' tail bound to a toe, its
  *       foot claws to chains hanging off the forearms: spikes shot across the screen as it moved).
+ *   node scripts/model-tools.mjs fix-misbound <in.glb> <out.glb> [ratio=2.5]
+ *       A vertex skinned mostly to one limb while it sits on another (in bind pose its own bone is `ratio` times farther
+ *       than the nearest bone, of another limb or the body) goes wholly to the bone it sits on: thigh fur under a
+ *       yeti's resting claws flew off with the hand as a sheet. Smooth after it (smooth-skin).
+ *   node scripts/model-tools.mjs drop-islands <in.glb> <out.glb> [minTris=12]
+ *       Deletes pieces of the mesh smaller than minTris triangles (UV seams welded) and the fringe along a cut
+ *       (triangles hanging by one edge or a corner): the slivers cutting a fused limb free leaves dangling.
+ *   node scripts/model-tools.mjs fill-holes <in.glb> <out.glb> [maxRim=400]
+ *       Closes every hole in the surface (a rim of edges used by one triangle) with a fan to a centre vertex that
+ *       averages the rim (its colour, normal and skin): a forearm cut free of the flank it lay against is a half shell
+ *       that reads as a flat plank, and the flank has a window in it.
  *   node scripts/model-tools.mjs smooth-skin <in.glb> <out.glb> [passes=3] [triangles.json]
  *       Smooths the skin weights over the mesh (each pass: half a vertex's own, half its neighbours' average; UV seams
  *       welded so both halves agree). For weights that jump from vertex to vertex (an auto-rig or rebind-nearest
@@ -401,11 +412,10 @@ async function cutTriangles(inPath, outPath, listPath) {
   console.log(`cut-triangles ${inPath}: ${idx.length / 3 - keep.length / 3} of ${idx.length / 3} triangles removed`);
 }
 
-async function rebindNearest(inPath, outPath, keepRe = '^mixamorig:(?!.*_End$)') {
-  const doc = await io.read(inPath);
-  const root = doc.getRoot();
+/** The skeleton's bones as bind-pose segments (each kept bone from its joint to each kept child's), and a distance. */
+function boneSegments(root, keepRe) {
   const skin = root.listSkins()[0];
-  if (!skin) throw new Error(`${inPath} has no skin`);
+  if (!skin) throw new Error('the model has no skin');
   const joints = skin.listJoints();
   const ibm = skin.getInverseBindMatrices();
   const keep = new RegExp(keepRe, 'i');
@@ -442,6 +452,13 @@ async function rebindNearest(inPath, outPath, keepRe = '^mixamorig:(?!.*_End$)')
     const d = [ap[0] - ab[0] * t, ap[1] - ab[1] * t, ap[2] - ab[2] * t];
     return Math.hypot(d[0], d[1], d[2]);
   };
+  return { joints, segs, dist };
+}
+
+async function rebindNearest(inPath, outPath, keepRe = '^mixamorig:(?!.*_End$)') {
+  const doc = await io.read(inPath);
+  const root = doc.getRoot();
+  const { segs, dist } = boneSegments(root, keepRe);
   let changed = 0;
   for (const mesh of root.listMeshes()) for (const prim of mesh.listPrimitives()) {
     const P = prim.getAttribute('POSITION'), J = prim.getAttribute('JOINTS_0'), W = prim.getAttribute('WEIGHTS_0');
@@ -464,6 +481,153 @@ async function rebindNearest(inPath, outPath, keepRe = '^mixamorig:(?!.*_End$)')
   }
   await io.write(outPath, doc);
   console.log(`rebind-nearest ${inPath}: ${changed} vertices re-skinned to ${new Set(segs.map((s) => s.j)).size} bones`);
+}
+
+/** Which limb a bone belongs to (for fix-misbound). */
+function limbGroup(name) {
+  const n = name.replace(/^mixamorig:?/i, '');
+  const side = /^Left/.test(n) ? 'L' : /^Right/.test(n) ? 'R' : '';
+  if (/(Shoulder|Arm|ForeArm|Hand)/.test(n)) return side + 'arm';
+  if (/(UpLeg|Leg|Foot|Toe)/.test(n)) return side + 'leg';
+  return 'body';
+}
+
+async function fixMisbound(inPath, outPath, ratio = 2.5, keepRe = '^mixamorig:(?!.*_End$)') {
+  const doc = await io.read(inPath);
+  const root = doc.getRoot();
+  const { joints, segs, dist } = boneSegments(root, keepRe);
+  const groupOf = joints.map((n) => limbGroup(n.getName()));
+  let changed = 0, total = 0;
+  const moved = {};
+  for (const mesh of root.listMeshes()) for (const prim of mesh.listPrimitives()) {
+    const P = prim.getAttribute('POSITION'), J = prim.getAttribute('JOINTS_0'), W = prim.getAttribute('WEIGHTS_0');
+    if (!P || !J || !W) continue;
+    const p = [0, 0, 0], j4 = [0, 0, 0, 0], w4 = [0, 0, 0, 0];
+    for (let i = 0; i < P.getCount(); i++) {
+      P.getElement(i, p); J.getElement(i, j4); W.getElement(i, w4); total++;
+      let k = 0; for (let m = 1; m < 4; m++) if (w4[m] > w4[k]) k = m;
+      const jd = j4[k];
+      let dDom = Infinity, near = -1, dNear = Infinity;
+      for (const sg of segs) { const d = dist(p, sg); if (sg.j === jd && d < dDom) dDom = d; if (d < dNear) { dNear = d; near = sg.j; } }
+      if (near < 0 || groupOf[near] === groupOf[jd] || !(dDom > dNear * ratio)) continue;
+      J.setElement(i, [near, 0, 0, 0]);
+      W.setElement(i, [1, 0, 0, 0]);
+      const key = `${groupOf[jd]}->${groupOf[near]}`; moved[key] = (moved[key] ?? 0) + 1;
+      changed++;
+    }
+  }
+  await io.write(outPath, doc);
+  console.log(`fix-misbound ${inPath}: ${changed} of ${total} vertices moved to the bone they sit on`, JSON.stringify(moved));
+}
+
+async function dropIslands(inPath, outPath, minTris = 12) {
+  const doc = await io.read(inPath);
+  const prim = doc.getRoot().listMeshes()[0]?.listPrimitives()[0];
+  const P = prim?.getAttribute('POSITION'), acc = prim?.getIndices();
+  if (!P || !acc) throw new Error(`${inPath}: no indexed primitive`);
+  const idx = acc.getArray(), n = P.getCount(), nT = idx.length / 3;
+  // Welded by position (UV seams split a surface into islands that are not really apart).
+  const p = [0, 0, 0], key = new Map(), weld = new Int32Array(n);
+  for (let i = 0; i < n; i++) { P.getElement(i, p); const k = p.map((x) => Math.round(x * 1e4)).join(','); let w = key.get(k); if (w === undefined) key.set(k, w = key.size); weld[i] = w; }
+  const parent = Int32Array.from({ length: key.size }, (_, i) => i);
+  const find = (x) => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+  for (let t = 0; t < nT; t++) { const a = find(weld[idx[t * 3]]); for (let e = 1; e < 3; e++) { const b = find(weld[idx[t * 3 + e]]); if (a !== b) parent[b] = a; } }
+  const size = new Map();
+  for (let t = 0; t < nT; t++) { const r = find(weld[idx[t * 3]]); size.set(r, (size.get(r) ?? 0) + 1); }
+  let alive = new Uint8Array(nT); let dropped = 0, islands = 0;
+  for (const [, c] of size) if (c < minTris) islands++;
+  for (let t = 0; t < nT; t++) { if (size.get(find(weld[idx[t * 3]])) < minTris) dropped++; else alive[t] = 1; }
+  // Fringes: triangles left hanging by one edge or a corner along a cut (at most one neighbour across an edge), a few
+  // passes, each one eating the next ring of a dangling strip.
+  let fringe = 0;
+  const ekey = (a, b) => (a < b ? a * 4294967296 + b : b * 4294967296 + a);
+  for (let pass = 0; pass < 3; pass++) {
+    const count = new Map();
+    for (let t = 0; t < nT; t++) if (alive[t]) for (let e = 0; e < 3; e++) { const k = ekey(weld[idx[t * 3 + e]], weld[idx[t * 3 + (e + 1) % 3]]); count.set(k, (count.get(k) ?? 0) + 1); }
+    let n0 = 0;
+    for (let t = 0; t < nT; t++) {
+      if (!alive[t]) continue;
+      let nb = 0; for (let e = 0; e < 3; e++) if ((count.get(ekey(weld[idx[t * 3 + e]], weld[idx[t * 3 + (e + 1) % 3]])) ?? 0) > 1) nb++;
+      if (nb <= 1) { alive[t] = 0; n0++; }
+    }
+    fringe += n0; if (!n0) break;
+  }
+  const keep = [];
+  for (let t = 0; t < nT; t++) if (alive[t]) keep.push(idx[t * 3], idx[t * 3 + 1], idx[t * 3 + 2]);
+  acc.setArray(new Uint32Array(keep));
+  await io.write(outPath, doc);
+  console.log(`drop-islands ${inPath}: ${islands} islands under ${minTris} triangles (${dropped} triangles) and ${fringe} fringe triangles removed`);
+}
+
+async function fillHoles(inPath, outPath, maxLoop = 400) {
+  const doc = await io.read(inPath);
+  const prim = doc.getRoot().listMeshes()[0]?.listPrimitives()[0];
+  const P = prim?.getAttribute('POSITION'), acc = prim?.getIndices();
+  if (!P || !acc) throw new Error(`${inPath}: no indexed primitive`);
+  const idx = Array.from(acc.getArray()), n = P.getCount();
+  const p = [0, 0, 0], key = new Map(), weld = new Int32Array(n);
+  for (let i = 0; i < n; i++) { P.getElement(i, p); const k = p.map((x) => Math.round(x * 1e4)).join(','); let w = key.get(k); if (w === undefined) key.set(k, w = key.size); weld[i] = w; }
+  // Boundary edges (welded): used by one triangle. Each keeps its direction in that triangle and a real vertex per end.
+  const ekey = (a, b) => (a < b ? a * 4294967296 + b : b * 4294967296 + a);
+  const uses = new Map();
+  for (let t = 0; t < idx.length; t += 3) for (let e = 0; e < 3; e++) { const a = idx[t + e], b = idx[t + (e + 1) % 3]; const k = ekey(weld[a], weld[b]); const u = uses.get(k); if (u) u.n++; else uses.set(k, { n: 1, a, b }); }
+  const next = new Map();
+  for (const u of uses.values()) if (u.n === 1) next.set(weld[u.a], u);
+  // Walk them into loops (a boundary edge a->b runs on from b).
+  const seen = new Set(); const loops = [];
+  for (const [start] of next) {
+    if (seen.has(start)) continue;
+    const loop = []; let cur = start, ok = true;
+    while (!seen.has(cur)) { seen.add(cur); const u = next.get(cur); if (!u) { ok = false; break; } loop.push(u); cur = weld[u.b]; if (loop.length > maxLoop) { ok = false; break; } }
+    if (ok && cur === start && loop.length >= 3) loops.push(loop);
+  }
+  // A rim that runs across two limbs (a hand cut free of the thigh it lay on) is closed limb by limb: each run of rim
+  // on one limb gets its own cap (one cap over both would weld them again).
+  const J = prim.getAttribute('JOINTS_0'), W = prim.getAttribute('WEIGHTS_0');
+  const skin = doc.getRoot().listSkins()[0];
+  const groupOfJoint = skin ? skin.listJoints().map((jn) => limbGroup(jn.getName())) : [];
+  const j4 = [0, 0, 0, 0], w4 = [0, 0, 0, 0];
+  const limbOfVertex = (v) => { if (!J || !W) return 'body'; J.getElement(v, j4); W.getElement(v, w4); let k = 0; for (let m = 1; m < 4; m++) if (w4[m] > w4[k]) k = m; return groupOfJoint[j4[k]] ?? 'body'; };
+  const caps = [];
+  for (const loop of loops) {
+    const g = loop.map((u) => limbOfVertex(u.a));
+    const cut = g.findIndex((x, i) => x !== g[(i + g.length - 1) % g.length]);
+    if (cut < 0) { caps.push({ edges: loop, chord: null }); continue; }
+    const rot = [...loop.slice(cut), ...loop.slice(0, cut)], gr = [...g.slice(cut), ...g.slice(0, cut)];
+    let run = [];
+    for (let i = 0; i <= rot.length; i++) {
+      if (i < rot.length && (run.length === 0 || gr[i] === gr[i - 1])) { run.push(rot[i]); continue; }
+      // (The run's own edges, closed by a chord from its last vertex back to its first.)
+      if (run.length >= 3) caps.push({ edges: run.slice(0, -1), chord: [run[run.length - 1].a, run[0].a], rim: run.map((u) => u.a) });
+      run = i < rot.length ? [rot[i]] : [];
+    }
+  }
+  const attrs = prim.listSemantics().map((sem) => [sem, prim.getAttribute(sem)]);
+  const extra = caps.length;
+  for (const [, a] of attrs) { const arr = a.getArray(); const grown = new arr.constructor(arr.length + extra * a.getElementSize()); grown.set(arr); a.setArray(grown); }
+  let vi = n;
+  for (const cap of caps) {
+    const rim = cap.rim ?? cap.edges.map((u) => u.a);
+    for (const [sem, a] of attrs) {
+      if (sem === 'JOINTS_0' || sem === 'WEIGHTS_0') continue;
+      const size = a.getElementSize(), v = new Array(size).fill(0), tmp = new Array(size).fill(0);
+      for (const r of rim) { a.getElement(r, tmp); for (let k = 0; k < size; k++) v[k] += tmp[k] / rim.length; }
+      if (sem === 'NORMAL') { const l = Math.hypot(v[0], v[1], v[2]) || 1; for (let k = 0; k < 3; k++) v[k] /= l; }
+      a.setElement(vi, v);
+    }
+    if (J && W) {
+      const sum = new Map();
+      for (const r of rim) { J.getElement(r, j4); W.getElement(r, w4); for (let k = 0; k < 4; k++) if (w4[k] > 0) sum.set(j4[k], (sum.get(j4[k]) ?? 0) + w4[k]); }
+      const top = [...sum.entries()].sort((x, y) => y[1] - x[1]).slice(0, 4); const tot = top.reduce((x, [, w]) => x + w, 0) || 1;
+      J.setElement(vi, [0, 1, 2, 3].map((k) => top[k]?.[0] ?? 0)); W.setElement(vi, [0, 1, 2, 3].map((k) => (top[k]?.[1] ?? 0) / tot));
+    }
+    for (const u of cap.edges) idx.push(u.b, u.a, vi);
+    if (cap.chord) idx.push(cap.chord[1], cap.chord[0], vi);
+    vi++;
+  }
+  acc.setArray(new Uint32Array(idx));
+  await io.write(outPath, doc);
+  console.log(`fill-holes ${inPath}: ${loops.length} holes closed with ${caps.length} caps (rims ${loops.map((l) => l.length).sort((x, y) => y - x).slice(0, 8).join(', ')}${loops.length > 8 ? ', ...' : ''})`);
 }
 
 async function smoothSkin(inPath, outPath, iterations = 3, maskPath) {
@@ -544,6 +708,9 @@ async function main() {
   if (cmd === 'cut-triangles') return cutTriangles(a, b, c);
   if (cmd === 'rebind-nearest') return rebindNearest(a, b, c);
   if (cmd === 'smooth-skin') return smoothSkin(a, b, c ? Number(c) : 3, d);
+  if (cmd === 'fix-misbound') return fixMisbound(a, b, c ? Number(c) : 2.5);
+  if (cmd === 'drop-islands') return dropIslands(a, b, c ? Number(c) : 12);
+  if (cmd === 'fill-holes') return fillHoles(a, b, c ? Number(c) : 400);
   if (cmd === 'clip') return clip(a, b, c && c !== '--rot-only' ? c : undefined, process.argv.includes('--rot-only'));
   if (cmd === 'import') {
     const name = b;

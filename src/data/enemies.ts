@@ -49,8 +49,14 @@ export interface EnemyDef {
   body?: 'bubble';
   /** Drawn as the dream sees it: every colour at once (render/Materials patchTrippy). */
   trippy?: boolean;
-  /** A giant eye (the Blood Eye): its iris and pupil are drawn over the model and follow the hero (render/EyeIris). */
-  eye?: { iris: number };
+  /**
+   * A giant eye (the Blood Eye): its iris and pupil are drawn over the model and follow the hero (render/EyeIris): the
+   * eyeball's radius out to just over its painted pupil and the iris's radius (fractions of the model's height), and
+   * the way the eye looks (x, y of a unit vector, z forward). blood-eye.glb, measured from its mesh and texture: the
+   * painted pupil is a dome 0.2 across centred on (0.03, 0.22) with its peak 0.66 out (of 1.893), so the eye looks
+   * 19 degrees up; the eye tilts to put that on the hero.
+   */
+  eye?: { iris: number; ball: number; size: number; axis: [number, number] };
   /** Colour of its eye beam (default the dream's cyan). */
   beamColor?: number;
   /** Its texture glows (emissive from its own colours) at this strength: the Blood Eye burns in the night. */
@@ -91,7 +97,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   // its thorns, and pins whoever meets its glare.
   'blood-eye': {
     kind: 'blood-eye', name: 'The Blood Eye', title: 'That Watches the Chasm', maxHp: 7600, def: 60, atk: 150, speed: 3.5, element: 'blood', hover: 0, bodyRadius: 2.6, height: 6, boss: true,
-    flying: true, flyAbove: 14, floatAt: 10, eye: { iris: 0x3a5cff }, beamColor: 0xff2a2a, glow: 1.0,
+    flying: true, flyAbove: 14, floatAt: 10, eye: { iris: 0x3a5cff, ball: 0.4, size: 0.135, axis: [0.035, 0.32] }, beamColor: 0xff2a2a, glow: 1.0,
     brain: { aggroRange: 34, attackRange: 30, windup: 1.0, recover: 1.2, attackCooldown: 0.9, preferredRange: 16 }, respawn: 300, leash: 40, shards: [220, 320],
     attacks: [{ kind: 'eyebeam', range: 30, windup: 1.0, recover: 1.2, weight: 3 }, { kind: 'thorns', range: 26, windup: 1.0, recover: 1.2, weight: 2 }, { kind: 'glare', range: 30, windup: 1.4, recover: 1.0, weight: 2 }],
     drops: [{ itemId: 'lurker-eye', chance: 1 }, { itemId: 'star-chart', chance: 1 }],

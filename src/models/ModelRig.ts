@@ -1,4 +1,4 @@
-import { AnimationAction, AnimationClip, AnimationMixer, Box3, Group, LoopOnce, LoopRepeat, Mesh, type MeshStandardMaterial, Object3D, PropertyBinding, Quaternion, QuaternionKeyframeTrack, type SkinnedMesh, Vector3, VectorKeyframeTrack } from 'three';
+import { AnimationAction, AnimationClip, AnimationMixer, Box3, DoubleSide, Group, LoopOnce, LoopRepeat, Mesh, type MeshStandardMaterial, Object3D, PropertyBinding, Quaternion, QuaternionKeyframeTrack, type SkinnedMesh, Vector3, VectorKeyframeTrack } from 'three';
 import { warnMissing } from './Placeholder';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
@@ -288,6 +288,7 @@ export class ModelRig {
         else if (def.tint !== undefined && opts.cloneMaterials) m.color.setHex(def.tint);
         if (m.emissive.getHex() === 0) { m.emissive.setHex(0x16224e); m.emissiveIntensity = 0.42; }
         m.roughness = Math.max(m.roughness ?? 1, 0.6);
+        if (def.doubleSided) m.side = DoubleSide;
         m.userData.baseEmissive = m.emissive.getHex();
         m.userData.baseIntensity = m.emissiveIntensity;
         this.materials.push(m);
