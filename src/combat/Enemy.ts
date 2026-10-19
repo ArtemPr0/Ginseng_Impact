@@ -119,6 +119,8 @@ export class Enemy {
   private halo: Sprite[] | null = null;
   /** The fall into a heap of bones (collapse mobs): each bone's pose from → to, and the body's tip. */
   private heap: { t: number; bones: Array<{ b: Object3D; from: Quaternion; to: Quaternion; delay: number }>; tipAxis: Vector3; drop: number } | null = null;
+  /** Death without a death clip (see topplePose): seconds into the topple, or -1. */
+  private toppleT = -1;
 
   constructor(readonly def: EnemyDef, readonly spawn: EnemyHome, private readonly world: WorldQuery) {
     this.brain = new EnemyBrain({ ...def.brain });
@@ -611,6 +613,7 @@ export class Enemy {
     // The bones were posed by hand: put them back before the clips take over (the mixer only rewrites changes).
     if (this.heap) for (const x of this.heap.bones) x.b.quaternion.copy(x.from);
     this.heap = null;
+    this.toppleT = -1;
     this.oneShot = null;
     this.wantFlinch = false;
     this.lunge = this.flinch = 0;
@@ -669,6 +672,7 @@ export class Enemy {
     this.lastState = st;
     if (!this.alive) {
       if (this.heap) this.fallApart(dt);
+      else if (this.toppleT >= 0) this.toppleOver(dt);
       // Hold the corpse while the death clip runs (or a short beat without one), then shrink it away.
       const clipRunning = !!m && m.playing === 'death' && !m.finished && this.deadFor < DEATH_HOLD_MAX;
       const hold = clipRunning || this.deadFor < (this.heap ? HEAP_HOLD : DEATH_HOLD);
@@ -761,7 +765,8 @@ export class Enemy {
   private driveClips(m: ModelRig, st: EnemyState, entered: boolean): void {
     if (entered && st === 'dead') {
       if (this.def.collapse) { this.startHeap(m); return; }
-      if (!m.play('death', true)) m.play('idle');
+      // No death clip (the log giant): the pose freezes where it is and the whole frame topples over (toppleOver).
+      if (!m.play('death', true)) { m.holdAt(0); this.toppleT = 0; }
       this.oneShot = 'death';
       return;
     }
@@ -867,6 +872,17 @@ export class Enemy {
     // (Sunk while the legs give; lifted back as it tips, so the heap lies on the ground, not under it.)
     m.root.position.y = -h.drop * sink * sink * (1 - te) + 0.06 * te;
     m.root.quaternion.setFromAxisAngle(h.tipAxis, (1.1 + bounce) * te);
+  }
+
+  /** Death without a death clip (see topplePose): the frozen frame pitches back about its feet and sinks a little. */
+  private toppleOver(dt: number): void {
+    const m = this.model;
+    if (!m) return;
+    this.toppleT += dt;
+    const { pitch, sink } = topplePose(this.toppleT);
+    m.root.rotation.x = pitch;
+    // (A giant eye's body hangs below its tilt pivot by half its height: keep that offset, as driveStatic does.)
+    m.root.position.y = (this.eyePivot ? -this.eyePivot.position.y : 0) + sink;
   }
 
   /** Set by the combat system: the clatter of a skeleton falling apart. */
@@ -977,15 +993,33 @@ export class Enemy {
   }
 }
 
+/** How long a clip body with no death clip (the log giant) takes to topple, how far back it pitches, how deep it sinks. */
+const TOPPLE_LEN = 0.9;
+const TOPPLE_PITCH = (80 * Math.PI) / 180;
+const TOPPLE_SINK = 0.3;
+
+/**
+ * The generic topple, `t` seconds after death: how far the frame has pitched back about its feet (radians; negative
+ * is backwards, as driveStatic reads it) and sunk (metres). Gravity's shape, like the heap's tip: slow to start, fast
+ * at the end, a little rebound as it lands.
+ */
+export function topplePose(t: number): { pitch: number; sink: number } {
+  const k = Math.min(1, Math.max(0, t / TOPPLE_LEN));
+  const e = k * k;
+  const bounce = k >= 1 ? Math.exp(-(t - TOPPLE_LEN) * 9) * Math.sin((t - TOPPLE_LEN) * 28) * 0.06 : 0;
+  return { pitch: -(TOPPLE_PITCH - bounce) * e, sink: -TOPPLE_SINK * e };
+}
+
 /** Clip keys to try for each move, best first (Meshy preset names match by substring). */
-function attackClips(kind: BossAttackKind | undefined): string[] {
+export function attackClips(kind: BossAttackKind | undefined): string[] {
   switch (kind) {
     case 'slam': case 'roots': return ['charged_ground_slam', 'heavy', 'attack'];
     case 'volley': case 'summon': case 'blink': return ['charged_spell_cast', 'mage_s', 'cast', 'attack'];
     case 'breath': case 'roar': return ['zombie_scream', 'shouting', 'roar', 'attack'];
-    // A swing or a throw: the plain Attack clip, which boss bodies list under 'heavy' ('attack' is their slam).
-    case 'sweep': case 'bite': case 'boulder': case 'charge': return ['heavy', 'attack'];
-    case 'logthrow': return ['throw', 'heavy', 'attack'];
+    // A swing or a charge: the plain Attack clip, which boss bodies list under 'heavy' ('attack' is their slam).
+    case 'sweep': case 'bite': case 'charge': return ['heavy', 'attack'];
+    // A throw: the over-shoulder throw where the body has one (the cyclopes, the log giant), else the swing.
+    case 'boulder': case 'logthrow': return ['throw', 'heavy', 'attack'];
     case 'punch': return ['punch', 'attack'];
     case 'grab': return ['grab', 'attack'];
     case 'cupmortar': case 'cupvolley': return ['throw', 'heavy', 'attack'];
