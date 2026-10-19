@@ -198,8 +198,13 @@ function litWindows(m: ModelRig): void {
 /** Where the campfire skeletons sit (data/world ANCHORS) and the fire they face. */
 const CAMPFIRE = { x: -24, z: 52 };
 const CAMPFIRE_SEATS = new Set(['rattle', 'bone', 'marrow']);
-/** NPCs who sit on a barrel. */
-const SEATED = new Set(['rattle', 'bone', 'marrow', 'moss', 'sentry', 'vale-beggar', 'court-knight', 'dock-knight', 'dragon-reader', 'crypt-bones']);
+/** Flora with a crown: kept TREE_CLEAR metres from every NPC's spot. */
+const TREES = new Set(['pine', 'snow-pine', 'dead-forest-tree', 'gnarled-tree', 'cypress', 'birch', 'willow', 'palm', 'pod-tree', 'giant-mushroom']);
+const TREE_CLEAR = 4.5;
+/** NPCs who sit on a barrel (the island tavern's four sit round their table in the yard). */
+const SEATED = new Set(['rattle', 'bone', 'marrow', 'moss', 'sentry', 'vale-beggar', 'court-knight', 'dock-knight', 'dragon-reader', 'crypt-bones', 'aldous', 'mirren', 'gob-a', 'gob-b', 'croak']);
+/** Sitters whose seat is not a barrel (Brother Croak reads on a stone in the castle's shadow). */
+const SEAT_MODEL: Record<string, string> = { croak: 'boulder' };
 /**
  * The lantern in the rider's right hand, in horse-rider.glb's own frame (forward is -x, the rider's right -z, y up
  * from the hooves): the centre of its lit glass (the texels of the flame, averaged), less the fire's own lift.
@@ -281,6 +286,11 @@ export class World {
   private target!: Group;
   private zone: string | null = null;
   private readonly realmGroups = new Map<string, Group>();
+  /**
+   * Barrel stools still to be fitted to their sitters: once the sit clip plays, the stool moves under the hips (each
+   * body's sit pose puts them somewhere else: Old Moss hovered 0.9 m beside his) and the sitter settles onto it.
+   */
+  private readonly seatFits: Array<{ id: string; barrel: Group; top: number; wait: number }> = [];
   /** Swimmable water out in the realms (the vale's river, the lean moat): surface `level` over [x0, x1] × [z0, z1]. */
   private readonly waterZones: Array<{ x0: number; x1: number; z0: number; z1: number; level: number }> = [];
   private readonly zoneOf = new Map<object, string | null>();
@@ -310,6 +320,8 @@ export class World {
     // Ground-level height for things placed on the island (walkers, NPCs, grass): overhangs above the ground are skipped.
     const hw = (x: number, z: number, y?: number) => this.heights.heightAt(x, z, y ?? terrain.heightAt(x, z));
     const flora = (id: string, placements: Placement[], opts?: Parameters<typeof floraSet>[2] & { trunk?: number }) => {
+      // No tree grows where someone stands: a crown over an NPC's spot hid their head in it (Mother Marrow's pine).
+      if (TREES.has(id)) placements = placements.filter((p) => !Object.values(ANCHORS).some((a) => (a.x - p.x) ** 2 + (a.z - p.z) ** 2 < TREE_CLEAR ** 2));
       // Trees are solid at the trunk (climbable, like any trunk), never at the crown.
       if (opts?.trunk) for (const p of placements) { const f = trunkFootprint(id, p.x, p.y, p.z, p.scale, opts.trunk); if (f) this.heights.add(f); }
       const set = floraSet(id, placements, opts);
@@ -345,22 +357,24 @@ export class World {
     const headY = h(LAYOUT.head.x, LAYOUT.head.z) - 3;
     this.place(modelLandmark('head', LAYOUT.head.x, LAYOUT.head.z, headY, { color: PALETTE.blood }));
     this.place(stoneHeadEyes());
-    const cathY = h(LAYOUT.cathedral.x, LAYOUT.cathedral.z) - 0.5;
-    this.place(modelLandmark('cathedral', LAYOUT.cathedral.x, LAYOUT.cathedral.z, cathY, { yaw: LAYOUT.cathedral.yaw }));
+    const cathY = LAYOUT.cathedral.y;
+    const cs = LAYOUT.cathedral.scale;
+    this.place(modelLandmark('cathedral', LAYOUT.cathedral.x, LAYOUT.cathedral.z, cathY, { yaw: LAYOUT.cathedral.yaw, scale: cs }));
     // Its nave is open to walk in through the arch at the east end (scripts/collider-grids.mjs): two rows of candles
     // down the aisle and a cold light under the vault so the inside reads.
     {
       const cat = LAYOUT.cathedral;
       const nave: Placement[] = [];
-      for (let x = cat.x - 18; x <= cat.x + 20; x += 6) for (const side of [-1, 1]) {
-        const z = cat.z + side * 3.2;
+      for (let dx = -18; dx <= 20; dx += 6) for (const side of [-1, 1]) {
+        const x = cat.x + dx * cs;
+        const z = cat.z + side * 3.2 * cs;
         const y = this.heights.heightAt(x, z, cathY + 1);
         nave.push({ x, y, z, yaw: 0, scale: 1.4 });
         vfx(fire(x, y + 0.42, z, 0.12, 1.2));
       }
       flora('candle', nave, { shadows: false });
-      for (const x of [cat.x - 8, cat.x + 12]) {
-        const y = this.heights.heightAt(x, cat.z, cathY + 1) + 7;
+      for (const x of [cat.x - 8 * cs, cat.x + 12 * cs]) {
+        const y = this.heights.heightAt(x, cat.z, cathY + 1) + 7 * cs;
         const light = new PointLight(PALETTE.rune, 40, 26, 1.6);
         light.position.set(x, y, cat.z);
         this.group.add(light);
@@ -445,7 +459,7 @@ export class World {
     // Rainy orchard (DdKl7fKMO75): rows of twisted trees; each trunk is solid once the tree model exists.
     const orng = rng(321);
     // (Not in the river: the orchard's south row reaches its channel.)
-    flora('gnarled-tree', orchardSpots(LAYOUT.orchard.x, LAYOUT.orchard.z).map(([x, z]: [number, number]) => ({ x, y: h(x, z) - 0.2, z, yaw: orng() * Math.PI * 2, scale: 0.75 + orng() * 0.3 })).filter((p) => riverAt(p.x, p.z) < 0.02 && riverDistance(p.x, p.z) > 7), { trunk: 0.05 });
+    flora('gnarled-tree', orchardSpots(LAYOUT.orchard.x, LAYOUT.orchard.z).map(([x, z]: [number, number]) => ({ x, y: h(x, z) - 0.2, z, yaw: orng() * Math.PI * 2, scale: 0.75 + orng() * 0.3 })).filter((p) => riverAt(p.x, p.z) < 0.02 && riverDistance(p.x, p.z) > 7 && !this.heights.blocked(p.x, p.z)), { trunk: 0.05 });
     const pool = LAYOUT.floodedRuin;
     this.place(modelLandmark('flooded-ruin', pool.x, pool.z, h(pool.x, pool.z) - 0.6));
     // The Marsh Sovereign stands waist-deep in it; wading in drags at your legs.
@@ -520,7 +534,7 @@ export class World {
     const ft = ISLAND_PORTALS.galaxy.faceTree;
     // (Nor under the witch bridge's deck, which they would poke through.)
     const wb = LAYOUT.coven;
-    flora('reed', theRiver.reedSpots.filter((p) => Math.hypot(p.x - ft.x, p.z - ft.z) > 8.5 && !(Math.abs(p.x - wb.streamX) < 13 && Math.abs(p.z - wb.bridgeZ) < 3.5)), { wind: 0.22, shadows: false });
+    flora('reed', theRiver.reedSpots.filter((p) => Math.hypot(p.x - ft.x, p.z - ft.z) > 8.5 && !(Math.abs(p.x - wb.streamX) < 13 && Math.abs(p.z - wb.bridgeZ) < 3.5) && !this.heights.blocked(p.x, p.z)), { wind: 0.22, shadows: false });
     const pond = lilyPond(WORLD.pond.x, WORLD.pond.z, WORLD.pond.r, rnd);
     this.place(pond);
     flora('lily-pad', pond.padSpots, { shadows: false });
@@ -590,7 +604,15 @@ export class World {
     flora('cobblestone', cobbleSpots([[VILLAGE.x - 34, VILLAGE.z + 1], [VILLAGE.x + 34, VILLAGE.z + 1]], 5, h, vrnd).filter((p) => !this.insideBuilding(p.x, p.z)), { shadows: false });
     const tavernY = h(20, 66) - 0.2;
     this.place(modelLandmark('tavern', 20, 63, tavernY));
-    for (const side of [-1, 1]) vfx(fire(20 + side * 6.4, tavernY + 2.6, 55.6, 0.4, 8));
+    // The yard table the regulars sit round on barrel stools (ANCHORS), candles on it.
+    {
+      const tx = 24.5, tz = 70.8, ty = h(tx, tz);
+      flora('tavern-table', [{ x: tx, y: ty, z: tz, yaw: 0, scale: 1 }]);
+      if (PRESENT_MODELS.has('tavern-table')) this.heights.add({ kind: 'box', x: tx, z: tz, hw: 1.6, hd: 0.6, top: ty + 0.95, rotY: 0 });
+      const candles = [-0.9, 0.9].map((dx) => ({ x: tx + dx, y: ty + 0.97, z: tz, yaw: 0, scale: 1 }));
+      flora('candle', candles, { shadows: false });
+      for (const c of candles) { const g = glowSprite(0xffb050, 0.7, 0.55, true); g.position.set(c.x, c.y + 0.38, c.z); this.group.add(g); }
+    }
     const campY = h(-24, 52);
     this.place(modelLandmark('campfire', -24, 52, campY));
     vfx(fire(-24, campY + 0.25, 52, 1.5, 34));
@@ -640,7 +662,7 @@ export class World {
       while (out.length < count && guard++ < count * 15) {
         const x = fr.xFrom + rnd() * (fr.xTo - fr.xFrom);
         const z = fr.zTo - rnd() * (fr.zTo - fr.zFrom);
-        if (frozenAt(x, z) < 0.35 || !this.plantable(x, z) || Math.hypot(x - 71, z + 90) < 14) continue;
+        if (frozenAt(x, z) < 0.35 || !this.clearGround(x, z) || Math.hypot(x - 71, z + 90) < 14) continue;
         out.push({ x, y: terrain.heightAt(x, z) + dy, z, yaw: rnd() * Math.PI * 2, scale: minS + rnd() * (maxS - minS) });
       }
       return out;
@@ -669,7 +691,7 @@ export class World {
       const top = base + MODELS['floating-island'].height * ISLAND_TOP;
       for (const [dx, w] of [[-2.5, 3], [2.2, 2.2]] as const) this.place(waterfall(ix + dx, iz + 5, top, w, top - 1.0));
     }
-    const unbuilt = (p: Placement): boolean => !this.heights.near(p.x, p.z, plantPad);
+    const unbuilt = (p: Placement): boolean => !this.heights.near(p.x, p.z, plantPad) && !this.heights.blocked(p.x, p.z);
     flora('willow', ringSpots(WORLD.pond.x, WORLD.pond.z, 18, 6, h, rnd).filter(unbuilt));
     const islandPalms: Placement[] = [];
     for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2; islandPalms.push({ x: 72 + Math.cos(a) * 14, y: 36.4, z: 89 + Math.sin(a) * 14, yaw: rnd() * 6, scale: 0.9 + rnd() * 0.3 }); }
@@ -697,7 +719,7 @@ export class World {
       const r = 9 + crnd() * 10;
       const x = LAYOUT.church.x + Math.cos(a) * r;
       const z = LAYOUT.church.z + Math.sin(a) * r;
-      if (!this.plantable(x, z) || h(x, z) < 1 || Math.hypot(x - WORLD.islandCentre.x, z - WORLD.islandCentre.z) > 116) continue;
+      if (!this.clearGround(x, z) || h(x, z) < 1 || Math.hypot(x - WORLD.islandCentre.x, z - WORLD.islandCentre.z) > 116) continue;
       if (graves.some((g) => Math.hypot(g.x - x, g.z - z) < 1.6)) continue;
       graves.push({ x, y: h(x, z), z, yaw: Math.PI / 2 + (crnd() - 0.5) * 0.3, scale: 0.8 + crnd() * 0.5 });
     }
@@ -756,7 +778,10 @@ export class World {
       // (In the sitter's realm's group: the island's group is hidden while the player is in a realm.)
       const realm = REALMS.find((r) => Math.hypot(bx - r.x, bz - r.z) < r.radius);
       this.enterZone(realm ? realm.id : null);
-      this.place(modelLandmark('barrel', bx, bz, by, { scale: 0.5 / MODELS.barrel.height, collider: 'none' }));
+      const seatId = SEAT_MODEL[id] ?? 'barrel';
+      const barrel = modelLandmark(seatId, bx, bz, by, { scale: 0.5 / MODELS[seatId].height, collider: 'none' });
+      this.place(barrel);
+      if (!CAMPFIRE_SEATS.has(id)) this.seatFits.push({ id, barrel: barrel.root, top: by + 0.5, wait: 0.6 });
     }
     this.enterZone(null);
     // The Antlered King perches on the front edge of his throne's seat (squatting, not sunk into the back).
@@ -837,6 +862,11 @@ export class World {
     return this.heights.footprints.some((f) => f.kind === 'grid' && footprintContains(f, x, z));
   }
 
+  /** Plantable, and not inside any structure's outline (a plant is placed once; grass uses the cheaper plantable). */
+  private clearGround(x: number, z: number): boolean {
+    return this.plantable(x, z) && !this.heights.blocked(x, z);
+  }
+
   plantable(x: number, z: number): boolean {
     const y = this.terrain.heightAt(x, z);
     if (y < -2) return false;
@@ -877,7 +907,7 @@ export class World {
       const r = inner + Math.sqrt(rnd()) * (outer - inner);
       const x = c.x + Math.cos(a) * r;
       const z = c.z + Math.sin(a) * r;
-      if (!this.plantable(x, z)) continue;
+      if (!this.clearGround(x, z)) continue;
       if (gap > 0 && out.some((p) => (p.x - x) ** 2 + (p.z - z) ** 2 < gap * gap)) continue;
       out.push({ x, y: this.terrain.heightAt(x, z) - 0.3, z, yaw: rnd() * Math.PI * 2, scale: minS + rnd() * (maxS - minS) });
     }
@@ -892,7 +922,7 @@ export class World {
       const r = Math.sqrt(rnd()) * radius;
       const x = cx + Math.cos(a) * r;
       const z = cz + Math.sin(a) * r;
-      if (!this.plantable(x, z)) continue;
+      if (!this.clearGround(x, z)) continue;
       if (gap > 0 && out.some((p) => (p.x - x) ** 2 + (p.z - z) ** 2 < gap * gap)) continue;
       out.push({ x, y: this.terrain.heightAt(x, z) - 0.05, z, yaw: rnd() * Math.PI * 2, scale: minS + rnd() * (maxS - minS) });
     }
@@ -909,7 +939,7 @@ export class World {
       const d = riverDistance(x, z);
       if (d < minD || d > maxD) continue;
       const y = this.terrain.heightAt(x, z);
-      if (y < 0 || this.terrain.slopeAt(x, z) > 0.6 || !this.plantable(x, z)) continue;
+      if (y < 0 || this.terrain.slopeAt(x, z) > 0.6 || !this.clearGround(x, z)) continue;
       out.push({ x, y: y - 0.05, z, yaw: rnd() * Math.PI * 2, scale: 0.8 + rnd() * 0.6 });
     }
     return out;
@@ -931,6 +961,27 @@ export class World {
       const far = Math.hypot(n.pos.x - playerPos.x, n.pos.z - playerPos.z) > 70 && n !== talkingNpc;
       n.update(dt, playerPos, n === talkingNpc, !far);
     }
+    for (let i = this.seatFits.length - 1; i >= 0; i--) this.fitSeat(i, dt, here);
+  }
+
+  /** Puts a sitter's barrel under their hips and their hips 0.1 m over its top (see seatFits). */
+  private fitSeat(i: number, dt: number, here: string | null): void {
+    const f = this.seatFits[i];
+    const n = this.npcs.find((q) => q.def.id === f.id);
+    if (!n) { this.seatFits.splice(i, 1); return; }
+    const m = n.rig.model;
+    if ((this.zoneOf.get(n) ?? null) !== here || !m || !/sit|chair/i.test(m.clipName(m.playing ?? ''))) return;
+    f.wait -= dt;
+    if (f.wait > 0) return;
+    const hips = m.bone(/hips$/i);
+    if (hips) {
+      n.object.updateWorldMatrix(true, true);
+      const p = hips.getWorldPosition(new Vector3());
+      f.barrel.position.x = p.x;
+      f.barrel.position.z = p.z;
+      n.pos.y += f.top + 0.1 - p.y;
+    }
+    this.seatFits.splice(i, 1);
   }
 }
 

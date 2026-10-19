@@ -16,6 +16,8 @@ import { portal, type PortalLink } from './Portal';
 import { buildSunken, SUNKEN_ARRIVAL } from './Sunken';
 import { buildVale } from './Vale';
 import { patchWingFlap } from '../render/Materials';
+import { cord, rope } from '../render/Rope';
+import { MODELS } from '../data/models';
 import type { HostileShot } from '../combat/CombatSystem';
 
 export interface RealmApi {
@@ -97,15 +99,43 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   if (PRESENT_MODELS.has('tavern-table')) for (const t of tables) api.place({ object: new Group(), footprints: [{ kind: 'box', x: t.x, z: t.z, hw: 1.6, hd: 0.6, top: t.y + 0.95, rotY: -t.yaw }] });
   const lamps: Placement[] = [];
   const lampColors = [PALETTE.blood, PALETTE.rune, PALETTE.witch, PALETTE.dusk, PALETTE.moon];
-  // The lamps hang over the tavern's tables: with no tables (model not made yet) there is nothing to hang them from.
-  if (PRESENT_MODELS.has('tavern-table')) for (let i = 0; i < 16; i++) {
-    const a = (i / 16) * Math.PI * 2 + api.rnd() * 0.3;
-    const r = 3 + api.rnd() * 6;
-    const x = tx + Math.cos(a) * r;
-    const z = tz - 2 + Math.sin(a) * r;
-    const y = api.h(x, z) + 3.2 + api.rnd() * 2;
-    lamps.push({ x, y, z, yaw: api.rnd() * 6, scale: 0.7 + api.rnd() * 0.6 });
-    glowAt(api, lampColors[i % lampColors.length], 1.4, x, y - 0.2, z, 0.55);
+  // The lamps hang from ropes slung between six lantern poles round the tables (and three across the middle): with no
+  // tables (model not made yet) there is nothing to hang them over.
+  if (PRESENT_MODELS.has('tavern-table')) {
+    const cx = tx, cz = tz - 2;
+    const poleH = 4.4;
+    const tops: Vector3[] = [];
+    const poles: Placement[] = [];
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + 0.3;
+      const x = cx + Math.cos(a) * 7.5, z = cz + Math.sin(a) * 7.5;
+      const y = api.h(x, z);
+      poles.push({ x, y, z, yaw: a, scale: poleH / MODELS['lantern-post'].height });
+      api.place({ object: new Group(), footprints: [{ kind: 'cyl', x, z, r: 0.18, top: y + poleH }] });
+      tops.push(new Vector3(x, y + poleH * 0.93, z));
+    }
+    api.flora('lantern-post', poles);
+    const spans: Array<[Vector3, Vector3, number]> = [];
+    for (let i = 0; i < 6; i++) spans.push([tops[i], tops[(i + 1) % 6], 0.6]);
+    for (let i = 0; i < 3; i++) spans.push([tops[i], tops[i + 3], 1.3]);
+    let n = 0;
+    for (const [a, b, sag] of spans) {
+      const r = rope(a, b, sag);
+      api.group.add(r.mesh);
+      const count = sag > 1 ? 3 : 1;
+      for (let k = 0; k < count; k++) {
+        const t = count === 1 ? 0.5 : 0.25 + k * 0.25;
+        const hook = r.at(t);
+        const scale = 0.7 + api.rnd() * 0.5;
+        const drop = 0.25 + api.rnd() * 0.35;
+        api.group.add(cord(hook, drop));
+        // (The lamp's feet at its origin: its cap's top meets the cord.)
+        const y = hook.y - drop - MODELS['mushroom-lamp'].height * scale;
+        lamps.push({ x: hook.x, y, z: hook.z, yaw: api.rnd() * 6, scale });
+        glowAt(api, lampColors[n % lampColors.length], 1.4, hook.x, y - 0.15, hook.z, 0.55);
+        n++;
+      }
+    }
   }
   api.flora('mushroom-lamp', lamps, { shadows: false });
   if (PRESENT_MODELS.has('tavern-table')) {

@@ -32,8 +32,12 @@ export const LAYOUT = {
   // (yEnd: four 0.45 m risers between its spans, each low enough to walk up; 1 m ledges stopped the hero.)
   causeway: { x: 0, zStart: -10, zEnd: -115, width: 6, yStart: 6, yEnd: 7.8, postSpacing: 8, segmentLength: 24.7 },
   head: { x: 0, z: -146, height: 26 },
-  /** The cathedral's long axis runs east–west; its west front faces the river road. */
-  cathedral: { x: 64, z: -24, yaw: Math.PI / 2 },
+  /**
+   * The cathedral's long axis runs east–west; its west front faces the river road. Between the chasm and the river
+   * there is 34 m of ground: at full size its south aisle hung 80 m over the chasm, so it stands at 0.7 (38 m) where
+   * all of it is on land (overhang audit), its feet at y (the ground's 5th percentile under it).
+   */
+  cathedral: { x: 68, z: -18, yaw: Math.PI / 2, scale: 0.7, y: 3.6 },
   /** The mud pool east of the cathedral, home of the Marsh Sovereign: a basin (PADS) filled to `mud` (world y). */
   floodedRuin: { x: 106, z: -13, r: 9, mud: 4.9 },
   forest: { innerRadius: 72, outerRadius: 119, count: 420 },
@@ -58,8 +62,8 @@ export const LAYOUT = {
   /** The Antlered King's throne before the castle gate, facing the road south. */
   throne: { x: -94, z: 8 },
   church: { x: -66, z: 57 },
-  /** The wizard's lonely tower on the east cliffs, where the Moon Wyrm circles. */
-  tower: { x: 93, z: 42 },
+  /** The wizard's lonely tower on the east cliffs, where the Moon Wyrm circles (back from the edge: at (93, 42) a third of its rock hung over the drop). */
+  tower: { x: 83, z: 32 },
   treehouse: { x: -90, z: 30 },
   orchard: { x: 60, z: 24 },
   rainZone: { x: 60, z: 24, radius: 30 },
@@ -113,8 +117,9 @@ export const VILLAGE = {
  * absolute height (a balcony perch). Loop NPCs start at the first point of their path instead.
  */
 export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: number }> = {
-  aldous: { x: 18.4, z: 68.2, dy: 0.5 }, mirren: { x: 21.6, z: 68.2, dy: 0.5 },
-  'gob-a': { x: 21.2, z: 66.8, dy: 0.5 }, 'gob-b': { x: 23.0, z: 66.0, dy: 0.5 },
+  // Round the island tavern's yard table (World.ts, x 22.9..26.1, z 70.2..71.4), on barrel stools.
+  aldous: { x: 23.6, z: 72.3, dy: 0.02 }, mirren: { x: 25.4, z: 72.3, dy: 0.02 },
+  'gob-a': { x: 23.6, z: 69.3, dy: 0.02 }, 'gob-b': { x: 25.4, z: 69.3, dy: 0.02 },
   // Seated on barrels around the campfire at (-24, 52); `seat` is the barrel under each.
   rattle: { x: -21.6, z: 53.4, dy: 0.02 }, bone: { x: -26.4, z: 53.4, dy: 0.02 }, marrow: { x: -24, z: 49.2, dy: 0.02 },
   vigil: { x: 32, z: 69 },
@@ -137,11 +142,13 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   priest: { x: 36, z: -96 },
   'lantern-witch': { x: -106, z: 14 },
   // The Lean Quarter (round 6, see LEAN_QUARTER): the Skeleton Court, Bucket Street, the snow chapel, the sky dock.
-  'skeleton-king': { x: 1000, z: -170.6, dy: 0.9 },
+  // On the dragon throne's seat (ray-probed: 25.38, its front edge at z -171.1), hips 0.12 over it, 0.3 in from the edge.
+  'skeleton-king': { x: 1000, z: -171.0, y: 24.76 },
   'skeleton-wizard': { x: 900, z: 18 },
   'galaxy-wizard': { x: 872, z: -18 },
-  // The lord in the pavilion's armchair (its seat, 0.48 above his feet), Sir Cobalt on a stool at his side.
-  'skeleton-lord': { x: 1043.55, z: -160, dy: -0.48 }, 'court-knight': { x: 1042.3, z: -158.3, dy: 0.02 },
+  // The lord at the front of the pavilion's settee (ray-probed: seat 25.03, 1.8 m deep, front edge x 1042.4; sat at
+  // its back his shins sank into it), Sir Cobalt on a stool at his side.
+  'skeleton-lord': { x: 1042.15, z: -160, y: 24.53 }, 'court-knight': { x: 1042.3, z: -158.3, dy: 0.02 },
   'potion-brewer': { x: 1026, z: -127 },
   bartender: { x: 1173.0, z: 10.1 }, 'dock-knight': { x: 1181, z: 7.5, dy: 0.02 },
   // On the quarter's floor (24, GALAXY.y): his chest is one model with him, and its collider would lift them both.

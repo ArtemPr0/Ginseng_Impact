@@ -160,7 +160,8 @@ export const MODELS: Record<string, ModelDef> = {
   'witch-cook': { file: 'witch-cook.glb', height: 1.8, label: 'skeleton cook in a chef hat with a spoon (Mother Marrow)', clips: NPC_CLIPS('stir') },
   bride: { file: 'bride.glb', height: 1.8, label: 'the Pale Bride', clips: NPC_CLIPS('walk') },
   maiden: { file: 'maiden.glb', height: 1.68, label: 'Elowen of the flower garden', clips: NPC_CLIPS('bow') },
-  wanderer: { file: 'wanderer.glb', height: 1.85, label: 'hooded wanderer with a lantern (the Lanternbearer)', clips: NPC_CLIPS('walk') },
+  // (The vale's beggar sits: the chair-sit clip borrowed from the knight NPC's rig of the same skeleton, rotations only.)
+  wanderer: { file: 'wanderer.glb', clipFiles: { sit: 'npc-sit.glb' }, height: 1.85, label: 'hooded wanderer with a lantern (the Lanternbearer)', clips: NPC_CLIPS('walk') },
   'wizard-npc': { file: 'wizard-npc.glb', height: 1.8, label: 'wizard NPC (Mirren, Sel)', clips: NPC_CLIPS('idle') },
   gnome: { file: 'gnome.glb', height: 1.15, label: 'gnome astronomer with a telescope (Pim)', clips: NPC_CLIPS('telescope') },
   'frog-monk': { file: 'frog-monk.glb', height: 1.75, label: 'frog monk reading a book (Brother Croak)', clips: NPC_CLIPS('read') },

@@ -32,6 +32,8 @@ export interface NpcDef {
   behaviour: NpcBehaviour;
   /** Items for sale (buy) — the NPC also buys any material. */
   shop?: ShopEntry[];
+  /** Holds a lean cup (a body whose mesh has none: the drink clip lifts an empty hand otherwise). */
+  cup?: boolean;
   /** Hire as a companion for this many shards. */
   hire?: { cost: number; atk: number; maxHp: number; ranged: boolean };
   /**
@@ -110,21 +112,23 @@ export const NPC_DEFS: NpcDef[] = [
     id: 'cook', name: 'Mother Marrow', title: 'Who Stirs the Sea', weapon: 'staff',
     model: 'witch-cook', accent: PALETTE.witch,
     lines: ['Stir it widdershins or it stirs you.', 'Rot salve. Thirty shards. It smells like the pot. It works like the pot.', 'The castle on the rock? I cooked for them once. They did not come back for seconds.'],
-    behaviour: { kind: 'stand', pose: 'stir', yaw: Math.PI / 2 },
+    behaviour: { kind: 'stand', pose: 'stir', yaw: Math.PI },
     shop: [{ itemId: 'rot-salve', price: 30 }, { itemId: 'witch-staff', price: 320 }],
   },
   {
     id: 'aldous', name: 'Sir Aldous', title: 'Knight of the Tavern', weapon: 'greatsword',
     model: 'knight-npc', accent: PALETTE.rune,
     lines: ['Sit. The ale is cold and the moon is patient.', 'I have guarded worse roads than yours for less coin.', 'The fog takes the careless. Hire a sword that does not care.'],
-    behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI * 0.9 },
+    cup: true,
+    behaviour: { kind: 'stand', pose: 'drink', yaw: -Math.PI / 2 },
     hire: { cost: 120, atk: 70, maxHp: 1400, ranged: false },
   },
   {
     id: 'mirren', name: 'Mirren', title: 'Wizard of the Long Night', weapon: 'staff',
     model: 'wizard-npc', accent: PALETTE.dusk,
     lines: ['Every ruin here was a kingdom once. Buy something before it is a ruin again.', 'Moon dew heals. Lunar charms sharpen. Star charts remember.', 'The stars are not above us. They are behind the fog.'],
-    behaviour: { kind: 'stand', pose: 'drink', yaw: -Math.PI * 0.1 },
+    cup: true,
+    behaviour: { kind: 'stand', pose: 'drink', yaw: -Math.PI / 2 },
     shop: [{ itemId: 'moon-dew', price: 35 }, { itemId: 'lunar-charm', price: 180 }, { itemId: 'travelers-blade', price: 220 }, { itemId: 'star-chart', price: 260 }],
   },
   {
@@ -177,13 +181,14 @@ export const NPC_DEFS: NpcDef[] = [
     id: 'gob-a', name: 'Snik', title: 'Tavern Goblin', weapon: 'sword',
     model: 'goblin', accent: PALETTE.witch,
     lines: ['Grk. Mine.', 'Knight pays. Goblin drinks. Good arrangement.'],
-    behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI * 0.3 },
+    cup: true,
+    behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI / 2 },
   },
   {
     id: 'gob-b', name: 'Vrak', title: 'Tavern Goblin', weapon: 'sword',
     model: 'goblin', accent: PALETTE.witch,
     lines: ['...hic.'],
-    behaviour: { kind: 'stand', pose: 'sit', yaw: Math.PI * 1.4 },
+    behaviour: { kind: 'stand', pose: 'sit', yaw: Math.PI / 2 },
   },
   // The user's own gnome (docs/reference/frames/cup-gnome.png): sips his cup and asks after Young Lean.
   {
@@ -269,12 +274,14 @@ export const NPC_DEFS: NpcDef[] = [
     id: 'skeleton-lord', name: 'The Skeleton Lord', title: 'Who Breathes the Purple Smoke', weapon: 'sword',
     model: 'skeleton-lord', accent: PALETTE.dusk,
     lines: ['Every diamond in these teeth was a promise someone broke.', 'Sit. The smoke is free. The view costs.', 'The carriage brings guests to the castle. The castle keeps them.'],
+    cup: true,
     behaviour: { kind: 'stand', pose: 'sit', yaw: Math.PI },
   },
   {
     id: 'court-knight', name: 'Sir Cobalt', title: 'Guest of the Pavilion', weapon: 'sword',
     model: 'blue-knight', accent: PALETTE.electric,
     lines: ['I came for one goblet. That was many goblets ago.', 'My sword is ice. It never melts in here: nothing does.', 'He talks in smoke. I nod. It works.'],
+    cup: true,
     behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI },
     sipAt: 0.42,
   },
@@ -289,6 +296,7 @@ export const NPC_DEFS: NpcDef[] = [
     id: 'bartender', name: 'Old Ribs', title: 'Bartender of the Sky Bar', weapon: 'sword',
     model: 'skeleton-lord', accent: PALETTE.dusk,
     lines: ['Ice, straw, a slice of orange. House style.', 'The dragon drinks on credit. You do not.', 'Mind the edge. The last fellow who leaned too far is still falling.'],
+    cup: true,
     behaviour: { kind: 'stand', pose: 'offer', yaw: Math.PI * 0.75 },
     shop: [{ itemId: 'moon-dew', price: 30 }, { itemId: 'lotus-tea', price: 26 }],
   },
@@ -296,6 +304,7 @@ export const NPC_DEFS: NpcDef[] = [
     id: 'dock-knight', name: 'Sir Velvet', title: 'Who Drinks With the Dragon', weapon: 'sword',
     model: 'blue-knight', accent: PALETTE.electric,
     lines: ['He is called Grillmaw. Do not stare at his teeth, he knows they are nice.', 'We watch the sun go down from here. It never quite does.', 'One more cup and then we fly. Probably.'],
+    cup: true,
     behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI },
     sipAt: 0.42,
   },
@@ -325,6 +334,7 @@ export const NPC_DEFS: NpcDef[] = [
     id: 'crypt-bones', name: 'Knuckles', title: 'Who Counts the Skulls', weapon: 'sword',
     model: 'skeleton', accent: PALETTE.moon,
     lines: ['Four hundred and twelve skulls on that wall. I check every night.', 'Some of them are friends. Some of them owe me a drink.'],
+    cup: true,
     behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI },
     sipAt: 0.42,
   },
@@ -435,6 +445,7 @@ export class Npc {
   constructor(readonly def: NpcDef, start: { x: number; z: number }, private readonly heightAt: (x: number, z: number, y?: number) => number) {
     this.rig = new Rig({ id: def.id, name: def.name, title: def.title, element: 'fog', weapon: def.weapon, maxHp: 1, atk: 1, accent: def.accent }, def.model);
     this.object = this.rig.root;
+    if (def.cup) this.rig.holdCup();
     if (def.scale && def.scale !== 1) this.object.scale.setScalar(def.scale);
     this.pos.set(start.x, heightAt(start.x, start.z), start.z);
     if (def.behaviour.kind === 'stand') this.yaw = def.behaviour.yaw;

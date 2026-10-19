@@ -6,6 +6,7 @@
  * The floor (path and moss) is a shader like the terrain; walls, graves, trees and towers are models.
  */
 import { Color, Mesh, type MeshStandardMaterial, PlaneGeometry, ShaderMaterial, UniformsLib, UniformsUtils, Vector3 } from 'three';
+import { ENEMY_SPAWNS } from '../data/enemies';
 import { GRAVEYARD } from '../data/world';
 import { MODELS } from '../data/models';
 import { fireflies } from '../render/Fireflies';
@@ -162,6 +163,13 @@ export function buildGraveyard(api: GraveyardApi): { links: PortalLink[]; intera
     if (i % 3 === 0) api.vfx(fire(x, y0 + 0.3, z, 0.1, 1));
   }
   api.flora('candle', candles, { shadows: false });
+  // The skeletons that sit waiting by the gate sit on stones (a mob that sits needs a seat: ENEMY_SPAWNS), 0.28 m behind
+  // their spot, the stone's top at the height their sit pose expects (0.5 m, as the campfire barrels).
+  const seats: Placement[] = ENEMY_SPAWNS.filter((sp) => sp.kind === 'skeleton' && Math.hypot(sp.x - R.x, sp.z - R.z) < R.radius).map((sp) => {
+    const yaw = sp.yaw ?? 0;
+    return { x: sp.x - Math.cos(yaw) * 0.28, y: y0, z: sp.z - Math.sin(yaw) * 0.28, yaw: rnd() * 6, scale: 0.5 / MODELS.boulder.height };
+  });
+  api.flora('boulder', seats);
   const graveZ = R.z - 15;
   api.heights.bouncers.push({ x: R.x, z: graveZ, r: 1.2, top: y0, v: 18 });
   const pit = glowSprite(PALETTE.witch, 3, 0.45, true);

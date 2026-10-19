@@ -396,6 +396,25 @@ export class ModelRig {
     return this.play(key, true, speed);
   }
 
+  /**
+   * Poses the playing clip at each of `fractions` of its length in turn, calling `fn` with the body posed (world
+   * matrices updated), then puts the clip back where it was. Measures a clip once (which hand a drink lifts).
+   */
+  sampleClip(fractions: number[], fn: (f: number) => void): void {
+    const a = this.current;
+    if (!a) return;
+    const t0 = a.time;
+    for (const f of fractions) {
+      a.time = a.getClip().duration * f;
+      this.mixer.update(0);
+      this.root.updateWorldMatrix(true, true);
+      fn(f);
+    }
+    a.time = t0;
+    this.mixer.update(0);
+    this.root.updateWorldMatrix(true, true);
+  }
+
   /** Freezes the current clip once it reaches `fraction` of its length (a jump's apex, a charge's wind-up). */
   holdAt(fraction: number): void {
     const a = this.current;

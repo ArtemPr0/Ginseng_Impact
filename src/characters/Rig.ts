@@ -244,6 +244,13 @@ export class Rig {
   private readonly cupGripQ = new Quaternion();
   /** His fingers wrapped round the cup (local rotations, solved once: the cup never moves in his hand). */
   private cupFingers: Array<{ bone: Object3D; q: Quaternion }> | null = null;
+  /**
+   * An NPC's lean cup (holdCup): wanted, the loaded model, then the cup seated in whichever hand the NPC's clip lifts
+   * to the mouth, the fingers closed round it (the clip does the drinking).
+   */
+  private npcCupWanted = false;
+  private npcCupModel: GLTF | null = null;
+  private npcCup: { cup: LeanCup; fingers: Array<{ bone: Object3D; q: Quaternion }> } | null = null;
   private sip: { action: AnimationAction; w: number; slurped: boolean } | null = null;
   private sipIn: number = SIP.every[0];
   /** The carry pose (cup at the chest in flight) is playing. */
@@ -307,6 +314,7 @@ export class Rig {
       this.fx.add(this.smoke.particles);
     }
     if (id === 'knight' && this.offHand) void loadModelOrWarn('lean-cup', MODELS['lean-cup']?.label).then((g) => { if (g) this.attachCup(g); });
+    if (this.npcCupWanted) this.loadNpcCup();
     if (id === 'archer' && this.hand) void loadModelOrWarn('purple-mushroom', MODELS['purple-mushroom']?.label).then((g) => { if (g) this.attachShroom(g); });
     if (id === 'archer') this.fingerRest = bindFingers(this.model);
     if (id === 'archer') for (let i = 0; i < 14; i++) {
@@ -451,18 +459,28 @@ export class Rig {
    * the arm does.
    */
   private fitCup(): void {
-    const m = this.model;
     const hand = this.offHand;
     const pivot = this.cupPivot;
-    const cup = this.cup;
-    const holder = pivot?.parent;
-    if (!m || !hand || !pivot || !cup || !holder) return;
-    const bone = (n: string) => m.bone(new RegExp(`left.?hand${n}$`, 'i'));
+    if (!this.model || !hand || !pivot || !this.cup) return;
+    this.cupFingers = this.solveGrip('left', hand, pivot, this.cup);
+    this.cupGripQ.copy(pivot.quaternion);
+  }
+
+  /**
+   * The grip solve for a cup on `pivot` (a child of a holder on `hand`): the cup's axis along the knuckle line, its wall
+   * against the palm, each finger joint turned toward the axis until the next joint lies on the wall. Returns the
+   * fingers' solved local rotations ([] when the hand has no finger bones).
+   */
+  private solveGrip(side: 'left' | 'right', hand: Object3D, pivot: Group, cup: LeanCup): Array<{ bone: Object3D; q: Quaternion }> {
+    const m = this.model;
+    const holder = pivot.parent;
+    if (!m || !holder) return [];
+    const bone = (n: string) => m.bone(new RegExp(`${side}.?hand${n}$`, 'i'));
     const i1 = bone('Index1');
     const p1 = bone('Pinky1');
     const m1 = bone('Middle1');
     const m4 = bone('Middle4');
-    if (!i1 || !p1 || !m1 || !m4) { this.cupFingers = []; return; }
+    if (!i1 || !p1 || !m1 || !m4) return [];
     m.root.updateWorldMatrix(true, true);
     const at = (o: Object3D) => holder.worldToLocal(o.getWorldPosition(new Vector3()));
     const I1 = at(i1);
@@ -477,7 +495,6 @@ export class Rig {
     const r = cup.radiusAt(CUP_HOLD.knuckleAt);
     pivot.position.copy(M1).addScaledVector(palm, r + CUP_HOLD.palm).addScaledVector(across, -CUP_HOLD.inset).addScaledVector(up, -CUP_HOLD.knuckleAt);
     pivot.quaternion.setFromRotationMatrix(new Matrix4().makeBasis(palm, up, new Vector3().crossVectors(palm, up)));
-    this.cupGripQ.copy(pivot.quaternion);
     pivot.updateWorldMatrix(true, true);
     const g = cup.group;
     const fingers: Array<{ bone: Object3D; q: Quaternion }> = [];
@@ -510,7 +527,52 @@ export class Rig {
         fingers.push({ bone: jb, q: jb.quaternion.clone() });
       }
     }
-    this.cupFingers = fingers;
+    return fingers;
+  }
+
+  /** An NPC holds a lean cup (NpcDef.cup): seated once the model is in and posed (see animateNpcCup). */
+  holdCup(): void {
+    this.npcCupWanted = true;
+    if (this.model) this.loadNpcCup();
+  }
+
+  private loadNpcCup(): void {
+    void loadModelOrWarn('lean-cup', MODELS['lean-cup']?.label).then((g) => { this.npcCupModel = g; });
+  }
+
+  /**
+   * Seats the NPC's cup on the first posed frame: in the hand that comes nearest the mouth over the playing clip (a
+   * drinking clip lifts one), else the right; fingers closed round it. Then each frame the fingers keep their grip.
+   */
+  private animateNpcCup(dt: number): void {
+    const m = this.model;
+    if (!this.npcCupModel || !m) return;
+    if (!this.npcCup) {
+      const head = this.bones?.head;
+      const hands: Array<['left' | 'right', Object3D | null]> = [['left', this.offHand], ['right', this.hand]];
+      const near: Record<string, number> = { left: Infinity, right: Infinity };
+      if (head) m.sampleClip([0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9], () => {
+        const hp = head.getWorldPosition(_b);
+        for (const [side, b] of hands) if (b) near[side] = Math.min(near[side], b.getWorldPosition(_a).distanceTo(hp));
+      });
+      const side: 'left' | 'right' = near.left < near.right ? 'left' : 'right';
+      const hand = side === 'left' ? this.offHand : this.hand;
+      if (!hand) { this.npcCupModel = null; return; }
+      const rig = new ModelRig('lean-cup', this.npcCupModel);
+      const cup = new LeanCup(rig.root, rig.height);
+      m.root.updateWorldMatrix(true, true);
+      const ws = hand.getWorldScale(new Vector3());
+      const holder = new Group();
+      holder.scale.setScalar(1 / Math.max(1e-4, ws.y));
+      const pivot = new Group();
+      pivot.add(cup.group);
+      holder.add(pivot);
+      hand.add(holder);
+      this.fx.add(cup.drops);
+      this.npcCup = { cup, fingers: this.solveGrip(side, hand, pivot, cup) };
+    }
+    for (const f of this.npcCup.fingers) f.bone.quaternion.copy(f.q);
+    this.npcCup.cup.update(dt);
   }
 
   /** Turns the wrist so the cup stands `amount` of the way upright (at most 1.15 rad of it). */
@@ -1297,6 +1359,7 @@ export class Rig {
       this.swimPose(pose, dt);
       this.animateCyclone(pose, dt);
       this.animateCup(pose, dt);
+      this.animateNpcCup(dt);
       this.animateSnack(pose, dt);
     }
     else this.placeholder?.update(dt);

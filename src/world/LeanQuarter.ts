@@ -152,12 +152,12 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   for (let i = 0; i < 8; i++) { const base = gy + 12 + api.rnd() * 5; stal.push({ p: { x: 946 + api.rnd() * 26, y: base, z: -178 + api.rnd() * 32, yaw: api.rnd() * 6, scale: 0.8 + api.rnd() * 0.8 }, base, ph: api.rnd() * 6 }); }
   api.flora('stalactite', stal.map((s) => s.p), { shadows: false, update: (t, ps) => { ps.forEach((p, i) => { p.y = stal[i].base + Math.sin(t * 0.5 + stal[i].ph) * 0.4; }); return true; } });
   for (const s of stal) glow(PALETTE.electric, 2.4, s.p.x, s.base - 1, s.p.z, 0.3);
-  // The skeleton lord's pavilion in the east wing (DeXn5rSPxR8): he sits in its great armchair (seat 1.04 m up, facing
-  // the court), Sir Cobalt on a stool beside him; his smoke is purple.
+  // The skeleton lord's pavilion in the east wing (DeXn5rSPxR8): he sits at the front of its great settee (facing the
+  // court), Sir Cobalt on a stool beside him; his smoke is purple.
   api.place(modelLandmark('gothic-pavilion', 1043, -160, gy, { yaw: face(Math.PI) }));
   {
-    // (Where the seated lord's feet are: his anchor, 0.48 under the seat.)
-    const lord = new Vector3(1043.55, gy + 1.04 - 0.48, -160);
+    // (Where the seated lord's feet are: his anchor at the settee's front edge, data/world ANCHORS.)
+    const lord = new Vector3(1042.15, 24.53, -160);
     const smoke = new PipeSmoke(0xb36bff);
     // At his teeth, seated (the vape the gauntlet holds to his mouth in the reel).
     smoke.emitter.position.set(lord.x - 0.18, lord.y + 1.36, lord.z);
