@@ -1,5 +1,5 @@
 import { Color, Group, type Mesh, type MeshStandardMaterial, type Object3D, Vector3 } from 'three';
-import { ANCHORS, ISLAND_PORTALS, LAYOUT, REALMS, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
+import { ANCHORS, ISLAND_PORTALS, LAYOUT, REALMS, SUNKEN, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
 import { PALETTE } from '../render/palette';
 import { glowSprite } from '../render/Glow';
@@ -109,6 +109,25 @@ function grillSparkle(npc: Npc): { group: Group; update(dt: number): void } {
         st.s.position.set(at.x + Math.sin(npc.yaw) * (i - 1.5) * 0.025, at.y, at.z - Math.cos(npc.yaw) * (i - 1.5) * 0.025);
         st.s.material.opacity = Math.pow(Math.max(0, Math.sin(t * st.rate + st.phase)), 12) * 0.95;
       });
+    },
+  };
+}
+
+/** The diver's brass helmet: its porthole glows white (DeVj-Z8POjl's kelp road), just in front of his head joint. */
+function helmetGlow(npc: Npc): { group: Group; update(dt: number): void } {
+  const group = new Group();
+  const s = glowSprite(0xdff6ff, 0.55, 0.75, true);
+  group.add(s);
+  let head: Object3D | null = null;
+  const at = new Vector3();
+  return {
+    group,
+    update: () => {
+      if (!head && npc.rig.model) head = npc.rig.model.bone(/head$/i);
+      s.visible = !!head;
+      if (!head) return;
+      head.getWorldPosition(at);
+      s.position.set(at.x + Math.cos(npc.yaw) * 0.2, at.y + 0.1, at.z + Math.sin(npc.yaw) * 0.2);
     },
   };
 }
@@ -700,6 +719,8 @@ export class World {
     // Goldgrin's brother's diamond grills catch the lamplight.
     const brother = this.npcs.find((n) => n.def.id === 'brother');
     if (brother) { this.enterZone(TREEHOUSE_ROOM.id); vfx(grillSparkle(brother)); }
+    const diver = this.npcs.find((n) => n.def.id === 'diver');
+    if (diver) { this.enterZone(SUNKEN.id); vfx(helmetGlow(diver)); }
     this.enterZone(null);
   }
 

@@ -39,6 +39,9 @@ function floorMaterial(body: string, decl = '', uniforms: Record<string, { value
       void main() {
         vec3 c;
         ${body}
+        // The colours above are written as they should look on screen; the scene renders in linear light and converts
+        // at the end, so without this an unlit floor shows as a lifted grey (0.13 comes out near 0.4).
+        c = pow(max(c, vec3(0.0)), vec3(2.2));
         gl_FragColor = vec4(c, 1.0);
         #include <fog_fragment>
       }`,
@@ -89,9 +92,8 @@ export function grassGround(x: number, z: number, w: number, d: number, y: numbe
   const m = floorMaterial(/* glsl */ `
     float n = fbm(vP * 0.15);
     float tuft = fbm(vP * 2.4);
-    c = mix(vec3(0.03, 0.08, 0.06), vec3(0.08, 0.2, 0.14), n) * (0.7 + 0.5 * tuft);
-    c += vec3(0.02, 0.07, 0.05) * smoothstep(0.6, 0.9, fbm(vP * 0.04 + 7.0));
-    c *= 0.55;
+    c = mix(vec3(0.05, 0.12, 0.09), vec3(0.11, 0.24, 0.17), n) * (0.7 + 0.5 * tuft);
+    c += vec3(0.03, 0.08, 0.06) * smoothstep(0.6, 0.9, fbm(vP * 0.04 + 7.0));
   `);
   return plane(m, x, z, w, d, y);
 }

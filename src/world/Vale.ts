@@ -11,7 +11,7 @@
  *    platforms and lanterns hanging round it, a purple vortex turning above and two big moons on the horizon.
  * Buildings, props and creatures are Meshy models by id; the ground, water, fire, smoke and sky are procedural.
  */
-import { Group, type Mesh, type MeshStandardMaterial, Vector3 } from 'three';
+import { Color, Group, type Mesh, type MeshStandardMaterial, Vector3 } from 'three';
 import { ISLAND_PORTALS, VALE } from '../data/world';
 import { cobbleFloor, grassGround } from '../render/Floors';
 import { glowSprite } from '../render/Glow';
@@ -140,7 +140,9 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
 
   // --- The green dragon lying behind the last houses, the reader on its claw ---
   // Twice the registry size: in the reel he looms over the roofs, head raised, at the end of the street (facing up it).
-  api.place(modelLandmark('green-dragon', X, Z - 8, vy, { yaw: face(Math.PI / 2), scale: 2 }));
+  // (Tinted greener: under the vale's blue moon his dark green scales read blue-black.)
+  api.place(modelLandmark('green-dragon', X, Z - 8, vy, { yaw: face(Math.PI / 2), scale: 2,
+    onLoad: (m) => restyle(m, (mat) => { mat.color.multiply(new Color(0.8, 1.35, 0.85)); mat.emissive.setRGB(0.008, 0.03, 0.012); }) }));
   // The reader sits on a stool against the front of his left claw, reading to him, the book open in his lap.
   api.place(modelLandmark('spell-book', X - 5, Z + 4.72, vy + 0.42, { scale: 0.8, collider: 'none' }));
   glow(0x7fd8ff, 0.9, X - 5, vy + 0.72, Z + 4.72, 0.45);
@@ -155,7 +157,19 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
     api.place(modelLandmark('brazier', x, z, vy, { footprints: [{ kind: 'cyl', x, z, r: 0.6, top: vy + 1.3 }] }));
     api.vfx(fire(x, vy + 1.5, z, 0.55, dx > 0 ? 9 : 0));
   }
-  api.place(modelLandmark('crowned-head', X - 85, Z + 20, vy, { yaw: face(0.25) }));
+  // The crowned head, half again its registry size (it fills the reel's frame), at the end of a cobbled path from the
+  // bridge with braziers burning where the path meets it.
+  api.place(modelLandmark('crowned-head', X - 85, Z + 20, vy, { yaw: face(0.25), scale: 1.5 }));
+  {
+    // From the bridge's west end (949, 939) toward the head, along (0.894, 0.447).
+    const ux = 0.894, uz = 0.447;
+    api.group.add(cobbleFloor(X - 62.5, Z + 33.2, 26, 3.5, vy + 0.02, -Math.atan2(uz, ux), 0.6));
+    for (const side of [-1, 1]) {
+      const x = X - 72 - uz * side * 2.8, z = Z + 28.5 + ux * side * 2.8;
+      api.place(modelLandmark('brazier', x, z, vy, { footprints: [{ kind: 'cyl', x, z, r: 0.6, top: vy + 1.3 }] }));
+      api.vfx(fire(x, vy + 1.5, z, 0.55, 0));
+    }
+  }
 
   // --- East: the floating castle over the clouds, its chained platforms and lanterns ---
   {
