@@ -9,19 +9,32 @@ export interface CompanionTarget { id: number; pos: { x: number; y: number; z: n
 export class Companion {
   readonly rig: Rig;
   readonly pos = new Vector3();
+  /** Within this of you (and faced) they stand and turn to you: close enough to send home. */
+  static readonly sideRange = 2.5;
 
   /** Follows the player through a portal. */
   teleport(x: number, z: number, y: number): void {
     this.pos.set(x + 1.5, y, z + 1.5);
+  }
+
+  /** True when you stand close (within sideRange, not inside them) and face them, and no enemy has their attention. */
+  atYourSide(player: { x: number; z: number }, playerYaw: number): boolean {
+    if (this.target) return false;
+    const dx = this.pos.x - player.x;
+    const dz = this.pos.z - player.z;
+    const d = Math.hypot(dx, dz);
+    return d > 1 && d < Companion.sideRange && dx * Math.cos(playerYaw) + dz * Math.sin(playerYaw) > d * 0.5;
   }
   yaw = 0;
   hp: number;
   private swing = 0;
   private swingTime = 0;
   private attacking = false;
+  /** The enemy on their mind this step (none: following you). */
+  private target: CompanionTarget | null = null;
   private readonly follow: Vector3;
 
-  constructor(readonly def: NpcDef, start: Vector3, private readonly heightAt: (x: number, z: number, y?: number) => number, slot: number) {
+  constructor(readonly def: NpcDef, start: Vector3, private readonly heightAt: (x: number, z: number, y?: number) => number, readonly slot: number) {
     this.rig = new Rig({ id: def.id, name: def.name, title: def.title, element: 'fog', weapon: def.weapon, maxHp: def.hire!.maxHp, atk: def.hire!.atk, accent: def.accent }, def.model);
     this.hp = def.hire!.maxHp;
     this.pos.copy(start);
@@ -37,6 +50,7 @@ export class Companion {
       const d = Math.hypot(e.pos.x - this.pos.x, e.pos.z - this.pos.z);
       if (d < bd) { bd = d; target = e; }
     }
+    this.target = target;
     let goal: { x: number; z: number };
     let speed = 5.2;
     const ranged = this.def.hire!.ranged;
@@ -57,7 +71,9 @@ export class Companion {
     const gz = goal.z - this.pos.z;
     const gd = Math.hypot(gx, gz);
     let moving = false;
-    if (gd > 0.5) {
+    // Walked up to: they stand and turn to you (to be sent home) instead of slipping back to their place behind you.
+    if (this.atYourSide(player, playerYaw)) this.yaw = Math.atan2(player.z - this.pos.z, player.x - this.pos.x);
+    else if (gd > 0.5) {
       const step = Math.min(gd, speed * dt);
       this.pos.x += (gx / gd) * step;
       this.pos.z += (gz / gd) * step;

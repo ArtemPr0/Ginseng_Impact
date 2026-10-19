@@ -240,9 +240,10 @@ export class Hud {
     this.bannerTimer = window.setTimeout(() => banner.classList.remove('show'), 2200);
   }
 
-  setParty(defs: readonly CharacterDef[], activeIndex: number): void {
+  /** The portraits (1 2 3). `down` marks the fallen (0 HP): dimmed, a blood-red name, not switchable. */
+  setParty(defs: readonly CharacterDef[], activeIndex: number, down: readonly boolean[] = []): void {
     this.q('#hud-party').innerHTML = defs
-      .map((d, i) => `<div class="hud-portrait panel${i === activeIndex ? ' active' : ''}" style="--el:${hex(ELEMENT_COLOR[d.element])}">
+      .map((d, i) => `<div class="hud-portrait panel${i === activeIndex ? ' active' : ''}${down[i] ? ' down' : ''}" style="--el:${hex(ELEMENT_COLOR[d.element])}">
         <div class="hud-portrait-key">${i + 1}</div><div class="hud-portrait-glyph">${glyph(d.element, hex(ELEMENT_COLOR[d.element]), 22)}</div><div class="hud-portrait-name">${d.name}</div></div>`)
       .join('');
     const d = defs[activeIndex];
@@ -250,6 +251,11 @@ export class Hud {
     this.q('#hud-name').innerHTML = `${glyph(d.element, hex(ELEMENT_COLOR[d.element]), 18)} ${d.name}`;
     this.q('#hud-name').style.color = hex(ELEMENT_COLOR[d.element]);
     this.q('#hud-title').textContent = d.title;
+  }
+
+  /** A companion sent home: their Hire button comes back. */
+  unhire(id: string): void {
+    this.hired.delete(id);
   }
 
   setCompanions(names: string[]): void {
