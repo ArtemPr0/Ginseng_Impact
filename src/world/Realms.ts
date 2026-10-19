@@ -188,10 +188,11 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   api.place(modelLandmark('ring-portal', G.x, G.z + 72, gy, { yaw: face(-Math.PI / 2) }));
   api.place(portal(G.x, gy + 3.9, G.z + 72, 1.65, { vertical: true, facing: -Math.PI / 2 }));
   links.push(link(new Vector3(G.x, gy + 1, G.z + 72), 1.6, 3, -49, -13, 0, 'The Island'));
-  for (const [dx, dy, dz, spin] of [[-12, 9, 76, 0.3], [12, 11, 76, -0.25], [0, 16, 82, 0.2]] as const) {
-    let a = 0;
-    api.place(modelLandmark('ring-portal', G.x + dx, G.z + dz, gy + dy, { yaw: face(-Math.PI / 2), collider: 'none', update: (dt, root) => { a += dt * spin; root.rotation.z = Math.sin(a) * 0.2; root.position.y = gy + dy + Math.sin(a * 2) * 0.4; } }));
-    api.place(portal(G.x + dx, gy + dy + 3.9, G.z + dz, 1.65, { vertical: true, facing: -Math.PI / 2, colors: [PALETTE.void, PALETTE.electric] }));
+  // Two more either side of it, standing on the plaza's floor (they hovered 9-16 m up on their stone feet, one over the
+  // void past the plaza's edge).
+  for (const dx of [-12, 12]) {
+    api.place(modelLandmark('ring-portal', G.x + dx, G.z + 70, gy, { yaw: face(-Math.PI / 2) }));
+    api.place(portal(G.x + dx, gy + 3.9, G.z + 70, 1.65, { vertical: true, facing: -Math.PI / 2, colors: [PALETTE.void, PALETTE.electric] }));
   }
   // The river hall of the galaxy king (Dd0wR9Jh2lH).
   api.place(modelLandmark('galaxy-hall', G.x, G.z - 66, gy, { yaw: face(Math.PI / 2) }));

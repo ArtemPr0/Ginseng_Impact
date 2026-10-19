@@ -149,11 +149,6 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   const crystals: Placement[] = [];
   for (let i = 0; i < 12; i++) { const x = 945 + api.rnd() * 28; const z = -180 + api.rnd() * 36; crystals.push({ x, y: gy, z, yaw: api.rnd() * 6, scale: 0.6 + api.rnd() * 1.2 }); glow(PALETTE.dusk, 1.4, x, gy + 0.6, z, 0.4); }
   api.flora('purple-crystal', crystals, { shadows: false });
-  // Stalactites of blue crystal hanging in the air over the gold, drifting (the reel's cave has no roof to show).
-  const stal: Array<{ p: Placement; base: number; ph: number }> = [];
-  for (let i = 0; i < 8; i++) { const base = gy + 12 + api.rnd() * 5; stal.push({ p: { x: 946 + api.rnd() * 26, y: base, z: -178 + api.rnd() * 32, yaw: api.rnd() * 6, scale: 0.8 + api.rnd() * 0.8 }, base, ph: api.rnd() * 6 }); }
-  api.flora('stalactite', stal.map((s) => s.p), { shadows: false, update: (t, ps) => { ps.forEach((p, i) => { p.y = stal[i].base + Math.sin(t * 0.5 + stal[i].ph) * 0.4; }); return true; } });
-  for (const s of stal) glow(PALETTE.electric, 2.4, s.p.x, s.base - 1, s.p.z, 0.3);
   // The skeleton lord's pavilion in the east wing (DeXn5rSPxR8): he sits at the front of its great settee (facing the
   // court), Sir Cobalt on a stool beside him; his smoke is purple.
   api.place(modelLandmark('gothic-pavilion', 1043, -160, gy, { yaw: face(Math.PI) }));
@@ -270,7 +265,8 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   for (const [hx, hz, yaw] of cottages) {
     api.place(modelLandmark('village-house', hx, hz, gy, { yaw: face(yaw), footprints: [{ kind: 'box', x: hx, z: hz, hw: 3.3, hd: 3.3, top: gy + 6 }],
       onLoad: (m) => restyle(m, (mat) => { mat.color.lerp(new Color(0xdfe8ff), 0.35); patchLitWindows(mat, 2.2); }) }));
-    glow(0xffa040, 2, hx + Math.cos(yaw) * 3.6, gy + 2.4, hz, 0.5);
+    // (On its front wall, 2.85 m out: it hung 0.75 m in front of it.)
+    glow(0xffa040, 2, hx + Math.cos(yaw) * 2.95, gy + 2.4, hz, 0.5);
   }
   const clearOfCottages = (x: number, z: number) => cottages.every(([hx, hz]) => Math.hypot(hx - x, hz - z) > 6);
   // Graves in the snow either side of the path, bare black trees round the edges.
@@ -297,8 +293,6 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   glow(0xffa040, 3.2, CHAPEL_DOOR.x, gy + 1.4, CHAPEL_DOOR.z, 0.35);
   // The plague doctor on his treasure chest among the trees (one model with the chest, NPCs.ts): the chest is solid.
   api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: 931, z: 124.6, r: 1.15, top: gy + 1.3 }] });
-  glow(0xffa040, 2.2, 929.6, gy + 1.8, 123, 0.5);
-  glow(0xffa040, 2.2, 932.4, gy + 1.8, 125, 0.5);
 
   // ===== The sky dock, east (Den1ausBXai, DeYtKbMh76x) =====
   const D = Q.dock;

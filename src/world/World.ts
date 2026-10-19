@@ -646,7 +646,10 @@ export class World {
 
     // --- flora and biomes ---
     // (The view from the spawn down the mushroom road to the eye stays open: no pines in it.)
-    flora('pine', this.scatterRing(rnd, LAYOUT.forest.innerRadius, LAYOUT.forest.outerRadius, LAYOUT.forest.count, 0.8, 1.2, 2.8).filter((p) => !(Math.abs(p.x) < 18 && p.z > 24 && p.z < 78)), { trunk: 0.035 });
+    // (None under the world tree's crown, 22 m across the radius: it is placed later, with the realms, so its collider
+    // cannot keep them out; a pine grew up through its roots.)
+    flora('pine', this.scatterRing(rnd, LAYOUT.forest.innerRadius, LAYOUT.forest.outerRadius, LAYOUT.forest.count, 0.8, 1.2, 2.8)
+      .filter((p) => !(Math.abs(p.x) < 18 && p.z > 24 && p.z < 78) && Math.hypot(p.x - LAYOUT.worldTree.x, p.z - LAYOUT.worldTree.z) > 24), { trunk: 0.035 });
     for (const f of LAYOUT.sunflowerFields) flora('sunflower', this.scatterDisc(rnd, f.x, f.z, f.r, f.count, 0.8, 1.2), { wind: 0.18 });
     const meadow: Placement[] = [];
     const whiteMeadow: Placement[] = [];

@@ -37,6 +37,8 @@ const POND_EXIT = { x: ISLAND_PORTALS.pond.x + 5, z: ISLAND_PORTALS.pond.z, yaw:
 const CAGE_SCALE = 0.38;
 /** How far ahead of its middle a blue fish's mouth is (per unit of its scale). */
 const FISH_MOUTH = 1.15;
+/** drowned-house.glb's front wall, from its middle (measured: it is 11.8 m deep). */
+const HOUSE_FRONT = 5.9;
 /** The sea castle's turn: its gate toward the drowned street (+z). */
 const CASTLE_YAW = 0;
 /** Rotation that turns a model's front (local +z) toward world direction `yaw` (cos, sin). */
@@ -123,6 +125,8 @@ export function buildSunken(api: RealmApi, link: (at: Vector3, radius: number, h
 
   // ===== 2. The drowned street (z 18 → -56) =====
   const houseZs = [12, 2, -8, -18, -28, -38, -48];
+  // Orange lanterns hung on the house fronts on both sides, up the street (they hung in the gaps between the houses).
+  const lanterns: Placement[] = [];
   const HOUSE = PRESENT_MODELS.has('drowned-house') ? 'drowned-house' : 'village-house';
   houseZs.forEach((z, i) => {
     for (const side of [-1, 1]) {
@@ -132,16 +136,14 @@ export function buildSunken(api: RealmApi, link: (at: Vector3, radius: number, h
         // Slate-blue under the water; its windows' warm light is drawn as glows (the lit-window patch would light the
         // thatch too). The reel's houses are slate-roofed: drowned-house replaces this once it is made.
         onLoad: (m) => { if (HOUSE === 'village-house') restyle(m, (mat) => { mat.color.lerp(new Color(0x2a4060), 0.65); }); } }));
-      for (const dz of [-1.4, 1.4]) glow(LANTERN, 1.3, x - side * 3.4, sy + 2.4, z + dz, 0.5);
+      // Its windows' light on its front (drowned-house.glb, measured: 11.8 m deep, its front 5.9 m from its middle, toward
+      // the street; the glows sat 2.5 m inside it), and an orange lantern hung on the front between them.
+      const front = x - side * HOUSE_FRONT;
+      for (const dz of [-1.4, 1.4]) glow(LANTERN, 1.3, front - side * 0.05, sy + 2.4, z + dz, 0.5);
+      lanterns.push({ x: front - side * 0.35, y: sy + 3.4, z, yaw: api.rnd() * 6, scale: 1 });
+      glow(LANTERN, 2.4, front - side * 0.35, sy + 3.3, z, 0.6);
     }
   });
-  // Orange lanterns hung from the house fronts on both sides, up the street.
-  const lanterns: Placement[] = [];
-  for (const z of [16, 6, -4, -14, -24, -34, -44, -54]) for (const side of [-1, 1]) {
-    const x = X + side * 6.6;
-    lanterns.push({ x, y: sy + 3.4, z, yaw: api.rnd() * 6, scale: 1 });
-    glow(LANTERN, 2.4, x, sy + 3.3, z, 0.6);
-  }
   api.flora('hanging-lantern', lanterns);
   // Market stalls under the lanterns (clear of the house fronts: the drowned houses are deeper than their boxes).
   for (const [dx, z, yaw] of [[-4.8, 0, 0], [4.8, -22, Math.PI], [-4.8, -41, 0]] as const) {
@@ -154,7 +156,8 @@ export function buildSunken(api: RealmApi, link: (at: Vector3, radius: number, h
   const fish: Placement[] = [];
   const cages: Placement[] = [];
   for (let i = 0; i < 12; i++) {
-    const seed = { x: X + (api.rnd() - 0.5) * 12, y: sy + 4.5 + api.rnd() * 5, v: (api.rnd() < 0.5 ? -1 : 1) * (1.2 + api.rnd() * 1.2), ph: api.rnd() * 6, scale: 0.9 + api.rnd() * 0.5 };
+    // (Down the middle of the street, 9-11 m between the house fronts: at 6 m out they swam through the fronts.)
+    const seed = { x: X + (api.rnd() - 0.5) * 4, y: sy + 4.5 + api.rnd() * 5, v: (api.rnd() < 0.5 ? -1 : 1) * (1.2 + api.rnd() * 1.2), ph: api.rnd() * 6, scale: 0.9 + api.rnd() * 0.5 };
     fishSeed.push(seed);
     fish.push({ x: seed.x, y: seed.y, z: 0, yaw: 0, scale: seed.scale });
     cages.push({ x: seed.x, y: seed.y, z: 0, yaw: 0, scale: CAGE_SCALE });
@@ -193,7 +196,8 @@ export function buildSunken(api: RealmApi, link: (at: Vector3, radius: number, h
   // Coral walls and towers round a courtyard (sea-castle.glb, measured: open floor x -1008..-994, z -62..-72, a narrow
   // lane on behind between the towers); the Fish King keeps his bar there, his coral throne and crown behind him.
   api.place(modelLandmark('sea-castle', X, -80, sy, { yaw: CASTLE_YAW }));
-  const TH = { x: X, z: -71.2 };
+  // (Its back 0.4 m clear of the courtyard's back wall at z -72.)
+  const TH = { x: X, z: -70.3 };
   api.place(modelLandmark('coral-throne', TH.x, TH.z, sy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'box', x: TH.x, z: TH.z, hw: 1, hd: 1.3, top: sy + 0.8 }] }));
   let ca = 0;
   api.place(modelLandmark('giant-crown', TH.x, TH.z, sy + 8.5, { collider: 'none', update: (dt, root) => { ca += dt; root.rotation.y = Math.sin(ca * 0.3) * 0.2; root.position.y = sy + 8.5 + Math.sin(ca * 0.8) * 0.2; } }));
@@ -205,7 +209,8 @@ export function buildSunken(api: RealmApi, link: (at: Vector3, radius: number, h
   api.flora('tavern-table', [{ x: X, y: sy, z: barZ, yaw: 0, scale: 1.4 }]);
   api.place({ object: new Group(), footprints: [{ kind: 'box', x: X, z: barZ, hw: 2.2, hd: 0.8, top: sy + 1.3 }] });
   for (const side of [-1, 1]) {
-    const x = X + side * 6.6;
+    // (Just inside the courtyard's side walls, x -1008 and -994: at 6.6 m out they stood half inside them.)
+    const x = X + side * 5;
     api.place(modelLandmark('bottle-shelf', x, -67.5, sy, { yaw: face(side < 0 ? 0 : Math.PI), footprints: [{ kind: 'box', x, z: -67.5, hw: 0.4, hd: 1.3, top: sy + 2.6 }] }));
     for (let k = 0; k < 4; k++) glow(LANTERN, 1.2, x - side * 0.3, sy + 0.8 + (k % 2) * 0.8, -67.5 + (k - 1.5) * 0.6, 0.45);
   }
@@ -244,13 +249,20 @@ export function buildSunken(api: RealmApi, link: (at: Vector3, radius: number, h
     glow(0xff3a2a, 2.2, X + dx, sy + 2, -59.6, 0.6);
   }
   // The green door home, by the castle's west corner (the reel's glowing green doorway).
-  api.place(portal(X - 14, sy + 2.2, -58.5, 1.6, { vertical: true, facing: 0, colors: [0x0a3a1a, 0x3dff7a] }));
+  // (In a stone ring like the island's return portal: it hung alone over the floor.)
+  api.place(modelLandmark('ring-portal', X - 14, -58.5, sy, { yaw: face(0) }));
+  api.place(portal(X - 14, sy + 3.9, -58.5, 1.65, { vertical: true, facing: 0, colors: [0x0a3a1a, 0x3dff7a] }));
   links.push(link(new Vector3(X - 14, sy + 0.8, -58.5), 1.6, 3, POND_EXIT.x, POND_EXIT.z, POND_EXIT.yaw, 'The Lily Pond'));
-  // Jellyfish drifting over the square, each with its glow.
+  // Jellyfish drifting over the square in front of the castle and high over its towers (22 m), each with its glow (they
+  // drifted through its walls).
   const jelly: Placement[] = [];
   const jellySeed: Array<{ cx: number; cz: number; r: number; h: number; s: number; p: number }> = [];
   for (let i = 0; i < 16; i++) {
-    const seed = { cx: X + (api.rnd() - 0.5) * 40, cz: -50 - api.rnd() * 45, r: 2 + api.rnd() * 6, h: sy + 5 + api.rnd() * 10, s: 0.1 + api.rnd() * 0.2, p: api.rnd() * 6 };
+    const high = i % 3 === 0;
+    const r = 2 + api.rnd() * 3;
+    const seed = high
+      ? { cx: X + (api.rnd() - 0.5) * 30, cz: -66 - api.rnd() * 24, r, h: sy + 25 + api.rnd() * 6, s: 0.1 + api.rnd() * 0.2, p: api.rnd() * 6 }
+      : { cx: X + (api.rnd() - 0.5) * 4, cz: -30 - api.rnd() * (24 - r), r: Math.min(r, 3), h: sy + 8.5 + api.rnd() * 7, s: 0.1 + api.rnd() * 0.2, p: api.rnd() * 6 };
     jellySeed.push(seed);
     jelly.push({ x: seed.cx, y: seed.h, z: seed.cz, yaw: 0, scale: 0.6 + api.rnd() * 0.8 });
   }

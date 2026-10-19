@@ -94,8 +94,12 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
     { kind: 'box', x: x0 - 0.5, z: (z0 + z1) / 2, hw: 0.5, hd: (z1 - z0) / 2 + 1, top: vy + 6 }, { kind: 'box', x: x1 + 0.5, z: (z0 + z1) / 2, hw: 0.5, hd: (z1 - z0) / 2 + 1, top: vy + 6 },
     { kind: 'box', x: (x0 + x1) / 2, z: z0 - 0.5, hw: (x1 - x0) / 2 + 1, hd: 0.5, top: vy + 6 }, { kind: 'box', x: (x0 + x1) / 2, z: z1 + 0.5, hw: (x1 - x0) / 2 + 1, hd: 0.5, top: vy + 6 },
   ] });
-  // The way home: the arch behind where you arrive.
+  // The way home: the arch behind where you arrive, between two lantern posts like the island's (it hung alone).
   api.place(portal(X, vy + 2.4, VALE_ARRIVAL.z + 8, 1.7, { vertical: true, facing: -Math.PI / 2, colors: [0x0a2a1a, 0xffb050] }));
+  for (const dx of [-2.4, 2.4]) {
+    api.place(modelLandmark('lantern-post', X + dx, VALE_ARRIVAL.z + 8, vy, { footprints: [{ kind: 'cyl', x: X + dx, z: VALE_ARRIVAL.z + 8, r: 0.2, top: vy + 2.5 }] }));
+    glow(LANTERN, 1.6, X + dx, vy + 2.3, VALE_ARRIVAL.z + 8, 0.55);
+  }
   links.push(link(new Vector3(X, vy + 1, VALE_ARRIVAL.z + 8), 1.6, 3, A.x - 3, A.z, Math.PI, 'The Village'));
 
   // --- The tavern yard (the reel's toast is inside: Interiors.ts, through the tavern's front door) ---
@@ -121,8 +125,9 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
       const x = X + side * (11 + (i % 2) * 1.2);
       const z = Z + dz;
       api.place(modelLandmark('village-house', x, z, vy, { yaw: face(side < 0 ? 0 : Math.PI), footprints: [{ kind: 'box', x, z, hw: 3.3, hd: 3.3, top: vy + 6 }], onLoad: (m) => restyle(m, (mat) => patchLitWindows(mat)) }));
-      // Lanterns on the house fronts, and smoke from every other chimney.
-      glow(LANTERN, 2, x - side * 3.6, vy + 2.6, z + 1.6, 0.6);
+      // Lamplight on the house fronts (village-house.glb's front wall is 2.85 m from its middle: the glow hung 0.75 m out in
+      // the street), and smoke from every other chimney.
+      glow(LANTERN, 2, x - side * 2.95, vy + 2.6, z + 1.6, 0.6);
       if (i % 2 === 0) {
         const smoke = new PipeSmoke(0x9aa6c0);
         smoke.emitter.position.set(x + side * 1.2, vy + 6.3, z - 1);

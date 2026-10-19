@@ -114,7 +114,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   // The Frog King as he really is, in his dream: a seven-metre god of every colour, floating over the fractal floor.
   // Rings of tripping orbs, a sweeping stare, a leap that lands where you stand, and reflections of himself.
   'dmt-entity': {
-    kind: 'dmt-entity', name: 'The Frog God', title: 'Who Dreams You Back', maxHp: 3400, def: 50, atk: 110, speed: 3, element: 'astral', hover: 1.6, bodyRadius: 2.4, height: 7, boss: true, trippy: true,
+    kind: 'dmt-entity', name: 'The Frog God', title: 'Who Dreams You Back', maxHp: 3400, def: 50, atk: 110, speed: 3, element: 'astral', hover: 0.5, bodyRadius: 2.4, height: 7, boss: true, trippy: true,
     brain: { aggroRange: 55, attackRange: 30, windup: 1.0, recover: 1.1, attackCooldown: 0.6, preferredRange: 11 }, respawn: 20, leash: 60, shards: [420, 520],
     attacks: [
       { kind: 'kaleido', range: 30, windup: 1.0, recover: 1.0, weight: 3 },

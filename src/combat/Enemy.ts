@@ -539,7 +539,8 @@ export class Enemy {
     const decay = Math.exp(-7 * dt);
     this.knock.x *= decay;
     this.knock.z *= decay;
-    const bob = this.def.hover > 0 ? Math.sin(this.time * 2.4) * 0.25 : 0;
+    // (A breath, not a flight: as much as a fifth of the hover, so the Frog God's belly never dips into the floor.)
+    const bob = this.def.hover > 0 ? Math.sin(this.time * 2.4) * Math.min(0.25, this.def.hover * 0.2) : 0;
     const groundY = Math.max(this.world.heightAt(this.pos.x, this.pos.z, feet), this.def.floatAt ?? -Infinity);
     const targetY = (flyAt ?? groundY) + this.def.hover + bob;
     this.pos.y += (targetY - this.pos.y) * Math.min(1, dt * (this.def.flying ? 2 : 12));

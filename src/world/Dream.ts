@@ -22,6 +22,7 @@ import type { Footprint } from './Colliders';
 import { cascade } from './Falls';
 import { fire } from './Fire';
 import type { Placement } from './Flora';
+import { ISLAND_TOP } from './Heart';
 import { landableIsland } from './Islands';
 import { modelLandmark } from './ModelLandmark';
 import type { ModelRig } from '../models/ModelRig';
@@ -293,20 +294,23 @@ export function buildDream(api: RealmApi): void {
     mat.customProgramCacheKey = () => 'sunflower+wind';
     mat.needsUpdate = true;
   } });
-  // (Still and solid, low enough to fly up to: their tops 18-24 m over the floor, a skull and a little castle on each.)
+  // (Still and solid, low enough to fly up to: their tops 18-24 m over the floor. Half as big again as the others, so a
+  // skull (5.5 x 7 m) and a little castle (6.4 x 6.7 m) both fit on the 15 m top, on opposite sides: on a 10 m top
+  // they stood one inside the other.)
   const skullTops: number[] = [];
-  for (const [dx, dz, y, yaw] of [[-104, -44, 10, 0.6], [-58, -94, 14, 2.1], [-114, 28, 8, -0.8]] as const) {
+  for (const [dx, dz, top0, yaw] of [[-104, -44, 20, 0.6], [-58, -94, 24, 2.1], [-114, 28, 18, -0.8]] as const) {
     const x = C.x + dx;
     const z = C.z + dz;
-    const { top } = landableIsland(api, x, z, y0 + y, { yaw, tree: false });
+    const scale = 1.5;
+    const { top } = landableIsland(api, x, z, y0 + top0 - MODELS['floating-island'].height * scale * ISLAND_TOP, { scale, yaw, tree: false });
     skullTops.push(top);
-    api.place(modelLandmark('giant-skull', x + 2, z, top, { yaw: yaw + Math.PI }));
-    api.place(modelLandmark('castle', x - 3, z + 2, top, { scale: 0.22, yaw }));
-    api.vfx(fire(x - 3, top + 3, z + 2, 5, 0));
-    api.vfx(fire(x - 1, top + 5, z + 4, 3.5, 0));
+    const ux = Math.cos(yaw), uz = Math.sin(yaw);
+    api.place(modelLandmark('giant-skull', x + ux * 3.4, z + uz * 3.4, top, { yaw: yaw + Math.PI }));
+    api.place(modelLandmark('castle', x - ux * 3.9, z - uz * 3.9, top, { scale: 0.22, yaw }));
   }
   // A rainbow waterfall off the highest skull island, down into the void under the floor's edge.
-  api.place(cascade({ x: C.x - 58, z: C.z - 88, top: skullTops[1] - 0.6, height: skullTops[1] + 30, width: 4, yaw: 0.4, color: new Color(1.2, 0.4, 1.4) }));
+  // (Off its rim, 7.5 m from its middle, on the side away from the skull and the castle.)
+  api.place(cascade({ x: C.x - 58 + Math.cos(2.1 + Math.PI / 2) * 7.9, z: C.z - 94 + Math.sin(2.1 + Math.PI / 2) * 7.9, top: skullTops[1] - 0.6, height: skullTops[1] + 30, width: 4, yaw: Math.PI / 2 - (2.1 + Math.PI / 2), color: new Color(1.2, 0.4, 1.4) }));
 
   // --- east: the canal village round the eye, candle-lit bridges, the giant face tree ---
   const V = { x: C.x + 64, z: C.z - 14 };
@@ -344,12 +348,13 @@ export function buildDream(api: RealmApi): void {
   statueSpots.forEach(([x, z, id], i) => {
     // (Frozen mid-pose: the idle clip stopped on a frame, so they stand like carvings, not in the bind pose.)
     api.place(modelLandmark(id, x, z, y0, { scale: 2.1, clip: 'idle', yaw: x < K.x ? Math.PI / 2 : -Math.PI / 2, onLoad: (m) => { restyle(m, (mat) => patchStone(mat)); m.play('idle', false, 0); } }));
-    // Coloured torch flames between the statues.
+    // Coloured torch flames between the statues, on torch posts twice a man's height (they burned on nothing).
     if (i % 2 === 0) {
       const tx = x + (x < K.x ? -1.6 : 1.6);
       const col = [0x37f5ff, 0x5dff3a, 0xff5ad6, 0x8b3dff][(i >> 1) % 4];
+      api.place(modelLandmark('torch-post', tx, z + 4.5, y0, { scale: 2, footprints: [{ kind: 'cyl', x: tx, z: z + 4.5, r: 0.3, top: y0 + 4.6 }] }));
       const flame = glowSprite(col, 2.2, 0.9, true);
-      flame.position.set(tx, y0 + 4.2, z + 4.5);
+      flame.position.set(tx, y0 + MODELS['torch-post'].height * 2 * 0.86, z + 4.5);
       group.add(flame);
       const halo = glowSprite(col, 7, 0.25, true);
       halo.position.copy(flame.position);
