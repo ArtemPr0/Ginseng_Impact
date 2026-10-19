@@ -261,7 +261,8 @@ export const MODELS: Record<string, ModelDef> = {
   emberrider: { file: 'ember-rider.glb', height: 2.7, label: 'red-eyed rider on a black horse with a burning mane (Ddn0A49tnW7)', clips: BOSS_CLIPS },
   // Round 5 (2026-10-16): the user's reference images (docs/reference/frames/shot-*.jpg, world-look-28.png).
   cyclops: { file: 'cyclops.glb', height: 9, faceForward: 0.25, armDamp: 0.7, label: 'huge blue one-eyed horned cyclops with claws (shot-011654, world-look-28)', clips: BOSS_CLIPS },
-  'cyclops-lord': { file: 'cyclops.glb', height: 7, faceForward: 0.25, armDamp: 0.7, label: 'the cyclops at the end of the alley of graves (shot-011654)', clips: BOSS_CLIPS },
+  // (Its own body since 2026-10-19: the shared cyclops.glb's legs broke up as it walked; a full-body A-pose remake.)
+  'cyclops-lord': { file: 'grave-cyclops.glb', height: 7, faceForward: 0.4, label: 'the horned cyclops at the end of the alley of graves (shot-011654)', clips: BOSS_CLIPS },
   'blood-eye': stat('blood-eye.glb', 6, 'giant floating red spiky eyeball with a blue iris (shot-013226)'),
   // The wizard of the dream: galaxy-wizard.glb flying, in the trippy shader (shot-013245).
   'trip-wizard': { file: 'galaxy-wizard.glb', height: 1.9, label: 'rainbow-robed wizard flying in the dream (shot-013245)', clips: { idle: 'idle_02|idle', walk: 'walking|walk', run: 'running|run', attack: 'mage_soell_cast|charged_spell|cast', heavy: 'charged_spell|mage', hit: 'hit_reaction|hit', death: 'dying|death' } },

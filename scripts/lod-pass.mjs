@@ -30,7 +30,7 @@ const KEEP_1024 = new Set(['knight.glb', 'archer.glb', 'wizard.glb', 'cathedral.
   'frog-king.glb', 'spider-chapel.glb', 'log-giant.glb', 'demon-church.glb', 'tree-house.glb', 'world-tree.glb', 'galaxy-hall.glb', 'cup-gnome.glb', 'rift-king.glb', 'gnome-brother.glb', 'treehouse-interior.glb', 'galaxy-wizard.glb', 'cyclops.glb', 'blood-eye.glb', 'moon-laugh.glb', 'moon-grin.glb', 'floating-island.glb',
   // Round 6 (@returndark): the rigged characters and the big landmarks.
   'bucket-mimic.glb', 'mail-knight.glb', 'galaxy-knight.glb', 'dwarf.glb', 'skeleton-red.glb', 'skeleton-witch.glb', 'gold-knight.glb',
-  'candle-head.glb', 'diver.glb', 'crypt-bar.glb', 'yeti.glb', 'fish-guard.glb', 'angler.glb', 'sea-castle.glb', 'plague-doctor.glb', 'lean-dragon.glb', 'green-dragon.glb', 'dragon-throne.glb', 'sky-bar.glb',
+  'candle-head.glb', 'diver.glb', 'crypt-bar.glb', 'yeti.glb', 'fish-guard.glb', 'angler.glb', 'sea-castle.glb', 'grave-cyclops.glb', 'plague-doctor.glb', 'lean-dragon.glb', 'green-dragon.glb', 'dragon-throne.glb', 'sky-bar.glb',
   'snow-chapel.glb', 'crowned-head.glb', 'floating-castle.glb', 'drowned-house.glb', 'carriage.glb', 'dragon-fountain.glb']);
 
 const only = process.argv.slice(2);

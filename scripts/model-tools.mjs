@@ -31,6 +31,11 @@
  *   node scripts/model-tools.mjs cut-triangles <in.glb> <out.glb> <triangles.json>
  *       Deletes the listed triangles (indices into the first primitive, as the game loads it): the webs a stretch
  *       survey in the running game finds between limbs that the mesh fused (see .claude/skills/verify).
+ *   node scripts/model-tools.mjs rebind-nearest <in.glb> <out.glb> [keepBonesRegex]
+ *       Re-skins every vertex to the nearest bones of the body's real skeleton (by default the mixamorig bones, not
+ *       Meshy's extra Bone_NNN chains and _End leaves): distance to each bone's segment (its joint to its child's) in
+ *       bind pose, the two nearest blended. For an auto-rig gone wrong (the grave cyclops' tail bound to a toe, its
+ *       foot claws to chains hanging off the forearms: spikes shot across the screen as it moved).
  *   node scripts/model-tools.mjs clip <in.glb> <out.glb> [nameRegex] [--rot-only]
  *       Keeps only the node hierarchy and animations (drops meshes, skins, materials, textures), so one
  *       animation export becomes a ~100 KB file the game layers onto the base model (see models.ts clipFiles).
@@ -391,6 +396,71 @@ async function cutTriangles(inPath, outPath, listPath) {
   console.log(`cut-triangles ${inPath}: ${idx.length / 3 - keep.length / 3} of ${idx.length / 3} triangles removed`);
 }
 
+async function rebindNearest(inPath, outPath, keepRe = '^mixamorig:(?!.*_End$)') {
+  const doc = await io.read(inPath);
+  const root = doc.getRoot();
+  const skin = root.listSkins()[0];
+  if (!skin) throw new Error(`${inPath} has no skin`);
+  const joints = skin.listJoints();
+  const ibm = skin.getInverseBindMatrices();
+  const keep = new RegExp(keepRe, 'i');
+  // Bind-pose joint positions in mesh space: the inverse of each inverse bind matrix, applied to the origin.
+  const inv = (m) => {
+    const [a00, a01, a02, a03, a10, a11, a12, a13, a20, a21, a22, a23, a30, a31, a32, a33] = m;
+    const b00 = a00 * a11 - a01 * a10, b01 = a00 * a12 - a02 * a10, b02 = a00 * a13 - a03 * a10, b03 = a01 * a12 - a02 * a11;
+    const b04 = a01 * a13 - a03 * a11, b05 = a02 * a13 - a03 * a12, b06 = a20 * a31 - a21 * a30, b07 = a20 * a32 - a22 * a30;
+    const b08 = a20 * a33 - a23 * a30, b09 = a21 * a32 - a22 * a31, b10 = a21 * a33 - a23 * a31, b11 = a22 * a33 - a23 * a32;
+    const det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
+    const id = 1 / det;
+    // Only the translation column of the inverse is needed (column-major: elements 12, 13, 14).
+    return [
+      (-a10 * b09 + a11 * b07 - a12 * b06) * id,
+      (a00 * b09 - a01 * b07 + a02 * b06) * id,
+      (-a30 * b03 + a31 * b01 - a32 * b00) * id,
+    ];
+  };
+  const pos = joints.map((_, j) => inv(Array.from(ibm.getElement(j, []))));
+  const idx = new Map(joints.map((n, j) => [n, j]));
+  // Segments: each kept bone from its joint to each kept child's joint (a leaf is a point).
+  const segs = [];
+  joints.forEach((n, j) => {
+    if (!keep.test(n.getName())) return;
+    const kids = n.listChildren().filter((k) => idx.has(k) && keep.test(k.getName()));
+    if (kids.length === 0) segs.push({ j, a: pos[j], b: pos[j] });
+    for (const k of kids) segs.push({ j, a: pos[j], b: pos[idx.get(k)] });
+  });
+  const dist = (p, s) => {
+    const ab = [s.b[0] - s.a[0], s.b[1] - s.a[1], s.b[2] - s.a[2]];
+    const ap = [p[0] - s.a[0], p[1] - s.a[1], p[2] - s.a[2]];
+    const L = ab[0] * ab[0] + ab[1] * ab[1] + ab[2] * ab[2];
+    const t = L > 1e-12 ? Math.max(0, Math.min(1, (ap[0] * ab[0] + ap[1] * ab[1] + ap[2] * ab[2]) / L)) : 0;
+    const d = [ap[0] - ab[0] * t, ap[1] - ab[1] * t, ap[2] - ab[2] * t];
+    return Math.hypot(d[0], d[1], d[2]);
+  };
+  let changed = 0;
+  for (const mesh of root.listMeshes()) for (const prim of mesh.listPrimitives()) {
+    const P = prim.getAttribute('POSITION'), J = prim.getAttribute('JOINTS_0'), W = prim.getAttribute('WEIGHTS_0');
+    if (!P || !J || !W) continue;
+    const p = [0, 0, 0];
+    for (let i = 0; i < P.getCount(); i++) {
+      P.getElement(i, p);
+      const best = new Map();
+      for (const s of segs) { const d = dist(p, s); if (!best.has(s.j) || d < best.get(s.j)) best.set(s.j, d); }
+      const near = [...best.entries()].sort((x, y) => x[1] - y[1]);
+      const [j0, d0] = near[0];
+      const [j1, d1] = near[1] ?? [j0, Infinity];
+      // Blend the second bone only when it is nearly as close (a joint's crease), by inverse distance to the fourth.
+      let w0 = 1, w1 = 0;
+      if (d1 < d0 * 1.6) { const a0 = 1 / Math.pow(d0 + 1e-4, 4), a1 = 1 / Math.pow(d1 + 1e-4, 4); w0 = a0 / (a0 + a1); w1 = 1 - w0; }
+      J.setElement(i, [j0, j1, 0, 0]);
+      W.setElement(i, [w0, w1, 0, 0]);
+      changed++;
+    }
+  }
+  await io.write(outPath, doc);
+  console.log(`rebind-nearest ${inPath}: ${changed} vertices re-skinned to ${new Set(segs.map((s) => s.j)).size} bones`);
+}
+
 async function clip(inPath, outPath, nameRe, rotOnly = false) {
   const doc = await io.read(inPath);
   const root = doc.getRoot();
@@ -419,6 +489,7 @@ async function main() {
   if (cmd === 'cut-fused-limbs') return cutFusedLimbs(a, b, c === '--dry');
   if (cmd === 'fix-arm-flank') return fixArmFlank(a, b, c === '--dry');
   if (cmd === 'cut-triangles') return cutTriangles(a, b, c);
+  if (cmd === 'rebind-nearest') return rebindNearest(a, b, c);
   if (cmd === 'clip') return clip(a, b, c && c !== '--rot-only' ? c : undefined, process.argv.includes('--rot-only'));
   if (cmd === 'import') {
     const name = b;
