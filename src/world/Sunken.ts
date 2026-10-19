@@ -87,7 +87,8 @@ export function buildSunken(api: RealmApi, link: (at: Vector3, radius: number, h
   api.group.add(seabed(fcx, fcz, 600, 600, sy));
   // (Stacked a couple of centimetres apart where they overlap, or the planes fight for the same pixels.)
   api.group.add(cobbleFloor(X, -40, 16, 130, sy + 0.02, 0, 0.45));
-  api.group.add(cobbleFloor(X, -78, 46, 36, sy + 0.035, 0, 0.45));
+  // (3 cm over the street's, which runs on under it: 1.5 cm flickered.)
+  api.group.add(cobbleFloor(X, -78, 46, 36, sy + 0.05, 0, 0.45));
 
   // ===== The water itself =====
   const fx = new Group();

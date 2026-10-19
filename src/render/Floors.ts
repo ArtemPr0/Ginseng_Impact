@@ -230,6 +230,6 @@ export function quarterFloor(r: { court: readonly number[]; street: readonly num
       return c + vec3(0.6, 0.7, 0.9) * sparkle;
     }`,
   { uCourt: { value: v4(r.court) }, uStreet: { value: v4(r.street) }, uYard: { value: v4(r.yard) }, uSnow: { value: v4(r.snow) }, uPlaza: { value: v4(r.plaza) }, uMoat: { value: v4(r.moat) } });
-  // (Over the plaza's porcelain mirror, 1 cm above it, so the frayed patches lie on it.)
-  return plane(m, (x0 + x1) / 2, (z0 + z1) / 2, x1 - x0, z1 - z0, y + 0.012);
+  // (3 cm over the plaza's porcelain mirror, so the frayed patches lie on it without flickering into it far off.)
+  return plane(m, (x0 + x1) / 2, (z0 + z1) / 2, x1 - x0, z1 - z0, y + 0.03);
 }

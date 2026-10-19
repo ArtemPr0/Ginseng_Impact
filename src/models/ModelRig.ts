@@ -1,4 +1,4 @@
-import { AnimationAction, AnimationClip, AnimationMixer, Box3, Group, LoopOnce, LoopRepeat, Mesh, type MeshStandardMaterial, Object3D, Quaternion, QuaternionKeyframeTrack, type SkinnedMesh, Vector3, VectorKeyframeTrack } from 'three';
+import { AnimationAction, AnimationClip, AnimationMixer, Box3, Group, LoopOnce, LoopRepeat, Mesh, type MeshStandardMaterial, Object3D, PropertyBinding, Quaternion, QuaternionKeyframeTrack, type SkinnedMesh, Vector3, VectorKeyframeTrack } from 'three';
 import { warnMissing } from './Placeholder';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
@@ -327,7 +327,12 @@ export class ModelRig {
         rest.set(o.name, { q: o.quaternion.clone(), up: new Vector3(0, 1, 0).applyQuaternion(pq).normalize() });
       });
     }
+    // Tracks for bones this body lacks (a clip borrowed from another rig: finger joints, Meshy's extra chains) would
+    // only warn on every bind.
+    const nodes = new Set<string>();
+    scene.traverse((o) => { nodes.add(PropertyBinding.sanitizeNodeName(o.name)); nodes.add(o.uuid); });
     for (let clip of gltf.animations) {
+      clip.tracks = clip.tracks.filter((t) => nodes.has(t.name.slice(0, t.name.lastIndexOf('.'))));
       if (PIN_ROOT.test(clip.name)) pinRoot(clip);
       // (Only the fighting clips: a sit or a talk keeps its own body turn, or the hips spin away from the legs.)
       if (def.faceForward !== undefined && !CALM_CLIP.test(clip.name)) faceForward(clip, def.faceForward, rest);
