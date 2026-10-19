@@ -36,6 +36,11 @@
  *       Meshy's extra Bone_NNN chains and _End leaves): distance to each bone's segment (its joint to its child's) in
  *       bind pose, the two nearest blended. For an auto-rig gone wrong (the grave cyclops' tail bound to a toe, its
  *       foot claws to chains hanging off the forearms: spikes shot across the screen as it moved).
+ *   node scripts/model-tools.mjs smooth-skin <in.glb> <out.glb> [passes=3] [triangles.json]
+ *       Smooths the skin weights over the mesh (each pass: half a vertex's own, half its neighbours' average; UV seams
+ *       welded so both halves agree). For weights that jump from vertex to vertex (an auto-rig or rebind-nearest
+ *       leaves a loincloth half on one thigh, half on the other: it fans into a sheet when the legs part). With a
+ *       triangle list (a stretch survey's) only those and two rings round them change.
  *   node scripts/model-tools.mjs clip <in.glb> <out.glb> [nameRegex] [--rot-only]
  *       Keeps only the node hierarchy and animations (drops meshes, skins, materials, textures), so one
  *       animation export becomes a ~100 KB file the game layers onto the base model (see models.ts clipFiles).
@@ -461,6 +466,54 @@ async function rebindNearest(inPath, outPath, keepRe = '^mixamorig:(?!.*_End$)')
   console.log(`rebind-nearest ${inPath}: ${changed} vertices re-skinned to ${new Set(segs.map((s) => s.j)).size} bones`);
 }
 
+async function smoothSkin(inPath, outPath, iterations = 3, maskPath) {
+  const { readFileSync } = await import('node:fs');
+  const doc = await io.read(inPath);
+  const prim = doc.getRoot().listMeshes()[0]?.listPrimitives()[0];
+  const P = prim?.getAttribute('POSITION'), J = prim?.getAttribute('JOINTS_0'), W = prim?.getAttribute('WEIGHTS_0'), I = prim?.getIndices();
+  if (!P || !J || !W || !I) throw new Error(`${inPath}: no skinned indexed primitive`);
+  const n = P.getCount(), idx = I.getArray();
+  // Weld by position (UV seams split a vertex in two; each half must end up with the same weights or the skin tears).
+  const p = [0, 0, 0], key = new Map(), weld = new Int32Array(n);
+  for (let i = 0; i < n; i++) { P.getElement(i, p); const k = p.map((x) => Math.round(x * 1e4)).join(','); let w = key.get(k); if (w === undefined) key.set(k, w = key.size); weld[i] = w; }
+  const m = key.size;
+  const nbr = Array.from({ length: m }, () => new Set());
+  for (let t = 0; t < idx.length; t += 3) for (let e = 0; e < 3; e++) { const a = weld[idx[t + e]], b = weld[idx[t + (e + 1) % 3]]; if (a !== b) { nbr[a].add(b); nbr[b].add(a); } }
+  // Which welded vertices may change: all, or those of the listed triangles and two rings round them.
+  let free = null;
+  if (maskPath) {
+    free = new Uint8Array(m);
+    for (const t of JSON.parse(readFileSync(maskPath, 'utf8'))) for (let e = 0; e < 3; e++) free[weld[idx[t * 3 + e]]] = 1;
+    for (let ring = 0; ring < 2; ring++) { const add = []; for (let v = 0; v < m; v++) if (free[v]) for (const u of nbr[v]) if (!free[u]) add.push(u); for (const u of add) free[u] = 1; }
+  }
+  let w = Array.from({ length: m }, () => new Map());
+  const j4 = [0, 0, 0, 0], w4 = [0, 0, 0, 0], count = new Int32Array(m);
+  for (let i = 0; i < n; i++) { J.getElement(i, j4); W.getElement(i, w4); const map = w[weld[i]]; count[weld[i]]++; for (let k = 0; k < 4; k++) if (w4[k] > 0) map.set(j4[k], (map.get(j4[k]) ?? 0) + w4[k]); }
+  for (let v = 0; v < m; v++) for (const [j, x] of w[v]) w[v].set(j, x / count[v]);
+  // Each pass: half its own weights, half its neighbours' average.
+  for (let it = 0; it < iterations; it++) {
+    const next = w.map((map, v) => {
+      if ((free && !free[v]) || nbr[v].size === 0) return map;
+      const out = new Map(); for (const [j, x] of map) out.set(j, x * 0.5);
+      const share = 0.5 / nbr[v].size;
+      for (const u of nbr[v]) for (const [j, x] of w[u]) out.set(j, (out.get(j) ?? 0) + x * share);
+      return out;
+    });
+    w = next;
+  }
+  let changed = 0;
+  for (let i = 0; i < n; i++) {
+    const v = weld[i]; if (free && !free[v]) continue;
+    const top = [...w[v].entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+    const sum = top.reduce((a, [, x]) => a + x, 0) || 1;
+    J.setElement(i, [0, 1, 2, 3].map((k) => top[k]?.[0] ?? 0));
+    W.setElement(i, [0, 1, 2, 3].map((k) => (top[k]?.[1] ?? 0) / sum));
+    changed++;
+  }
+  await io.write(outPath, doc);
+  console.log(`smooth-skin ${inPath}: ${changed} of ${n} vertices smoothed (${iterations} passes${maskPath ? ', masked' : ''})`);
+}
+
 async function clip(inPath, outPath, nameRe, rotOnly = false) {
   const doc = await io.read(inPath);
   const root = doc.getRoot();
@@ -490,6 +543,7 @@ async function main() {
   if (cmd === 'fix-arm-flank') return fixArmFlank(a, b, c === '--dry');
   if (cmd === 'cut-triangles') return cutTriangles(a, b, c);
   if (cmd === 'rebind-nearest') return rebindNearest(a, b, c);
+  if (cmd === 'smooth-skin') return smoothSkin(a, b, c ? Number(c) : 3, d);
   if (cmd === 'clip') return clip(a, b, c && c !== '--rot-only' ? c : undefined, process.argv.includes('--rot-only'));
   if (cmd === 'import') {
     const name = b;
