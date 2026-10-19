@@ -20,19 +20,10 @@ import { modelLandmark } from './ModelLandmark';
 import type { RealmApi } from './Realms';
 import { faceMoon } from '../render/MoonFace';
 import { patchSwim } from '../render/Materials';
+import { GLSL_NOISE_BASIC, GLSL_VORONOI_EDGE } from '../render/glsl';
 
-const NOISE = /* glsl */ `
-float hash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
-float vnoise(vec2 p) { vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
-float fbm(vec2 p) { float v = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { v += a * vnoise(p); p *= 2.03; a *= 0.5; } return v; }
-// Distance to the nearest Voronoi edge (cracks, veins).
-float voronoiEdge(vec2 p) {
-  vec2 n = floor(p); vec2 f = fract(p); vec2 mg, mr; float md = 8.0;
-  for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) { vec2 g = vec2(i, j); vec2 o = vec2(hash(n + g), hash(n + g + 17.3)); vec2 r = g + o - f; float d = dot(r, r); if (d < md) { md = d; mr = r; mg = g; } }
-  md = 8.0;
-  for (int j = -2; j <= 2; j++) for (int i = -2; i <= 2; i++) { vec2 g = mg + vec2(i, j); vec2 o = vec2(hash(n + g), hash(n + g + 17.3)); vec2 r = g + o - f; if (dot(mr - r, mr - r) > 0.00001) md = min(md, dot(0.5 * (mr + r), normalize(r - mr))); }
-  return md;
-}`;
+const NOISE = /* glsl */ `${GLSL_NOISE_BASIC}
+${GLSL_VORONOI_EDGE}`;
 
 /** The shared clock of the kingdom's shaders. */
 const clock = { value: 0 };

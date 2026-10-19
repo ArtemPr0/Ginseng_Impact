@@ -6,6 +6,7 @@ import {
   AdditiveBlending, CanvasTexture, Color, DoubleSide, Group, Mesh, type Object3D, PlaneGeometry, RingGeometry,
   ShaderMaterial, SphereGeometry, Sprite, SpriteMaterial, Vector3,
 } from 'three';
+import { GLSL_NOISE_BASIC } from './glsl';
 
 /** The colour of lean: glowing purple (bloom-safe, every channel under 1.5 once multiplied by the glows). */
 export const LEAN = 0x9b4dff;
@@ -105,10 +106,7 @@ export class Glints {
   }
 }
 
-const NOISE = /* glsl */ `
-float hash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
-float vnoise(vec2 p) { vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
-float fbm(vec2 p) { float v = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { v += a * vnoise(p); p *= 2.03; a *= 0.5; } return v; }`;
+const NOISE = GLSL_NOISE_BASIC;
 
 /** The effects' shared clock (seconds); `tickLeanFx(dt)` advances it once a frame. */
 const clock = { value: 0 };
