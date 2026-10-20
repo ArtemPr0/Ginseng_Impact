@@ -114,6 +114,7 @@ export const COMBO: Record<WeaponKind, ComboDef> = {
 export const SKILLS: Record<string, SkillDef> = {
   knight: {
     id: 'crimson-cleave', name: 'Crimson Cleave', cooldown: 8,
+    // (Its hit-stop is the first body's: each one after it cuts through catches at Combat.PIERCE_STOP of it.)
     attack: { mult: 3.0, element: 'own', shape: { kind: 'crescent', range: 9, speed: 14, halfWidth: 2, burnEvery: 2 }, knockback: 4, hitStop: 0.1 },
     // Each patch along the path is as wide as the crescent; one patch's ticks, however many overlap.
     ground: { radius: 2, duration: 5, tickMult: 0.4, tickEvery: 1, element: 'blood' },

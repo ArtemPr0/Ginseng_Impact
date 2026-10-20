@@ -20,9 +20,10 @@ import { surface } from '../render/Materials';
 import type { Sky } from '../render/Sky';
 import type { Hud } from '../ui/Hud';
 import { glowSprite } from '../render/Glow';
-import { ComboTracker, Cooldown, CRIT_CHANCE, computeDamage, cutWindow, HitStreak, inCone, inRadius, rollHit } from './Combat';
+import { ComboTracker, Cooldown, CRIT_CHANCE, computeDamage, cutWindow, HitStreak, inCone, inRadius, LockOn, pierceStop, rollHit } from './Combat';
 import { ELEMENT_COLOR, REACTIONS, applyElement, type Element, type ReactionId } from './Elements';
 import { Enemy, type EnemyHome } from './Enemy';
+import { chainTo, steer, type Homing, type NearestQuarry } from './Homing';
 import { LootField, rollDrops } from './Loot';
 import { BURST, COMBO, CYCLONE, SKILLS, type AttackDef, type BurstKind, type CrescentShape, type GroundEffectDef, type HitShape, type StarfallShape, type VolleyShape } from './Skills';
 import { comboTiming, cutSpan, heavyTiming, heroClipsOf, moveCut, skillTiming } from '../characters/heroClips';
@@ -47,10 +48,10 @@ interface Projectile {
   poison: { dps: number; seconds: number } | null;
   color: number;
   /**
-   * Steers itself (arrows off Wren's ridden bow, her trip volley): after `delay` it turns toward the target mob (or
-   * the point, once the mob is gone), tighter and tighter, keeping its speed.
+   * Steers itself (arrows off Wren's ridden bow, Moon Volley, her trip volley; Homing.ts): after `delay` it turns toward
+   * the target mob (or the point, once the mob is gone), tighter and tighter, keeping its speed; a chain hands it on.
    */
-  homing: { target: Enemy | null; point: Vector3 | null; delay: number; turn: number; age: number } | null;
+  homing: Homing<Enemy> | null;
   /** Drawn swaying off its true path (metres), like it is tripping. */
   wobble: number;
   /** What else a hit does (the trip volley's daze and confusion). */
@@ -65,8 +66,9 @@ interface Projectile {
   /** Where it set off (how far it has gone). */
   from: Vector3;
   /**
-   * The CombatFx ribbon drawn behind it ('arrow0'/'arrow1' for Wren's arrows, 'bolt' for Orlan's, 'star0'/'star1' for
-   * Starfall's falling stars; a newer shot takes an id over), and the ribbon's half-width.
+   * The CombatFx ribbon drawn behind it ('arrow0'/'arrow1' for Wren's arrows, 'trip0'-'trip2' for three of her trip
+   * volley's, 'bolt' for Orlan's, 'star0'/'star1' for Starfall's falling stars; a newer shot takes an id over), and the
+   * ribbon's half-width.
    */
   trail: string | null;
   trailW: number;
@@ -91,8 +93,11 @@ export interface HostileShot { speed: number; color: number; atk: number; kind?:
 
 interface GroundZone { pos: Vector3; def: GroundEffectDef; left: number; tick: number; atk: number; remove: () => void; group: ZoneGroup | null }
 
-/** Patches of ground laid by one cast: a mob standing in several is ticked by one of them, not by each. */
-interface ZoneGroup { last: Map<number, number> }
+/**
+ * Patches of ground laid by one cast: a mob standing in several is ticked by one of them, not by each; all of them are
+ * drawn as one strip (`lay` adds a patch to it: Vfx.path).
+ */
+interface ZoneGroup { last: Map<number, number>; lay: ((at: Vector3) => void) | null }
 
 /** The burning ground a crescent lays: a patch every `every` metres of its run, all of one ZoneGroup. */
 interface BurnPath { def: GroundEffectDef; atk: number; every: number; next: number; group: ZoneGroup }
@@ -167,7 +172,6 @@ void loadModel('gem').then((g) => { thrownGem = g; });
 const PLAYER_DEF = 30;
 const aim = new Vector3();
 const side = new Vector3();
-const want = new Vector3();
 const IFRAMES = 0.6;
 const BURST_MAX = 100;
 /** Seconds a fallen hero lies there (dying_backwards is down by then) before the party switches or wipes. */
@@ -182,16 +186,55 @@ const BIG_HIT = 0.15;
 const BLADE_CUTS: Record<string, Partial<Record<ClipName, readonly [number, number]>>> = {
   knight: { attack: [0.39, 0.78], heavy: [0.72, 1.2], cast: [2.1, 2.6] },
 };
+
+/** A part (0..1) of a move's cut: the span in which the blade cuts. */
+type Window = readonly [number, number];
+
+/**
+ * A hero's move timings and blade windows: constant data from heroClips.ts and BLADE_CUTS, built once per hero
+ * (CombatSystem.timesOf), so the paths that run every step and every frame (the blade's ribbon, the rig's progress)
+ * read numbers instead of building fresh objects.
+ */
+interface MoveTimes {
+  heavy: { readonly duration: number; readonly strike: number; readonly startAt: number };
+  skill: { readonly duration: number; readonly strike: number };
+  /** Where the blade cuts in each move's cut: the three light hits, the heavy, the skill (null: no cut to read). */
+  blade: { readonly attack: ReadonlyArray<Window | null>; readonly heavy: Window | null; readonly skill: Window | null };
+}
+
+function moveTimes(hero: string): MoveTimes {
+  const clips = heroClipsOf(hero);
+  const blade = (kind: number | 'heavy' | 'skill'): Window | null => {
+    const cut = clips ? moveCut(clips, kind) : null;
+    if (!cut) return null;
+    const from = cut.from ?? 0;
+    return cutWindow(from, from + cutSpan(hero, cut), cut.strike ?? 0.4, BLADE_CUTS[hero]?.[cut.key]);
+  };
+  return {
+    heavy: heavyTiming(hero),
+    skill: skillTiming(hero),
+    blade: { attack: [blade(0), blade(1), blade(2)], heavy: blade('heavy'), skill: blade('skill') },
+  };
+}
+
 /** The lean's purple: the cyclone's ribbon, its puddles, the drops flung off the blade. */
 const LEAN_PURPLE = 0xb36bff;
+/**
+ * The trip volley's three brightest arrows, by their place in it (both flanks of the fan and its middle, early, midway
+ * and late), each with a ribbon of its own for its whole flight: three of CombatFx's four ribbon slots (her arrows'
+ * two let go as the volley starts, see tripArrow).
+ */
+const TRIP_RIBBONS = new Map<number, string>([[1, 'trip0'], [5, 'trip1'], [8, 'trip2']]);
+/** The lean cyclone's trail keeps this many puddles wet at once; laying another starts the oldest drying up. */
+const CYCLONE_PUDDLES = 4;
+/** A puddle's last seconds, shrinking away. */
+const PUDDLE_DRY = 1.2;
 /** How high the crescent rides over the ground (its horns skim it). */
 const CRESCENT_BASE = 0.2;
 /** The smoke's damage each 0.4 s tick, a share of Orlan's attack. */
 const SMOKE_TICK = 0.2;
-/** Lock-on: what Tab can pick (metres), and how far the target may get before the lock lets go. */
-const LOCK_RANGE = 30;
-const UNLOCK_RANGE = 40;
 const UP = new Vector3(0, 1, 0);
+const NOOP = (): void => {};
 const _v = new Vector3();
 const _w = new Vector3();
 const _g = new Vector3();
@@ -268,8 +311,8 @@ export class CombatSystem {
   private readonly rnd: () => number;
   /** The combo counter (hits in a row, 1.2 s apart at most). */
   private readonly streak = new HitStreak(1.2);
-  /** The enemy Tab locked on to: the camera keeps it framed, swings turn to it, shots and spells go for it. */
-  lockTarget: Enemy | null = null;
+  /** Tab's lock-on (Combat.ts LockOn): the camera keeps its target framed, swings turn to it, shots and spells go for it. */
+  private readonly lock = new LockOn<Enemy>();
   /** Whether the boss layer of the score is on (a boss has the hero in its sights). */
   private bossMusic = false;
   /** Seconds of fighting (the ground patches' shared ticks count on it). */
@@ -288,6 +331,10 @@ export class CombatSystem {
   private readonly trailOwners = new Map<string, Projectile>();
   private arrowTrails = 0;
   private starTrails = 0;
+  /** Where a steering shot looks for another body (Homing.steer), bound once rather than a closure a step. */
+  private readonly nearest: NearestQuarry<Enemy> = (x, z, range, exclude) => this.nearestEnemy(x, z, range, exclude);
+  /** Each hero's move timings and blade windows (moveTimes), built once. */
+  private readonly times = new Map<string, MoveTimes>();
 
   constructor(private readonly d: CombatDeps) {
     this.fx = d.fx;
@@ -307,7 +354,15 @@ export class CombatSystem {
       this.combos.set(c.id, new ComboTracker(timing.durations, timing.strikes));
       this.cooldowns.set(c.id, new Cooldown(SKILLS[c.id].cooldown));
       this.hp.set(c.id, c.maxHp);
+      this.times.set(c.id, moveTimes(c.id));
     }
+  }
+
+  /** A hero's move timings and blade windows (built on first use for anyone not in the party at the start). */
+  private timesOf(id: string): MoveTimes {
+    let t = this.times.get(id);
+    if (!t) { t = moveTimes(id); this.times.set(id, t); }
+    return t;
   }
 
   /** The nearest spot to (x, z) on open ground: never inside a building's outline or over the void. */
@@ -359,6 +414,12 @@ export class CombatSystem {
   /** The next of Wren's two arrow ribbons, round-robin (the newest two arrows in the air draw one). */
   private nextArrowTrail(): string {
     return `arrow${this.arrowTrails++ % 2}`;
+  }
+
+  /** Whatever shot draws ribbon `id` lets go of it (it fades out). */
+  private releaseRibbon(id: string): void {
+    const p = this.trailOwners.get(id);
+    if (p) this.releaseTrail(p);
   }
 
   private spawnEnemy(def: EnemyDef, x: number, z: number, noRespawn = false, home: Partial<EnemyHome> = {}): Enemy {
@@ -431,19 +492,19 @@ export class CombatSystem {
   /** 0..1 animation progress for the rig, or undefined when idle. */
   get attackProgress(): number | undefined {
     if (this.burstCast) return Math.min(1, this.burstCast.t / BURST[this.active.id].time);
-    if (this.heavy) return Math.min(1, this.heavy.t / heavyTiming(this.active.id).duration);
+    if (this.heavy) return Math.min(1, this.heavy.t / this.timesOf(this.active.id).heavy.duration);
     // Charging: the wind-up builds toward the held frame (the body holds it; Orlan's robe leans into it).
-    if (this.heavyCharge > 0) { const hold = heavyTiming(this.active.id).startAt; return Math.min(hold, this.heavyCharge * hold); }
-    if (this.casting) return Math.min(1, this.casting.t / skillTiming(this.casting.def.id).duration);
+    if (this.heavyCharge > 0) { const hold = this.timesOf(this.active.id).heavy.startAt; return Math.min(hold, this.heavyCharge * hold); }
+    if (this.casting) return Math.min(1, this.casting.t / this.timesOf(this.casting.def.id).skill.duration);
     return this.combo.swinging ? this.combo.progress : undefined;
   }
 
   /** Seconds the current swing or cast lasts, so the body's clip can be fitted to it. */
   get attackDuration(): number | undefined {
     if (this.burstCast) return BURST[this.active.id].time;
-    if (this.heavy) return heavyTiming(this.active.id).duration;
+    if (this.heavy) return this.timesOf(this.active.id).heavy.duration;
     if (this.heavyCharge > 0) return undefined;
-    if (this.casting) return skillTiming(this.casting.def.id).duration;
+    if (this.casting) return this.timesOf(this.casting.def.id).skill.duration;
     return this.combo.swinging ? this.combo.duration : undefined;
   }
 
@@ -504,29 +565,22 @@ export class CombatSystem {
     if (best) c.yaw = Math.atan2(best.pos.z - c.pos.z, best.pos.x - c.pos.x);
   }
 
+  /** The enemy Tab locked on to, or null. */
+  get lockTarget(): Enemy | null {
+    return this.lock.target;
+  }
+
+  set lockTarget(e: Enemy | null) {
+    this.lock.target = e;
+  }
+
   /**
    * Tab: locks on to the nearest living enemy within LOCK_RANGE in front of the camera (`forward`, its look on the
-   * ground), else the nearest within that range at all; Tab again lets go. Returns the target, or null.
+   * ground), else the nearest within that range at all (Combat.ts pickLockTarget); Tab again lets go. Returns the
+   * target, or null.
    */
   toggleLock(forward: { x: number; z: number }): Enemy | null {
-    if (this.lockTarget) { this.lockTarget = null; return null; }
-    const c = this.d.controller;
-    let front: Enemy | null = null;
-    let any: Enemy | null = null;
-    let fd = LOCK_RANGE;
-    let ad = LOCK_RANGE;
-    for (const e of this.enemies) {
-      if (!e.alive || !e.object.visible) continue;
-      const dx = e.pos.x - c.pos.x;
-      const dz = e.pos.z - c.pos.z;
-      const dd = Math.hypot(dx, dz);
-      if (dd >= ad && dd >= fd) continue;
-      if (dd < ad) { ad = dd; any = e; }
-      // In front: within 60° either side of where the camera looks.
-      if (dd < fd && (dd < 0.5 || (dx * forward.x + dz * forward.z) / dd > 0.5)) { fd = dd; front = e; }
-    }
-    this.lockTarget = front ?? any;
-    return this.lockTarget;
+    return this.lock.toggle(this.d.controller.pos, forward, this.enemies);
   }
 
   /** The point the camera keeps framed while locked on (the target's middle, no higher than its chest for a giant), or undefined. */
@@ -540,9 +594,8 @@ export class CombatSystem {
     this.updateGraveRising(dt);
     this.clock += dt;
     this.streak.update(dt);
-    // The lock lets go of a target that fell, left the world, or is too far to matter.
-    const lt = this.lockTarget;
-    if (lt && (!lt.alive || Math.hypot(lt.pos.x - this.d.controller.pos.x, lt.pos.z - this.d.controller.pos.z) > UNLOCK_RANGE)) this.lockTarget = null;
+    // The lock lets go of a target that fell or is too far to matter (despawn lets go of one that left the world).
+    this.lock.update(this.d.controller.pos);
     const d = this.d;
     const c = d.controller;
     const me = this.active;
@@ -618,7 +671,7 @@ export class CombatSystem {
     for (let i = this.puddles.length - 1; i >= 0; i--) {
       const p = this.puddles[i];
       p.left -= dt;
-      const k = Math.min(1, p.left / 1.2);
+      const k = Math.min(1, p.left / PUDDLE_DRY);
       p.mesh.scale.setScalar(Math.max(0.05, k));
       if (p.hero) {
         for (const e of this.enemies) {
@@ -680,13 +733,13 @@ export class CombatSystem {
     if ((input.heavyRelease || (!input.heavyHeld && this.heavyCharge > 0)) && this.heavyCharge > 0 && !this.heavy && !down) {
       this.softLock(8);
       // The swing picks up at the wind-up frame the charge held (heroClips.ts), and lands on the clip's blow.
-      const timing = heavyTiming(me.id);
+      const timing = this.timesOf(me.id).heavy;
       this.heavy = { t: timing.startAt * timing.duration, fired: false, charge: this.heavyCharge };
       this.heavyCharge = 0;
       this.sfx.effort(me.id);
     }
     if (this.heavy) {
-      const timing = heavyTiming(me.id);
+      const timing = this.timesOf(me.id).heavy;
       this.heavy.t += dt;
       if (!this.heavy.fired && this.heavy.t >= timing.duration * timing.strike) {
         this.heavy.fired = true;
@@ -724,7 +777,7 @@ export class CombatSystem {
     if (this.casting) {
       const skill = SKILLS[this.casting.def.id];
       // The cast lasts as long as its clip cut and fires on the cut's measured blow (heroClips.ts).
-      const timing = skillTiming(this.casting.def.id);
+      const timing = this.timesOf(this.casting.def.id).skill;
       this.casting.t += dt;
       if (!this.casting.fired && this.casting.t >= timing.duration * timing.strike) {
         this.casting.fired = true;
@@ -841,7 +894,7 @@ export class CombatSystem {
       p.life -= dt;
       p.age += dt;
       if (p.gravity) p.vel.y -= p.gravity * dt;
-      if (p.homing) this.steer(p, dt);
+      if (p.homing) steer(p, dt, this.nearest);
       p.pos.addScaledVector(p.vel, dt);
       let blocked = false;
       if (p.ground > 0) {
@@ -903,15 +956,18 @@ export class CombatSystem {
           // (The star's burst strikes it, with everything else under it.)
           if (p.aoe > 0) { dead = true; break; }
           p.hit.add(e.id);
-          this.hitEnemy(e, p.atk, p.mult, p.element, p.knockback, p.hitStop, { at: p.object.position });
+          // (The crescent freezes the fight on the first body it cuts and only catches on each after, its blows as heavy.)
+          const stop = p.pierce ? pierceStop(p.hitStop, p.hit.size) : p.hitStop;
+          this.hitEnemy(e, p.atk, p.mult, p.element, p.knockback, stop, { at: p.object.position, heavy: p.hitStop >= 0.08 });
           p.onHit?.(e);
           // The crescent cuts on through.
           if (p.pierce) continue;
           if (p.chains > 0) {
             const next = this.nearestEnemy(e.pos.x, e.pos.z, p.chainRange, p.hit);
             if (next) {
+              // On to the next body: aimed at it and, homing, chasing it (Moon Volley's arrows), never the one it struck.
               p.chains--;
-              p.vel.set(next.pos.x - p.pos.x, next.pos.y + 0.6 - p.pos.y, next.pos.z - p.pos.z).normalize().multiplyScalar(22);
+              chainTo(p, next, 22);
               p.life = 1.2;
             } else dead = true;
           } else dead = true;
@@ -1048,33 +1104,33 @@ export class CombatSystem {
     return new Vector3(x, this.d.world.heightAt(x, z, c.pos.y + 1), z);
   }
 
-  /** The colour of the blade's ribbon while Sir Aldric's cut is live (heroClips' windows, BLADE_CUTS) or the cyclone spins; null otherwise. */
+  /**
+   * The colour of the blade's ribbon while Sir Aldric's cut is live (his cached windows, MoveTimes.blade) or the cyclone
+   * spins; null otherwise. Runs every step and every frame, so it only reads numbers: nothing is built.
+   */
   private bladeColor(): number | null {
     const me = this.active;
     if (me.weapon !== 'sword' && me.weapon !== 'greatsword') return null;
     const b = this.burstCast;
     if (b) return b.kind === 'cyclone' && b.t >= CYCLONE.pour + 0.15 && b.t < CYCLONE.pour + CYCLONE.spin - 0.1 ? LEAN_PURPLE : null;
     if (this.heavyCharge > 0 || this.downed) return null;
-    const kind = this.attackKind;
-    const p = this.attackProgress;
-    if (kind === undefined || kind === 'burst' || p === undefined) return null;
-    const w = this.bladeWindow(me.id, kind);
+    // (The move in progress, as attackKind and attackProgress would say: the heavy, the skill, a light hit.)
+    const t = this.timesOf(me.id);
+    let w: Window | null;
+    let p: number;
+    if (this.heavy) { w = t.blade.heavy; p = this.heavy.t / t.heavy.duration; }
+    else if (this.casting) { w = t.blade.skill; p = this.casting.t / t.skill.duration; }
+    else if (this.combo.swinging) { w = t.blade.attack[this.combo.currentHit] ?? null; p = this.combo.progress; }
+    else return null;
+    p = Math.min(1, p);
     return w && p >= w[0] && p <= w[1] ? ELEMENT_COLOR[this.elementOf(me)] : null;
-  }
-
-  /** The part of a move's cut (0..1) in which the blade cuts. */
-  private bladeWindow(hero: string, kind: number | 'skill' | 'heavy'): [number, number] | null {
-    const clips = heroClipsOf(hero);
-    const cut = clips ? moveCut(clips, kind) : null;
-    if (!cut) return null;
-    const from = cut.from ?? 0;
-    return cutWindow(from, from + cutSpan(hero, cut), cut.strike ?? 0.4, BLADE_CUTS[hero]?.[cut.key]);
   }
 
   /**
    * Sir Aldric's lean cyclone: the pour (the rig tips the cup over the blade), then a spin that cuts everything
    * around him every 0.3 s and splashes it with lean: slowed to a crawl, moving and striking. While he spins, lean
-   * flies off the blade's tip and puddles behind him every 0.6 s (a puddle slows the mobs that wade in, never him).
+   * flies off the blade's tip and puddles behind him every 0.6 s (a puddle slows the mobs that wade in, never him): a
+   * trail of CYCLONE_PUDDLES at most, the oldest drying up as the next is laid.
    */
   private cyclone(me: CharacterDef, b: { t: number; tick: number; fired: boolean; puddle: number }, dt: number): void {
     if (b.t < CYCLONE.pour) return;
@@ -1088,7 +1144,15 @@ export class CombatSystem {
         // Spinning on the spot keeps one puddle fresh rather than stacking them; on the move each 0.6 s leaves its own.
         const here = this.puddles.find((p) => p.hero && Math.hypot(p.pos.x - c.pos.x, p.pos.z - c.pos.z) < 1.2);
         if (here) here.left = 6;
-        else this.spawnPuddle(this.playerPos(), 'hero');
+        else {
+          this.spawnPuddle(this.playerPos(), 'hero');
+          // A trail, not a lake (eight discs on the move were the transparent-plane budget on their own).
+          let wet = 0;
+          for (let i = this.puddles.length - 1; i >= 0; i--) {
+            const q = this.puddles[i];
+            if (q.hero && q.left > PUDDLE_DRY && ++wet > CYCLONE_PUDDLES) q.left = PUDDLE_DRY;
+          }
+        }
       }
     }
     b.tick -= dt;
@@ -1133,10 +1197,15 @@ export class CombatSystem {
 
   /**
    * One of Wren's trip-volley arrows: launched up and out in a fan, then each picks a mob (or, with none about, a
-   * random spot on the ground) and wanders in on it, swaying and changing colour; a hit dazes, then confuses.
+   * random spot on the ground) and wanders in on it, swaying and changing colour; a hit dazes, then confuses. Three of
+   * them (TRIP_RIBBONS) burn brighter and draw a ribbon of their own all the way.
    */
   private tripArrow(me: CharacterDef, i: number): void {
     const c = this.d.controller;
+    // (The volley's three ribbons and her two arrows' would be five ids for CombatFx's four slots, stolen back and forth
+    // every frame: arrows still in the air from before the volley let theirs go as it starts.)
+    if (i === 0) { this.releaseRibbon('arrow0'); this.releaseRibbon('arrow1'); }
+    const ribbon = TRIP_RIBBONS.get(i);
     const from = this.d.muzzle?.(me) ?? new Vector3(c.pos.x, c.pos.y + 1.4, c.pos.z);
     const near = this.enemies
       .filter((e) => e.alive && Math.hypot(e.pos.x - c.pos.x, e.pos.z - c.pos.z) < 34)
@@ -1156,31 +1225,9 @@ export class CombatSystem {
       homing: { target, point, delay: 0.12 + Math.random() * 0.18, turn: 2.6 + Math.random() * 2, age: 0 },
       wobble: 0.3 + Math.random() * 0.3,
       onHit: (e) => { e.afflict('stun', e.def.boss ? 0.8 : 1.6); e.afflict('confuse', e.def.boss ? 2.2 : 4.2); },
-      trail: this.nextArrowTrail(), trailW: 0.07,
+      trail: ribbon, trailW: 0.07, bright: ribbon !== undefined,
     });
     this.sfx.swing('bow');
-  }
-
-  /** Turns a steering projectile toward its mob (or point), tighter as it goes, keeping its speed. */
-  private steer(p: Projectile, dt: number): void {
-    const h = p.homing!;
-    h.age += dt;
-    if (h.age < h.delay) return;
-    if (h.target && !h.target.alive) {
-      // Its mob fell: the nearest other one, or the spot where it stood.
-      const next = this.nearestEnemy(p.pos.x, p.pos.z, 20, p.hit);
-      if (!next) h.point = new Vector3(h.target.pos.x, h.target.pos.y + 0.5, h.target.pos.z);
-      h.target = next;
-    }
-    if (h.target) {
-      const sc = h.target.def.scale ?? 1;
-      want.set(h.target.pos.x, h.target.pos.y + h.target.def.height * sc * 0.5, h.target.pos.z);
-    } else if (h.point) want.copy(h.point);
-    else return;
-    const speed = p.vel.length();
-    want.sub(p.pos).normalize().multiplyScalar(speed);
-    p.vel.lerp(want, 1 - Math.exp(-h.turn * dt)).setLength(speed);
-    h.turn += dt * 5;
   }
 
   /** Orlan's pipe dream: a great cloud of smoke rolls out from his pipe and hangs over everything around him. */
@@ -1627,7 +1674,7 @@ export class CombatSystem {
     }
   }
 
-  private nearestEnemy(x: number, z: number, range: number, exclude?: Set<number>): Enemy | null {
+  private nearestEnemy(x: number, z: number, range: number, exclude?: ReadonlySet<number>): Enemy | null {
     let best: Enemy | null = null;
     let bestD = range;
     for (const e of this.enemies) {
@@ -1642,7 +1689,7 @@ export class CombatSystem {
    * Who a shot or a spell goes for: the locked-on enemy while it is within `range` of (x, z), else the nearest living
    * enemy within it (none in `exclude`).
    */
-  private markFor(range: number, x = this.d.controller.pos.x, z = this.d.controller.pos.z, exclude?: Set<number>): Enemy | null {
+  private markFor(range: number, x = this.d.controller.pos.x, z = this.d.controller.pos.z, exclude?: ReadonlySet<number>): Enemy | null {
     const lt = this.lockTarget;
     if (lt?.alive && !exclude?.has(lt.id) && Math.hypot(lt.pos.x - x, lt.pos.z - z) <= range) return lt;
     return this.nearestEnemy(x, z, range, exclude);
@@ -1745,7 +1792,7 @@ export class CombatSystem {
     const own = this.elementOf(me);
     const color = ELEMENT_COLOR[own];
     const atk = this.atkOf(me);
-    const burn: BurnPath | null = ground ? { def: { ...ground, element: own }, atk, every: shape.burnEvery, next: shape.burnEvery / 2, group: { last: new Map() } } : null;
+    const burn: BurnPath | null = ground ? { def: { ...ground, element: own }, atk, every: shape.burnEvery, next: shape.burnEvery / 2, group: { last: new Map(), lay: null } } : null;
     this.spawnProjectile(from, new Vector3(fx, 0, fz).multiplyScalar(shape.speed), 'player', atk, def.mult, def.element === 'own' ? own : null, shape.halfWidth, color, 0, 0, def.knockback, def.hitStop, 1, 'crescent', {
       pierce: true, ground: CRESCENT_BASE, life: shape.range / shape.speed, burn,
     });
@@ -1756,7 +1803,8 @@ export class CombatSystem {
   /**
    * Moon Volley: VolleyShape.arrows arrows fanned ±fan either side of her aim, each turning after a mark a moment
    * later (the locked-on enemy first, then the nearest, shared round the fan); with nothing to hunt, at a sky eye
-   * ahead or down onto the ground along each one's own line. The two outermost draw the arrow ribbons.
+   * ahead or down onto the ground along each one's own line. Each chains once: from the body it strikes on to the
+   * nearest other within chainRange, chasing that one (Homing.chainTo). The two outermost draw the arrow ribbons.
    */
   private moonVolley(me: CharacterDef, def: AttackDef, shape: VolleyShape): void {
     const c = this.d.controller;
@@ -1977,10 +2025,17 @@ export class CombatSystem {
     }
   }
 
-  /** A patch of lingering ground (`def`) at `at` (default 2 m in front of the hero), one of `group`'s when given. */
+  /**
+   * A patch of lingering ground (`def`) at `at` (default 2 m in front of the hero), one of `group`'s when given: a lone
+   * patch is a zone's ring and disc; a group's patches are drawn as one strip (one plane, not two a patch).
+   */
   private addZone(def: GroundEffectDef, atk: number, at: Vector3 = this.ahead(2), group: ZoneGroup | null = null): void {
     const pos = at.clone();
-    const remove = this.vfx.zone(pos, def.radius, ELEMENT_COLOR[def.element], def.duration);
+    let remove = NOOP;
+    if (group) {
+      group.lay ??= this.vfx.path(ELEMENT_COLOR[def.element], def.radius, def.duration);
+      group.lay(pos);
+    } else remove = this.vfx.zone(pos, def.radius, ELEMENT_COLOR[def.element], def.duration);
     this.zones.push({ pos, def, left: def.duration, tick: 0.05, atk, remove, group });
   }
 
@@ -1992,6 +2047,8 @@ export class CombatSystem {
       web?: number; rainbow?: boolean; by?: string;
       /** Seconds it flies (default: 4 for logs, trip arrows and homing shots, else 2.5). */
       life?: number; trail?: string; trailW?: number; pierce?: boolean; aoe?: number; ground?: number; burn?: BurnPath | null;
+      /** One of the trip volley's three brightest arrows (bigger, stronger glows). */
+      bright?: boolean;
     } = {},
   ): Projectile {
     const object = new Group();
@@ -2064,7 +2121,9 @@ export class CombatSystem {
       object.add(glowSprite(PALETTE.moon, 1.4 * size, 0.25, true));
       object.position.copy(from);
     } else if (kind === 'trip') {
-      // A tripping arrow: a glowing shaft and head that run through every colour, with a rainbow trail.
+      // A tripping arrow: a glowing shaft and head that run through every colour, with a rainbow trail (a third larger
+      // and stronger on the volley's three brightest).
+      const glow = extra.bright ? 1.3 : 1;
       const shaftMat = new MeshBasicMaterial({ color, toneMapped: false });
       const headMat = new MeshBasicMaterial({ color, toneMapped: false });
       const shaft = new Mesh(new CylinderGeometry(0.035, 0.035, 1.15, 6), shaftMat);
@@ -2075,7 +2134,7 @@ export class CombatSystem {
       object.add(shaft, head);
       rainbow.push(shaftMat, headMat);
       for (let k = 0; k < 6; k++) {
-        const t = glowSprite(color, 0.75 - k * 0.09, 0.8 - k * 0.1, true);
+        const t = glowSprite(color, (0.75 - k * 0.09) * glow, Math.min(1, (0.8 - k * 0.1) * glow), true);
         t.position.z = 0.7 - k * 0.42;
         object.add(t);
         rainbow.push(t.material as SpriteMaterial);
@@ -2275,7 +2334,8 @@ export class CombatSystem {
     const mesh = new Mesh(new CircleGeometry(2.4, 24), new MeshBasicMaterial({ color: 0x8a2be2, transparent: true, opacity: 0.75, depthWrite: false, toneMapped: false }));
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(at.x, y, at.z);
-    mesh.add(glowSprite(LEAN_PURPLE, 3.2, 0.35, true));
+    // (A burst cup's puddle glows; the cyclone's trail goes without, a halo a puddle being as many planes again.)
+    if (owner !== 'hero') mesh.add(glowSprite(LEAN_PURPLE, 3.2, 0.35, true));
     this.d.scene.add(mesh);
     this.puddles.push({ pos: new Vector3(at.x, y, at.z), r: 2.4, left: 6, mesh, hero: owner === 'hero' });
     this.fx.sparks(_v.set(at.x, y + 0.3, at.z), UP, 14, LEAN_PURPLE, 4, 1.0);

@@ -29,6 +29,18 @@ export function rollHit(d: DamageInput, chance: number, rnd: () => number = Math
   return { amount: computeDamage(crit ? { ...d, multiplier: d.multiplier * CRIT_MULT } : d), crit };
 }
 
+/** A piercing shot's hit-stop on each body after the first it cuts, as a share of its own (see pierceStop). */
+export const PIERCE_STOP = 0.3;
+
+/**
+ * The hit-stop a piercing shot (Crimson Cleave's crescent) lands on the `nth` body it cuts, 1 being the first: its full
+ * `stop` there, PIERCE_STOP of it on each after. Its bodies are struck on separate steps, so a full freeze on each would
+ * stall the fight once per mob in the line.
+ */
+export function pierceStop(stop: number, nth: number): number {
+  return nth <= 1 ? stop : stop * PIERCE_STOP;
+}
+
 /** The combo counter: hits in a row, each landing within `window` seconds of the last; a pause drops it to 0. */
 export class HitStreak {
   count = 0;
@@ -83,6 +95,59 @@ export function inRadius(origin: P2, target: P2, radius: number): boolean {
   const dx = target.x - origin.x;
   const dz = target.z - origin.z;
   return dx * dx + dz * dz <= radius * radius;
+}
+
+/** Lock-on (Tab): how far it picks (metres), and how far its target may get before the lock lets go. */
+export const LOCK_RANGE = 30;
+export const UNLOCK_RANGE = 40;
+/** "In front of the camera": within 60° either side of its look (the cosine). */
+const LOCK_FRONT = 0.5;
+
+/** What lock-on can pick: where a body stands, whether it still stands, whether it is drawn at all. */
+export interface LockCandidate { readonly alive: boolean; readonly pos: P2; readonly object: { readonly visible: boolean } }
+
+/**
+ * The body Tab locks on to: the nearest standing, drawn one within `range` of `from` in front of the camera (within 60°
+ * either side of `forward`, the camera's unit look on the ground; one at the hero's feet counts), else the nearest
+ * within `range` at all; null with nobody in range.
+ */
+export function pickLockTarget<T extends LockCandidate>(from: P2, forward: P2, bodies: Iterable<T>, range = LOCK_RANGE): T | null {
+  let front: T | null = null;
+  let any: T | null = null;
+  let fd = range;
+  let ad = range;
+  for (const b of bodies) {
+    if (!b.alive || !b.object.visible) continue;
+    const dx = b.pos.x - from.x;
+    const dz = b.pos.z - from.z;
+    const d = Math.hypot(dx, dz);
+    // (The nearest in front is never nearer than the nearest of all: past it, a body is neither.)
+    if (d >= fd) continue;
+    if (d < ad) { ad = d; any = b; }
+    if (d < 0.5 || (dx * forward.x + dz * forward.z) / d > LOCK_FRONT) { fd = d; front = b; }
+  }
+  return front ?? any;
+}
+
+/** A lock on `target` holds while it stands within `range` of `from`. */
+export function lockHolds(target: LockCandidate, from: P2, range = UNLOCK_RANGE): boolean {
+  return target.alive && Math.hypot(target.pos.x - from.x, target.pos.z - from.z) <= range;
+}
+
+/** The lock-on: Tab picks a target (pickLockTarget) or lets go of it; it lets go by itself once the target falls or gets away. */
+export class LockOn<T extends LockCandidate> {
+  target: T | null = null;
+
+  /** Tab: lets go when locked on, else locks on to pickLockTarget's choice. Returns the target, or null. */
+  toggle(from: P2, forward: P2, bodies: Iterable<T>): T | null {
+    this.target = this.target ? null : pickLockTarget(from, forward, bodies);
+    return this.target;
+  }
+
+  /** Every step: lets go of a target that fell or is past UNLOCK_RANGE of the hero at `from`. */
+  update(from: P2): void {
+    if (this.target && !lockHolds(this.target, from)) this.target = null;
+  }
 }
 
 export class Cooldown {

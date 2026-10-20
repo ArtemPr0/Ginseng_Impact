@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ComboTracker, Cooldown, CRIT_CHANCE, CRIT_MULT, computeDamage, cutWindow, HitStreak, inCone, inRadius, rollHit } from './Combat';
+import {
+  ComboTracker, Cooldown, CRIT_CHANCE, CRIT_MULT, computeDamage, cutWindow, HitStreak, inCone, inRadius, LOCK_RANGE, lockHolds, LockOn,
+  PIERCE_STOP, pickLockTarget, pierceStop, rollHit, UNLOCK_RANGE,
+} from './Combat';
 
 describe('computeDamage', () => {
   it('scales with atk and multiplier and is reduced by defence', () => {
@@ -190,5 +193,94 @@ describe('cutWindow', () => {
     expect(a).toBeCloseTo(0.18);
     expect(b).toBeCloseTo(0.62);
     expect(cutWindow(0, 1, 0.1, undefined, 0.3)).toEqual([0, 0.4]);
+  });
+});
+
+describe('pierceStop', () => {
+  it('freezes the fight on the first body a crescent cuts and only catches on each after', () => {
+    expect(pierceStop(0.1, 1)).toBe(0.1);
+    expect(PIERCE_STOP).toBe(0.3);
+    expect(pierceStop(0.1, 2)).toBeCloseTo(0.03, 9);
+    expect(pierceStop(0.1, 6)).toBeCloseTo(0.03, 9);
+    // Three skeletons in its path: 0.16 s of freeze in all, where a full stop on each was 0.3 s.
+    expect([1, 2, 3].reduce((t, n) => t + pierceStop(0.1, n), 0)).toBeCloseTo(0.16, 9);
+  });
+});
+
+describe('lock-on', () => {
+  /** A body at (x, z): standing and drawn unless told otherwise. */
+  const body = (x: number, z: number, o: { alive?: boolean; visible?: boolean } = {}) => ({ alive: o.alive ?? true, pos: { x, z }, object: { visible: o.visible ?? true } });
+  const hero = { x: 0, z: 0 };
+  /** The camera looking toward -z (ThirdPersonCamera.forward at yaw 0). */
+  const ahead = { x: 0, z: -1 };
+
+  it('picks the nearest in front of the camera over nearer ones behind and beside the hero', () => {
+    const behind = body(0, 3);
+    const beside = body(5, 0);
+    const near = body(2, -9);
+    const far = body(0, -18);
+    expect(pickLockTarget(hero, ahead, [behind, beside, far, near])).toBe(near);
+  });
+
+  it('falls back to the nearest of all when nobody stands in front', () => {
+    const behind = body(1, 9);
+    const beside = body(-6, 1);
+    expect(pickLockTarget(hero, ahead, [behind, beside])).toBe(beside);
+  });
+
+  it('counts 60 degrees either side of the look as in front, and a body at the feet', () => {
+    const at = (deg: number, r: number) => body(Math.sin((deg * Math.PI) / 180) * r, -Math.cos((deg * Math.PI) / 180) * r);
+    const inside = at(58, 12);
+    const outside = at(62, 6);
+    expect(pickLockTarget(hero, ahead, [outside, inside])).toBe(inside);
+    const feet = body(0.3, 0.2);
+    expect(pickLockTarget(hero, ahead, [inside, feet])).toBe(feet);
+  });
+
+  it('skips the fallen, the hidden and anything past LOCK_RANGE', () => {
+    expect(LOCK_RANGE).toBe(30);
+    const dead = body(0, -4, { alive: false });
+    const hidden = body(0, -5, { visible: false });
+    const tooFar = body(0, -(LOCK_RANGE + 0.5));
+    expect(pickLockTarget(hero, ahead, [dead, hidden, tooFar])).toBeNull();
+    const inReach = body(0, -(LOCK_RANGE - 0.5));
+    expect(pickLockTarget(hero, ahead, [dead, hidden, tooFar, inReach])).toBe(inReach);
+  });
+
+  it('Tab locks on, Tab again lets go, and a third Tab picks afresh', () => {
+    const lock = new LockOn<ReturnType<typeof body>>();
+    const a = body(0, -8);
+    const b = body(4, -6);
+    expect(lock.toggle(hero, ahead, [a, b])).toBe(b);
+    expect(lock.target).toBe(b);
+    expect(lock.toggle(hero, ahead, [a, b])).toBeNull();
+    expect(lock.target).toBeNull();
+    b.alive = false;
+    expect(lock.toggle(hero, ahead, [a, b])).toBe(a);
+  });
+
+  it('holds to UNLOCK_RANGE and lets go past it, or when the target falls', () => {
+    expect(UNLOCK_RANGE).toBe(40);
+    const t = body(0, -10);
+    const lock = new LockOn<ReturnType<typeof body>>();
+    lock.toggle(hero, ahead, [t]);
+    t.pos.z = -UNLOCK_RANGE;
+    lock.update(hero);
+    expect(lock.target).toBe(t);
+    expect(lockHolds(t, hero)).toBe(true);
+    t.pos.z = -(UNLOCK_RANGE + 0.1);
+    expect(lockHolds(t, hero)).toBe(false);
+    lock.update(hero);
+    expect(lock.target).toBeNull();
+    // (The hero walking off counts the same as the target running.)
+    const u = body(0, -10);
+    lock.toggle(hero, ahead, [u]);
+    lock.update({ x: 0, z: 31 });
+    expect(lock.target).toBeNull();
+    const v = body(0, -10);
+    lock.toggle(hero, ahead, [v]);
+    v.alive = false;
+    lock.update(hero);
+    expect(lock.target).toBeNull();
   });
 });

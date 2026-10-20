@@ -27,3 +27,19 @@ not pressed (it would take loot or use a door instead).
 
 Both never throw: a missing hook comes back as `error`, with whatever was gathered.
 Headless renders at 5–15 fps and the loop caps a frame at 0.1 s, so game time runs slower than the 20 s of wall time.
+
+`fight.js` is a frame-time A/B for the combat effects, the same on any build: five campfire skeletons stand stunned and
+unkillable in front of the hero, then Crimson Cleave, the Lean Cyclone (walked forward and back so it lays its trail),
+Moon Volley, Trip Volley and Starfall go off in turn (~22 s), with the resolution governor pinned at a pixel ratio of 1.
+It prints `{ ratio, all, phases }`, each with `fps`, `medianMs`, `p95Ms` (wall time), `cpu` (milliseconds a frame in
+`combat.update`, `combat.render` and `renderer.render`: the game's own work), `calls` (draw calls a frame, max/mean),
+`planes` (the fight's own transparent meshes and sprites showing in the scene: ground zones and strips, puddles,
+shots, smoke, CombatFx's pools; max/mean), `transparent` (every transparent thing on screen within 120 m, the world's included) and
+`fx` (CombatFx's live pools). Serve the builds on ports nobody else uses (check with `lsof -iTCP:<port>`: a busy port
+makes `vite preview --strictPort` fail and the run measures someone else's build) and alternate the runs (A, B, A, B,
+...) in one session. Wall-time fps swings with whatever else the machine draws (other headless pages, builds): compare
+`cpu`, `calls` and `planes`, which hold still, and read fps only across many alternations.
+
+```bash
+node scripts/perf/run.mjs "http://127.0.0.1:4173/?at=0,59" 40 scripts/perf/play/fight.js
+```

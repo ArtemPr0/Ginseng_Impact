@@ -1,12 +1,13 @@
 import { AdditiveBlending, DoubleSide, Group, Mesh, MeshBasicMaterial, RingGeometry, type Vector3 } from 'three';
 import { disposeObject } from '../render/dispose';
+import { burnStrip } from '../render/ShotFx';
 
 interface Item { obj: Group | Mesh; life: number; max: number; tick: (t: number, dt: number) => void; done?: () => void }
 
 /**
  * The effects the pooled CombatFx (render/CombatFx.ts) does not do yet: the enemies' flat swing arcs and the lingering
- * ground zones (burning ground, the bosses' warning rings). Low-poly, additive, throwaway, removed when their life ends.
- * Sparks, flashes, shocks and dust moved to CombatFx.
+ * ground zones (burning ground, the bosses' warning rings, a cast's burning path as one strip). Low-poly, additive,
+ * throwaway, removed when their life ends. Sparks, flashes, shocks and dust moved to CombatFx.
  */
 export class Vfx {
   readonly group = new Group();
@@ -44,6 +45,25 @@ export class Vfx {
     const item: Item = { obj: g, life: 0, max: duration, tick: (t) => { mat.opacity = 0.4 + Math.sin(t * duration * 9) * 0.15; if (t > 0.8) mat.opacity *= (1 - t) / 0.2; } };
     this.add(item);
     return () => { item.life = item.max; };
+  }
+
+  /**
+   * A cast's burning ground along its path as ONE strip (render/ShotFx.burnStrip) rather than a zone's ring and disc per
+   * patch: the returned `lay(at)` adds the next patch. It pulses like a zone's ring and lasts `duration` past its last
+   * patch, fading over the last fifth of that, as each patch's zone would.
+   */
+  path(color: number, radius: number, duration: number): (at: Vector3) => void {
+    const strip = burnStrip(color, radius);
+    const item: Item = {
+      obj: strip.object, life: 0, max: duration,
+      tick: () => {
+        const fade = Math.max(0, Math.min(1, (item.max - item.life) / (duration * 0.2)));
+        strip.rim.value = (0.4 + Math.sin(item.life * 9) * 0.15) * fade;
+        strip.fade.value = fade;
+      },
+    };
+    this.add(item);
+    return (at) => { if (strip.add(at)) item.max = item.life + duration; };
   }
 
   update(dt: number): void {
