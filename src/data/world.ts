@@ -319,3 +319,45 @@ export const PADS: ReadonlyArray<{ x: number; z: number; r: number; y: number; b
   { x: -56, z: 19, r: 2, y: 1.5, blend: 2.5 },     // Old Moss fishing from the bank (above the river's waterline)
   { x: -8, z: -5, r: 4, y: 2.8, blend: 3 },       // the hamlet's west house on the eye's bank
 ];
+
+/**
+ * Level ground for the island's relief (Terrain.flatMask): the rolling hills (and the rim lip) are switched off inside
+ * these discs and rectangles, on the pads, the paths and the water, and blend back in over `blend` metres, so every
+ * building, camp and pair of feet stays on even ground. Discs {x, z, r}; rects [x0, x1, z0, z1].
+ */
+export interface FlatDisc { x: number; z: number; r: number }
+export const FLATS: { blend: number; discs: readonly FlatDisc[]; rects: ReadonlyArray<readonly [number, number, number, number]> } = {
+  blend: 12,
+  discs: [
+    { x: 68, z: -18, r: 32 }, // the cathedral
+    { x: 20, z: 63, r: 12 }, // the island tavern and its yard
+    { x: -24, z: 52, r: 8 }, // the skeletons' campfire
+    { x: 32, z: 64, r: 8 }, // the cloister
+    { x: -46, z: 48, r: 7 }, // Pim's observatory
+    { x: -66, z: 57, r: 14 }, // the demon church
+    { x: 83, z: 32, r: 14 }, // the wizard's tower
+    { x: -90, z: 30, r: 10 }, // the tree house
+    { x: -40, z: -24, r: 12 }, // the mushroom tavern
+    { x: -56, z: -10, r: 13 }, // the portal clearing and the face tree
+    ...LAYOUT.ruins.map((r) => ({ x: r.x, z: r.z, r: 6 })),
+    // Every NPC's spot on the island, so nobody stands on a slope (realm anchors lie far outside the island's square).
+    ...Object.values(ANCHORS).filter((a) => Math.abs(a.x) < 200 && Math.abs(a.z) < 200).map((a) => ({ x: a.x, z: a.z, r: 5 })),
+  ],
+  rects: [
+    [-64, -4, 58, 82], // the village street and its two rows of houses
+    [-14, 30, -22, 2], // the hamlet on the eye's north bank
+  ],
+};
+
+/**
+ * The hamlet knoll (the reference frame's village terrace, world-look-28): the ground within `r` of (x, z) is raised
+ * `rise` metres, blending back over `blend`. The eye bridge lands at `landing` (its north end) on the old bank level;
+ * from there the terrace climbs over `face` metres with a `riser`-high step at each of the `risers` distances from the
+ * landing (each ramped over ±`riserRun`), so the road from the bridge climbs steps (Terrain.knollAt). The risers sit
+ * 1.8 m apart so a 1 m stride never takes both, and clear of the hamlet's houses and torches (Terrain.test.ts).
+ */
+export const KNOLL = {
+  x: 12, z: -10, r: 18, blend: 10, rise: 2.2,
+  landing: { x: 0, z: -3, r: 1.5, face: 8 },
+  risers: [3.6, 5.4] as readonly number[], riser: 0.45, riserRun: 0.3,
+} as const;

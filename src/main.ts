@@ -17,6 +17,7 @@ import { CONTROLLER, createControllerState, stepController } from './player/Char
 import { Party } from './player/Party';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera';
 import { Atmosphere } from './render/Atmosphere';
+import { GROUND_UNIFORMS } from './render/GroundMaterial';
 import { PALETTE } from './render/palette';
 import { LOOKS, Renderer } from './render/Renderer';
 import { CARRIAGE } from './world/Carriage';
@@ -92,7 +93,7 @@ function pinToCarriage(): void {
 let lastClimbY = 0;
 
 const terrain = new Terrain();
-scene.add(terrain.mesh);
+scene.add(terrain.group);
 const minimap = new Minimap(document.getElementById('hud')!, terrain);
 const area = new World(terrain);
 scene.add(area.group);
@@ -466,6 +467,9 @@ game
         if (Math.abs(tilt) > 1e-4) camera.rotateZ(tilt);
       }
       playerPos.set(controller.pos.x, controller.pos.y, controller.pos.z);
+      // The ground's level of detail follows the camera; its splat shader's clock runs with the frame.
+      terrain.update(camera.position);
+      GROUND_UNIFORMS.uTime.value += dt;
       sky.update(dt, camera.position);
       moonFace.update(dt);
       // (Strong over the church; full over the Dragon's Vale, where the reel's aurora hangs.)
