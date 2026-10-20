@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run colliders && tsc --noEmit && node scripts/procedural-audit.mjs && vite build",
+    "build": "npm run colliders && tsc --noEmit && node scripts/procedural-audit.mjs && node scripts/music-audit.mjs && vite build",
     "audit:procedural": "node scripts/procedural-audit.mjs",
     "todo:models": "node scripts/model-todo.mjs",
     "preview": "vite preview",
