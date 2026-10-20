@@ -374,7 +374,10 @@ function paint(out: Float32Array, k: number, w: number): void {
   out[k] += w;
 }
 
-/** The island as a Sculpt: the 360 m square at 1 m cells, `terrainHeight` for the height, the masks for the layers, the old vertex colours for the far tint. */
+/**
+ * The island as a Sculpt: the 360 m square at 1 m cells, `terrainHeight` for the height, the masks for the layers, the
+ * old vertex colours for the tint (the island's cobalt night near and far; up close the layers lend it their pattern).
+ */
 export function islandSculpt(noise: Noise2D): Sculpt {
   const ground = new Color(0x121d48);
   const moss = new Color(0x163a33);
@@ -432,7 +435,7 @@ export function islandSculpt(noise: Noise2D): Sculpt {
       out[LAYER.wet] = 1 - smoothstep(0, 3, waterDistance(x, z, noise));
     },
     tint: (x, z, _h, slope, out) => {
-      // The old vertex-colour pass, so the far ground looks as the island always did.
+      // The old vertex-colour pass, so the ground keeps the colours the island always had, near and far.
       const c = out.copy(ground);
       c.lerp(moss, meadowAt(x, z) * 0.75 * (1 - slope));
       c.lerp(stone, smoothstep(0.3, 0.85, slope));

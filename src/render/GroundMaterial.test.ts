@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { ShaderChunk, ShaderLib } from 'three';
 import { GROUND_UNIFORMS, groundMaterial } from './GroundMaterial';
+import { LAYER, LAYER_TINT, PATTERN_RATIO, TEXTURE_LAYERS } from './Ground';
 import { SKY_SHARED } from './Sky';
 
 interface Resolved { vert: string; frag: string; stockVert: string; stockFrag: string; uniforms: Record<string, unknown>; key: string }
@@ -120,6 +121,35 @@ describe('groundMaterial shader', () => {
     before(/uniform float roughness;/, colorAt);
     before(/vec3 transformNormalByInverseViewMatrix\(/, emisAt);
     before(/varying vec4 vA; varying vec4 vB; varying vec4 vC; varying vec3 vW; varying float vDist;/, colorAt);
+  });
+
+  it('lays the pattern over its mean on the tint, from TINT_* constants generated off LAYER_TINT', () => {
+    const f = r.frag;
+    const colorAt = f.indexOf('float gDetail = 1.0 - smoothstep(uDetailFar * 0.6, uDetailFar, vDist);');
+    const n = (v: number) => v.toFixed(4);
+    for (const [name, k] of Object.entries(LAYER)) {
+      if (k >= TEXTURE_LAYERS) continue;
+      const id = `TINT_${name.toUpperCase()}`;
+      const t = LAYER_TINT[k];
+      const def = `#define ${id} vec3(${n(t[0])}, ${n(t[1])}, ${n(t[2])})`;
+      expect(f, def).toContain(def);
+      expect(f.indexOf(def), def).toBeLessThan(colorAt);
+      // Each constant joins the mean in its own layer's branch, at the same weight as its pattern.
+      expect(f, id).toMatch(new RegExp(`acc \\+= ${name}Tex\\([^;]*\\) \\* w; patternMean \\+= ${id} \\* w;`));
+    }
+    expect(f).toContain('if (wsum < 0.02) { acc = grassTex(p); patternMean = TINT_GRASS; rough = 0.95; wsum = 1.0; }');
+    expect(f).toContain('patternMean /= wsum;');
+    // The ratio clamp, its bounds from PATTERN_RATIO.
+    expect(f).toContain(`#define PATTERN_MIN ${n(PATTERN_RATIO[0])}`);
+    expect(f).toContain(`#define PATTERN_MAX ${n(PATTERN_RATIO[1])}`);
+    const ratioAt = f.indexOf('vec3 patternRatio = clamp(acc.rgb / max(patternMean, vec3(0.001)), PATTERN_MIN, PATTERN_MAX);');
+    const mixAt = f.indexOf('ground *= mix(vec3(1.0), patternRatio, gDetail);');
+    expect(ratioAt).toBeGreaterThan(f.indexOf('patternMean /= wsum;'));
+    expect(mixAt).toBeGreaterThan(ratioAt);
+    expect(f.indexOf('diffuseColor.rgb *= ground;')).toBeGreaterThan(mixAt);
+    // The layers no longer replace the tint up close, and wet lives in the tint (baked), not again in the shader.
+    expect(f).not.toMatch(/ground = mix\(ground, detail, gDetail\)/);
+    expect(f).not.toMatch(/GROUND_ALBEDO|WET_DARKEN/);
   });
 
   it('passes the layer attributes and world position from the vertex shader', () => {
