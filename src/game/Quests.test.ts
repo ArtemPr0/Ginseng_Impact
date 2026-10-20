@@ -320,4 +320,40 @@ describe('Quests — the save', () => {
     b.restoreSlain([]);
     expect(b.slain()).toEqual([]);
   });
+
+  it('tells a quest given from one taken up again while its step is announced, a loaded save included', () => {
+    const { q, events } = onBus();
+    const heard: string[] = [];
+    events.on('quest', (e) => heard.push(`${e.id}:${e.stage}:${q.isGiven(e.id)}`));
+    expect(q.isGiven('croak')).toBe(false);
+    q.step('croak', 'active', null);
+    expect(q.isGiven('croak')).toBe(true);
+    q.step('croak', 'bagged', null);
+    q.step('croak', 'active', null);
+    // A save with Croak in the sack: nothing announced, and he was given all the same.
+    q.restore({ croak: 'bagged' });
+    expect(q.isGiven('croak')).toBe(true);
+    q.step('croak', 'active', null);
+    // A save from before the Frog King asked.
+    q.restore({});
+    expect(q.isGiven('croak')).toBe(false);
+    q.step('croak', 'active', null);
+    expect(heard).toEqual(['croak:active:false', 'croak:bagged:true', 'croak:active:true', 'croak:active:true', 'croak:active:false']);
+  });
+
+  it('names what the stages reached have woken, for a loaded save to wake again (the restore announces nothing)', () => {
+    const q = new Quests();
+    const steps: string[] = [];
+    q.events = new Events();
+    q.events.on('quest', (e) => steps.push(`${e.id}:${e.stage}`));
+    expect(q.woken()).toEqual([]);
+    q.restore({ silence: 'five', throne: 'done' });
+    expect(q.woken()).toEqual([]);
+    q.restore({ silence: 'open' });
+    expect(q.woken()).toEqual(['hollowking']);
+    // Slain since: what woke stays woken, as it does in a game never saved.
+    q.restore({ silence: 'ended' });
+    expect(q.woken()).toEqual(['hollowking']);
+    expect(steps).toEqual([]);
+  });
 });

@@ -50,6 +50,8 @@ export class Quests {
   wallet: QuestWallet | null = null;
   /** How many different bosses have been slain, for the chains a step sets off (the Story reads the world state). */
   bossCount: () => number = () => this.lastBosses;
+  /** The step whose 'quest' event is going out on the bus now, and the stage it left. */
+  private stepping: { id: QuestId; from: string } | null = null;
 
   /** The stage quest `id` is at ('none' until given, and for a name that is no quest). */
   stage(id: string): string {
@@ -103,13 +105,23 @@ export class Quests {
     const from = this.stage(id);
     if (from === stage) return;
     if (!canStep(id, from, stage, this.snapshot())) console.warn(`[quests] ${id}: ${from} → ${stage} is not a step of the graph (set anyway)`);
-    this.put(node.id, stage);
+    this.put(node.id, stage, from);
   }
 
   /** Gives quest `id` at `stage` (as `set`), then lets it move on at once: a kill made before it was given counts. */
   start(id: string, stage: string): void {
     this.set(id, stage);
     if (this.stage(id) === stage) this.onEvent({ kind: 'quest', id, stage }, this.bossCount());
+  }
+
+  /**
+   * Whether quest `id` has been given (it is past 'none'). While its own step is being announced, whether it had been
+   * before that step: a listener to the 'quest' event tells a quest just given (false) from one taken up again (Croak
+   * climbing out of the sack: true), a loaded save's included (restore announces nothing; its stages are what count).
+   */
+  isGiven(id: string): boolean {
+    if (this.stepping?.id === id) return this.stepping.from !== 'none';
+    return this.stage(id) !== 'none';
   }
 
   /** True while the quest is given and not finished. */
@@ -132,6 +144,23 @@ export class Quests {
   /** The voices earned so far, in the Stone Head's order. */
   voices(): string[] {
     return voicesHeld(this.snapshot());
+  }
+
+  /**
+   * The dormant enemies the quests have woken: the `wakes` of every stage each quest has reached (the Hollow King from
+   * silence 'open' on). A step announces its own; after `restore`, which announces nothing, the game wakes these.
+   */
+  woken(): string[] {
+    const out: string[] = [];
+    for (const id of QUEST_ORDER) {
+      const node = questNode(id);
+      if (!node) continue;
+      for (const s of node.order.slice(0, node.order.indexOf(this.stage(id)) + 1)) {
+        const kind = node.stages[s].wakes;
+        if (kind && !out.includes(kind)) out.push(kind);
+      }
+    }
+    return out;
   }
 
   /** Every quest's stage, in the graph's order (the save; the graph's own functions read this). */
@@ -176,7 +205,7 @@ export class Quests {
     const r = unpaid ? undefined : rewardFor(node.id, to, from);
     if (r && !this.settle(node.id, to, r, wallet)) return false;
     if (from === to) return true;
-    this.put(node.id, to);
+    this.put(node.id, to, from);
     // The chains the step sets off: the stages it completes, the kills made before it was given, the bosses counted.
     this.onEvent({ kind: 'quest', id: node.id, stage: to }, this.bossCount(), wallet);
     return true;
@@ -197,10 +226,13 @@ export class Quests {
     return true;
   }
 
-  /** Sets the stage and tells the HUD and the bus. */
-  private put(id: QuestId, stage: string): void {
+  /** Sets the stage and tells the HUD and the bus (whose listeners can ask `isGiven` what it was before). */
+  private put(id: QuestId, stage: string, from: string): void {
     this.stages.set(id, stage);
     this.onChange?.();
+    const outer = this.stepping;
+    this.stepping = { id, from };
     this.events?.emit({ kind: 'quest', id, stage });
+    this.stepping = outer;
   }
 }

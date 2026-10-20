@@ -112,6 +112,21 @@ describe('Croak out of the sack', () => {
     expect(a.quests.stage('croak')).toBe('returned');
   });
 
+  it('is out of the world with his boulder after loading a save that has him in the sack, and back after one that has not', () => {
+    const croak = npc('croak', 50, 50);
+    const { a, seat } = setup([croak, FAR_KING]);
+    a.quests.restore({ croak: 'bagged' });
+    a.restored();
+    expect(croak.hidden).toBe(true);
+    expect(croak.object.visible).toBe(false);
+    expect(seat.root.visible).toBe(false);
+    a.quests.restore({ croak: 'active' });
+    a.restored();
+    expect(croak.hidden).toBe(false);
+    expect(croak.object.visible).toBe(true);
+    expect(seat.root.visible).toBe(true);
+  });
+
   it('bags nobody unless his father has asked (the graph\'s step from active only)', () => {
     const croak = npc('croak', 50, 50);
     const { a, seat } = setup([croak, FAR_KING]);

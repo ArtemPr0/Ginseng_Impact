@@ -2,21 +2,24 @@
  * The story: the NPCs speak from their dialogue books (data/dialogue) through the Mind, and what the player picks
  * moves the world. A book's 'quest:<id>:<stage>' steps the quest along the Five Voices graph (data/quests.ts), which
  * pays exactly once through the wallet; the sack, the lick, the ale and the challenge go to the adventures (the
- * dialogue world); Trade, Hire and Send home are offered in every hub where they apply. The Story also lets the quests
- * hear the bus (kills, pickups, feats), banners each quest given and finished, and has the NPCs nearby bark at what
- * just happened. No three.js, no DOM: the game hands in what it needs (StoryDeps; main.ts builds them).
+ * dialogue world); Trade, Hire and Send home are offered in every hub where they apply. A step that chains on inside
+ * the quests (the fifth voice already held, the Warden slain before the King asked) can leave the line a choice leads
+ * to written for a stage the quest has left: the talk then goes on with the best topic for the stage it is at. The
+ * Story also lets the quests hear the bus (kills, pickups, feats), banners each quest given and finished, and has the
+ * NPCs nearby bark at what just happened, one voice at a time. No three.js, no DOM: the game hands in what it needs
+ * (StoryDeps; main.ts builds them).
  *
  * The world state (`deps.state`) must listen to the same bus, built before the Story (`new WorldState(events)`): it
  * then records each event before the Story hears it. A conversation is recorded as a 'talk' event after the mind has
  * read how often the two have met; one the game announced itself in the same tick (main.ts's F) is not sent again.
  */
-import { DIALOGUE, type Choice, type Cond, type DialogueBook } from '../data/dialogue/index';
-import { isAtLeast, questNode, rewardFor } from '../data/quests';
+import { DIALOGUE, type Choice, type Cond, type DialogueBook, type LineDef } from '../data/dialogue/index';
+import { QUEST_ORDER, isAtLeast, questNode, rewardFor } from '../data/quests';
 import { voiceUrl } from '../data/voices';
 import type { Action } from './actions';
 import { dialogueFor, type DialogueChoice, type DialogueNode, type DialogueStep, type DialogueWorld } from './Dialogue';
 import type { Events, GameEvent } from './Events';
-import { LEAVE_LABEL, Mind, type Resolved, type ResolvedChoice } from './Mind';
+import { LEAVE_LABEL, Mind, eligible, score, type Resolved, type ResolvedChoice } from './Mind';
 import type { QuestWallet, Quests } from './Quests';
 import type { WorldState } from './WorldState';
 
@@ -67,6 +70,8 @@ export const BARK_RANGE = { kill: 25, hurt: 12, feat: 8 } as const;
 export const BARK_FEATS: ReadonlySet<string> = new Set(['fly', 'attack']);
 /** Seconds an NPC keeps quiet after a bark. */
 export const BARK_REST = 20;
+/** Seconds after any bark before anyone barks again: in a crowd the hurts and kills do not go round every mouth. */
+export const BARK_GAP = 5;
 
 export const TRADE_LABEL = 'Trade';
 export const HIRE_LABEL = 'Hire';
@@ -114,8 +119,10 @@ export class Story {
   private readonly itemIds: string[];
   /** When each NPC last barked (world-state seconds). */
   private readonly barkedAt = new Map<string, number>();
-  /** The quests given so far (past 'none'): stepping back into a first stage is no new quest (Croak out of the sack). */
-  private readonly given = new Set<string>();
+  /** When anyone last barked. */
+  private lastBark = -Infinity;
+  /** The talk open now: whom with, and how often the two had met before it (what the mind's conditions read). */
+  private talk: { npcId: string; met: number } | null = null;
   private readonly off: () => void;
 
   constructor(private readonly d: StoryDeps) {
@@ -124,7 +131,6 @@ export class Story {
     this.mind = new Mind({ state: d.state, quests: d.quests, book: this.book, rnd: d.rnd, autoChoices: (id) => this.autoChoices(id) });
     // The chains a talk's step sets off count the bosses the world state knows (Elowen's three).
     d.quests.bossCount = () => Object.keys(d.state.bossesSlain).length;
-    this.noteGiven();
     this.off = d.events.onAny((e) => this.hear(e));
   }
 
@@ -146,6 +152,7 @@ export class Story {
       return node;
     }
     this.sync();
+    this.talk = { npcId, met: this.metBefore(npcId) };
     const conv = this.mind.open(npcId);
     this.talked(npcId);
     return this.node(npcId, conv.first);
@@ -154,20 +161,22 @@ export class Story {
   /**
    * The nearest NPCs with a book react to what just happened: a kill within 25 m of where it fell, a hurt within 12 m
    * of the hero, a flight or a swing within 8 m. The first whose mind has a bark for it says it in a bubble: one bubble
-   * per event at most, and no NPC barks twice within 20 s.
+   * per event at most, none within 5 s of the last one anyone said (a crowd does not answer every blow in turn), and no
+   * NPC barks twice within 20 s.
    */
   bark(e: GameEvent): void {
     const at = this.heardAt(e);
     if (!at) return;
     const now = this.d.state.time;
+    // (A bark "in the future" is from before a save was loaded: it no longer counts.)
+    const quiet = (last: number | undefined, rest: number) => last !== undefined && now >= last && now - last < rest;
+    if (quiet(this.lastBark, BARK_GAP)) return;
     for (const n of this.d.npcsNear(at.x, at.z, at.r)) {
-      if (!Object.hasOwn(this.book, n.id)) continue;
-      const last = this.barkedAt.get(n.id);
-      // (A bark "in the future" is from before a save was loaded: it no longer counts.)
-      if (last !== undefined && now >= last && now - last < BARK_REST) continue;
+      if (!Object.hasOwn(this.book, n.id) || quiet(this.barkedAt.get(n.id), BARK_REST)) continue;
       const r = this.mind.bark(n.id, e);
       if (!r) continue;
       this.barkedAt.set(n.id, now);
+      this.lastBark = now;
       n.bubble(r.text);
       return;
     }
@@ -195,21 +204,15 @@ export class Story {
   }
 
   /**
-   * A quest given ("Quest · title", the first time it leaves 'none') or finished ("title · complete"); the steps
-   * between show in the tracker.
+   * A quest given ("Quest · title", as it leaves 'none') or finished ("title · complete"); the steps between show in
+   * the tracker. Stepping back into a first stage is no new quest: Croak climbing out of the sack, a loaded save's
+   * sack too (the quests know what each step left, so no talk or frame has to look first).
    */
   private banner(id: string, stage: string): void {
     const node = questNode(id);
     if (!node || !node.order.includes(stage)) return;
-    const fresh = !this.given.has(id);
-    if (stage !== 'none') this.given.add(id);
     if (node.stages[stage].terminal) this.d.dw.announce(`${node.title} · complete`);
-    else if (fresh && node.order.indexOf(stage) === 1) this.d.dw.announce(`Quest · ${node.title}`);
-  }
-
-  /** Every quest past 'none' counts as given (a loaded save's too, once a conversation has looked). */
-  private noteGiven(): void {
-    for (const [id, stage] of Object.entries(this.d.quests.snapshot())) if (stage !== 'none') this.given.add(id);
+    else if (!this.d.quests.isGiven(id) && node.order.indexOf(stage) === 1) this.d.dw.announce(`Quest · ${node.title}`);
   }
 
   /** Where an event is heard from, and how far: null for one nobody barks at (or nowhere to hear it from). */
@@ -241,7 +244,6 @@ export class Story {
       else s.items.delete(id);
     }
     if (this.d.companions) s.setCompanions(this.d.companions());
-    this.noteGiven();
   }
 
   /** The hub's automatic choices: Trade at a shop; Send home for a companion, else Hire for one who can be hired. */
@@ -271,14 +273,70 @@ export class Story {
 
   /** A choice picked: its action first (it may end the talk or answer in a line of its own), then the line it leads to. */
   private run(npcId: string, c: ResolvedChoice): DialogueStep {
+    let next: Resolved | null;
     if (c.action) {
+      const before = this.d.quests.snapshot();
       const step = this.act(npcId, c.action, c);
       // The next line's conditions see what the action changed (the purse, the bag).
       this.sync();
       if (step !== null) return step;
+      next = this.after(npcId, c, before);
+    } else {
+      next = this.mind.choose(npcId, c);
     }
-    const next = this.mind.choose(npcId, c);
     return next ? this.node(npcId, next) : 'close';
+  }
+
+  /**
+   * Where a choice goes once its action has run: the line the book names, while its `when` holds. A step can chain on
+   * inside the quests (the fifth voice already held moves 'silence' on past 'told'; the Warden or the Grave Cyclops
+   * slain before the quest was given moves it on past 'active'), leaving that line written for a stage the quest has
+   * left: the talk then goes on with the best topic for where the quests are now, one about the quest the choice
+   * stepped (or that its step moved on) before any other, and ends when there is none. Only after an action: a choice
+   * that only leads somewhere follows the book as written (the Stone Head says where to begin before you take it on).
+   */
+  private after(npcId: string, c: ResolvedChoice, before: Record<string, string>): Resolved | null {
+    const to = c.to === undefined ? undefined : this.book[npcId]?.lines.find((l) => l.id === c.to);
+    if (!to || eligible(to, npcId, this.mind.ctx, this.metIn(npcId))) return this.mind.choose(npcId, c);
+    const now = this.d.quests.snapshot();
+    const about = new Set<string>(QUEST_ORDER.filter((id) => now[id] !== before[id]));
+    if (c.action?.kind === 'quest') about.add(c.action.id);
+    const line = this.bestTopic(npcId, about);
+    return line ? this.mind.choose(npcId, { to: line.id }) : null;
+  }
+
+  /**
+   * The topic the NPC would take up now, scored as the mind scores its hub (one said lately ranks low, a `once` line
+   * said is out), one about a quest in `about` before any other; null when it has none.
+   */
+  private bestTopic(npcId: string, about: ReadonlySet<string>): LineDef | null {
+    const ctx = this.mind.ctx;
+    const met = this.metIn(npcId);
+    let best: { line: LineDef; ours: boolean; score: number } | null = null;
+    for (const line of this.book[npcId]?.lines ?? []) {
+      if (line.slot !== 'topic' || !eligible(line, npcId, ctx, met)) continue;
+      const v = score(line, npcId, ctx);
+      if (v === -Infinity) continue;
+      const q = line.when?.quest?.[0];
+      const ours = q !== undefined && about.has(q);
+      if (!best || (ours && !best.ours) || (ours === best.ours && v > best.score)) best = { line, ours, score: v };
+    }
+    return best?.line ?? null;
+  }
+
+  /**
+   * Times met before the talk with `npcId` opening now, counted as the mind counts them (Mind's metBefore): a talk the
+   * game announced this very tick is this one.
+   */
+  private metBefore(npcId: string): number {
+    const m = this.d.state.npc[npcId];
+    if (!m) return 0;
+    return m.met > 0 && m.lastMet === this.d.state.time ? m.met - 1 : m.met;
+  }
+
+  /** The meeting count the talk open with `npcId` reads its conditions with (the mind's, for that talk). */
+  private metIn(npcId: string): number {
+    return this.talk?.npcId === npcId ? this.talk.met : this.metBefore(npcId);
   }
 
   /** Does what the action says; returns where the talk goes instead of the choice's line, or null to go on to it. */
@@ -306,7 +364,7 @@ export class Story {
 
   /**
    * A book's quest step, taken through the wallet. The books only step forward: with the quest at that stage or past
-   * it already (a choice clicked twice, a line left open, an earlier stage's offer) the talk goes on as written and
+   * it already (a choice clicked twice, a line left open, an earlier stage's offer) the talk goes on (`after`) and
    * nothing is paid or moved back (Croak's way back to 'active' is the sack's, never a line's). Short of what the step
    * charges: the NPC says so and the talk stops there. Refused by the graph otherwise: the talk closes.
    */

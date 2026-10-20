@@ -117,11 +117,25 @@ export class Adventures {
   private bagCroak(): void {
     // Only from 'active' (the graph's step): 'In you go.' again from a line left open bags nobody.
     if (!this.quests.step('croak', 'bagged', this.wallet)) return;
-    const croak = this.npc('croak');
-    if (croak) { croak.hidden = true; croak.object.visible = false; }
-    this.showSeat(false);
+    this.showCroak(false);
     void this.d.audio.voice(voiceUrl('croak-bagged'), 1);
     this.d.hud.announce('Croak is in the sack');
+  }
+
+  /**
+   * After a save is loaded (quests.restore announces nothing): Croak, in the sack when the game was saved, is out of
+   * the world with his boulder, as bagging him left them; out of the sack, both are in it. (The sack on the hero's
+   * back follows the stage by itself.)
+   */
+  restored(): void {
+    this.showCroak(this.quests.stage('croak') !== 'bagged');
+  }
+
+  /** Croak and his boulder in the world, or out of it while he rides in the sack. */
+  private showCroak(on: boolean): void {
+    const croak = this.npc('croak');
+    if (croak) { croak.hidden = !on; croak.object.visible = on; }
+    this.showSeat(on);
   }
 
   /** Croak's boulder: out of sight while he is in the sack (and left so when the island is shown again). */

@@ -9,7 +9,8 @@ import { Events, type GameEvent } from './Events';
 import { CONTINUE_LABEL, LEAVE_LABEL, enemyName, firstWords } from './Mind';
 import { Quests, type QuestWallet } from './Quests';
 import {
-  BARK_RANGE, BARK_REST, HIRE_LINES, HOME_LABEL, HOME_LINE, MISSING_LINE, SHORT_LINE, Story, TRADE_LABEL, type StoryDeps,
+  BARK_GAP, BARK_RANGE, BARK_REST, HIRE_LINES, HOME_LABEL, HOME_LINE, MISSING_LINE, SHORT_LINE, Story, TRADE_LABEL,
+  type StoryDeps,
 } from './Story';
 import { WorldState } from './WorldState';
 
@@ -38,6 +39,11 @@ function pick(node: DialogueNode, label: string): DialogueStep {
 function asNode(step: DialogueStep): DialogueNode {
   expect(typeof step, `the talk went to '${String(step)}'`).toBe('object');
   return step as DialogueNode;
+}
+
+/** The hub a talk opens on: past the greet's '…' to the reaction behind it, when there is one. */
+function hub(first: DialogueNode): DialogueNode {
+  return labels(first).length === 1 && labels(first)[0] === CONTINUE_LABEL ? asNode(pick(first, CONTINUE_LABEL)) : first;
 }
 
 interface Opts {
@@ -266,6 +272,20 @@ describe('Story: the books move the quests', () => {
     expect(given()).toBe(1);
   });
 
+  it('takes a loaded save\'s quests as given: no new banner for Croak out of a sack carried since the save', () => {
+    const t = setup();
+    const given = () => t.log.filter((l) => l === 'announce Quest · The Prodigal Croak').length;
+    t.quests.restore({ croak: 'bagged' });
+    // The sack put down away from his father at once, before any talk or frame: he climbs out, the same quest.
+    t.quests.step('croak', 'active', null);
+    expect(t.quests.stage('croak')).toBe('active');
+    expect(given()).toBe(0);
+    // A save from before the Frog King asked: asked again, the quest is given again, and said so.
+    t.quests.restore({});
+    t.quests.step('croak', 'active', null);
+    expect(given()).toBe(1);
+  });
+
   it("walks the Pale Bride to the shore once the bell is done: 'follow' moves her quest", () => {
     const t = setup();
     const feats: string[] = [];
@@ -285,8 +305,10 @@ describe('Story: the books move the quests', () => {
     for (const boss of ['wyrm', 'marshdemon', 'shade']) t.events.emit(kill(boss, true, 500, 500));
     t.story.update(400);
     const ask = asNode(pick(t.story.open('rose-knight')!, firstWords(text('rose-knight', 'rose-knight.topic.ask'))));
-    pick(ask, "I'll speak for you.");
+    const worthy = asNode(pick(ask, "I'll speak for you."));
     expect(t.quests.stage('rose')).toBe('worthy');
+    // Not "Say what you have killed" (the line for 'asked'): she has seen it already.
+    expect(worthy.line).toBe(text('rose-knight', 'rose-knight.topic.worthy'));
   });
 
   it('runs every other action of the books: flags, notes, pay, reward, give, take, the challenge', () => {
@@ -327,6 +349,54 @@ describe('Story: the books move the quests', () => {
     pick(hm, 'Ale');
     expect(pick(hm, 'Fight')).toBe('close');
     expect(t.log.filter((l) => l === 'ale' || l === 'challenge')).toEqual(['ale', 'challenge']);
+  });
+});
+
+describe('Story: a step that chains on inside the quests goes on with the line for where it got to', () => {
+  it('takes the Stone Head straight to the Hollow King when the five voices are already held', () => {
+    const t = setup();
+    // Every voice earned before the head was asked: the throne paid, the god slain, the sound and the bell found, the
+    // crown off the cyclops.
+    t.quests.restore({ throne: 'done', trip: 'god', sound: 'found', bell: 'found', grave: 'slain' });
+    const silence = asNode(pick(hub(t.story.open('stone-head')!), firstWords(text('stone-head', 'stone-head.topic.silence'))));
+    const earn = asNode(pick(silence, 'What has that to do with me?'));
+    const open = asNode(pick(earn, 'I will gather them.'));
+    // 'told' moved on to 'five' at once: not "Begin with him" and a dead end, but the shore.
+    expect(t.quests.stage('silence')).toBe('five');
+    expect(open.line).toBe(text('stone-head', 'stone-head.topic.open'));
+    expect(labels(open)).toEqual(['I will wake him.', 'Not yet.']);
+    expect(asNode(pick(open, 'I will wake him.')).line).toBe(text('stone-head', 'stone-head.topic.go'));
+    expect(t.quests.stage('silence')).toBe('open');
+    expect(t.log.filter((l) => l === 'announce Quest · The Silent Kingdom')).toHaveLength(1);
+  });
+
+  it('has the Skeleton King count out the crown when the Grave Cyclops fell before he asked', () => {
+    const t = setup();
+    t.events.emit(kill('cyclops-lord', true));
+    const ask = asNode(pick(hub(t.story.open('skeleton-king')!), firstWords(text('skeleton-king', 'skeleton-king.topic.grave-ask'))));
+    const claim = asNode(pick(ask, "I'll take his head."));
+    // 'active' moved on to 'slain' at once (the kill log): the crown handed over, and not "He's at the end" but the
+    // claim.
+    expect(t.quests.stage('grave')).toBe('slain');
+    expect(t.purse.bag).toEqual(['grave-crown']);
+    expect(claim.line).toBe(text('skeleton-king', 'skeleton-king.topic.grave-claim'));
+    expect(labels(claim)).toEqual(['Take the shards.']);
+    expect(asNode(pick(claim, 'Take the shards.')).line).toBe(text('skeleton-king', 'skeleton-king.topic.grave-paid'));
+    expect(t.quests.stage('grave')).toBe('done');
+    expect(t.purse).toMatchObject({ shards: 900, paid: 900, bag: ['grave-crown'] });
+  });
+
+  it('has the King pay at once when the Warden fell before he asked', () => {
+    const t = setup();
+    t.events.emit(kill('warden', true));
+    const ask = asNode(pick(hub(t.story.open('king')!), firstWords(text('king', 'king.topic.ask'))));
+    const thanks = asNode(pick(ask, "I'll do it."));
+    // 'active' moved on to 'slain' at once: not "Then go. It sulks in the east forest", but the thanks.
+    expect(t.quests.stage('throne')).toBe('slain');
+    expect(thanks.line).toBe(text('king', 'king.topic.thanks'));
+    expect(labels(thanks)).toEqual(['Take the reward']);
+    expect(asNode(pick(thanks, 'Take the reward')).line).toBe(text('king', 'king.topic.purse'));
+    expect(t.purse).toMatchObject({ shards: 1500, paid: 1500, bag: ['antler-signet'] });
   });
 });
 
@@ -380,13 +450,31 @@ describe('Story.bark', () => {
     t.events.emit(kill('beast', false, 0, 0));
     expect(t.bubbles.map(([id]) => id)).toEqual(['king']);
     expect(DIALOGUE.king.lines.filter((l) => l.slot === 'bark').map((l) => l.text)).toContain(t.bubbles[0][1]);
+    t.story.update(BARK_GAP);
     t.events.emit(kill('beast', false, 0, 0));
     expect(t.bubbles.map(([id]) => id)).toEqual(['king', 'vigil']);
+    t.story.update(BARK_GAP);
     t.events.emit(kill('beast', false, 0, 0));
     expect(t.bubbles).toHaveLength(2);
     t.story.update(BARK_REST);
     t.events.emit(kill('beast', false, 0, 0));
     expect(t.bubbles.map(([id]) => id)).toEqual(['king', 'vigil', 'king']);
+  });
+
+  it('lets a crowd bark one voice at a time: nobody within five seconds of the last bark', () => {
+    // Five NPCs with a bark for anything, all within earshot of a hurt (12 m), nearest first.
+    const crowd = Object.keys(DIALOGUE).filter((id) => DIALOGUE[id].lines.some((l) => l.slot === 'bark' && !l.when)).slice(0, 5);
+    expect(crowd).toHaveLength(5);
+    const t = setup({ npcs: crowd.map((id, i) => ({ id, x: i, z: 1 })) });
+    // Hit five times as fast as the hero can be hit (0.6 s of grace between blows), then killing all round.
+    for (let i = 0; i < 5; i++) { t.events.emit({ kind: 'hurt', amount: 3, by: 'beast' }); t.story.update(0.6); }
+    t.events.emit(kill('beast', false, 0, 0));
+    expect(t.bubbles.map(([id]) => id)).toEqual([crowd[0]]);
+    // The gap passed, the next voice takes its turn (the first rests twenty seconds).
+    t.story.update(BARK_GAP);
+    t.events.emit({ kind: 'hurt', amount: 3, by: 'beast' });
+    t.events.emit(kill('beast', false, 0, 0));
+    expect(t.bubbles.map(([id]) => id)).toEqual([crowd[0], crowd[1]]);
   });
 
   it('hears a kill within 25 m of where it fell, a hurt within 12 m and a flight within 8 m of the hero', () => {
