@@ -2,6 +2,8 @@
  * Quest state: each quest is at one named stage ('none' until it is given, 'done' once rewarded); the tracker shows
  * the objective of every quest in between. Pure: no DOM, no Three.js. Kills and items move quests along.
  */
+import type { Events } from './Events';
+
 export type QuestId = 'throne' | 'croak' | 'lean' | 'sound' | 'trip' | 'crown';
 
 export interface QuestDef {
@@ -56,6 +58,8 @@ export class Quests {
   private readonly stages = new Map<QuestId, string>();
   /** Called after any change (the HUD redraws the tracker). */
   onChange: (() => void) | null = null;
+  /** The bus every step is announced on (`quest {id, stage}`); the integration sets it. */
+  events: Events | null = null;
 
   stage(id: QuestId): string {
     return this.stages.get(id) ?? 'none';
@@ -65,6 +69,7 @@ export class Quests {
     if (this.stage(id) === stage) return;
     this.stages.set(id, stage);
     this.onChange?.();
+    this.events?.emit({ kind: 'quest', id, stage });
   }
 
   /** True while the quest is given and not finished. */

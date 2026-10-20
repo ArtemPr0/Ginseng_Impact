@@ -1,6 +1,7 @@
 import { Color, Group, type Mesh, type MeshStandardMaterial, type Object3D, Vector3 } from 'three';
 import { ANCHORS, CRYPT_ROOM, GALAXY, ISLAND_PORTALS, LAYOUT, REALMS, SUNKEN, TAVERN_ROOM, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
+import type { Events, Zone } from '../game/Events';
 import { PALETTE } from '../render/palette';
 import { glowSprite } from '../render/Glow';
 import { patchGait, patchGlowCap, patchLitWindows, patchWhiteBloom } from '../render/Materials';
@@ -272,6 +273,8 @@ export class World {
     reward?: (what: string) => void;
     /** The world swirls (a sip from the Lean Quarter's fountains). */
     trip?: (strength: number, seconds: number) => void;
+    /** The game's event bus: zone changes and the world's own feats (a fountain sip) are announced on it. */
+    events?: Events;
   } = {};
   /** The river boats with their two rowers each. */
   readonly boats: Boat[] = [];
@@ -757,7 +760,7 @@ export class World {
     for (const w of dreamWatchers) this.watchers.push({ zone: 'dream', update: w });
     const kingdom = buildKingdom(realmApi, { soundWanted: () => this.hooks.soundWanted?.() ?? false, foundSound: () => this.hooks.foundSound?.() });
     this.interactables.push(...kingdom.interactables);
-    this.interactables.push(...buildLeanQuarter(realmApi, { trip: (s, sec) => this.hooks.trip?.(s, sec) }).interactables);
+    this.interactables.push(...buildLeanQuarter(realmApi, { trip: (s, sec) => this.hooks.trip?.(s, sec), sip: () => this.hooks.events?.emit({ kind: 'feat', what: 'fountain' }) }).interactables);
     // The carriage at the lean castle's bridge, Count Rattlewheel inside (world/Carriage.ts; main.ts drives it).
     this.enterZone(GALAXY.id);
     this.interactables.push(...CARRIAGE.build(realmApi, 840, 12, -Math.PI / 2, (x, z, y) => this.heights.heightAt(x, z, y), (s, sec) => this.hooks.trip?.(s, sec)));
@@ -851,6 +854,7 @@ export class World {
 
   /** Shows only the place the player is in: the island, or one realm. Runs when the player crosses a portal. */
   private showZone(id: string | null): void {
+    this.hooks.events?.emit({ kind: 'zone', zone: (id ?? 'island') as Zone, from: (this.here ?? 'island') as Zone });
     this.here = id;
     for (const child of this.group.children) {
       // Point lights belong to the light budget, which keeps them hidden and reads them as sources.

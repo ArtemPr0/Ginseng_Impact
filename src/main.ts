@@ -31,9 +31,12 @@ import { Npc } from './world/NPCs';
 import { Terrain } from './world/Terrain';
 import { World } from './world/World';
 import { Adventures } from './game/Adventures';
+import { Events, type HeroId } from './game/Events';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const game = new Game();
+/** The game's event bus: what happens is announced here (for the NPC minds, the world state and the save). */
+const events = new Events();
 const renderer = new Renderer(canvas);
 const debugAt = new URLSearchParams(location.search).has('at');
 const input = new Input(canvas, debugAt);
@@ -126,6 +129,10 @@ let landedAt = -10;
 let tilt = 0;
 let wasInKingdom = false;
 let wasAirborne = false;
+/** What the body was doing last step (flight, a swim, a climb, a mushroom bounce, the carriage's reins): each is announced once, on entry. */
+let lastMode = controller.mode;
+let wasBouncing = false;
+let wasDriving = false;
 rigs[party.activeIndex].root.visible = rigs[party.activeIndex].trailObject.visible = true;
 const tpc = new ThirdPersonCamera(camera, world);
 const camParam = new URLSearchParams(location.search).get('cam')?.split(',').map(Number).filter((n) => Number.isFinite(n));
@@ -154,16 +161,18 @@ function switchTo(i: number): boolean {
   hud.setParty(ROSTER, swap.to, down);
   combat.onSwitch();
   audio.click();
+  events.emit({ kind: 'hero', hero: ROSTER[swap.to].id as HeroId });
   return true;
 }
 
 Npc.sound = { voice: (url, gain, channel) => audio.voice(url, gain, channel), slurp: (gain) => audio.slurp(gain) };
-Rig.sound = { slurp: (gain) => audio.slurp(gain), rustle: () => audio.rustle(), munch: () => audio.munch() };
+// (Rig.sound.slurp is Sir Aldric's own cup of lean: the hero's sip is a feat.)
+Rig.sound = { slurp: (gain) => { audio.slurp(gain); events.emit({ kind: 'feat', what: 'sip' }); }, rustle: () => audio.rustle(), munch: () => audio.munch() };
 const lightBudget = new LightBudget(scene, 6);
 lightBudget.collect(scene);
 
 const combat = new CombatSystem({
-  scene, world, sky, hud, camera, game, audio, inventory, controller, party, spawn: SPAWN,
+  scene, world, sky, hud, camera, game, audio, inventory, controller, party, spawn: SPAWN, events,
   onForceSwitch: (i) => { party.update(Party.cooldown); switchTo(i); },
   onShake: (a) => tpc.shake(a),
   onTrip: (strength, seconds) => renderer.trip(strength, seconds),
@@ -194,10 +203,11 @@ function teleport(x: number, y: number, z: number, yaw: number, name?: string): 
 }
 combat.loot.onAbsorbed = () => audio.absorb();
 const adventures = new Adventures({
-  controller, world: area, hud, audio, inventory, teleport, activeRig: () => rigs[party.activeIndex], debuffs: () => combat.debuffs,
+  controller, world: area, hud, audio, inventory, teleport, events, activeRig: () => rigs[party.activeIndex], debuffs: () => combat.debuffs,
   trip: (strength, seconds) => renderer.trip(strength, seconds),
   fight: { spawnBoss: (kind, x, z, yaw) => combat.spawnBoss(kind, x, z, yaw), despawn: (e) => combat.despawn(e) },
 });
+area.hooks.events = events;
 area.hooks.soundWanted = () => adventures.quests.stage('sound') === 'active';
 area.hooks.foundSound = () => adventures.foundSound();
 area.hooks.teleport = teleport;
@@ -209,6 +219,7 @@ area.hooks.mire = (seconds) => combat.mire(seconds);
 combat.targets.push(...area.shotTargets);
 area.hooks.reward = (what) => {
   if (what !== 'eyes') return;
+  events.emit({ kind: 'feat', what: 'skyeye' });
   combat.loot.spawn([{ kind: 'shards', amount: 60 }, { kind: 'item', itemId: 'moon-dew', count: 2 }], new Vector3(controller.pos.x, controller.pos.y + 1, controller.pos.z));
   hud.announce('The sky blinks first · 60 shards');
   audio.loot(4);
@@ -216,7 +227,7 @@ area.hooks.reward = (what) => {
 area.hooks.board = (boat) => { adventures.riding = boat; audio.footstep(); hud.announce('Aboard · F talk · SPACE jump off'); };
 adventures.openRowers = () => {
   const node = adventures.talk('rowers');
-  if (node) openPanel(() => hud.dialogue({ name: 'The Rowers', title: 'Two Knights and a Boat' }, node, adventures.onLine));
+  if (node) { events.emit({ kind: 'talk', npc: 'rowers' }); openPanel(() => hud.dialogue({ name: 'The Rowers', title: 'Two Knights and a Boat' }, node, adventures.onLine)); }
 };
 
 // --- panels ---
@@ -237,11 +248,12 @@ hud.bind({
   onBuy: (itemId, price) => {
     if (!inventory.spend(price)) return false;
     inventory.add(itemId);
+    events.emit({ kind: 'trade', what: 'buy', item: itemId });
     audio.coins(3);
     hud.announce(`${ITEMS[itemId].name} acquired`);
     return true;
   },
-  onSell: (uid, count) => { const gain = inventory.sell(uid, count); if (gain > 0) audio.coins(2); },
+  onSell: (uid, count) => { const item = inventory.entries.find((x) => x.uid === uid)?.itemId; const gain = inventory.sell(uid, count); if (gain > 0) audio.coins(2); if (gain > 0 && item) events.emit({ kind: 'trade', what: 'sell', item }); },
   onHire: (npc) => {
     if (!npc.hire || companions.length >= 3 || companions.some((c) => c.def.id === npc.id)) return 'full';
     if (!inventory.spend(npc.hire.cost)) return 'poor';
@@ -257,12 +269,13 @@ hud.bind({
     hud.setCompanions(companions.map((x) => x.def.name));
     audio.fanfare();
     hud.announce(`${npc.name} joins you`);
+    events.emit({ kind: 'trade', what: 'hire', item: npc.id });
     return 'ok';
   },
   onEquip: (uid) => {
     const me = party.active;
     const ok = inventory.equip(uid, me.id, me.weapon);
-    if (ok) { audio.click(); const e = inventory.entries.find((x) => x.uid === uid)!; hud.announce(`${me.name} wields ${ITEMS[e.itemId].name}`); }
+    if (ok) { audio.click(); const e = inventory.entries.find((x) => x.uid === uid)!; hud.announce(`${me.name} wields ${ITEMS[e.itemId].name}`); events.emit({ kind: 'trade', what: 'equip', item: e.itemId }); }
     return ok;
   },
   onUse: (uid) => {
@@ -333,7 +346,7 @@ function interactTarget(): { kind: 'loot'; take: () => void; label: string } | {
   const pickup = combat.loot.nearest(p, 2.8);
   if (pickup && pickup.drop.kind === 'item') {
     const def = ITEMS[pickup.drop.itemId];
-    return { kind: 'loot', label: `Take ${def.name}`, take: () => { combat.loot.take(pickup); inventory.add(def.id, 1); audio.loot(def.rarity); hud.announce(`${def.name}`); } };
+    return { kind: 'loot', label: `Take ${def.name}`, take: () => { combat.loot.take(pickup); inventory.add(def.id, 1); audio.loot(def.rarity); hud.announce(`${def.name}`); events.emit({ kind: 'loot', item: def.id, rarity: def.rarity }); } };
   }
   const zone = REALMS.find((r) => Math.hypot(p.x - r.x, p.z - r.z) < r.radius)?.id ?? null;
   const use = adventures.interact(zone);
@@ -367,6 +380,7 @@ function dismiss(c: Companion): void {
   hud.unhire(c.def.id);
   audio.click();
   hud.announce(`${c.def.name} goes home`);
+  events.emit({ kind: 'trade', what: 'dismiss', item: c.def.id });
 }
 
 /** F: take the loot, use the door or boat (or put the sack down), talk to whoever is near, or send a companion home. */
@@ -377,6 +391,7 @@ function pressF(): void {
   else if (t?.kind === 'talk') {
     talking = t.npc;
     audio.talk();
+    events.emit({ kind: 'talk', npc: t.npc.def.id });
     // A conversation with choices (quests) when the NPC has one; otherwise its ordinary lines.
     const node = adventures.talk(t.npc.def.id);
     if (node) openPanel(() => hud.dialogue(t.npc.def, node, adventures.onLine));
@@ -429,6 +444,10 @@ game
         stopFly: input.locked && input.justPressed('KeyX'),
         hold: combat.busy || combat.charging > 0,
       }, world, dt);
+      // Feats of movement, once per entry: a take-off, a swim, a climb, a mushroom bounce, taking the carriage's reins.
+      if (controller.mode !== lastMode) { if (controller.mode === 'fly' || controller.mode === 'swim' || controller.mode === 'climb') events.emit({ kind: 'feat', what: controller.mode }); lastMode = controller.mode; }
+      if (!!controller.bouncing !== wasBouncing) { if (controller.bouncing) events.emit({ kind: 'feat', what: 'bounce' }); wasBouncing = !!controller.bouncing; }
+      if (CARRIAGE.driving !== wasDriving) { if (CARRIAGE.driving) events.emit({ kind: 'feat', what: 'carriage' }); wasDriving = CARRIAGE.driving; }
       // Portals: step into one to cross between the island and the realms.
       portalCooldown -= dt;
       if (portalCooldown <= 0) {
@@ -606,7 +625,9 @@ declare global {
       adventures: Adventures; pressF: () => void; interactTarget: typeof interactTarget;
       /** The party's bodies (bones, held props), in roster order. */
       rigs: typeof rigs;
+      /** The event bus: what happened (kills, hurts, zones, talks, loot, trades, quests, feats). */
+      events: Events;
     };
   }
 }
-window.__ginseng = { scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs };
+window.__ginseng = { scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs, events };

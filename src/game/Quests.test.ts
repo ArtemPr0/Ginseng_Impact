@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { VOICES } from '../data/voices';
 import { dialogueFor, type DialogueWorld } from './Dialogue';
+import { Events } from './Events';
 import { Quests } from './Quests';
 
 describe('Quests', () => {
@@ -27,6 +28,24 @@ describe('Quests', () => {
     q.kill('warden');
     expect(q.stage('throne')).toBe('slain');
     expect(changes).toBe(2);
+  });
+
+  it('announces each step on the bus once, and never a stage it is already at', () => {
+    const q = new Quests();
+    const events = new Events();
+    const steps: string[] = [];
+    events.on('quest', (e) => steps.push(`${e.id}:${e.stage}`));
+    q.events = events;
+    q.set('throne', 'active');
+    q.set('throne', 'active');
+    q.kill('warden');
+    q.kill('warden');
+    q.set('throne', 'done');
+    expect(steps).toEqual(['throne:active', 'throne:slain', 'throne:done']);
+    // A quest given after its kill: the start and the step it skips to, both announced.
+    q.kill('warden');
+    q.start('throne', 'active');
+    expect(steps.slice(3)).toEqual(['throne:active', 'throne:slain']);
   });
 });
 
