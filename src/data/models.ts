@@ -4,7 +4,7 @@
  *
  * Clip names are matched case-insensitively and by substring, so "Idle", "idle_01" and "Armature|Idle" all work.
  */
-export type ClipName = 'idle' | 'walk' | 'run' | 'jump' | 'attack' | 'heavy' | 'cast' | 'hit' | 'death' | 'sit' | 'kneel' | 'roar' | 'fly' | 'drink' | 'bow' | 'lantern' | 'offer' | 'talk' | 'swim' | 'swimIdle' | 'throw' | 'punch' | 'grab' | 'stand' | 'climb';
+export type ClipName = 'idle' | 'walk' | 'run' | 'jump' | 'attack' | 'heavy' | 'cast' | 'hit' | 'death' | 'sit' | 'kneel' | 'roar' | 'fly' | 'drink' | 'bow' | 'lantern' | 'offer' | 'talk' | 'swim' | 'swimIdle' | 'throw' | 'punch' | 'grab' | 'stand' | 'climb' | 'dodge';
 
 export interface ModelDef {
   file: string;
@@ -88,10 +88,11 @@ export const MODELS: Record<string, ModelDef> = {
   // Party
   // Party (Meshy image-to-3D from docs/reference/frames, biped rig, preset clips)
   // The wall climb is a Meshy preset exported from another rig of the same (Mixamo-template) skeleton, rotations only.
-  knight: { file: 'knight.glb', clipFiles: { climb: 'hero-climb.glb' }, height: 1.95, mirror: ['idle'], clips: { idle: 'idle_02|idle|stance', walk: 'walking|walk', run: 'running|run', jump: 'basic_jump|jump', attack: 'right_hand_sword_slash|slash|attack', heavy: 'sword_judgment|judgment|slash', cast: 'sword_shout|shout|slash', hit: 'hit_reaction|hit', death: 'dying|death', drink: 'stand_and_drink|drink', swim: 'swim_forward|swim', swimIdle: 'swim_idle|swim' } },
+  // (The moves are windows of these clips, measured: src/characters/heroClips.ts.)
+  knight: { file: 'knight.glb', clipFiles: { climb: 'hero-climb.glb' }, height: 1.95, mirror: ['idle'], clips: { idle: 'idle_02|idle|stance', walk: 'walking|walk', run: 'running|run', jump: 'basic_jump|jump', attack: 'right_hand_sword_slash|slash|attack', heavy: 'sword_judgment|judgment|slash', cast: 'sword_shout|shout|slash', hit: 'hit_reaction|hit', dodge: 'stand_dodge|dodge', death: 'dying|death', drink: 'stand_and_drink|drink', swim: 'swim_forward|swim', swimIdle: 'swim_idle|swim' } },
   // Remade 2026-10-15 from frames/archer-v2.png (Meshy 7.1, A-pose, biped rig); her bow is archer-bow.glb in the left hand.
-  archer: { file: 'archer.glb', clipFiles: { climb: 'hero-climb.glb' }, height: 1.8, clips: { idle: 'idle_03|idle', walk: 'walking|walk', run: 'running|run', jump: 'regular_jump|jump', attack: 'archery_shot|shot', heavy: 'archery_shot_1|shot', cast: 'archery_aim|aim|shot', hit: 'hit_reaction|hit', death: 'dying|death', swim: 'swim_forward|swim', swimIdle: 'swim_idle|swim' } },
-  wizard: { file: 'wizard.glb', height: 1.85, robe: true, smoke: { x: -0.08, y: 1.19, z: 0.29 }, hand: { x: -0.36, y: 0.98, z: 0.12 }, clips: { idle: 'idle_02|idle|stance', walk: 'walking|walk', run: 'running|run', jump: 'basic_jump|jump', attack: 'mage_soell_cast|spell|cast', heavy: 'charged_spell_cast|charged|cast', cast: 'charged_spell_cast|charged|cast', hit: 'hit_reaction|hit', death: 'dying|death' } },
+  archer: { file: 'archer.glb', clipFiles: { climb: 'hero-climb.glb' }, height: 1.8, clips: { idle: 'idle_03|idle', walk: 'walking|walk', run: 'running|run', jump: 'regular_jump|jump', attack: 'archery_shot|shot', heavy: 'archery_shot_1|shot', cast: 'archery_aim|aim|shot', hit: 'hit_reaction|hit', dodge: 'stand_dodge|dodge', death: 'dying|death', swim: 'swim_forward|swim', swimIdle: 'swim_idle|swim' } },
+  wizard: { file: 'wizard.glb', height: 1.85, robe: true, smoke: { x: -0.08, y: 1.19, z: 0.29 }, hand: { x: -0.36, y: 0.98, z: 0.12 }, clips: { idle: 'idle_02|idle|stance', walk: 'walking|walk', run: 'running|run', jump: 'basic_jump|jump', attack: 'mage_soell_cast|spell|cast', heavy: 'charged_spell_cast|charged|cast', cast: 'charged_spell_cast|charged|cast', hit: 'hit_reaction|hit', dodge: 'stand_dodge|dodge', death: 'dying|death' } },
   // Weapons the heroes pull out while attacking (the models' own baked weapons stay where they are)
   staff: { file: 'staff.glb', height: 1.75, label: "Orlan's plain wooden walking staff (wizard-full.png)", grip: { x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0, slide: -1.05 } },
   // Wren's bow on its own (text-to-3D from her reference, docs/reference/frames/archer.png): she sits on it to fly.
