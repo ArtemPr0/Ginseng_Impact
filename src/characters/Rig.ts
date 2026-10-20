@@ -1115,12 +1115,16 @@ export class Rig {
   }
 
   /**
-   * The weapon prop is always in the hand (scaled in once, when it loads; put away only on a wall or in the water);
-   * a boneless body also swings it, the thrust landing on the move's measured strike.
+   * A hero's weapon prop is always in the hand (scaled in once, when it loads; put away only on a wall or in the
+   * water). Any other body that owns one (a companion, the Stream's witches) draws it for the swing and puts it away
+   * after, as it always did: useModel loads the prop for every body with a right hand, so an NPC's staff or greatsword
+   * must stay hidden through its sit, drink, stir and fish poses. A boneless body also swings it, the thrust landing
+   * on the move's measured strike.
    */
   private animateProp(pose: RigPose, dt: number): void {
     if (!this.prop) return;
-    const want = pose.mode === 'climb' || pose.mode === 'swim' ? 0 : 1;
+    const stowed = pose.mode === 'climb' || pose.mode === 'swim';
+    const want = stowed ? 0 : this.hero || pose.attack !== undefined ? 1 : 0;
     this.propShown += (want - this.propShown) * Math.min(1, dt * (want ? 14 : 6));
     const s = this.propBase * Math.max(0.001, this.propShown);
     this.prop.scale.setScalar(s);
@@ -1271,12 +1275,18 @@ export class Rig {
     }
     const hurtFor = hero ? cutSeconds(m.id, hero.hit) : 0;
     const dodgeFor = hero ? cutSeconds(m.id, hero.dodge) : 0;
-    const bigHurt = !!hero && !!pose.hurt?.big && pose.hurt.t < hurtFor;
-    const dodging = !!hero && !!pose.dodge && pose.dodge.t < dodgeFor;
+    // The full-body reactions are standing clips: on foot, and through a jump or a knockback's arc (the controller is
+    // in 'air' while flung), they take the body over; in flight, the water or on a wall the fly, swim and climb clips
+    // keep going and a hit of any size shows as the flinch layer alone (a hero who falls there keeps his pose until
+    // the switch).
+    const onFoot = pose.mode === 'ground' || pose.mode === 'air';
+    const bigHurt = onFoot && !!hero && !!pose.hurt?.big && pose.hurt.t < hurtFor;
+    const dodging = onFoot && !!hero && !!pose.dodge && pose.dodge.t < dodgeFor;
+    const dying = onFoot && !!hero && !!pose.dead;
     const freshHurt = !!pose.hurt && (this.lastHurt < 0 || pose.hurt.t < this.lastHurt);
     const freshDodge = !!pose.dodge && (this.lastDodge < 0 || pose.dodge.t < this.lastDodge);
     let walked = false;
-    if (hero && pose.dead) {
+    if (hero && dying) {
       // Down: the death clip once, held on its last frame.
       const key = this.heroCut('death', hero.death);
       if (key) { if (m.playing !== key) m.play(key, { once: true, fade: hero.death.fade ?? 0.15, speed: hero.death.speed ?? 1 }); }
@@ -1357,8 +1367,9 @@ export class Rig {
     else walked = true;
     if (walked) this.ground(pose, v);
     else this.gait = ''; // (whatever else the body did, the next step fades in at the idle's 0.12 s, not the gait's 0.25 s)
-    // A small hit: the reaction's flinch over the upper body, on top of whatever he is doing, eased in and out.
-    if (hero && freshHurt && !pose.hurt!.big) {
+    // A small hit, or a big one where the full reaction cannot play (in flight, the water, on a wall): the reaction's
+    // flinch over the upper body, on top of whatever he is doing, eased in and out.
+    if (hero && freshHurt && !(pose.hurt!.big && onFoot)) {
       const h = hero.hit;
       const from = h.from ?? 0;
       const key = this.heroCut('flinch', { key: h.key, from, to: Math.min(h.to ?? from + FLINCH.flinch, from + FLINCH.flinch) });

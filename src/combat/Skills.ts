@@ -33,12 +33,14 @@ export const BURST: Record<string, { kind: BurstKind; name: string; time: number
 /** The cyclone: the lean is poured over the blade first, then he spins (seconds). */
 export const CYCLONE = { pour: 0.75, spin: 4.6 };
 
+/**
+ * A skill's numbers. How long the cast takes and when it lands are not here: they are the hero's measured clip cut
+ * (skillTiming in heroClips.ts), so the damage falls on the clip's blow.
+ */
 export interface SkillDef {
   id: string;
   name: string;
   cooldown: number;
-  castTime: number;
-  hitFraction: number;
   attack: AttackDef;
   ground?: GroundEffectDef;
 }
@@ -82,16 +84,16 @@ export const COMBO: Record<WeaponKind, ComboDef> = {
 
 export const SKILLS: Record<string, SkillDef> = {
   knight: {
-    id: 'crimson-cleave', name: 'Crimson Cleave', cooldown: 8, castTime: 0.7, hitFraction: 0.55,
+    id: 'crimson-cleave', name: 'Crimson Cleave', cooldown: 8,
     attack: { mult: 3.0, element: 'own', shape: cone(5, 70), knockback: 4, hitStop: 0.1 },
     ground: { radius: 3.5, duration: 5, tickMult: 0.4, tickEvery: 1, element: 'blood' },
   },
   archer: {
-    id: 'moon-volley', name: 'Moon Volley', cooldown: 6, castTime: 0.5, hitFraction: 0.5,
+    id: 'moon-volley', name: 'Moon Volley', cooldown: 6,
     attack: { mult: 2.6, element: 'own', shape: { kind: 'bolt', range: 30, chains: 2, chainRange: 8 }, knockback: 1.5, hitStop: 0.06 },
   },
   wizard: {
-    id: 'starfall', name: 'Starfall', cooldown: 5, castTime: 0.45, hitFraction: 0.4,
+    id: 'starfall', name: 'Starfall', cooldown: 5,
     attack: { mult: 2.0, element: 'own', shape: { kind: 'bolt', range: 16, chains: 2, chainRange: 7 }, knockback: 1, hitStop: 0.05 },
   },
 };
