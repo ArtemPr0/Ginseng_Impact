@@ -1,3 +1,5 @@
+import type { Zone } from '../game/Events';
+
 /** Placement of everything in the first area. Units are metres; the causeway runs north (−z) along x = 0. */
 export const LAYOUT = {
   spawn: { x: 0, z: 59 },
@@ -289,6 +291,35 @@ export const TAVERN_ROOM: RealmDef = { id: 'tavern-room', name: 'The Candle Tave
  */
 export const CRYPT_ROOM: RealmDef = { id: 'crypt-room', name: 'The Crypt Bar', x: -1000, z: 1300, y: 0, radius: 30, fog: { color: 0x0b0a10, density: 0.04 }, ownSky: true, indoors: true };
 export const REALMS: readonly RealmDef[] = [GALAXY, SUNKEN, TREEHOUSE_ROOM, DREAM, GRAVEYARD, VALE, TAVERN_ROOM, CRYPT_ROOM];
+
+/**
+ * The cloud sea's top layer in each place (world y; CloudSea lays its other two layers 9 and 22 m under it), or null
+ * where there is none: under the lake (the Sunken City's floor is at -48) and in the rooms. main.ts eases the clouds
+ * toward the level of the place the hero is in.
+ */
+export const CLOUD_LEVEL: Record<Zone, number | null> = {
+  island: LAYOUT.cloudSea.y, galaxy: -16, vale: -30, graveyard: -30, dream: -40,
+  sunken: null, treehouse: null, 'tavern-room': null, 'crypt-room': null,
+};
+
+/** A sky as reflected in water and polished ground (SKY_SHARED's horizon, mid, zenith and cloud colours). */
+export interface RealmSky { horizon: number; mid: number; zenith: number; cloud: number }
+/**
+ * Each realm's own sky for its water and gloss to reflect: main.ts blends SKY_SHARED toward the realm's, and back to
+ * the island dome's own colours on the island. The vale and the alley show the island dome with their SKIES preset,
+ * so theirs are the preset's colours; the dream's is its tie-dye nebula's violet; the drowned city's its teal murk;
+ * the rooms' their own dark. The kingdom's darkens with its night: Kingdom.ts kingdomSkyColors() works it out from
+ * the dome's own colours, so it has no entry here.
+ */
+export const REALM_SKY: Partial<Record<Zone, RealmSky>> = {
+  vale: { horizon: 0x13405a, mid: 0x0a2048, zenith: 0x030818, cloud: 0x3a6a9a },
+  graveyard: { horizon: 0x3a1460, mid: 0x5a2a28, zenith: 0x1a0c06, cloud: 0xd88a2a },
+  dream: { horizon: 0x5a2a8a, mid: 0x34125e, zenith: 0x10051f, cloud: 0xc860f0 },
+  sunken: { horizon: 0x0a3a4e, mid: 0x072a3a, zenith: 0x02101a, cloud: 0x2a8aa0 },
+  treehouse: { horizon: 0x1e1236, mid: 0x120a26, zenith: 0x06040e, cloud: 0x3a2a5a },
+  'tavern-room': { horizon: 0x2a1408, mid: 0x180a04, zenith: 0x0a0402, cloud: 0x6a3a1c },
+  'crypt-room': { horizon: 0x1c1824, mid: 0x100c14, zenith: 0x060508, cloud: 0x3a3048 },
+};
 
 /** Portal ends on the island. */
 export const ISLAND_PORTALS = {

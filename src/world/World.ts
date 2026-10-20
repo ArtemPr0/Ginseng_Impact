@@ -303,7 +303,8 @@ export class World {
   private readonly zoneOf = new Map<object, string | null>();
   private here: string | null | undefined = undefined;
   private readonly extras: Array<{ update: (dt: number) => void }> = [];
-  private readonly clouds: CloudSea;
+  /** The cloud sea under every place (main.ts sets its level per zone): it lives in the scene root, beside `group`. */
+  readonly clouds: CloudSea;
   private readonly noise = new Noise2D(1337);
 
   constructor(readonly terrain: Terrain) {
@@ -735,7 +736,9 @@ export class World {
     }
     flora('grave', graves, { trunk: 0.3 });
     this.clouds = new CloudSea(LAYOUT.cloudSea.y);
-    this.group.add(this.clouds.group);
+    // Beside the world's group, not in it: showZone never hides the clouds (each place sets their level instead).
+    this.group.addEventListener('added', () => this.group.parent?.add(this.clouds.group));
+    this.group.addEventListener('removed', () => this.clouds.group.removeFromParent());
 
     // --- the fifth batch of reels: realms beyond the portals and the new island sites ---
     const rrnd = rng(5150);
@@ -862,7 +865,7 @@ export class World {
       const realm = child.name.startsWith('realm:') ? child.name.slice(6) : null;
       // (Things that hid themselves, like a stand-in under its model or Croak in the sack, stay hidden.)
       if (realm !== null) child.visible = realm === id;
-      else if (child !== this.clouds.group) child.visible = id === null && !child.userData.hidden;
+      else child.visible = id === null && !child.userData.hidden;
     }
   }
 

@@ -6,11 +6,12 @@
  * joined by walkable purple waves. Sky, floor, water and effects are procedural; everything standing is a GLB.
  */
 import {
-  BackSide, BoxGeometry, BufferAttribute, BufferGeometry, CircleGeometry, Color, DoubleSide, EdgesGeometry, Float32BufferAttribute,
-  Group, LineBasicMaterial, LineSegments, Mesh, type MeshStandardMaterial, PlaneGeometry, Points, ShaderMaterial, SphereGeometry, Vector3,
+  AdditiveBlending, BackSide, BoxGeometry, BufferAttribute, BufferGeometry, CircleGeometry, Color, DoubleSide, EdgesGeometry, Float32BufferAttribute,
+  Group, LineBasicMaterial, LineSegments, Mesh, type MeshStandardMaterial, PlaneGeometry, Points, ShaderMaterial, SphereGeometry, UniformsLib,
+  UniformsUtils, Vector3,
 } from 'three';
 import { Reflector } from 'three/examples/jsm/objects/Reflector.js';
-import { GALAXY, LEAN_QUARTER } from '../data/world';
+import { CLOUD_LEVEL, GALAXY, LEAN_QUARTER } from '../data/world';
 import { MODELS } from '../data/models';
 import { glowSprite } from '../render/Glow';
 import { PALETTE } from '../render/palette';
@@ -34,9 +35,85 @@ const clock = { value: 0 };
 export const kingdomNight = { value: 0 };
 
 // ---------- the sky ----------
+type RGB = readonly [number, number, number];
+/**
+ * The kingdom sky's colours (linear RGB) at the plaza (night 0) and in the quarters' night (1): midnight blue
+ * overhead, violet in the middle, neon pink low on the horizon; at night near-black indigo overhead, deep violet low,
+ * the horizon only faintly warm. The dome's shader is written from these, and kingdomSkyColors() hands the same sky
+ * to whatever reflects it.
+ */
+export const KINGDOM_SKY = {
+  zenith: { plaza: [0.03, 0.04, 0.16] as RGB, night: [0.008, 0.01, 0.045] as RGB },
+  mid: { plaza: [0.24, 0.08, 0.42] as RGB, night: [0.07, 0.03, 0.16] as RGB },
+  low: { plaza: [1.0, 0.31, 0.69] as RGB, night: [0.26, 0.09, 0.34] as RGB },
+  /** The aurora's ink runs violet to pink; it shows this strongly at the plaza and at night. */
+  ink: [[0.55, 0.2, 0.95] as RGB, [1.0, 0.35, 0.75] as RGB] as const,
+  aurora: { plaza: 0.75, night: 0.3 },
+} as const;
+
+const glslNum = (v: number) => v.toFixed(3);
+const glslVec3 = (c: RGB) => `vec3(${c.map(glslNum).join(', ')})`;
+/** The dome's gradient in GLSL (needs `e`, the view direction's height, and `uNight`): leaves it in `c`. */
+export const KINGDOM_SKY_GLSL = /* glsl */ `
+        vec3 zen = mix(${glslVec3(KINGDOM_SKY.zenith.plaza)}, ${glslVec3(KINGDOM_SKY.zenith.night)}, uNight);
+        vec3 mid = mix(${glslVec3(KINGDOM_SKY.mid.plaza)}, ${glslVec3(KINGDOM_SKY.mid.night)}, uNight);
+        vec3 low = mix(${glslVec3(KINGDOM_SKY.low.plaza)}, ${glslVec3(KINGDOM_SKY.low.night)}, uNight);
+        vec3 c = mix(mid, zen, smoothstep(0.1, 0.75, e));
+        c = mix(c, low, smoothstep(0.32, -0.02, e) * 0.85);`;
+
+/** GLSL's smoothstep (also for edge0 > edge1, as the dome uses it). */
+const smooth = (a: number, b: number, x: number) => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+
+/** The dome's gradient (KINGDOM_SKY_GLSL, before the aurora and the stars) at view height `e` for a night blend. */
+export function kingdomSkyAt(e: number, night: number, out: Color): Color {
+  const K = KINGDOM_SKY;
+  const up = smooth(0.1, 0.75, e);
+  const down = smooth(0.32, -0.02, e) * 0.85;
+  const ch = (i: number) => {
+    const zen = K.zenith.plaza[i] + (K.zenith.night[i] - K.zenith.plaza[i]) * night;
+    const mid = K.mid.plaza[i] + (K.mid.night[i] - K.mid.plaza[i]) * night;
+    const low = K.low.plaza[i] + (K.low.night[i] - K.low.plaza[i]) * night;
+    const c = mid + (zen - mid) * up;
+    return c + (low - c) * down;
+  };
+  return out.setRGB(ch(0), ch(1), ch(2));
+}
+
+/** The sky a reflection sees, as Sky.setReflection takes it. */
+export interface KingdomSkyColors { horizon: Color; mid: Color; zenith: Color; cloud: Color }
+/** The one kingdom sky the frame loop reads (kingdomSkyColors' default `out`: no garbage per frame). */
+const kingdomSkyNow: KingdomSkyColors = { horizon: new Color(), mid: new Color(), zenith: new Color(), cloud: new Color() };
+
+/**
+ * The kingdom's sky as its water and polished floors reflect it, at a night blend (main.ts hands it to
+ * Sky.setReflection): the dome's own gradient at the heights where a reflection's gradient (Water.ts skyColor) pins
+ * its horizon (0), middle (0.3) and zenith (0.95); for the clouds the aurora's ink, as strong as the dome draws it,
+ * over the sky at the middle of its band.
+ */
+export function kingdomSkyColors(night: number, out: KingdomSkyColors = kingdomSkyNow): KingdomSkyColors {
+  const K = KINGDOM_SKY;
+  kingdomSkyAt(0, night, out.horizon);
+  kingdomSkyAt(0.3, night, out.mid);
+  kingdomSkyAt(0.95, night, out.zenith);
+  kingdomSkyAt(0.5, night, out.cloud);
+  const s = K.aurora.plaza + (K.aurora.night - K.aurora.plaza) * night;
+  const ink = (i: number) => ((K.ink[0][i] + K.ink[1][i]) / 2) * s;
+  out.cloud.r += ink(0);
+  out.cloud.g += ink(1);
+  out.cloud.b += ink(2);
+  return out;
+}
+
+/** The dome's radius: just inside the camera's far plane (600 m, main.ts), round the camera wherever it goes. */
+const DOME_R = 590;
+
 function skyDome(): Mesh {
+  const K = KINGDOM_SKY;
   const mat = new ShaderMaterial({
-    // Drawn first and writing depth: the island's moon and aurora (further out) stay hidden behind it.
+    // Drawn first and writing depth: whatever lies further out than the sky (the cloud sea's far reaches) stays behind it.
     side: BackSide, fog: false,
     uniforms: { uTime: clock, uNight: kingdomNight },
     vertexShader: /* glsl */ `varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
@@ -45,21 +122,15 @@ function skyDome(): Mesh {
       ${NOISE}
       void main() {
         float e = vDir.y;
-        // Midnight blue overhead, violet in the middle, neon pink low on the horizon.
-        // (At night, in the quarters: near-black indigo overhead, deep violet low, the horizon only faintly warm.)
-        vec3 zen = mix(vec3(0.03, 0.04, 0.16), vec3(0.008, 0.01, 0.045), uNight);
-        vec3 mid = mix(vec3(0.24, 0.08, 0.42), vec3(0.07, 0.03, 0.16), uNight);
-        vec3 low = mix(vec3(1.0, 0.31, 0.69), vec3(0.26, 0.09, 0.34), uNight);
-        vec3 c = mix(mid, zen, smoothstep(0.1, 0.75, e));
-        c = mix(c, low, smoothstep(0.32, -0.02, e) * 0.85);
+        ${KINGDOM_SKY_GLSL}
         // The aurora in ink wash: soft curtains that bleed into each other, drifting.
         float a = atan(vDir.z, vDir.x);
         vec2 q = vec2(a * 3.0 + uTime * 0.02, e * 4.0);
         float curtain = fbm(q + vec2(fbm(q * 0.7 + uTime * 0.03) * 2.0, 0.0));
         float band = smoothstep(0.15, 0.55, e) * smoothstep(0.85, 0.45, e);
-        vec3 ink = mix(vec3(0.55, 0.2, 0.95), vec3(1.0, 0.35, 0.75), fbm(q * 1.3 + 5.0));
+        vec3 ink = mix(${glslVec3(K.ink[0])}, ${glslVec3(K.ink[1])}, fbm(q * 1.3 + 5.0));
         ink = mix(ink, vec3(0.25, 0.85, 1.0), smoothstep(0.62, 0.8, fbm(q * 0.6 - 3.0)) * 0.6);
-        c += ink * smoothstep(0.45, 0.85, curtain) * band * mix(0.75, 0.3, uNight);
+        c += ink * smoothstep(0.45, 0.85, curtain) * band * mix(${glslNum(K.aurora.plaza)}, ${glslNum(K.aurora.night)}, uNight);
         // A few pixel stars.
         vec2 sp = floor(vec2(a * 160.0, e * 160.0));
         float star = step(0.9965, hash(sp)) * smoothstep(0.05, 0.3, e);
@@ -67,29 +138,64 @@ function skyDome(): Mesh {
         gl_FragColor = vec4(c, 1.0);
       }`,
   });
-  const dome = new Mesh(new SphereGeometry(560, 48, 24), mat);
+  const dome = new Mesh(new SphereGeometry(DOME_R, 48, 24), mat);
   dome.frustumCulled = false;
   dome.renderOrder = -10;
+  // Centred on whichever camera draws it (the player's, the floor's mirror) just before it is drawn: never clipped
+  // by the far plane, its horizon always at eye level, the same from the castle as from the plaza.
+  const eye = new Vector3();
+  dome.onBeforeRender = (_renderer, _scene, camera) => {
+    eye.setFromMatrixPosition(camera.matrixWorld);
+    if (dome.parent) dome.parent.worldToLocal(eye);
+    dome.position.copy(eye);
+    dome.updateMatrixWorld();
+  };
   return dome;
 }
 
-/** The neon grid stretching out under the floor to the horizon (it scrolls toward you, slowly). */
+/** The neon (grid and computers) is gone by this far into the quarters' night (kingdomNight). */
+const NEON_GONE = 0.5;
+/** 1 at the plaza, 0 once the quarters' night has swallowed the neon. */
+const neonAt = (night: number) => 1 - smooth(0.2, NEON_GONE, night);
+
+/**
+ * The neon grid far down under the kingdom's cloud sea (it scrolls toward you, slowly): a faint glow through the gaps
+ * in the clouds. It glows (adds light), takes the fog and fades out within 300 m of the camera; a line thinner than a
+ * pixel fades out instead of shimmering, and it only draws seen from well above (never over the horizon).
+ */
 function horizonGrid(): Mesh {
   const mat = new ShaderMaterial({
-    transparent: true, depthWrite: false, fog: false,
-    uniforms: { uTime: clock, uNight: kingdomNight },
-    vertexShader: /* glsl */ `varying vec2 vP; void main() { vP = (modelMatrix * vec4(position, 1.0)).xz; gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }`,
-    fragmentShader: /* glsl */ `
-      uniform float uTime; uniform float uNight; varying vec2 vP;
+    transparent: true, depthWrite: false, fog: true, blending: AdditiveBlending,
+    uniforms: { ...UniformsUtils.clone(UniformsLib.fog), uTime: clock, uNight: kingdomNight },
+    vertexShader: /* glsl */ `
+      varying vec3 vW;
+      #include <fog_pars_vertex>
       void main() {
-        vec2 c = vP - vec2(${GALAXY.x.toFixed(1)}, ${GALAXY.z.toFixed(1)});
-        vec2 g = abs(fract((c + vec2(0.0, uTime * 2.0)) / 14.0 - 0.5));
-        float line = smoothstep(0.035, 0.0, min(g.x, g.y));
+        vec4 w = modelMatrix * vec4(position, 1.0);
+        vW = w.xyz;
+        vec4 mvPosition = viewMatrix * w;
+        gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform float uTime; uniform float uNight; varying vec3 vW;
+      #include <fog_pars_fragment>
+      void main() {
+        vec2 c = vW.xz - vec2(${GALAXY.x.toFixed(1)}, ${GALAXY.z.toFixed(1)});
+        vec2 cell = (c + vec2(0.0, uTime * 2.0)) / 14.0;
+        vec2 g = abs(fract(cell) - 0.5);
+        vec2 fw = fwidth(cell);
+        vec2 l = (1.0 - smoothstep(vec2(0.03), vec2(0.03) + fw, g)) * (1.0 - smoothstep(0.04, 0.12, fw));
+        float line = max(l.x, l.y);
         float d = length(c);
-        // (Out past the quarters, and faint at night.)
-        float fade = smoothstep(230.0, 300.0, d) * (1.0 - smoothstep(420.0, 700.0, d)) * (1.0 - uNight * 0.7);
+        // Out past the quarters only, close to the camera only, from above only; gone in the quarters' night.
+        float fade = smoothstep(230.0, 300.0, d) * (1.0 - smoothstep(420.0, 700.0, d));
+        fade *= 1.0 - smoothstep(150.0, 300.0, distance(cameraPosition, vW));
+        fade *= smoothstep(vW.y + 6.0, vW.y + 24.0, cameraPosition.y);
+        fade *= 1.0 - smoothstep(0.2, ${glslNum(NEON_GONE)}, uNight);
         vec3 col = mix(vec3(1.0, 0.3, 0.75), vec3(0.3, 0.9, 1.0), smoothstep(150.0, 420.0, d));
         gl_FragColor = vec4(col * line, line * fade * 0.85);
+        #include <fog_fragment>
       }`,
   });
   const grid = new Mesh(new PlaneGeometry(1600, 1600, 1, 1), mat);
@@ -98,10 +204,26 @@ function horizonGrid(): Mesh {
   return grid;
 }
 
-/** A 1990s computer drawn in neon lines: CRT monitor, keyboard, tower. */
-function wireComputer(color: number): Group {
+/** The wire computers fade out between these distances from the camera (and in the fog before that). */
+const WIRE_FADE = [260, 480] as const;
+
+/**
+ * A 1990s computer drawn in neon lines: CRT monitor, keyboard, tower. Its lines glow (add light), take the fog, fade
+ * with distance from the camera and never draw above the camera's eye line (so never against the sky).
+ */
+function wireComputer(color: number): { group: Group; mat: LineBasicMaterial } {
   const g = new Group();
-  const mat = new LineBasicMaterial({ color, transparent: true, opacity: 0.75, fog: false, toneMapped: false });
+  const mat = new LineBasicMaterial({ color, transparent: true, opacity: 0.75, fog: true, toneMapped: false, blending: AdditiveBlending });
+  mat.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying float vFade;')
+      .replace('#include <fog_vertex>', `#include <fog_vertex>
+        vFade = (1.0 - smoothstep(${glslNum(WIRE_FADE[0])}, ${glslNum(WIRE_FADE[1])}, length(mvPosition.xyz)))
+          * step((modelMatrix * vec4(transformed, 1.0)).y + 2.0, cameraPosition.y);`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vFade;')
+      .replace('#include <color_fragment>', '#include <color_fragment>\n\tdiffuseColor.a *= vFade;');
+  };
   const box = (w: number, h: number, d: number, x: number, y: number, z: number) => {
     const l = new LineSegments(new EdgesGeometry(new BoxGeometry(w, h, d)), mat);
     l.position.set(x, y, z);
@@ -122,7 +244,7 @@ function wireComputer(color: number): Group {
   const kg = new BufferGeometry();
   kg.setAttribute('position', new Float32BufferAttribute(pts, 3));
   g.add(new LineSegments(kg, mat));
-  return g;
+  return { group: g, mat };
 }
 
 function crescentMoon(): Mesh {
@@ -256,13 +378,16 @@ function blossomFog(cx: number, cz: number, w: number, d: number, floorY: number
     const mat = new ShaderMaterial({
       transparent: true, depthWrite: false, fog: false, side: DoubleSide,
       uniforms: { uTime: clock },
-      vertexShader: /* glsl */ `varying vec2 vP; void main() { vP = (modelMatrix * vec4(position, 1.0)).xz; gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }`,
+      vertexShader: /* glsl */ `varying vec2 vP; varying vec2 vUv; void main() { vUv = uv; vP = (modelMatrix * vec4(position, 1.0)).xz; gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }`,
       fragmentShader: /* glsl */ `
-        uniform float uTime; varying vec2 vP;
+        uniform float uTime; varying vec2 vP; varying vec2 vUv;
         ${NOISE}
         void main() {
           float n = fbm(vP * 0.06 + vec2(uTime * 0.03, uTime * 0.017) + ${h.toFixed(2)} * 3.0);
-          float a = smoothstep(0.35, 0.8, n) * ${op.toFixed(2)};
+          // Soft at the edges of the patch (as LeanFx mistLayers), so it never ends in a straight line.
+          vec2 e = min(vUv, 1.0 - vUv);
+          float edge = smoothstep(0.0, 0.12, min(e.x, e.y));
+          float a = smoothstep(0.35, 0.8, n) * ${op.toFixed(2)} * edge;
           gl_FragColor = vec4(vec3(1.0, 0.62, 0.86), a);
         }`,
     });
@@ -512,22 +637,26 @@ export function buildKingdom(api: RealmApi, hooks: { soundWanted(): boolean; fou
   const gy = R.y;
   api.realm(R.id);
   const sky = new Group();
+  // (The dome follows the camera: see skyDome.)
   const dome = skyDome();
-  dome.position.set(R.x, gy, R.z);
+  // The neon grid lies under the whole cloud sea (its three layers: CloudSea), glowing up through its gaps.
+  const clouds = CLOUD_LEVEL.galaxy ?? gy - 40;
   const grid = horizonGrid();
-  grid.position.set(R.x, gy - 26, R.z);
+  grid.position.set(R.x, clouds - 26, R.z);
   sky.add(dome, grid);
-  // Wireframe computers standing on the horizon, all round.
-  const computers: Group[] = [];
+  // Wireframe computers far out all round, sunk to their screens in the cloud sea under the cliffs: their tops (bobbing
+  // 2 m) stay under the plaza's floor, so from the kingdom they are only ever a glow below, never lines across the sky.
+  const computers: Array<{ group: Group; mat: LineBasicMaterial; y: number }> = [];
   for (let i = 0; i < 7; i++) {
     const a = (i / 7) * Math.PI * 2 + 0.3;
     const c = wireComputer(i % 2 ? 0xff5ec8 : 0x5ee8ff);
-    const dist = 360 + (i % 3) * 40;
-    c.scale.setScalar(55 + (i % 3) * 15);
-    c.position.set(R.x + Math.cos(a) * dist, gy - 30, R.z + Math.sin(a) * dist);
-    c.rotation.y = -a - Math.PI / 2;
-    sky.add(c);
-    computers.push(c);
+    const dist = 440 + (i % 3) * 35;
+    const y = clouds - 36;
+    c.group.scale.setScalar(36 + (i % 3) * 8);
+    c.group.position.set(R.x + Math.cos(a) * dist, y, R.z + Math.sin(a) * dist);
+    c.group.rotation.y = -a - Math.PI / 2;
+    sky.add(c.group);
+    computers.push({ ...c, y });
   }
   // Two moons: a pale crescent and a huge holographic CD-ROM, turning.
   const crescent = crescentMoon();
@@ -554,9 +683,15 @@ export function buildKingdom(api: RealmApi, hooks: { soundWanted(): boolean; fou
     clock.value = t;
     cd.rotateZ(dt * 0.35);
     grin.update(dt);
-    for (let i = 0; i < computers.length; i++) computers[i].position.y = gy - 30 + Math.sin(t * 0.2 + i) * 4;
-    // The neon computers and the grinning moon fade out of the quarters' night sky.
-    for (const c of computers) c.visible = kingdomNight.value < 0.8;
+    // The neon (computers and grid) fades out of the quarters' night, and so does the grinning moon.
+    const neon = neonAt(kingdomNight.value);
+    for (let i = 0; i < computers.length; i++) {
+      const c = computers[i];
+      c.group.position.y = c.y + Math.sin(t * 0.2 + i) * 2;
+      c.mat.opacity = 0.75 * neon;
+      c.group.visible = neon > 0.001;
+    }
+    grid.visible = neon > 0.001;
     grin.group.visible = kingdomNight.value < 0.85;
   } });
   // A humpback whale flying slow loops over the plaza and the cups (DeSEl9PvPG_), its body flexing as it swims.

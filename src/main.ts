@@ -8,8 +8,8 @@ import { ROSTER } from './characters/roster';
 import { CombatSystem } from './combat/CombatSystem';
 import { Game } from './core/Game';
 import { Input } from './core/Input';
-import { DISTRICT_AIR, LAYOUT, leanDistrict, REALMS, VALE, ZONE_LIGHT } from './data/world';
-import { kingdomNight } from './world/Kingdom';
+import { CLOUD_LEVEL, DISTRICT_AIR, LAYOUT, leanDistrict, REALM_SKY, REALMS, VALE, ZONE_LIGHT } from './data/world';
+import { kingdomNight, kingdomSkyColors } from './world/Kingdom';
 import { Inventory } from './items/Inventory';
 import { riverAt } from './world/Terrain';
 import { ITEMS } from './items/Items';
@@ -31,7 +31,7 @@ import { Npc } from './world/NPCs';
 import { Terrain } from './world/Terrain';
 import { World } from './world/World';
 import { Adventures } from './game/Adventures';
-import { Events, type HeroId } from './game/Events';
+import { Events, type HeroId, type Zone } from './game/Events';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const game = new Game();
@@ -579,6 +579,15 @@ game
       sky.setPreset(SKIES[realm?.id ?? 'island'] ?? SKIES.island);
       // A realm with a sky of its own (the kingdom, the frog's dream) hides the island's moon, stars and aurora.
       sky.group.visible = skyEvents.group.visible = !realm?.ownSky;
+      // Its water and polished floors reflect the place's own sky (the kingdom's darkens with its night; the island's
+      // is its dome's), the cloud sea lies at the place's own level in the place's own air (none under the lake or
+      // indoors), and the map shows the place.
+      const zone = (realm?.id ?? 'island') as Zone;
+      const realmSky = zone === 'galaxy' ? kingdomSkyColors(kingdomNight.value) : REALM_SKY[zone] ?? null;
+      sky.setReflection(realmSky);
+      area.clouds.setLevel(CLOUD_LEVEL[zone]);
+      area.clouds.setAir(realmSky?.horizon ?? null);
+      minimap.setZone(realm ?? null, world);
       // Yung Lean's kingdom has its own music (an underwater arrival, a hum, a slow beat).
       const inKingdom = realm?.id === 'galaxy';
       if (inKingdom !== wasInKingdom) { audio.kingdom(inKingdom); wasInKingdom = inKingdom; }

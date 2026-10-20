@@ -1,5 +1,5 @@
 import {
-  AdditiveBlending, BackSide, BufferGeometry, CanvasTexture, CircleGeometry, Color, Float32BufferAttribute, Group,
+  AdditiveBlending, BackSide, BufferGeometry, CanvasTexture, CircleGeometry, Color, type ColorRepresentation, Float32BufferAttribute, Group,
   LinearFilter, Mesh, MeshBasicMaterial, PlaneGeometry, Points, ShaderMaterial, SphereGeometry, Sprite, SpriteMaterial, Vector3,
 } from 'three';
 import { PALETTE } from './palette';
@@ -119,6 +119,9 @@ const STAR_FRAG = /* glsl */ `
 uniform vec3 uColor; uniform float uOpacity; varying float vA;
 void main() { float d = length(gl_PointCoord - 0.5); if (d > 0.5) discard; gl_FragColor = vec4(uColor, (0.35 + vA * 0.65) * (1.0 - d * 2.0) * uOpacity); }`;
 
+/** A sky's colours as a reflection sees them (data/world REALM_SKY, Kingdom.ts kingdomSkyColors): hex or Color. */
+export interface SkyColors { horizon: ColorRepresentation; mid: ColorRepresentation; zenith: ColorRepresentation; cloud: ColorRepresentation }
+
 /** The colours and weather of one sky. Zones blend toward theirs (Sky.setPreset). */
 export interface SkyPreset {
   horizon: number;
@@ -141,11 +144,15 @@ export interface SkyPreset {
 
 const col = (hex: number, k = 1): Color => new Color(hex).multiplyScalar(k);
 const TMP_COLOR = new Color();
+const REFL_COLOR = new Color();
 const BLOOD_TINT = new Color(1.9, 0.12, 0.1);
 
 /**
- * The sky's colours, moon and clock as uniform objects shared with everything that reflects the sky (water): they
- * are the dome's own uniforms, so a reflection always matches the sky above it, presets and blood moon included.
+ * The sky's colours, moon and clock as uniform objects shared with everything that reflects the sky (water, polished
+ * ground). On the island the colours follow the island dome's own; in a realm they follow the realm's own sky
+ * (Sky.setReflection: the kingdom's, the dream's, the vale's and the alley's presets, the drowned city's murk, a
+ * room's dark), so a reflection always matches the sky above it. The moon's direction and colour (blood moon
+ * included) are the dome's.
  */
 export const SKY_SHARED = {
   uSkyHorizon: { value: new Color(0x1f3080) },
@@ -200,6 +207,8 @@ export class Sky {
   private readonly moonTintBase = new Color();
   private bloodMoon = false;
   private preset: SkyPreset = SKIES.island;
+  /** The sky the reflections follow instead of this dome's (a realm's own), or null. */
+  private reflection: SkyColors | null = null;
   private readonly cur = { cover: 0.5, swirl: 0.7, vortex: 0.5, nebula: 1, stars: 1, moon: 1, eclipse: 1 };
   /** Where the black sun hangs: low in the north-west, over the forest gorge and the spire castle. */
   readonly eclipseDir = new Vector3(-0.62, 0.17, -0.77).normalize();
@@ -210,11 +219,12 @@ export class Sky {
   constructor() {
     this.domeMat = new ShaderMaterial({
       uniforms: {
-        uHorizon: SKY_SHARED.uSkyHorizon,
-        uMid: SKY_SHARED.uSkyMid,
-        uZenith: SKY_SHARED.uSkyZenith,
+        // (The dome's own colours: SKY_SHARED follows them, or a realm's sky; see blendReflection.)
+        uHorizon: { value: SKY_SHARED.uSkyHorizon.value.clone() },
+        uMid: { value: SKY_SHARED.uSkyMid.value.clone() },
+        uZenith: { value: SKY_SHARED.uSkyZenith.value.clone() },
         uCloudDark: { value: col(SKIES.island.cloudDark) },
-        uCloudLit: SKY_SHARED.uSkyCloud,
+        uCloudLit: { value: SKY_SHARED.uSkyCloud.value.clone() },
         uMoonDir: { value: this.moonDir },
         uMoonGlow: { value: new Color(PALETTE.electric).multiplyScalar(0.5) },
         uTime: { value: 0 },
@@ -319,6 +329,14 @@ export class Sky {
   }
 
   /**
+   * What water and polished ground reflect (SKY_SHARED): a realm's own sky (its colours may change from frame to
+   * frame: the same object is read each frame), or null for this dome's own colours. Blended in update (1 − e^(−2·dt)).
+   */
+  setReflection(c: SkyColors | null): void {
+    this.reflection = c;
+  }
+
+  /**
    * Replaces the flat cratered moon with a modelled face-moon (render/MoonFace). The canvas moon and its timed face
    * stay as the fallback while the model loads or if it is missing.
    */
@@ -363,6 +381,18 @@ export class Sky {
     this.eclipse.visible = c.eclipse > 0.05;
   }
 
+  /** SKY_SHARED's colours toward the realm's sky, or toward the dome's own (the island restores its own). */
+  private blendReflection(dt: number): void {
+    const k = 1 - Math.exp(-2 * dt);
+    const r = this.reflection;
+    const u = this.domeMat.uniforms;
+    const to = (c: ColorRepresentation | undefined, own: Color) => (c === undefined ? own : REFL_COLOR.set(c));
+    SKY_SHARED.uSkyHorizon.value.lerp(to(r?.horizon, u.uHorizon.value as Color), k);
+    SKY_SHARED.uSkyMid.value.lerp(to(r?.mid, u.uMid.value as Color), k);
+    SKY_SHARED.uSkyZenith.value.lerp(to(r?.zenith, u.uZenith.value as Color), k);
+    SKY_SHARED.uSkyCloud.value.lerp(to(r?.cloud, u.uCloudLit.value as Color), k);
+  }
+
   setBloodMoon(on: boolean): void {
     if (on === this.bloodMoon) return;
     this.bloodMoon = on;
@@ -376,6 +406,7 @@ export class Sky {
   update(dt: number, cameraPosition: Vector3): void {
     this.time += dt;
     this.blendPreset(dt);
+    this.blendReflection(dt);
     this.domeMat.uniforms.uTime.value = this.time;
     SKY_SHARED.uSkyTime.value = this.time;
     this.eclipseMat.uniforms.uTime.value = this.time;
