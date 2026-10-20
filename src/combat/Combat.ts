@@ -14,6 +14,56 @@ export function computeDamage(d: DamageInput): number {
   return Math.max(1, Math.round(raw));
 }
 
+/** The chance every hero hit has to crit before charms and affixes (Inventory.critBonus adds to it). */
+export const CRIT_CHANCE = 0.1;
+/** What a crit multiplies a hit's damage by (on top of any reaction). */
+export const CRIT_MULT = 1.6;
+
+/**
+ * One hit's damage with its crit roll: one draw of `rnd` against `chance` (a chance of 1 or more always crits). A crit
+ * multiplies the damage by CRIT_MULT on top of any reaction; the rounding happens once, at the end. A chance of 0 never
+ * draws (ground zones, smoke and companions do not crit).
+ */
+export function rollHit(d: DamageInput, chance: number, rnd: () => number = Math.random): { amount: number; crit: boolean } {
+  const crit = chance > 0 && rnd() < Math.min(1, chance);
+  return { amount: computeDamage(crit ? { ...d, multiplier: d.multiplier * CRIT_MULT } : d), crit };
+}
+
+/** The combo counter: hits in a row, each landing within `window` seconds of the last; a pause drops it to 0. */
+export class HitStreak {
+  count = 0;
+  private left = 0;
+
+  constructor(readonly window = 1.2) {}
+
+  /** A hit landed: returns the new count. */
+  hit(): number {
+    this.count++;
+    this.left = this.window;
+    return this.count;
+  }
+
+  update(dt: number): void {
+    if (this.count === 0) return;
+    this.left -= dt;
+    if (this.left <= 0) { this.count = 0; this.left = 0; }
+  }
+}
+
+const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+
+/**
+ * The part of a clip cut (0..1) in which the blade is cutting: a `measured` window, in seconds of the source clip,
+ * mapped into the cut's [from, to] and clamped; without one, `around` (a fraction of the cut) either side of `strike`.
+ */
+export function cutWindow(from: number, to: number, strike: number, measured?: readonly [number, number] | null, around = 0.22): [number, number] {
+  if (measured) {
+    const span = Math.max(1e-6, to - from);
+    return [clamp01((measured[0] - from) / span), clamp01((measured[1] - from) / span)];
+  }
+  return [clamp01(strike - around), clamp01(strike + around)];
+}
+
 export interface P2 { x: number; z: number }
 
 /** yaw follows the controller convention: 0 faces +x, π/2 faces +z. */

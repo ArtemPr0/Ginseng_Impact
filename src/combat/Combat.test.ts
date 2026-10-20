@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { ComboTracker, Cooldown, computeDamage, inCone, inRadius } from './Combat';
+import { describe, expect, it, vi } from 'vitest';
+import { ComboTracker, Cooldown, CRIT_CHANCE, CRIT_MULT, computeDamage, cutWindow, HitStreak, inCone, inRadius, rollHit } from './Combat';
 
 describe('computeDamage', () => {
   it('scales with atk and multiplier and is reduced by defence', () => {
@@ -122,5 +122,73 @@ describe('ComboTracker', () => {
     expect(c.hitFraction).toBe(0.3);
     c.currentHit = 2;
     expect(c.hitFraction).toBe(0.3);
+  });
+});
+
+describe('crits', () => {
+  const hit = { atk: 100, multiplier: 1, defense: 0 };
+
+  it('rolls against the chance with the injected rnd: a crit lands ×CRIT_MULT, a miss lands plain', () => {
+    expect(CRIT_CHANCE).toBe(0.1);
+    expect(rollHit(hit, CRIT_CHANCE, () => 0.05)).toEqual({ amount: 160, crit: true });
+    expect(rollHit(hit, CRIT_CHANCE, () => 0.1)).toEqual({ amount: 100, crit: false }); // strictly under the chance
+    expect(rollHit(hit, CRIT_CHANCE, () => 0.99)).toEqual({ amount: 100, crit: false });
+    expect(CRIT_MULT).toBe(1.6);
+  });
+
+  it('adds the charm and affix bonus to the base chance, clamped to a sure crit', () => {
+    expect(rollHit(hit, CRIT_CHANCE + 0.05, () => 0.12).crit).toBe(true);
+    expect(rollHit(hit, CRIT_CHANCE + 0.05, () => 0.16).crit).toBe(false);
+    expect(rollHit(hit, 7, () => 0.999).crit).toBe(true);
+  });
+
+  it('never draws for a hit that cannot crit (zones, companions), whatever the rnd says', () => {
+    const rnd = vi.fn(() => 0);
+    expect(rollHit(hit, 0, rnd)).toEqual({ amount: 100, crit: false });
+    expect(rnd).not.toHaveBeenCalled();
+  });
+
+  it('stacks on the reaction multiplier and rounds once, at the end', () => {
+    const plain = computeDamage({ ...hit, reaction: 'eclipse' });
+    const crit = rollHit({ ...hit, reaction: 'eclipse' }, 1, () => 0);
+    expect(crit.crit).toBe(true);
+    expect(crit.amount).toBe(Math.round(100 * 2.2 * 1.6));
+    expect(crit.amount).toBeGreaterThan(plain);
+    // Defence still applies to the crit: 100 × 1.6 × 100/200.
+    expect(rollHit({ ...hit, defense: 100 }, 1, () => 0).amount).toBe(80);
+  });
+});
+
+describe('HitStreak', () => {
+  it('counts hits that come within its window of the last, and drops to 0 after a pause', () => {
+    const s = new HitStreak(1.2);
+    expect(s.count).toBe(0);
+    expect(s.hit()).toBe(1);
+    s.update(1.0);
+    expect(s.hit()).toBe(2); // 1.0 s after the first: still in
+    s.update(1.1);
+    expect(s.hit()).toBe(3); // the window restarts on every hit
+    s.update(1.19);
+    expect(s.count).toBe(3);
+    s.update(0.02);
+    expect(s.count).toBe(0);
+    expect(s.hit()).toBe(1);
+  });
+});
+
+describe('cutWindow', () => {
+  it('maps a measured window in seconds of the source clip into the cut, clamped to 0..1', () => {
+    // Right_Hand_Sword_Slash cut 0.2..0.95 s; the blade cuts 0.39..0.78 s.
+    const [a, b] = cutWindow(0.2, 0.95, 0.43, [0.39, 0.78]);
+    expect(a).toBeCloseTo(0.19 / 0.75);
+    expect(b).toBeCloseTo(0.58 / 0.75);
+    expect(cutWindow(0.5, 1, 0.5, [0.2, 1.4])).toEqual([0, 1]);
+  });
+
+  it('without a measured window, spans `around` either side of the strike', () => {
+    const [a, b] = cutWindow(0, 0.4, 0.4, null);
+    expect(a).toBeCloseTo(0.18);
+    expect(b).toBeCloseTo(0.62);
+    expect(cutWindow(0, 1, 0.1, undefined, 0.3)).toEqual([0, 0.4]);
   });
 });

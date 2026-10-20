@@ -1,9 +1,11 @@
-import { BoxGeometry, BufferGeometry, CircleGeometry, Float32BufferAttribute, Group, LineBasicMaterial, LineSegments, Mesh, PerspectiveCamera, Scene, Vector3, ConeGeometry, CylinderGeometry, TorusGeometry, MeshBasicMaterial, AdditiveBlending, DoubleSide, Sprite, SpriteMaterial } from 'three';
+import { BoxGeometry, BufferGeometry, CircleGeometry, Color, Float32BufferAttribute, Group, LineBasicMaterial, LineSegments, Mesh, PerspectiveCamera, Scene, Vector3, ConeGeometry, CylinderGeometry, TorusGeometry, MeshBasicMaterial, AdditiveBlending, DoubleSide, Sprite, SpriteMaterial } from 'three';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Audio } from '../audio/Audio';
+import { CombatSfx, hitMaterial } from '../audio/CombatSfx';
 import type { CharacterDef } from '../characters/roster';
 import type { Game } from '../core/Game';
 import { ENEMY_DEFS, ENEMY_SPAWNS, type BossAttackKind, type EnemyDef, type EnemyKind } from '../data/enemies';
+import type { ClipName } from '../data/models';
 import { voiceUrl } from '../data/voices';
 import type { Events, HeroId } from '../game/Events';
 import type { Inventory } from '../items/Inventory';
@@ -11,17 +13,19 @@ import { ITEMS } from '../items/Items';
 import type { ControllerState, WorldQuery } from '../player/CharacterController';
 import type { Party } from '../player/Party';
 import { PALETTE } from '../render/palette';
+import type { CombatFx } from '../render/CombatFx';
+import { crescentShot, starShot } from '../render/ShotFx';
 import { GRAVEYARD } from '../data/world';
 import { surface } from '../render/Materials';
 import type { Sky } from '../render/Sky';
 import type { Hud } from '../ui/Hud';
 import { glowSprite } from '../render/Glow';
-import { ComboTracker, Cooldown, computeDamage, inCone, inRadius } from './Combat';
+import { ComboTracker, Cooldown, CRIT_CHANCE, computeDamage, cutWindow, HitStreak, inCone, inRadius, rollHit } from './Combat';
 import { ELEMENT_COLOR, REACTIONS, applyElement, type Element, type ReactionId } from './Elements';
 import { Enemy, type EnemyHome } from './Enemy';
 import { LootField, rollDrops } from './Loot';
-import { BURST, COMBO, CYCLONE, SKILLS, type AttackDef, type BurstKind, type GroundEffectDef } from './Skills';
-import { comboTiming, heavyTiming, skillTiming } from '../characters/heroClips';
+import { BURST, COMBO, CYCLONE, SKILLS, type AttackDef, type BurstKind, type CrescentShape, type GroundEffectDef, type HitShape, type StarfallShape, type VolleyShape } from './Skills';
+import { comboTiming, cutSpan, heavyTiming, heroClipsOf, moveCut, skillTiming } from '../characters/heroClips';
 import { disposeObject } from '../render/dispose';
 import { puffTexture } from '../render/Smoke';
 import { loadModel, ModelRig } from '../models/ModelRig';
@@ -56,14 +60,56 @@ interface Projectile {
   /** Materials whose colour cycles through every hue (the trip volley). */
   rainbow: Array<{ color: { setHSL(h: number, s: number, l: number): unknown } }>;
   seed: number;
+  /** Seconds since it was loosed. */
+  age: number;
+  /** Where it set off (how far it has gone). */
+  from: Vector3;
+  /**
+   * The CombatFx ribbon drawn behind it ('arrow0'/'arrow1' for Wren's arrows, 'bolt' for Orlan's, 'star0'/'star1' for
+   * Starfall's falling stars; a newer shot takes an id over), and the ribbon's half-width.
+   */
+  trail: string | null;
+  trailW: number;
+  /** Cuts through every mob it touches, once each, and flies on (the crescent). */
+  pierce: boolean;
+  /** Bursts over this many metres where it lands or meets a body (Starfall's stars); 0 = an ordinary hit. */
+  aoe: number;
+  /** Rides the ground this many metres above it (the crescent); 0 = flies free. */
+  ground: number;
+  /** The burning ground it leaves along its path (the crescent). */
+  burn: BurnPath | null;
+  /** The crescent's fade (in at the launch, out at the end of its run). */
+  fade: { value: number } | null;
+  /** Orlan's star, turned as it flies so its points twinkle. */
+  twinkle: SpriteMaterial | null;
 }
 
-type ProjectileKind = 'bolt' | 'arrow' | 'log' | 'ring' | 'fire' | 'cup' | 'trip' | 'web' | 'orb' | 'gem';
+type ProjectileKind = 'bolt' | 'arrow' | 'log' | 'ring' | 'fire' | 'cup' | 'trip' | 'web' | 'orb' | 'gem' | 'crescent' | 'star';
 
 /** A shot from something that is not an enemy (witches, the snail, the dragon), aimed at the hero. */
 export interface HostileShot { speed: number; color: number; atk: number; kind?: ProjectileKind; size?: number; radius?: number; poison?: { dps: number; seconds: number }; spread?: number }
 
-interface GroundZone { pos: Vector3; def: GroundEffectDef; left: number; tick: number; atk: number; remove: () => void }
+interface GroundZone { pos: Vector3; def: GroundEffectDef; left: number; tick: number; atk: number; remove: () => void; group: ZoneGroup | null }
+
+/** Patches of ground laid by one cast: a mob standing in several is ticked by one of them, not by each. */
+interface ZoneGroup { last: Map<number, number> }
+
+/** The burning ground a crescent lays: a patch every `every` metres of its run, all of one ZoneGroup. */
+interface BurnPath { def: GroundEffectDef; atk: number; every: number; next: number; group: ZoneGroup }
+
+/** What else a blow is (see hitEnemy). */
+interface HitOpts {
+  /** Charges the burst (default); lingering zones, the smoke and the spin do not, or a burst would refill itself. */
+  energy?: boolean;
+  /** A heavy blow (the heavy, a finisher, the skill): a ground shock, a bigger kick, the fov punch, the boom. Default: hit-stop ≥ 0.08. */
+  heavy?: boolean;
+  /** A tick of something that lingers (a burning patch, the smoke): never a crit, no kick, no combo, a small spark. */
+  dot?: boolean;
+  /** A companion's blow: never a crit, no kick, no combo. */
+  companion?: boolean;
+  /** Where it struck (a shot's head); by default the body's side facing the hero, at about the swing's height. */
+  at?: Vector3;
+}
 
 export interface CombatInput { attack: boolean; heavyHeld: boolean; heavyRelease: boolean; skill: boolean; burst: boolean; dodge: boolean }
 
@@ -86,10 +132,22 @@ export interface CombatDeps {
   onWipe?: () => void;
   /** The game's event bus: kills, hurts, falls, wipes and dodges are announced on it. */
   events?: Events;
+  /** The pooled combat effects (render/CombatFx.ts): main owns them, adds their group and updates them every frame. */
+  fx: CombatFx;
+  /** The active hero's weapon ends this frame (Rig.weaponTips): the blade's ribbon, sparks off the blade. */
+  weaponTips?: (guard: Vector3, tip: Vector3) => boolean;
+  /** A camera impulse of `amount` metres along `dir` (ThirdPersonCamera.kick). */
+  onKick?: (dir: Vector3, amount: number) => void;
+  /** The fov eased out by `delta` degrees and back over `seconds` (ThirdPersonCamera.punchFov). */
+  onPunch?: (delta: number, seconds: number) => void;
+  /** The grade's hit pulse, 0..1 (Renderer.pulse). */
+  onPulse?: (strength: number) => void;
+  /** Random numbers for the crit rolls (Math.random unless a test injects its own). */
+  rnd?: () => number;
 }
 
-/** Orlan's smoke: a cloud that lingers where he blew it, and the puffs that make it. */
-interface SmokeCloud { pos: Vector3; r: number; left: number; life: number; tick: number; puffs: Array<{ s: Sprite; to: Vector3; from: Vector3; spin: number; size: number; delay: number }> }
+/** Orlan's smoke: a cloud that lingers where he blew it, the puffs that make it, and his attack when he blew it. */
+interface SmokeCloud { pos: Vector3; r: number; left: number; life: number; tick: number; atk: number; puffs: Array<{ s: Sprite; to: Vector3; from: Vector3; spin: number; size: number; delay: number }> }
 
 /** The Frog God's reflections: his body, a breath of his strength, gone at a touch. */
 const MIRROR_DEF: EnemyDef = {
@@ -116,6 +174,31 @@ const BURST_MAX = 100;
 const DOWN_HOLD = 1.2;
 /** A hit of this share of max HP or more throws the whole body (the full Hit_Reaction); less is a flinch. */
 const BIG_HIT = 0.15;
+/**
+ * Where each blade clip actually cuts, in seconds of the source clip (heroClips.ts has the measurements): the slash
+ * from the end of its wind-up (0.39) through the blow (0.52) to the follow-through; Sword_Judgment from the top of the
+ * raise down through the blow (0.98); Sword_Shout's cut (2.1-2.6). The blade's ribbon and its whoosh live in these.
+ */
+const BLADE_CUTS: Record<string, Partial<Record<ClipName, readonly [number, number]>>> = {
+  knight: { attack: [0.39, 0.78], heavy: [0.72, 1.2], cast: [2.1, 2.6] },
+};
+/** The lean's purple: the cyclone's ribbon, its puddles, the drops flung off the blade. */
+const LEAN_PURPLE = 0xb36bff;
+/** How high the crescent rides over the ground (its horns skim it). */
+const CRESCENT_BASE = 0.2;
+/** The smoke's damage each 0.4 s tick, a share of Orlan's attack. */
+const SMOKE_TICK = 0.2;
+/** Lock-on: what Tab can pick (metres), and how far the target may get before the lock lets go. */
+const LOCK_RANGE = 30;
+const UNLOCK_RANGE = 40;
+const UP = new Vector3(0, 1, 0);
+const _v = new Vector3();
+const _w = new Vector3();
+const _g = new Vector3();
+const _t = new Vector3();
+const _side = new Vector3();
+const _col = new Color();
+const MOON = new Color(PALETTE.moon);
 
 /**
  * Something that is not an enemy but reacts to being shot (the sky eyes, the eye pool): player shots that pass within
@@ -149,8 +232,11 @@ export class CombatSystem {
   private poisonTick = 0;
   /** A giant's grab: who holds the hero and for how long so far. */
   private grab: { e: Enemy; t: number } | null = null;
-  /** Purple puddles of spilled lean (Sizzlin' Slowness while you stand in one), and how long the slow lasts. */
-  private readonly puddles: Array<{ pos: Vector3; r: number; left: number; mesh: Mesh }> = [];
+  /**
+   * Purple puddles of spilled lean, and how long the slow lasts: a cup's puddle slows the hero standing in it
+   * (Sizzlin' Slowness); one the lean cyclone splashed slows the mobs that wade in instead.
+   */
+  private readonly puddles: Array<{ pos: Vector3; r: number; left: number; mesh: Mesh; hero: boolean }> = [];
   private slowLeft = 0;
   /** Caught in a spider's web: held where you stand (seconds left), and the web drawn around you. */
   private webLeft = 0;
@@ -159,7 +245,7 @@ export class CombatSystem {
   /** Voice lines: who last spoke and when (so a pack does not talk over itself), and each enemy's last state. */
   private voiceClock = 0;
   private readonly lastState = new Map<number, string>();
-  private burstCast: { t: number; fired: boolean; kind: BurstKind; shots: number; tick: number } | null = null;
+  private burstCast: { t: number; fired: boolean; kind: BurstKind; shots: number; tick: number; puddle: number } | null = null;
   burstEnergy = 0;
   private iframes = 0;
   private dodgeCd = 0;
@@ -177,8 +263,36 @@ export class CombatSystem {
   private readonly contact = new Map<number, number>();
   private readonly tmp = new Vector3();
   private readonly screen = new Vector3();
+  private readonly fx: CombatFx;
+  private readonly sfx: CombatSfx;
+  private readonly rnd: () => number;
+  /** The combo counter (hits in a row, 1.2 s apart at most). */
+  private readonly streak = new HitStreak(1.2);
+  /** The enemy Tab locked on to: the camera keeps it framed, swings turn to it, shots and spells go for it. */
+  lockTarget: Enemy | null = null;
+  /** Whether the boss layer of the score is on (a boss has the hero in its sights). */
+  private bossMusic = false;
+  /** Seconds of fighting (the ground patches' shared ticks count on it). */
+  private clock = 0;
+  /** This step's strongest camera kick, whether the fov punches, the grade's pulse, a crit's sting, a heavy's boom: applied once, at the end of the step. */
+  private readonly feel = { kick: 0, dir: new Vector3(), punch: false, pulse: 0, crit: false, boom: false };
+  /** Enemies that already flashed this step (a volley landing at once glows, it does not blow out white). */
+  private readonly flashed = new Set<number>();
+  /** The blade was cutting last step (its whoosh plays on the way in), and its ribbon was fed last frame. */
+  private bladeWas = false;
+  private bladeFed = false;
+  /** The cast circle is up; seconds to the next mote off the charging weapon. */
+  private runeOn = false;
+  private chargeSpark = 0;
+  /** Which shot draws each ribbon id, and the round-robin counters for Wren's arrows and Starfall's stars. */
+  private readonly trailOwners = new Map<string, Projectile>();
+  private arrowTrails = 0;
+  private starTrails = 0;
 
   constructor(private readonly d: CombatDeps) {
+    this.fx = d.fx;
+    this.sfx = new CombatSfx(d.audio);
+    this.rnd = d.rnd ?? Math.random;
     d.scene.add(this.vfx.group);
     this.loot = new LootField(d.scene, (x, z, y) => d.world.heightAt(x, z, y));
     for (const s of ENEMY_SPAWNS) {
@@ -217,6 +331,7 @@ export class CombatSystem {
     for (const e of this.enemies) e.disengage();
     for (const p of this.projectiles.filter((q) => q.owner === 'enemy')) this.removeProjectile(p);
     this.contact.clear();
+    this.lockTarget = null;
     // Whatever the bosses called up goes back where it came from.
     for (const list of this.summoned.values()) for (const m of list) if (this.enemies.includes(m)) this.despawn(m);
     this.summoned.clear();
@@ -226,9 +341,24 @@ export class CombatSystem {
   private removeProjectile(p: Projectile): void {
     const i = this.projectiles.indexOf(p);
     if (i < 0) return;
+    this.releaseTrail(p);
     this.d.scene.remove(p.object);
-    disposeObject(p.object, p.kind === 'cup' || p.kind === 'gem');
+    // (The crescent's shape is shared, like the props' geometry.)
+    disposeObject(p.object, p.kind === 'cup' || p.kind === 'gem' || p.kind === 'crescent');
     this.projectiles.splice(i, 1);
+  }
+
+  /** The shot lets go of its ribbon (which fades out). */
+  private releaseTrail(p: Projectile): void {
+    if (!p.trail) return;
+    this.fx.trail(p.trail, p.pos, p.pos, 0, false);
+    if (this.trailOwners.get(p.trail) === p) this.trailOwners.delete(p.trail);
+    p.trail = null;
+  }
+
+  /** The next of Wren's two arrow ribbons, round-robin (the newest two arrows in the air draw one). */
+  private nextArrowTrail(): string {
+    return `arrow${this.arrowTrails++ % 2}`;
   }
 
   private spawnEnemy(def: EnemyDef, x: number, z: number, noRespawn = false, home: Partial<EnemyHome> = {}): Enemy {
@@ -236,7 +366,7 @@ export class CombatSystem {
     e.noRespawn = noRespawn;
     e.onCollapse = () => this.d.audio.clatter();
     e.onStomp = (sx, sy, sz) => {
-      this.vfx.burst(new Vector3(sx, sy + 0.2, sz), 0x5a6aa8, 14, 3.5, 0.45);
+      this.fx.dust(_v.set(sx, sy + 0.1, sz), 2.2);
       const dist = Math.hypot(sx - this.d.controller.pos.x, sz - this.d.controller.pos.z);
       this.d.onShake?.(Math.max(0, 0.35 - dist * 0.02));
       if (dist < 40) this.d.audio.stomp();
@@ -338,7 +468,9 @@ export class CombatSystem {
   healActive(amount: number): void {
     const me = this.active;
     this.hp.set(me.id, Math.min(me.maxHp, (this.hp.get(me.id) ?? 0) + amount));
-    this.vfx.burst(this.playerPos().clone().add(new Vector3(0, 1, 0)), PALETTE.witch, 14, 3, 0.35);
+    const at = _v.copy(this.playerPos()).add(UP);
+    this.fx.sparks(at, UP, 14, PALETTE.witch, 3, 1.2);
+    this.fx.flash(at, PALETTE.witch, 1.6);
     this.d.audio.heal();
   }
 
@@ -349,7 +481,7 @@ export class CombatSystem {
   /** A companion lands a hit on an enemy. */
   companionStrike(enemyId: number, atk: number): void {
     const e = this.enemies.find((x) => x.id === enemyId);
-    if (e && e.alive) { this.hitEnemy(e, atk, 1.0, null, 0.8, 0.0); }
+    if (e && e.alive) { this.hitEnemy(e, atk, 1.0, null, 0.8, 0.0, { companion: true }); }
   }
 
   private playerPos(): Vector3 {
@@ -357,8 +489,11 @@ export class CombatSystem {
     return this.tmp.set(p.x, p.y, p.z);
   }
 
+  /** Turns the hero to the enemy to strike: the locked-on one (wherever it is), else the nearest within `range`. */
   private softLock(range: number): void {
     const c = this.d.controller;
+    const lock = this.lockTarget;
+    if (lock?.alive) { c.yaw = Math.atan2(lock.pos.z - c.pos.z, lock.pos.x - c.pos.x); return; }
     let best: Enemy | null = null;
     let bestD = range;
     for (const e of this.enemies) {
@@ -369,8 +504,45 @@ export class CombatSystem {
     if (best) c.yaw = Math.atan2(best.pos.z - c.pos.z, best.pos.x - c.pos.x);
   }
 
+  /**
+   * Tab: locks on to the nearest living enemy within LOCK_RANGE in front of the camera (`forward`, its look on the
+   * ground), else the nearest within that range at all; Tab again lets go. Returns the target, or null.
+   */
+  toggleLock(forward: { x: number; z: number }): Enemy | null {
+    if (this.lockTarget) { this.lockTarget = null; return null; }
+    const c = this.d.controller;
+    let front: Enemy | null = null;
+    let any: Enemy | null = null;
+    let fd = LOCK_RANGE;
+    let ad = LOCK_RANGE;
+    for (const e of this.enemies) {
+      if (!e.alive || !e.object.visible) continue;
+      const dx = e.pos.x - c.pos.x;
+      const dz = e.pos.z - c.pos.z;
+      const dd = Math.hypot(dx, dz);
+      if (dd >= ad && dd >= fd) continue;
+      if (dd < ad) { ad = dd; any = e; }
+      // In front: within 60° either side of where the camera looks.
+      if (dd < fd && (dd < 0.5 || (dx * forward.x + dz * forward.z) / dd > 0.5)) { fd = dd; front = e; }
+    }
+    this.lockTarget = front ?? any;
+    return this.lockTarget;
+  }
+
+  /** The point the camera keeps framed while locked on (the target's middle, no higher than its chest for a giant), or undefined. */
+  lockPoint(out: Vector3): Vector3 | undefined {
+    const e = this.lockTarget;
+    if (!e?.alive) return undefined;
+    return out.set(e.pos.x, e.pos.y + Math.min(e.def.height * (e.def.scale ?? 1) * 0.55, 2.5), e.pos.z);
+  }
+
   update(dt: number, input: CombatInput): void {
     this.updateGraveRising(dt);
+    this.clock += dt;
+    this.streak.update(dt);
+    // The lock lets go of a target that fell, left the world, or is too far to matter.
+    const lt = this.lockTarget;
+    if (lt && (!lt.alive || Math.hypot(lt.pos.x - this.d.controller.pos.x, lt.pos.z - this.d.controller.pos.z) > UNLOCK_RANGE)) this.lockTarget = null;
     const d = this.d;
     const c = d.controller;
     const me = this.active;
@@ -448,7 +620,11 @@ export class CombatSystem {
       p.left -= dt;
       const k = Math.min(1, p.left / 1.2);
       p.mesh.scale.setScalar(Math.max(0.05, k));
-      if (c.mode === 'ground' && Math.hypot(c.pos.x - p.pos.x, c.pos.z - p.pos.z) < p.r * k && Math.abs(c.pos.y - p.pos.y) < 1) this.slowLeft = Math.max(this.slowLeft, 1.4);
+      if (p.hero) {
+        for (const e of this.enemies) {
+          if (e.alive && !e.def.flying && Math.hypot(e.pos.x - p.pos.x, e.pos.z - p.pos.z) < p.r * k + e.def.bodyRadius * (e.def.scale ?? 1) && Math.abs(e.pos.y - p.pos.y) < 1.5) e.afflict('slow', 1, 0.5);
+        }
+      } else if (c.mode === 'ground' && Math.hypot(c.pos.x - p.pos.x, c.pos.z - p.pos.z) < p.r * k && Math.abs(c.pos.y - p.pos.y) < 1) this.slowLeft = Math.max(this.slowLeft, 1.4);
       if (p.left <= 0) { this.d.scene.remove(p.mesh); disposeObject(p.mesh); this.puddles.splice(i, 1); }
     }
     // Spotting you: a talking mob says so as it starts the chase.
@@ -480,24 +656,26 @@ export class CombatSystem {
     }
 
     // --- light attack ---
+    // (The swing's sound comes with its cut: the blade's whoosh as the blade starts cutting, a bow's or a staff's as the
+    // shot leaves; the swing's crescent comes with the blow, in resolveAttack.)
+    let begun: number | null = null;
     if (input.attack && canShoot && !down && !this.casting && !this.heavy && !this.burstCast && this.heavyCharge === 0) {
       this.softLock(7);
-      const started = this.combo.press();
-      if (started !== null) { this.spawnSlash(me, COMBO[me.weapon].hits[started]); d.audio.swing(false); }
+      begun = this.combo.press();
     }
     const prevHit = this.combo.currentHit;
     const prevSwinging = this.combo.swinging;
     const hit = this.combo.update(dt);
-    if (this.combo.swinging && (!prevSwinging || this.combo.currentHit !== prevHit) && this.combo.swingTime < dt * 1.5 && prevSwinging) {
-      this.spawnSlash(me, COMBO[me.weapon].hits[this.combo.currentHit]);
-      d.audio.swing(false);
-    }
-    if (hit !== null) this.resolveAttack(me, COMBO[me.weapon].hits[hit]);
+    // A buffered press chained the next hit in.
+    if (prevSwinging && this.combo.swinging && this.combo.currentHit !== prevHit) begun = this.combo.currentHit;
+    // The finisher takes some effort.
+    if (begun === 2) this.sfx.effort(me.id);
+    if (hit !== null) this.resolveAttack(me, COMBO[me.weapon].hits[hit], hit);
 
     // --- heavy attack (hold RMB to charge, release to swing) ---
     if (input.heavyHeld && canHeavy && !this.busy) {
       this.heavyCharge = Math.min(1, this.heavyCharge + dt / 1.1);
-      if (this.heavyCharge > 0.3 && this.heavyCharge - dt / 1.1 <= 0.3) this.vfx.impact(this.playerPos().clone().add(new Vector3(0, 1.2, 0)), ELEMENT_COLOR[this.elementOf(me)], 1.2);
+      if (this.heavyCharge > 0.3 && this.heavyCharge - dt / 1.1 <= 0.3) this.fx.flash(_v.copy(this.playerPos()).add(_w.set(0, 1.2, 0)), ELEMENT_COLOR[this.elementOf(me)], 1.2);
     }
     if ((input.heavyRelease || (!input.heavyHeld && this.heavyCharge > 0)) && this.heavyCharge > 0 && !this.heavy && !down) {
       this.softLock(8);
@@ -505,10 +683,7 @@ export class CombatSystem {
       const timing = heavyTiming(me.id);
       this.heavy = { t: timing.startAt * timing.duration, fired: false, charge: this.heavyCharge };
       this.heavyCharge = 0;
-      d.audio.swing(true);
-      const ranged = me.weapon === 'staff' || me.weapon === 'bow';
-      const range = ranged ? 12 : 4.2;
-      if (!ranged) this.vfx.slash(this.playerPos(), c.yaw, ELEMENT_COLOR[this.elementOf(me)], range, 1.25);
+      this.sfx.effort(me.id);
     }
     if (this.heavy) {
       const timing = heavyTiming(me.id);
@@ -521,9 +696,18 @@ export class CombatSystem {
           : me.weapon === 'bow'
           ? { mult: 2.0 + ch * 2.2, element: 'own', shape: { kind: 'bolt', range: 34, chains: 0, chainRange: 0 }, knockback: 2 + ch * 3, hitStop: 0.07 + ch * 0.08 }
           : { mult: 1.7 + ch * 1.9, element: ch > 0.5 ? 'own' : null, shape: { kind: 'cone', range: 4.2, halfAngle: 1.25 }, knockback: 3 + ch * 5, hitStop: 0.09 + ch * 0.1 };
-        this.resolveAttack(me, def);
-        if (ch > 0.5) this.vfx.shockwave(this.playerPos(), ELEMENT_COLOR[this.elementOf(me)], 4 + ch * 3);
-        d.onShake?.(0.2 + ch * 0.4);
+        this.resolveAttack(me, def, 'heavy');
+        this.feel.punch = true;
+        // The greatsword comes down on the ground: a ring and a puff of dust where it struck, the ground shaking.
+        if (me.weapon !== 'staff' && me.weapon !== 'bow' && ch > 0.5) {
+          const color = ELEMENT_COLOR[this.elementOf(me)];
+          const fx = c.pos.x + Math.cos(c.yaw) * 1.8;
+          const fz = c.pos.z + Math.sin(c.yaw) * 1.8;
+          const at = _v.set(fx, this.d.world.heightAt(fx, fz, c.pos.y + 1), fz);
+          this.fx.shock(at, color, 4 + ch * 3);
+          this.fx.dust(at, 1.4 + ch);
+          d.onShake?.(0.1 + ch * 0.25);
+        }
       }
       if (this.heavy.t >= timing.duration) this.heavy = null;
     }
@@ -535,8 +719,7 @@ export class CombatSystem {
       cd.use();
       this.casting = { def: me, t: 0, fired: false };
       d.audio.cast();
-      const skill = SKILLS[me.id];
-      if (skill.attack.shape.kind === 'cone') this.vfx.slash(this.playerPos(), c.yaw, ELEMENT_COLOR[this.elementOf(me)], skill.attack.shape.range, skill.attack.shape.halfAngle);
+      this.sfx.effort(me.id);
     }
     if (this.casting) {
       const skill = SKILLS[this.casting.def.id];
@@ -545,19 +728,43 @@ export class CombatSystem {
       this.casting.t += dt;
       if (!this.casting.fired && this.casting.t >= timing.duration * timing.strike) {
         this.casting.fired = true;
-        this.resolveAttack(this.casting.def, skill.attack);
-        if (skill.ground) this.addZone({ ...skill.ground, element: this.elementOf(this.casting.def) }, this.atkOf(this.casting.def));
-        this.vfx.burst(this.playerPos().clone().add(new Vector3(0, 1, 0)), ELEMENT_COLOR[this.elementOf(this.casting.def)], 16, 6);
+        const color = ELEMENT_COLOR[this.elementOf(this.casting.def)];
+        this.fx.flash(_v.copy(this.playerPos()).add(_w.set(0, 1.1, 0)), _col.set(color).multiplyScalar(0.7), 2);
+        // (The crescent lays the skill's burning ground along its own path; any other skill's goes down in front.)
+        this.resolveAttack(this.casting.def, skill.attack, 'skill', skill.ground);
+        if (skill.ground && skill.attack.shape.kind !== 'crescent') {
+          const at = this.ahead(2);
+          this.addZone({ ...skill.ground, element: this.elementOf(this.casting.def) }, this.atkOf(this.casting.def), at);
+          this.fx.dust(at, 1.4);
+        }
       }
       if (this.casting.t >= timing.duration) this.casting = null;
     }
 
+    // The cast circle under the hero while the heavy charges or a skill is cast; motes rising slowly off the charging
+    // weapon (the blade, the staff's knob, the bow hand) every 0.15 s.
+    const circle = this.heavyCharge > 0 || this.casting !== null;
+    if (circle || this.runeOn) {
+      this.fx.rune(_v.set(c.pos.x, c.pos.y, c.pos.z), ELEMENT_COLOR[this.elementOf(me)], circle);
+      this.runeOn = circle;
+    }
+    if (this.heavyCharge > 0) {
+      this.chargeSpark -= dt;
+      if (this.chargeSpark <= 0 && this.d.weaponTips?.(_g, _t)) {
+        this.chargeSpark = 0.15;
+        this.fx.sparks(_t, UP, 3, ELEMENT_COLOR[this.elementOf(me)], 1.6, 0.35);
+      }
+    } else this.chargeSpark = 0;
+
     // --- burst (Q): each hero's own ---
     if (input.burst && canBurst && !this.busy && this.heavyCharge === 0 && this.burstEnergy >= BURST_MAX) {
       this.burstEnergy = 0;
-      this.burstCast = { t: 0, fired: false, kind: BURST[me.id].kind, shots: 0, tick: 0 };
+      this.burstCast = { t: 0, fired: false, kind: BURST[me.id].kind, shots: 0, tick: 0, puddle: 0 };
       this.iframes = Math.max(this.iframes, 1.0);
       d.audio.burst();
+      this.sfx.effort(me.id);
+      this.feel.punch = true;
+      this.feel.pulse = Math.max(this.feel.pulse, 0.25);
       d.sky.setBloodMoon(true);
       d.hud.announce(BURST[me.id].name);
     }
@@ -570,10 +777,18 @@ export class CombatSystem {
         while (b.shots < 10 && b.t >= 0.3 + b.shots * 0.1) { this.tripArrow(me, b.shots); b.shots++; }
       } else if (!b.fired && b.t >= 0.45) {
         b.fired = true;
-        this.blowSmoke();
+        this.blowSmoke(me);
       }
       if (b.t >= BURST[me.id].time) this.burstCast = null;
     }
+
+    // The blade starts cutting: its whoosh (heavier for the heavy, the finisher, the skill and the spin).
+    const blade = this.bladeColor() !== null;
+    if (blade && !this.bladeWas) {
+      const k = this.attackKind;
+      this.sfx.swing('blade', k === 'heavy' || k === 'skill' || k === 'burst' || k === 2);
+    }
+    this.bladeWas = blade;
 
     // --- enemies ---
     const pp = { x: c.pos.x, y: c.pos.y, z: c.pos.z };
@@ -614,18 +829,34 @@ export class CombatSystem {
     d.sky.setBloodMoon(anyAggro || this.burstCast !== null);
     if (bossNear) d.hud.setBoss(bossNear.def.name, bossNear.def.title ?? '', bossNear.hp / bossNear.def.maxHp, true);
     else d.hud.setBoss('', '', 0, false);
+    // The score's boss layer: on while a boss has the hero in its sights, off once it falls or gives up the chase.
+    if ((bossNear !== null) !== this.bossMusic) {
+      this.bossMusic = bossNear !== null;
+      d.audio.score.layer('boss', this.bossMusic);
+    }
 
     // --- projectiles ---
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
       p.life -= dt;
+      p.age += dt;
       if (p.gravity) p.vel.y -= p.gravity * dt;
       if (p.homing) this.steer(p, dt);
       p.pos.addScaledVector(p.vel, dt);
+      let blocked = false;
+      if (p.ground > 0) {
+        // Riding the ground: up a slope and down again; a wall, or a step it cannot ride up, breaks it; over a drop it
+        // holds its height.
+        const w = d.world as Partial<HeightWorld> & WorldQuery;
+        const base = p.pos.y - p.ground;
+        const gy = d.world.heightAt(p.pos.x, p.pos.z, base + 1.2);
+        if (w.blocked?.(p.pos.x, p.pos.z) || gy > base + 1.2) blocked = true;
+        else if (gy > base - 2.5) p.pos.y = gy + p.ground;
+      }
       p.object.position.copy(p.pos);
       if (p.wobble > 0) {
         // Off its true line, swaying both ways as if the arrow were seeing things.
-        const age = 4 - p.life;
+        const age = p.age;
         side.set(-p.vel.z, 0, p.vel.x).normalize();
         p.object.position.addScaledVector(side, Math.sin(age * 13 + p.seed) * p.wobble).y += Math.cos(age * 9 + p.seed * 2) * p.wobble * 0.7;
         p.object.scale.setScalar(1 + Math.sin(age * 20 + p.seed) * 0.25);
@@ -634,35 +865,60 @@ export class CombatSystem {
         const h = (performance.now() / 1000 * 1.4 + p.seed) % 1;
         p.rainbow.forEach((m, k) => m.color.setHSL((h + k * 0.13) % 1, 1, 0.6));
       }
-      if (p.kind === 'arrow' || p.kind === 'ring' || p.kind === 'trip' || p.kind === 'web') p.object.lookAt(aim.copy(p.object.position).add(p.vel));
+      if (p.kind === 'arrow' || p.kind === 'ring' || p.kind === 'trip' || p.kind === 'web' || p.kind === 'crescent') p.object.lookAt(aim.copy(p.object.position).add(p.vel));
       if (p.kind === 'web') p.object.rotateZ(dt * 3);
       else if (p.kind === 'log' || p.kind === 'cup') { p.object.rotation.x += dt * 7; p.object.rotation.y += dt * 1.3; }
       else if (p.kind === 'gem') { p.object.rotation.y += dt * 12; p.object.rotation.x += dt * 3; }
       else if (p.kind === 'fire') p.object.scale.setScalar(1 + (2.5 - p.life) * 0.6);
-      else p.object.rotation.y += dt * 12;
-      // (Asked as a point, not a person: the ground query keeps a body's head room under overhangs, which would
-      // break a shot flying close under a roof.)
-      let dead = p.life <= 0 || p.pos.y < d.world.heightAt(p.pos.x, p.pos.z, p.pos.y - 1.8) - 0.2;
+      else if (p.kind === 'star') { if (p.twinkle) p.twinkle.rotation += dt * 4; }
+      else if (p.kind !== 'crescent') p.object.rotation.y += dt * 12;
+      if (p.fade) p.fade.value = Math.max(0, Math.min(1, p.age / 0.06, p.life / 0.12));
+      if (p.trail) this.feedTrail(p);
+      if (p.burn) {
+        // The burning ground, a patch every `every` metres of the run (the first a metre out).
+        const gone = Math.hypot(p.pos.x - p.from.x, p.pos.z - p.from.z);
+        while (gone >= p.burn.next) { this.layBurn(p); p.burn.next += p.burn.every; }
+      }
+      if (p.kind === 'crescent') this.fx.sparks(_v.set(p.pos.x, p.pos.y + 0.6, p.pos.z), _w.copy(p.vel).multiplyScalar(-0.1).add(UP), 1, p.color, 3, 0.7);
+      let dead = blocked || p.life <= 0;
+      if (!dead && p.ground === 0) {
+        if (p.aoe > 0) {
+          // A falling star bursts where it meets the ground (a deck it falls onto counts).
+          const gy = d.world.heightAt(p.pos.x, p.pos.z, p.pos.y + 0.5);
+          if (p.pos.y <= gy + 0.1) { dead = true; p.pos.y = Math.max(p.pos.y, gy); }
+        } else {
+          // (Asked as a point, not a person: the ground query keeps a body's head room under overhangs, which would
+          // break a shot flying close under a roof.)
+          dead = p.pos.y < d.world.heightAt(p.pos.x, p.pos.z, p.pos.y - 1.8) - 0.2;
+        }
+      }
       if (p.owner === 'player') {
+        // (A shot can still strike on the step it dies: an arrow at a mob's feet meets the mob and the ground at once.)
         for (const e of this.enemies) {
           if (!e.alive || p.hit.has(e.id)) continue;
           const sc = e.def.scale ?? 1;
-          if (Math.hypot(e.pos.x - p.pos.x, e.pos.z - p.pos.z) <= p.radius + e.def.bodyRadius * sc && Math.abs(e.pos.y + e.def.height * sc * 0.5 - p.pos.y) < 2.5 + e.def.height * sc * 0.5) {
-            p.hit.add(e.id);
-            this.hitEnemy(e, p.atk, p.mult, p.element, p.knockback, p.hitStop);
-            p.onHit?.(e);
-            if (p.chains > 0) {
-              const next = this.nearestEnemy(e.pos.x, e.pos.z, p.chainRange, p.hit);
-              if (next) {
-                p.chains--;
-                p.vel.set(next.pos.x - p.pos.x, next.pos.y + 0.6 - p.pos.y, next.pos.z - p.pos.z).normalize().multiplyScalar(22);
-                p.life = 1.2;
-              } else dead = true;
+          if (Math.hypot(e.pos.x - p.pos.x, e.pos.z - p.pos.z) > p.radius + e.def.bodyRadius * sc) continue;
+          // A falling star meets a body only inside it; anything else catches whatever is roughly level with it.
+          if (p.aoe > 0 ? p.pos.y > e.pos.y + e.def.height * sc + 0.3 || p.pos.y < e.pos.y - 0.3 : Math.abs(e.pos.y + e.def.height * sc * 0.5 - p.pos.y) >= 2.5 + e.def.height * sc * 0.5) continue;
+          // (The star's burst strikes it, with everything else under it.)
+          if (p.aoe > 0) { dead = true; break; }
+          p.hit.add(e.id);
+          this.hitEnemy(e, p.atk, p.mult, p.element, p.knockback, p.hitStop, { at: p.object.position });
+          p.onHit?.(e);
+          // The crescent cuts on through.
+          if (p.pierce) continue;
+          if (p.chains > 0) {
+            const next = this.nearestEnemy(e.pos.x, e.pos.z, p.chainRange, p.hit);
+            if (next) {
+              p.chains--;
+              p.vel.set(next.pos.x - p.pos.x, next.pos.y + 0.6 - p.pos.y, next.pos.z - p.pos.z).normalize().multiplyScalar(22);
+              p.life = 1.2;
             } else dead = true;
-            break;
-          }
+          } else dead = true;
+          break;
         }
-        if (!dead) for (const t of this.targets) {
+        // (The crescent rides the ground under the sky eyes.)
+        if (!dead && !p.pierce) for (const t of this.targets) {
           if (!t.active() || t.pos.distanceTo(p.pos) > p.radius + t.radius) continue;
           t.onHit(p.pos.clone());
           dead = true;
@@ -677,10 +933,16 @@ export class CombatSystem {
         dead = true;
       }
       if (dead) {
-        this.vfx.impact(p.pos, p.owner === 'player' ? ELEMENT_COLOR[p.element ?? 'lunar'] : p.color, p.kind === 'log' ? 3.5 : 1.6);
-        if (p.kind === 'log') { this.vfx.burst(p.pos.clone(), 0x5a6aa8, 18, 5, 0.5); this.d.onShake?.(0.4); this.d.audio.stomp(); }
+        if (p.aoe > 0) this.starBurst(p);
+        else if (p.kind === 'crescent') {
+          // The wave breaks: a last patch of burning ground where it stopped, unless one lies just behind.
+          if (p.burn && Math.hypot(p.pos.x - p.from.x, p.pos.z - p.from.z) - (p.burn.next - p.burn.every) > p.burn.every * 0.5) this.layBurn(p);
+          this.fx.flash(_v.set(p.pos.x, p.pos.y + 0.7, p.pos.z), p.color, 2.2);
+        } else if (p.owner === 'player') this.fx.flash(p.pos, _col.set(ELEMENT_COLOR[p.element ?? 'lunar']).multiplyScalar(0.6), 1.4);
+        else this.fx.flash(p.pos, p.color, p.kind === 'log' ? 3.5 : 1.6);
+        if (p.kind === 'log') { this.fx.dust(p.pos, 2.4); this.d.onShake?.(0.4); this.d.audio.stomp(); }
         if (p.kind === 'cup') this.spawnPuddle(p.pos);
-        if (p.kind === 'trip') for (const col of [0xff5ad6, 0x37f5ff, 0x5dff3a, 0x8b3dff]) this.vfx.burst(p.pos.clone(), col, 6, 4, 0.4);
+        if (p.kind === 'trip') for (const col of [0xff5ad6, 0x37f5ff, 0x5dff3a, 0x8b3dff]) this.fx.sparks(p.pos, UP, 6, col, 4, 1.0);
         this.removeProjectile(p);
       }
     }
@@ -692,10 +954,15 @@ export class CombatSystem {
       z.tick -= dt;
       if (z.tick <= 0) {
         z.tick = z.def.tickEvery;
-        for (const e of this.enemies) {
-          if (e.alive && inRadius({ x: z.pos.x, z: z.pos.z }, { x: e.pos.x, z: e.pos.z }, z.def.radius + e.def.bodyRadius * (e.def.scale ?? 1))) {
-            this.hitEnemy(e, z.atk, z.def.tickMult, z.def.element, 0, 0, false);
+        for (const e of this.enemies.slice()) {
+          if (!e.alive || !inRadius({ x: z.pos.x, z: z.pos.z }, { x: e.pos.x, z: e.pos.z }, z.def.radius + e.def.bodyRadius * (e.def.scale ?? 1))) continue;
+          // One cast's patches overlap: a mob in several is ticked as often as one would tick it.
+          if (z.group) {
+            const last = z.group.last.get(e.id);
+            if (last !== undefined && this.clock - last < z.def.tickEvery * 0.9) continue;
+            z.group.last.set(e.id, this.clock);
           }
+          this.hitEnemy(e, z.atk, z.def.tickMult, z.def.element, 0, 0, { energy: false, dot: true });
         }
       }
       if (z.left <= 0) { z.remove(); this.zones.splice(i, 1); }
@@ -714,30 +981,132 @@ export class CombatSystem {
     d.hud.setCharge(this.heavyCharge);
     d.hud.setShards(d.inventory.shards);
     d.hud.setFrenzy(this.frenzyLeft);
+    d.hud.setCombo(this.streak.count);
+    d.hud.setCrosshair(this.attackKind !== undefined);
+    this.flushFeel();
+  }
+
+  /** Asks for a camera kick away from (x, z) (toward the camera, on the ground): the strongest of the step wins. */
+  private kick(x: number, z: number, amount: number): void {
+    if (amount <= this.feel.kick) return;
+    const cam = this.d.camera.position;
+    this.feel.dir.set(cam.x - x, 0, cam.z - z);
+    this.feel.kick = amount;
+  }
+
+  /** The step's feel, once: one kick (the strongest), one fov punch, one pulse, one crit sting, one heavy boom. */
+  private flushFeel(): void {
+    const f = this.feel;
+    if (f.kick > 0) { this.d.onKick?.(f.dir, f.kick); f.kick = 0; }
+    if (f.punch) { this.d.onPunch?.(4, 0.18); f.punch = false; }
+    if (f.pulse > 0) { this.d.onPulse?.(f.pulse); f.pulse = 0; }
+    if (f.crit) { this.sfx.crit(); f.crit = false; }
+    if (f.boom) { this.sfx.heavyHit(); f.boom = false; }
+    this.flashed.clear();
+  }
+
+  /** Feeds a shot's ribbon: its drawn position, the ribbon turned to face the camera. */
+  private feedTrail(p: Projectile): void {
+    const o = p.object.position;
+    const cam = this.d.camera.position;
+    _side.copy(p.vel).cross(_v.set(cam.x - o.x, cam.y - o.y, cam.z - o.z));
+    if (_side.lengthSq() < 1e-6) _side.set(-p.vel.z, 0, p.vel.x);
+    if (_side.lengthSq() < 1e-6) _side.set(1, 0, 0);
+    _side.setLength(p.trailW);
+    this.fx.trail(p.trail!, _g.copy(o).add(_side), _t.copy(o).sub(_side), p.color, true);
+  }
+
+  /** A patch of the crescent's burning ground under it, and the dust it kicks up. */
+  private layBurn(p: Projectile): void {
+    const b = p.burn!;
+    const at = new Vector3(p.pos.x, p.pos.y - p.ground, p.pos.z);
+    this.addZone(b.def, b.atk, at, b.group);
+    this.fx.dust(at, 1.3);
+  }
+
+  /** A falling star bursts: everything within its radius is struck, with a flash, sparks, a ring and dust. */
+  private starBurst(p: Projectile): void {
+    const at = p.pos;
+    for (const e of this.enemies.slice()) {
+      if (!e.alive || p.hit.has(e.id) || !this.reachable(e, p.aoe, at)) continue;
+      p.hit.add(e.id);
+      this.hitEnemy(e, p.atk, p.mult, p.element, p.knockback, p.hitStop);
+    }
+    this.fx.flash(_v.set(at.x, at.y + 0.5, at.z), _col.set(p.color).multiplyScalar(0.8), 3);
+    this.fx.flash(_v, _col.copy(MOON).multiplyScalar(0.6), 1.4);
+    this.fx.sparks(_v.set(at.x, at.y + 0.2, at.z), UP, 18, p.color, 8, 0.9);
+    this.fx.shock(at, p.color, p.aoe * 1.6);
+    this.fx.dust(at, 1.2);
+    this.d.audio.stomp();
+  }
+
+  /** The ground `dist` metres in front of the hero. */
+  private ahead(dist: number): Vector3 {
+    const c = this.d.controller;
+    const x = c.pos.x + Math.cos(c.yaw) * dist;
+    const z = c.pos.z + Math.sin(c.yaw) * dist;
+    return new Vector3(x, this.d.world.heightAt(x, z, c.pos.y + 1), z);
+  }
+
+  /** The colour of the blade's ribbon while Sir Aldric's cut is live (heroClips' windows, BLADE_CUTS) or the cyclone spins; null otherwise. */
+  private bladeColor(): number | null {
+    const me = this.active;
+    if (me.weapon !== 'sword' && me.weapon !== 'greatsword') return null;
+    const b = this.burstCast;
+    if (b) return b.kind === 'cyclone' && b.t >= CYCLONE.pour + 0.15 && b.t < CYCLONE.pour + CYCLONE.spin - 0.1 ? LEAN_PURPLE : null;
+    if (this.heavyCharge > 0 || this.downed) return null;
+    const kind = this.attackKind;
+    const p = this.attackProgress;
+    if (kind === undefined || kind === 'burst' || p === undefined) return null;
+    const w = this.bladeWindow(me.id, kind);
+    return w && p >= w[0] && p <= w[1] ? ELEMENT_COLOR[this.elementOf(me)] : null;
+  }
+
+  /** The part of a move's cut (0..1) in which the blade cuts. */
+  private bladeWindow(hero: string, kind: number | 'skill' | 'heavy'): [number, number] | null {
+    const clips = heroClipsOf(hero);
+    const cut = clips ? moveCut(clips, kind) : null;
+    if (!cut) return null;
+    const from = cut.from ?? 0;
+    return cutWindow(from, from + cutSpan(hero, cut), cut.strike ?? 0.4, BLADE_CUTS[hero]?.[cut.key]);
   }
 
   /**
    * Sir Aldric's lean cyclone: the pour (the rig tips the cup over the blade), then a spin that cuts everything
-   * around him every 0.3 s and splashes it with lean: slowed to a crawl, moving and striking.
+   * around him every 0.3 s and splashes it with lean: slowed to a crawl, moving and striking. While he spins, lean
+   * flies off the blade's tip and puddles behind him every 0.6 s (a puddle slows the mobs that wade in, never him).
    */
-  private cyclone(me: CharacterDef, b: { t: number; tick: number; fired: boolean }, dt: number): void {
+  private cyclone(me: CharacterDef, b: { t: number; tick: number; fired: boolean; puddle: number }, dt: number): void {
     if (b.t < CYCLONE.pour) return;
+    const c = this.d.controller;
+    if (b.t < CYCLONE.pour + CYCLONE.spin) {
+      // A spark off the tip, out along the turn (the rig turns the body anticlockwise seen from above).
+      if (this.d.weaponTips?.(_g, _t)) this.fx.sparks(_t, _w.set(_t.z - c.pos.z, 0.35, c.pos.x - _t.x), 1, LEAN_PURPLE, 7, 0.35);
+      b.puddle -= dt;
+      if (b.puddle <= 0 && c.mode === 'ground') {
+        b.puddle = 0.6;
+        // Spinning on the spot keeps one puddle fresh rather than stacking them; on the move each 0.6 s leaves its own.
+        const here = this.puddles.find((p) => p.hero && Math.hypot(p.pos.x - c.pos.x, p.pos.z - c.pos.z) < 1.2);
+        if (here) here.left = 6;
+        else this.spawnPuddle(this.playerPos(), 'hero');
+      }
+    }
     b.tick -= dt;
     if (b.tick > 0) return;
     b.tick = 0.3;
-    const c = this.d.controller;
     const at = this.playerPos().clone();
     const last = b.t + 0.3 >= CYCLONE.pour + CYCLONE.spin;
     const radius = last ? 5 : 3.8;
-    for (const e of this.enemies) {
+    for (const e of this.enemies.slice()) {
       if (!e.alive || !this.reachable(e, radius, at)) continue;
-      this.hitEnemy(e, this.atkOf(me), last ? 1.6 : 0.7, this.elementOf(me), last ? 4 : 1.2, 0.02, false);
+      this.hitEnemy(e, this.atkOf(me), last ? 1.6 : 0.7, this.elementOf(me), last ? 4 : 1.2, 0.02, { energy: false, heavy: last });
       e.afflict('slow', 2.6, 0.35);
-      this.vfx.burst(new Vector3(e.pos.x, e.pos.y + e.def.height * (e.def.scale ?? 1) * 0.6, e.pos.z), 0xb36bff, 8, 3, 0.35);
+      this.fx.sparks(_v.set(e.pos.x, e.pos.y + e.def.height * (e.def.scale ?? 1) * 0.6, e.pos.z), UP, 8, LEAN_PURPLE, 3, 1.0);
     }
-    this.vfx.burst(at.clone().add(new Vector3(0, 1.1, 0)), 0xb36bff, 12, 6, 0.4);
-    if (!b.fired || last) { this.vfx.shockwave(new Vector3(c.pos.x, c.pos.y, c.pos.z), 0x8b3dff, radius * 1.4); b.fired = true; }
-    this.d.audio.swing(last);
+    this.fx.sparks(_v.copy(at).add(_w.set(0, 1.1, 0)), UP, 12, LEAN_PURPLE, 6, 1.0);
+    if (!b.fired || last) { this.fx.shock(at, 0x8b3dff, radius * 1.4); b.fired = true; }
+    this.sfx.swing('blade', last);
+    if (last) this.feel.punch = true;
   }
 
   /**
@@ -787,8 +1156,9 @@ export class CombatSystem {
       homing: { target, point, delay: 0.12 + Math.random() * 0.18, turn: 2.6 + Math.random() * 2, age: 0 },
       wobble: 0.3 + Math.random() * 0.3,
       onHit: (e) => { e.afflict('stun', e.def.boss ? 0.8 : 1.6); e.afflict('confuse', e.def.boss ? 2.2 : 4.2); },
+      trail: this.nextArrowTrail(), trailW: 0.07,
     });
-    this.d.audio.swing(false);
+    this.sfx.swing('bow');
   }
 
   /** Turns a steering projectile toward its mob (or point), tighter as it goes, keeping its speed. */
@@ -814,11 +1184,11 @@ export class CombatSystem {
   }
 
   /** Orlan's pipe dream: a great cloud of smoke rolls out from his pipe and hangs over everything around him. */
-  private blowSmoke(): void {
+  private blowSmoke(me: CharacterDef): void {
     const c = this.d.controller;
     const pos = new Vector3(c.pos.x, c.pos.y, c.pos.z);
     const pipe = new Vector3(c.pos.x + Math.cos(c.yaw) * 0.3, c.pos.y + 1.25, c.pos.z + Math.sin(c.yaw) * 0.3);
-    const cloud: SmokeCloud = { pos, r: 11, left: 8.5, life: 8.5, tick: 0, puffs: [] };
+    const cloud: SmokeCloud = { pos, r: 11, left: 8.5, life: 8.5, tick: 0, atk: this.atkOf(me), puffs: [] };
     for (let i = 0; i < 46; i++) {
       const a = Math.random() * Math.PI * 2;
       const rr = Math.sqrt(Math.random()) * cloud.r;
@@ -833,7 +1203,10 @@ export class CombatSystem {
     this.d.audio.cast();
   }
 
-  /** Smoke clouds: puffs roll out and drift; every mob inside is turned on its own (or loses the hero, alone). */
+  /**
+   * Smoke clouds: puffs roll out and drift; every mob inside chokes on it (SMOKE_TICK of Orlan's attack each 0.4 s) and
+   * is turned on its own (or loses the hero, alone).
+   */
   private updateClouds(dt: number): void {
     for (let i = this.clouds.length - 1; i >= 0; i--) {
       const cl = this.clouds[i];
@@ -853,8 +1226,10 @@ export class CombatSystem {
       cl.tick -= dt;
       if (cl.tick <= 0 && age > 0.4) {
         cl.tick = 0.4;
-        for (const e of this.enemies) {
-          if (!e.alive || e.brawling || !this.reachable(e, cl.r, cl.pos)) continue;
+        for (const e of this.enemies.slice()) {
+          if (!e.alive || !this.reachable(e, cl.r, cl.pos)) continue;
+          this.hitEnemy(e, cl.atk, SMOKE_TICK, null, 0, 0, { energy: false, dot: true });
+          if (!e.alive || e.brawling) continue;
           const foe = this.brawlFoe(e);
           if (foe) { e.brawlTarget = foe; e.afflict('brawl', e.def.boss ? 4.5 : 7.5); }
           else e.afflict('confuse', e.def.boss ? 3 : 6);
@@ -891,9 +1266,10 @@ export class CombatSystem {
     const dmg = computeDamage({ atk: e.def.atk, multiplier: 1.4, defense: foe.def.def });
     const died = foe.takeDamage(dmg, { x: dx / l, z: dz / l }, foe.def.boss ? 0.3 : 2.5);
     const at = new Vector3(foe.pos.x, foe.pos.y + foe.def.height * (foe.def.scale ?? 1) * 0.5, foe.pos.z);
-    this.vfx.impact(at, PALETTE.blood, 1.8);
-    this.showNumber(at, dmg, PALETTE.blood, false);
-    this.d.audio.hit(false, false);
+    this.fx.flash(at, PALETTE.blood, 1.8);
+    this.fx.sparks(at, _w.set(dx / l, 0.35, dz / l), 8, PALETTE.blood, 5);
+    this.showNumber(at, dmg, PALETTE.blood, false, foe.id);
+    this.sfx.hit(hitMaterial(foe.def.kind));
     if (!foe.brawling && foe.status.stun <= 0 && foe.alive) { foe.brawlTarget = e; foe.afflict('brawl', 3); }
     if (died) this.onEnemyDeath(foe, at);
   }
@@ -932,8 +1308,8 @@ export class CombatSystem {
       }
       case 'slam': {
         const r = e.def.bodyRadius * sc + 6;
-        this.vfx.shockwave(at, color, r * 1.6);
-        this.vfx.burst(at, 0x5a6aa8, 30, 6, 0.6);
+        this.fx.shock(at, color, r * 1.6);
+        this.fx.dust(at, 3.2);
         this.d.onShake?.(1);
         this.d.audio.stomp();
         if (dist < r && c.mode === 'ground') this.damagePlayer(e.def.atk * 1.4, e.def.element, e.def.kind);
@@ -950,7 +1326,7 @@ export class CombatSystem {
       }
       case 'roar': {
         this.d.audio.roar();
-        this.vfx.shockwave(at.clone().add(new Vector3(0, e.def.height * sc * 0.6, 0)), color, 14);
+        this.fx.shock(_v.copy(at).add(_w.set(0, e.def.height * sc * 0.6, 0)), color, 14);
         this.d.onShake?.(0.9);
         if (dist < 16) {
           const dx = c.pos.x - e.pos.x;
@@ -974,7 +1350,7 @@ export class CombatSystem {
         this.summoned.set(e.id, list);
         const kind = e.def.kind === 'rift-king' ? 'styro-ghoul' : 'beast';
         if (list.length >= SUMMON_CAP || !PRESENT_MODELS.has(kind)) { this.d.audio.roar(); break; }
-        this.vfx.impact(at.clone().add(new Vector3(0, 3, 0)), color, 5);
+        this.fx.flash(_v.copy(at).add(_w.set(0, 3, 0)), color, 5);
         for (let i = 0; i < Math.min(2, SUMMON_CAP - list.length); i++) {
           const a = Math.random() * Math.PI * 2;
           const spot = this.freeSpot(e.pos.x + Math.cos(a) * 4, e.pos.z + Math.sin(a) * 4);
@@ -993,11 +1369,11 @@ export class CombatSystem {
         const w = this.d.world as Partial<HeightWorld> & WorldQuery;
         // (A flyer only needs open air: its own height is not the ground's.)
         if (w.blocked?.(bx, bz) || (!e.def.flying && Math.abs(this.d.world.heightAt(bx, bz, e.pos.y + 2) - (e.pos.y - e.def.hover)) > 3)) break;
-        this.vfx.impact(at.clone().add(new Vector3(0, 3, 0)), color, 6);
+        this.fx.flash(_v.copy(at).add(_w.set(0, 3, 0)), color, 6);
         e.pos.x = bx;
         e.pos.z = bz;
         e.yaw = Math.atan2(c.pos.z - bz, c.pos.x - bx);
-        this.vfx.impact(new Vector3(bx, e.pos.y + 3, bz), color, 6);
+        this.fx.flash(_v.set(bx, e.pos.y + 3, bz), color, 6);
         this.d.audio.dodge();
         break;
       }
@@ -1009,8 +1385,8 @@ export class CombatSystem {
         this.delayed.push({ t: 0.7, fn: () => {
           warn();
           const p = new Vector3(tx, ty, tz);
-          this.vfx.shockwave(p, color, 5);
-          this.vfx.burst(p.clone().add(new Vector3(0, 0.5, 0)), 0x1f4d46, 24, 7, 0.5);
+          this.fx.shock(p, color, 5);
+          this.fx.dust(p, 2.6);
           this.d.audio.stomp();
           if (Math.hypot(c.pos.x - tx, c.pos.z - tz) < 3.2 && c.mode === 'ground') this.damagePlayer(e.def.atk * 1.2, e.def.element, e.def.kind);
         } });
@@ -1072,7 +1448,7 @@ export class CombatSystem {
           net.rotation.x = -Math.PI / 2;
           net.position.set(tx, ty + 0.15, tz);
           this.d.scene.add(net);
-          this.vfx.burst(new Vector3(tx, ty + 0.5, tz), PALETTE.moon, 20, 5, 0.4);
+          this.fx.sparks(_v.set(tx, ty + 0.5, tz), UP, 20, PALETTE.moon, 5, 1.0);
           this.delayed.push({ t: 4, cleanup: true, fn: () => { this.d.scene.remove(net); disposeObject(net); } });
           if (Math.hypot(c.pos.x - tx, c.pos.z - tz) < 4 && c.pos.y < ty + 3) { this.damagePlayer(e.def.atk * 0.7, e.def.element, e.def.kind); this.ensnare(2.4); }
         } });
@@ -1086,7 +1462,7 @@ export class CombatSystem {
           this.delayed.push({ t: 0.85, fn: () => {
             if (!e.alive) return;
             const at = new Vector3(e.pos.x, e.pos.y - e.def.hover, e.pos.z);
-            for (const [r, col] of [[9, 0xff5ad6], [6.5, 0x37f5ff], [4, 0x5dff3a]] as const) this.vfx.shockwave(at, col, r);
+            for (const [r, col] of [[9, 0xff5ad6], [6.5, 0x37f5ff], [4, 0x5dff3a]] as const) this.fx.shock(at, col, r);
             this.d.onShake?.(0.8);
             this.d.audio.stomp();
             if (Math.hypot(c.pos.x - e.pos.x, c.pos.z - e.pos.z) < 6 && c.pos.y < at.y + 2.5) this.damagePlayer(e.def.atk * 1.2, e.def.element, e.def.kind);
@@ -1132,13 +1508,13 @@ export class CombatSystem {
       case 'glare': {
         // It gathers a red stare at its eye; whoever is facing it when it opens is held there (look away!).
         const eye = new Vector3(e.pos.x, e.pos.y + e.def.height * sc * 0.5, e.pos.z);
-        this.vfx.impact(eye, 0xff2a2a, 7);
-        this.d.hud.announce('The eye is gathering a glare · look away');
+        this.fx.flash(eye, 0xff2a2a, 7);
+        this.d.hud.announce('The eye is gathering a glare · look away', { priority: 1 });
         this.delayed.push({ t: 1.1, fn: () => {
           if (!e.alive) return;
           const toEye = Math.atan2(e.pos.z - c.pos.z, e.pos.x - c.pos.x);
           const facing = Math.abs(Math.atan2(Math.sin(toEye - c.yaw), Math.cos(toEye - c.yaw))) < (50 * Math.PI) / 180;
-          this.vfx.shockwave(eye, 0xff2a2a, 18);
+          this.fx.shock(eye, 0xff2a2a, 18);
           this.d.audio.roar();
           if (facing && Math.hypot(e.pos.x - c.pos.x, e.pos.z - c.pos.z) < 40) { this.damagePlayer(e.def.atk * 0.6, e.def.element, e.def.kind); this.ensnare(1.8); }
         } });
@@ -1184,8 +1560,8 @@ export class CombatSystem {
           m.summoned = true;
           m.brain.state = 'chase';
           list.push(m);
-          this.vfx.burst(new Vector3(m.pos.x, m.pos.y + 3, m.pos.z), 0xff5ad6, 20, 6, 0.5);
-          this.delayed.push({ t: 12, fn: () => { if (this.enemies.includes(m)) { this.vfx.burst(new Vector3(m.pos.x, m.pos.y + 3, m.pos.z), 0x37f5ff, 16, 5, 0.4); this.despawn(m); } } });
+          this.fx.sparks(_v.set(m.pos.x, m.pos.y + 3, m.pos.z), UP, 20, 0xff5ad6, 6, 1.0);
+          this.delayed.push({ t: 12, fn: () => { if (this.enemies.includes(m)) { this.fx.sparks(_v.set(m.pos.x, m.pos.y + 3, m.pos.z), UP, 16, 0x37f5ff, 5, 1.0); this.despawn(m); } } });
         }
         this.d.audio.cast();
         break;
@@ -1199,8 +1575,8 @@ export class CombatSystem {
           this.delayed.push({ t: 0.9, fn: () => {
             warn();
             const p = new Vector3(tx, ty, tz);
-            this.vfx.burst(p.clone().add(new Vector3(0, 1.5, 0)), 0xdff4ff, 26, 6, 0.6);
-            this.vfx.shockwave(p, 0x9ad8ff, 4);
+            this.fx.sparks(_v.copy(p).add(_w.set(0, 1.5, 0)), UP, 26, 0xdff4ff, 6, 1.0);
+            this.fx.shock(p, 0x9ad8ff, 4);
             if (Math.hypot(c.pos.x - tx, c.pos.z - tz) < 2.6) this.damagePlayer(e.def.atk, e.def.element, e.def.kind);
           } });
         }
@@ -1239,7 +1615,7 @@ export class CombatSystem {
         if (!this.grab && !this.downed && inCone({ x: e.pos.x, z: e.pos.z }, e.yaw, { x: c.pos.x, z: c.pos.z }, range, 0.9)) {
           this.grab = { e, t: 0 };
           this.damagePlayer(e.def.atk * 0.4, e.def.element, e.def.kind);
-          this.d.hud.announce('Grabbed!');
+          this.d.hud.announce('Grabbed!', { priority: 1 });
         }
         break;
       }
@@ -1249,12 +1625,6 @@ export class CombatSystem {
         if (kind === 'bite') this.vfx.slash(at.clone().add(new Vector3(0, 1, 0)), e.yaw, color, e.def.bodyRadius * sc + 2, 0.8);
         break;
     }
-  }
-
-  private spawnSlash(me: CharacterDef, def: AttackDef): void {
-    if (def.shape.kind !== 'cone') return;
-    const color = def.element === 'own' ? ELEMENT_COLOR[this.elementOf(me)] : PALETTE.cloth;
-    this.vfx.slash(this.playerPos(), this.d.controller.yaw, color, def.shape.range, def.shape.halfAngle);
   }
 
   private nearestEnemy(x: number, z: number, range: number, exclude?: Set<number>): Enemy | null {
@@ -1268,52 +1638,202 @@ export class CombatSystem {
     return best;
   }
 
-  private resolveAttack(me: CharacterDef, def: AttackDef): void {
+  /**
+   * Who a shot or a spell goes for: the locked-on enemy while it is within `range` of (x, z), else the nearest living
+   * enemy within it (none in `exclude`).
+   */
+  private markFor(range: number, x = this.d.controller.pos.x, z = this.d.controller.pos.z, exclude?: Set<number>): Enemy | null {
+    const lt = this.lockTarget;
+    if (lt?.alive && !exclude?.has(lt.id) && Math.hypot(lt.pos.x - x, lt.pos.z - z) <= range) return lt;
+    return this.nearestEnemy(x, z, range, exclude);
+  }
+
+  /**
+   * A move lands, on the clip's blow. `phase` is which move: a light hit's index, the heavy or the skill (the swing's
+   * crescent leans with it); `ground` is the skill's burning ground, laid by the crescent along its path.
+   */
+  private resolveAttack(me: CharacterDef, def: AttackDef, phase: number | 'heavy' | 'skill', ground?: GroundEffectDef): void {
     const c = this.d.controller;
     const element: Element | null = def.element === 'own' ? this.elementOf(me) : null;
     const atk = this.atkOf(me);
-    const origin = { x: c.pos.x, z: c.pos.z };
-    if (def.shape.kind === 'bolt') {
-      const target = this.nearestEnemy(c.pos.x, c.pos.z, def.shape.range);
-      const from = this.d.muzzle?.(me) ?? new Vector3(c.pos.x + Math.cos(c.yaw) * 0.6, c.pos.y + 1.3, c.pos.z + Math.sin(c.yaw) * 0.6);
-      const aimY = target ? target.pos.y + Math.min(0.5, target.def.height * (target.def.scale ?? 1) * 0.45) + (target.def.flying ? target.def.height * (target.def.scale ?? 1) * 0.3 : 0) : 0;
-      const dir = target
-        ? new Vector3(target.pos.x - from.x, aimY - from.y, target.pos.z - from.z).normalize()
-        : new Vector3(Math.cos(c.yaw), 0.05, Math.sin(c.yaw));
-      const arrow = me.weapon === 'bow';
-      if (arrow && c.mode === 'fly') {
-        // Off the bow she rides: the arrow drops out under her, then finds its way (down, across, or back up).
-        // (No enemy in range: a sky eye ahead is the mark, else the ground ahead.)
-        const sky = target ? null : this.aimTarget(from, c.yaw);
-        const ahead = target ? null : sky ? sky.pos.clone() : new Vector3(c.pos.x + Math.cos(c.yaw) * 22, 0, c.pos.z + Math.sin(c.yaw) * 22);
-        if (ahead && !sky) ahead.y = this.d.world.heightAt(ahead.x, ahead.z, c.pos.y);
-        const down = new Vector3(Math.cos(c.yaw) * 0.35, -1, Math.sin(c.yaw) * 0.35).normalize().multiplyScalar(18);
-        this.spawnProjectile(from, down, 'player', atk, def.mult, element, 1.0, ELEMENT_COLOR[this.elementOf(me)], def.shape.chains, def.shape.chainRange, def.knockback, def.hitStop, 0.24, 'arrow', {
-          homing: { target, point: ahead, delay: 0.07, turn: 9, age: 0 },
-        });
-        if (sky) { const shot = this.projectiles[this.projectiles.length - 1]; shot.life = Math.max(shot.life, sky.pos.distanceTo(from) / 18 + 1); }
-        return;
-      }
-      // Nothing to fight in range: a shot fired while facing a sky eye flies at it.
-      const sky = target ? null : this.aimTarget(from, c.yaw);
-      if (sky) dir.copy(sky.pos).sub(from).normalize();
-      const speed = arrow ? 26 : 22;
-      this.spawnProjectile(from, dir.multiplyScalar(speed), 'player', atk, def.mult, element, 1.0, ELEMENT_COLOR[this.elementOf(me)], def.shape.chains, def.shape.chainRange, def.knockback, def.hitStop, 0.24, arrow ? 'arrow' : 'bolt');
-      if (sky) { const shot = this.projectiles[this.projectiles.length - 1]; shot.life = Math.max(shot.life, sky.pos.distanceTo(from) / speed + 0.4); }
-      return;
+    const shape = def.shape;
+    switch (shape.kind) {
+      case 'bolt': this.shoot(me, def, shape, phase); return;
+      case 'crescent': this.cleave(me, def, shape, ground); return;
+      case 'volley': this.moonVolley(me, def, shape); return;
+      case 'starfall': this.starfall(me, def, shape); return;
+      default: break;
     }
-    const reach = def.shape.kind === 'cone' ? def.shape.range : def.shape.radius;
-    for (const e of this.enemies) {
+    if (shape.kind === 'cone') {
+      // The swing's crescent at the blow, in the swing's plane: the light hits tilted one way then the other, the
+      // heavy's chop leaning down across, the skill flat; as wide and as long as the cut's reach.
+      const pitch = phase === 'heavy' ? -0.6 : phase === 'skill' ? 0 : phase % 2 === 0 ? 0.35 : -0.35;
+      const color = element ? ELEMENT_COLOR[element] : PALETTE.cloth;
+      this.fx.arc(_v.set(c.pos.x, c.pos.y + 1.2, c.pos.z), c.yaw, pitch, shape.range, color, shape.halfAngle);
+    }
+    const origin = { x: c.pos.x, z: c.pos.z };
+    const reach = shape.kind === 'cone' ? shape.range : shape.radius;
+    const heavy = phase === 'heavy' || def.hitStop >= 0.08;
+    for (const e of this.enemies.slice()) {
       if (!e.alive) continue;
       const sc = e.def.scale ?? 1;
       // A swing from the air reaches only what is about level with it.
       if (c.pos.y + 1 < e.pos.y - reach * 0.6 || c.pos.y + 1 > e.pos.y + e.def.height * sc + reach * 0.6) continue;
       const t = { x: e.pos.x, z: e.pos.z };
-      const ok = def.shape.kind === 'cone'
-        ? inCone(origin, c.yaw, t, def.shape.range + e.def.bodyRadius * sc, def.shape.halfAngle)
-        : inRadius(origin, t, def.shape.radius + e.def.bodyRadius * sc);
-      if (ok) this.hitEnemy(e, atk, def.mult, element, def.knockback, def.hitStop);
+      const ok = shape.kind === 'cone'
+        ? inCone(origin, c.yaw, t, shape.range + e.def.bodyRadius * sc, shape.halfAngle)
+        : inRadius(origin, t, shape.radius + e.def.bodyRadius * sc);
+      if (ok) this.hitEnemy(e, atk, def.mult, element, def.knockback, def.hitStop, { heavy });
     }
+  }
+
+  /**
+   * A bolt or an arrow off the staff's knob or the bow hand, at the locked-on enemy or the nearest in range (else a sky
+   * eye ahead, else straight on). Wren's arrows draw one of the two arrow ribbons; Orlan's bolt is a star with a short
+   * ribbon of its own.
+   */
+  private shoot(me: CharacterDef, def: AttackDef, shape: Extract<HitShape, { kind: 'bolt' }>, phase: number | 'heavy' | 'skill'): void {
+    const c = this.d.controller;
+    const element: Element | null = def.element === 'own' ? this.elementOf(me) : null;
+    const atk = this.atkOf(me);
+    const color = ELEMENT_COLOR[this.elementOf(me)];
+    const target = this.markFor(shape.range);
+    const from = this.d.muzzle?.(me) ?? new Vector3(c.pos.x + Math.cos(c.yaw) * 0.6, c.pos.y + 1.3, c.pos.z + Math.sin(c.yaw) * 0.6);
+    const aimY = target ? target.pos.y + Math.min(0.5, target.def.height * (target.def.scale ?? 1) * 0.45) + (target.def.flying ? target.def.height * (target.def.scale ?? 1) * 0.3 : 0) : 0;
+    const dir = target
+      ? new Vector3(target.pos.x - from.x, aimY - from.y, target.pos.z - from.z).normalize()
+      : new Vector3(Math.cos(c.yaw), 0.05, Math.sin(c.yaw));
+    const arrow = me.weapon === 'bow';
+    const heavy = phase === 'heavy';
+    this.sfx.swing(arrow ? 'bow' : 'staff', heavy);
+    const look = arrow ? { trail: this.nextArrowTrail(), trailW: 0.05 } : { trail: 'bolt', trailW: heavy ? 0.14 : 0.09 };
+    const kind: ProjectileKind = arrow ? 'arrow' : 'star';
+    const size = arrow ? 0.24 : heavy ? 1.25 : 0.85;
+    if (arrow && c.mode === 'fly') {
+      // Off the bow she rides: the arrow drops out under her, then finds its way (down, across, or back up).
+      // (No enemy in range: a sky eye ahead is the mark, else the ground ahead.)
+      const sky = target ? null : this.aimTarget(from, c.yaw);
+      const ahead = target ? null : sky ? sky.pos.clone() : new Vector3(c.pos.x + Math.cos(c.yaw) * 22, 0, c.pos.z + Math.sin(c.yaw) * 22);
+      if (ahead && !sky) ahead.y = this.d.world.heightAt(ahead.x, ahead.z, c.pos.y);
+      const down = new Vector3(Math.cos(c.yaw) * 0.35, -1, Math.sin(c.yaw) * 0.35).normalize().multiplyScalar(18);
+      const shot = this.spawnProjectile(from, down, 'player', atk, def.mult, element, 1.0, color, shape.chains, shape.chainRange, def.knockback, def.hitStop, size, kind, {
+        homing: { target, point: ahead, delay: 0.07, turn: 9, age: 0 }, ...look,
+      });
+      if (sky) shot.life = Math.max(shot.life, sky.pos.distanceTo(from) / 18 + 1);
+      return;
+    }
+    // Nothing to fight in range: a shot fired while facing a sky eye flies at it.
+    const sky = target ? null : this.aimTarget(from, c.yaw);
+    if (sky) dir.copy(sky.pos).sub(from).normalize();
+    const speed = arrow ? 26 : 22;
+    const shot = this.spawnProjectile(from, dir.multiplyScalar(speed), 'player', atk, def.mult, element, 1.0, color, shape.chains, shape.chainRange, def.knockback, def.hitStop, size, kind, look);
+    if (sky) shot.life = Math.max(shot.life, sky.pos.distanceTo(from) / speed + 0.4);
+    this.fx.flash(from, _col.set(color).multiplyScalar(0.7), heavy ? 1.6 : 0.9);
+  }
+
+  /**
+   * Crimson Cleave: a blood crescent sent along the ground from the blade, CrescentShape.range metres at its speed,
+   * cutting every mob it passes (once each) and laying the skill's burning ground along its path.
+   */
+  private cleave(me: CharacterDef, def: AttackDef, shape: CrescentShape, ground?: GroundEffectDef): void {
+    const c = this.d.controller;
+    const fx = Math.cos(c.yaw);
+    const fz = Math.sin(c.yaw);
+    const sx = c.pos.x + fx * 0.8;
+    const sz = c.pos.z + fz * 0.8;
+    const from = new Vector3(sx, this.d.world.heightAt(sx, sz, c.pos.y + 1) + CRESCENT_BASE, sz);
+    const own = this.elementOf(me);
+    const color = ELEMENT_COLOR[own];
+    const atk = this.atkOf(me);
+    const burn: BurnPath | null = ground ? { def: { ...ground, element: own }, atk, every: shape.burnEvery, next: shape.burnEvery / 2, group: { last: new Map() } } : null;
+    this.spawnProjectile(from, new Vector3(fx, 0, fz).multiplyScalar(shape.speed), 'player', atk, def.mult, def.element === 'own' ? own : null, shape.halfWidth, color, 0, 0, def.knockback, def.hitStop, 1, 'crescent', {
+      pierce: true, ground: CRESCENT_BASE, life: shape.range / shape.speed, burn,
+    });
+    this.fx.flash(_v.set(sx, from.y + 0.9, sz), _col.set(color).multiplyScalar(0.8), 2.4);
+    this.fx.dust(from, 1.6);
+  }
+
+  /**
+   * Moon Volley: VolleyShape.arrows arrows fanned ±fan either side of her aim, each turning after a mark a moment
+   * later (the locked-on enemy first, then the nearest, shared round the fan); with nothing to hunt, at a sky eye
+   * ahead or down onto the ground along each one's own line. The two outermost draw the arrow ribbons.
+   */
+  private moonVolley(me: CharacterDef, def: AttackDef, shape: VolleyShape): void {
+    const c = this.d.controller;
+    const from = this.d.muzzle?.(me) ?? new Vector3(c.pos.x + Math.cos(c.yaw) * 0.6, c.pos.y + 1.3, c.pos.z + Math.sin(c.yaw) * 0.6);
+    const element: Element | null = def.element === 'own' ? this.elementOf(me) : null;
+    const color = ELEMENT_COLOR[this.elementOf(me)];
+    const atk = this.atkOf(me);
+    const marks: Enemy[] = [];
+    const seen = new Set<number>();
+    for (let k = 0; k < 3; k++) {
+      const m = this.markFor(shape.range, c.pos.x, c.pos.z, seen);
+      if (!m) break;
+      marks.push(m);
+      seen.add(m.id);
+    }
+    const sky = marks.length ? null : this.aimTarget(from, c.yaw);
+    for (let i = 0; i < shape.arrows; i++) {
+      const k = shape.arrows > 1 ? (i / (shape.arrows - 1)) * 2 - 1 : 0;
+      const a = c.yaw + k * shape.fan;
+      const target = marks.length ? marks[i % marks.length] : null;
+      let point: Vector3 | null = null;
+      if (!target) {
+        const px = c.pos.x + Math.cos(a) * 16;
+        const pz = c.pos.z + Math.sin(a) * 16;
+        point = sky ? sky.pos.clone() : new Vector3(px, this.d.world.heightAt(px, pz, c.pos.y + 2), pz);
+      }
+      const vel = new Vector3(Math.cos(a), 0.12, Math.sin(a)).normalize().multiplyScalar(24);
+      const trail = i === 0 ? 'arrow0' : i === shape.arrows - 1 ? 'arrow1' : undefined;
+      // (A lighter hit-stop each: six freezes in a row would stutter the volley.)
+      this.spawnProjectile(from.clone(), vel, 'player', atk, def.mult, element, 1.0, color, shape.chains, shape.chainRange, def.knockback, def.hitStop * 0.4, 0.24, 'arrow', {
+        homing: { target, point, delay: 0.12, turn: 5, age: 0 }, trail, trailW: 0.05,
+      });
+    }
+    this.sfx.swing('bow', true);
+    this.fx.flash(from, _col.set(color).multiplyScalar(0.7), 1.5);
+  }
+
+  /**
+   * Starfall: StarfallShape.stars stars dropped from `height` over the target area (the mark within `range`, else
+   * half that ahead), the first on the mark and the rest round it within `spread`, one every 0.12 s.
+   */
+  private starfall(me: CharacterDef, def: AttackDef, shape: StarfallShape): void {
+    const c = this.d.controller;
+    const mark = this.markFor(shape.range);
+    const cx = mark ? mark.pos.x : c.pos.x + Math.cos(c.yaw) * shape.range * 0.5;
+    const cz = mark ? mark.pos.z : c.pos.z + Math.sin(c.yaw) * shape.range * 0.5;
+    const cy = mark ? mark.pos.y : c.pos.y;
+    const element: Element | null = def.element === 'own' ? this.elementOf(me) : null;
+    const color = ELEMENT_COLOR[this.elementOf(me)];
+    const atk = this.atkOf(me);
+    const turn = Math.random() * Math.PI * 2;
+    for (let i = 0; i < shape.stars; i++) {
+      const a = turn + ((i - 1) / Math.max(1, shape.stars - 1)) * Math.PI * 2;
+      const r = i === 0 ? 0 : shape.spread * (0.55 + 0.45 * Math.random());
+      const tx = cx + Math.cos(a) * r;
+      const tz = cz + Math.sin(a) * r;
+      this.delayed.push({ t: i * 0.12, fn: () => this.dropStar(atk, def, element, color, shape, tx, cy, tz, i) });
+    }
+    // Motes rising off the staff: the stars going up.
+    if (this.d.weaponTips?.(_g, _t)) this.fx.sparks(_t, UP, 10, color, 9, 0.25);
+  }
+
+  /** One of Starfall's stars, from up high (under any roof) at (tx, tz), falling under gravity; its disc shows 0.5 s before it lands. */
+  private dropStar(atk: number, def: AttackDef, element: Element | null, color: number, shape: StarfallShape, tx: number, ty: number, tz: number, i: number): void {
+    const w = this.d.world as Partial<HeightWorld> & WorldQuery;
+    const gy = this.d.world.heightAt(tx, tz, ty + 2);
+    const roof = w.ceilingAt?.(tx, tz, gy) ?? Infinity;
+    const h = Math.max(1, Math.min(shape.height, roof - 0.6 - gy));
+    const v0 = 4;
+    const g = 28;
+    const fall = (-v0 + Math.sqrt(v0 * v0 + 2 * g * h)) / g;
+    this.spawnProjectile(new Vector3(tx, gy + h, tz), new Vector3(0, -v0, 0), 'player', atk, def.mult, element, 0.6, color, 0, 0, def.knockback, def.hitStop, 1.5, 'star', {
+      gravity: g, aoe: shape.radius, trail: `star${this.starTrails++ % 2}`, trailW: 0.16, life: fall + 0.6,
+    });
+    const warn = () => this.fx.telegraph(-100 - i, 'disc', _v.set(tx, gy, tz), 0, shape.radius, 0.5, color);
+    if (fall > 0.5) this.delayed.push({ t: fall - 0.5, fn: warn });
+    else warn();
   }
 
   /** The aimable target most nearly ahead of the hero (within about 25° of their facing and 110 m), if any. */
@@ -1332,12 +1852,23 @@ export class CombatSystem {
     return best;
   }
 
-  /** `energy`: whether the hit charges the burst (lingering zones and spins do not, or a burst would refill itself). */
-  private hitEnemy(e: Enemy, atk: number, mult: number, element: Element | null, knockback: number, hitStop: number, energy = true): void {
+  /**
+   * A blow lands on `e`: the element and any reaction, the crit roll (the hero's own blows: 10 % plus the charm's and
+   * the weapon's bonus, ×1.6), the knockback; a flash, sparks flying off along the blow and the number over the
+   * target; the kick, the fov punch for a heavy or a crit, the sound of what it lands on, the combo count.
+   */
+  private hitEnemy(e: Enemy, atk: number, mult: number, element: Element | null, knockback: number, hitStop: number, o: HitOpts = {}): void {
     const c = this.d.controller;
+    const dot = o.dot ?? false;
+    const own = !dot && !o.companion;
+    const heavy = !dot && (o.heavy ?? hitStop >= 0.08);
     const { aura, reaction } = applyElement(e.aura, element);
     e.aura = aura;
-    const dmg = computeDamage({ atk: atk * this.d.inventory.damageMult(), multiplier: mult, defense: e.def.def - e.defDown.amount, reaction });
+    const { amount: dmg, crit } = rollHit(
+      { atk: atk * this.d.inventory.damageMult(), multiplier: mult, defense: e.def.def - e.defDown.amount, reaction },
+      own ? CRIT_CHANCE + this.d.inventory.critBonus(this.active.id) : 0,
+      this.rnd,
+    );
     const kdx = e.pos.x - c.pos.x;
     const kdz = e.pos.z - c.pos.z;
     const kl = Math.hypot(kdx, kdz) || 1;
@@ -1346,21 +1877,50 @@ export class CombatSystem {
     const died = e.takeDamage(dmg, kb, (knockback + (reaction ? REACTIONS[reaction].knockback : 0)) * bossKb);
     const sc = e.def.scale ?? 1;
     const at = new Vector3(e.pos.x, e.pos.y + e.def.height * sc * 0.5, e.pos.z);
+    // Where it struck: a shot's head, else the body's side facing the hero at about the swing's height (a giant is hit
+    // on the shin, not twelve metres up).
+    const hitAt = o.at
+      ? o.at.clone()
+      : new Vector3(e.pos.x - kb.x * e.def.bodyRadius * sc * 0.7, Math.min(at.y, Math.max(e.pos.y + 0.4, c.pos.y + 1.2)), e.pos.z - kb.z * e.def.bodyRadius * sc * 0.7);
     const color = element ? ELEMENT_COLOR[element] : PALETTE.cloth;
-    this.vfx.impact(at, color, 1.8);
-    this.vfx.burst(at, color, 8, 4, 0.3);
-    this.showNumber(at, dmg, color, false);
+    if (dot) {
+      this.fx.flash(hitAt, _col.set(color).multiplyScalar(0.6), 0.9);
+      this.fx.sparks(hitAt, UP, 3, color, 3, 0.8);
+    } else {
+      // Bigger, denser and faster with the damage: a flash up to 2.5 m, 10-24 sparks at 6-10 m/s off along the blow.
+      // (One flash per body a step, a little under the element's full colour: the bloom makes the glow, and the
+      // body's own hit blink is white already; a crit's leans to the moon.)
+      const weight = Math.min(1, dmg / 350);
+      if (!this.flashed.has(e.id)) {
+        this.flashed.add(e.id);
+        _col.set(color).lerp(MOON, crit ? 0.5 : 0).multiplyScalar(crit ? 0.85 : 0.7);
+        this.fx.flash(hitAt, _col, (0.9 + Math.min(1.6, dmg / 220)) * (crit ? 1.2 : 1));
+      }
+      this.fx.sparks(hitAt, _w.set(kb.x, 0.35, kb.z), Math.round(10 + 14 * weight), color, 6 + 4 * weight, 0.55);
+      if (crit) this.fx.sparks(hitAt, UP, 8, PALETTE.moon, 5, 1.0);
+      if (heavy) this.fx.shock(_v.set(e.pos.x, e.pos.y, e.pos.z), color, 2.5 + 2 * weight);
+    }
+    this.showNumber(_v.copy(hitAt).add(_w.set(0, 0.5, 0)), dmg, crit ? PALETTE.moon : color, false, e.id, crit);
     this.d.game.hitStop = Math.max(this.d.game.hitStop, hitStop);
-    this.d.onShake?.(hitStop * 2.5);
-    this.d.audio.hit(element !== null, hitStop >= 0.08);
-    if (energy) this.burstEnergy = Math.min(BURST_MAX, this.burstEnergy + 6);
+    if (own) {
+      this.kick(e.pos.x, e.pos.z, crit ? 0.5 : 0.08 + (heavy ? 0.12 : 0));
+      if (heavy || crit) this.feel.punch = true;
+      if (heavy) this.feel.boom = true;
+      this.streak.hit();
+    }
+    this.sfx.hit(hitMaterial(e.def.kind), heavy, element !== null);
+    if (crit) {
+      this.feel.crit = true;
+      this.d.events?.emit({ kind: 'feat', what: 'crit', at: { x: hitAt.x, y: hitAt.y, z: hitAt.z } });
+    }
+    if (o.energy ?? true) this.burstEnergy = Math.min(BURST_MAX, this.burstEnergy + 6);
     if (reaction) { this.applyReaction(e, reaction, dmg, at); this.d.audio.reaction(); }
     if (died) this.onEnemyDeath(e, at);
   }
 
   private onEnemyDeath(e: Enemy, at: Vector3): void {
-    this.vfx.burst(at, PALETTE.moon, 24, 7, 0.5);
-    this.vfx.shockwave(new Vector3(e.pos.x, e.pos.y, e.pos.z), ELEMENT_COLOR[e.def.element], e.def.boss ? 14 : 5);
+    this.fx.sparks(at, UP, 24, PALETTE.moon, 7, 1.1);
+    this.fx.shock(_v.set(e.pos.x, e.pos.y, e.pos.z), ELEMENT_COLOR[e.def.element], e.def.boss ? 14 : 5);
     this.d.hud.removeEnemyBar(e.id);
     this.d.audio.kill(!!e.def.boss);
     this.d.onKill?.(e.def.kind);
@@ -1376,23 +1936,30 @@ export class CombatSystem {
       const at = gy < e.pos.y - 25 ? new Vector3(c.pos.x, c.pos.y + 1, c.pos.z) : new Vector3(e.pos.x, gy + 1, e.pos.z);
       this.loot.spawn(rollDrops(e.def.drops, e.def.shards), at);
     }
-    if (e.def.boss) { this.d.hud.announce(`${e.def.name} falls`); this.d.onShake?.(1); }
+    if (e.def.boss) {
+      this.d.hud.announce(`${e.def.name} falls`);
+      this.d.onShake?.(1);
+      this.feel.pulse = Math.max(this.feel.pulse, 0.35);
+      this.feel.punch = true;
+    }
     // Its summons go with it.
     const called = this.summoned.get(e.id);
     if (called) {
-      for (const m of called) if (m.alive && this.enemies.includes(m)) { this.vfx.burst(new Vector3(m.pos.x, m.pos.y + 1, m.pos.z), ELEMENT_COLOR[m.def.element], 12, 4, 0.4); this.despawn(m); }
+      for (const m of called) if (m.alive && this.enemies.includes(m)) { this.fx.sparks(_v.set(m.pos.x, m.pos.y + 1, m.pos.z), UP, 12, ELEMENT_COLOR[m.def.element], 4, 1.0); this.despawn(m); }
       this.summoned.delete(e.id);
     }
   }
 
   private applyReaction(target: Enemy, id: ReactionId, dmg: number, at: Vector3): void {
     const r = REACTIONS[id];
-    this.vfx.shockwave(new Vector3(target.pos.x, target.pos.y, target.pos.z), r.color, Math.max(3, r.aoeRadius * 2));
+    this.fx.shock(_v.set(target.pos.x, target.pos.y, target.pos.z), r.color, Math.max(3, r.aoeRadius * 2));
+    this.fx.flash(at, r.color, 2.6);
+    this.feel.pulse = Math.max(this.feel.pulse, 0.35);
     this.showNumber(at.clone().add(new Vector3(0, 0.6, 0)), r.name, r.color, true);
     this.d.game.hitStop = Math.max(this.d.game.hitStop, 0.1);
     if (id === 'conduit') target.defDown = { amount: r.defDown, left: r.defDownDuration };
     if (r.aoeRadius > 0) {
-      for (const e of this.enemies) {
+      for (const e of this.enemies.slice()) {
         if (!e.alive || e === target) continue;
         if (inRadius({ x: target.pos.x, z: target.pos.z }, { x: e.pos.x, z: e.pos.z }, r.aoeRadius + e.def.bodyRadius)) {
           const dx = e.pos.x - target.pos.x;
@@ -1401,26 +1968,50 @@ export class CombatSystem {
           const splash = Math.max(1, Math.round(dmg * 0.5));
           const died = e.takeDamage(splash, { x: dx / l, z: dz / l }, e.def.boss ? 0 : r.knockback);
           const p = new Vector3(e.pos.x, e.pos.y + e.def.height * 0.5, e.pos.z);
-          this.vfx.impact(p, r.color, 1.4);
-          this.showNumber(p, splash, r.color, false);
+          this.fx.flash(p, r.color, 1.4);
+          this.fx.sparks(p, _w.set(dx / l, 0.4, dz / l), 8, r.color, 6);
+          this.showNumber(p, splash, r.color, false, e.id);
           if (died) this.onEnemyDeath(e, p);
         }
       }
     }
   }
 
-  private addZone(def: GroundEffectDef, atk: number): void {
-    const c = this.d.controller;
-    const pos = new Vector3(c.pos.x + Math.cos(c.yaw) * 2, c.pos.y, c.pos.z + Math.sin(c.yaw) * 2);
-    pos.y = this.d.world.heightAt(pos.x, pos.z);
+  /** A patch of lingering ground (`def`) at `at` (default 2 m in front of the hero), one of `group`'s when given. */
+  private addZone(def: GroundEffectDef, atk: number, at: Vector3 = this.ahead(2), group: ZoneGroup | null = null): void {
+    const pos = at.clone();
     const remove = this.vfx.zone(pos, def.radius, ELEMENT_COLOR[def.element], def.duration);
-    this.zones.push({ pos, def, left: def.duration, tick: 0.05, atk, remove });
+    this.zones.push({ pos, def, left: def.duration, tick: 0.05, atk, remove, group });
   }
 
-  private spawnProjectile(from: Vector3, vel: Vector3, owner: 'player' | 'enemy', atk: number, mult: number, element: Element | null, radius: number, color: number, chains: number, chainRange: number, knockback: number, hitStop: number, size = 0.24, kind: ProjectileKind = 'bolt', extra: { gravity?: number; poison?: { dps: number; seconds: number }; homing?: Projectile['homing']; wobble?: number; onHit?: (e: Enemy) => void; web?: number; rainbow?: boolean; by?: string } = {}): void {
+  private spawnProjectile(
+    from: Vector3, vel: Vector3, owner: 'player' | 'enemy', atk: number, mult: number, element: Element | null, radius: number, color: number,
+    chains: number, chainRange: number, knockback: number, hitStop: number, size = 0.24, kind: ProjectileKind = 'bolt',
+    extra: {
+      gravity?: number; poison?: { dps: number; seconds: number }; homing?: Projectile['homing']; wobble?: number; onHit?: (e: Enemy) => void;
+      web?: number; rainbow?: boolean; by?: string;
+      /** Seconds it flies (default: 4 for logs, trip arrows and homing shots, else 2.5). */
+      life?: number; trail?: string; trailW?: number; pierce?: boolean; aoe?: number; ground?: number; burn?: BurnPath | null;
+    } = {},
+  ): Projectile {
     const object = new Group();
     const rainbow: Projectile['rainbow'] = [];
-    if (kind === 'log') {
+    let fade: Projectile['fade'] = null;
+    let twinkle: Projectile['twinkle'] = null;
+    if (kind === 'crescent') {
+      // Sir Aldric's blood crescent (render/ShotFx.ts), riding the ground, its middle leaning forward like a wave.
+      const shot = crescentShot(color);
+      object.add(shot.object);
+      fade = shot.fade;
+      object.position.copy(from);
+      object.lookAt(aim.copy(from).add(vel));
+    } else if (kind === 'star') {
+      // Orlan's star: a four-pointed star sprite, a hot core and a halo, `size` metres across its points.
+      const shot = starShot(color, size);
+      object.add(shot.object);
+      twinkle = shot.star;
+      object.position.copy(from);
+    } else if (kind === 'log') {
       // A log off the giant's back: rough bark, pale cut ends, tumbling end over end.
       const bark = new Mesh(new CylinderGeometry(0.28 * size, 0.32 * size, 2.4 * size, 9), surface({ color: PALETTE.bark, roughness: 1 }));
       bark.rotation.z = Math.PI / 2;
@@ -1524,11 +2115,21 @@ export class CombatSystem {
       object.position.copy(from);
     }
     this.d.scene.add(object);
-    this.projectiles.push({
-      pos: from.clone(), vel, life: kind === 'log' || kind === 'trip' || extra.homing ? 4 : 2.5, owner, atk, mult, element, radius, object, chains, chainRange,
+    const p: Projectile = {
+      pos: from.clone(), vel, life: extra.life ?? (kind === 'log' || kind === 'trip' || extra.homing ? 4 : 2.5), owner, atk, mult, element, radius, object, chains, chainRange,
       hit: new Set(), knockback, hitStop, kind, gravity: extra.gravity ?? 0, poison: extra.poison ?? null, color,
       homing: extra.homing ?? null, wobble: extra.wobble ?? 0, onHit: extra.onHit ?? null, rainbow, seed: Math.random() * 10, web: extra.web ?? 0, by: extra.by ?? null,
-    });
+      age: 0, from: from.clone(), trail: extra.trail ?? null, trailW: extra.trailW ?? 0.06, pierce: extra.pierce ?? false, aoe: extra.aoe ?? 0,
+      ground: extra.ground ?? 0, burn: extra.burn ?? null, fade, twinkle,
+    };
+    this.projectiles.push(p);
+    // A ribbon id is one shot's at a time: the shot that had it lets go (its ribbon fades) and this one starts afresh.
+    if (p.trail) {
+      const prev = this.trailOwners.get(p.trail);
+      if (prev) this.releaseTrail(prev);
+      this.trailOwners.set(p.trail, p);
+    }
+    return p;
   }
 
   /** A shot at the hero from something in the world (witches' orbs, the snail's rings, dragon fire). */
@@ -1581,9 +2182,9 @@ export class CombatSystem {
     e.brain.p.aggroRange = 30;
     e.riseFromGrave(2.2);
     const at = new Vector3(x, R.y + 0.15, z);
-    this.vfx.burst(at, 0x3a2c1e, 26, 3.2, 0.55);
-    this.vfx.burst(at, 0x6a5238, 12, 2, 0.4);
-    this.vfx.impact(at.clone().setY(R.y + 0.6), PALETTE.witch, 2.4);
+    this.fx.dust(at, 2.2);
+    this.fx.dust(at, 1.2);
+    this.fx.flash(at.clone().setY(R.y + 0.6), PALETTE.witch, 2.4);
     this.risen.push(e);
   }
 
@@ -1604,6 +2205,7 @@ export class CombatSystem {
     this.lastState.delete(e.id);
     this.contact.delete(e.id);
     if (this.grab?.e === e) this.grab = null;
+    if (this.lockTarget === e) this.lockTarget = null;
     for (const o of this.enemies) if (o.brawlTarget === e) o.brawlTarget = null;
   }
 
@@ -1620,7 +2222,7 @@ export class CombatSystem {
   /** Caught in a web: held for `seconds` (a fresh web resets the time, it never stacks). */
   private ensnare(seconds: number): void {
     this.webLeft = Math.max(this.webLeft, seconds);
-    this.d.hud.announce('Webbed!');
+    this.d.hud.announce('Webbed!', { priority: 1 });
   }
 
   /** The web wrapped around a caught hero, shown while it holds. */
@@ -1667,16 +2269,16 @@ export class CombatSystem {
     void this.d.audio.voice(voiceUrl(lines[Math.floor(Math.random() * lines.length)]), Math.max(0.25, 1 - d / 30), 'mob');
   }
 
-  /** A burst cup leaves a puddle of lean that slows whoever stands in it. */
-  private spawnPuddle(at: Vector3): void {
+  /** A puddle of lean: a burst cup's slows the hero who stands in it; one off the lean cyclone (`hero`) slows the mobs instead. */
+  private spawnPuddle(at: Vector3, owner: 'hero' | 'enemy' = 'enemy'): void {
     const y = this.d.world.heightAt(at.x, at.z, at.y + 1) + 0.04;
     const mesh = new Mesh(new CircleGeometry(2.4, 24), new MeshBasicMaterial({ color: 0x8a2be2, transparent: true, opacity: 0.75, depthWrite: false, toneMapped: false }));
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(at.x, y, at.z);
-    mesh.add(glowSprite(0xb36bff, 3.2, 0.35, true));
+    mesh.add(glowSprite(LEAN_PURPLE, 3.2, 0.35, true));
     this.d.scene.add(mesh);
-    this.puddles.push({ pos: new Vector3(at.x, y, at.z), r: 2.4, left: 6, mesh });
-    this.vfx.burst(new Vector3(at.x, y + 0.3, at.z), 0xb36bff, 14, 4, 0.5);
+    this.puddles.push({ pos: new Vector3(at.x, y, at.z), r: 2.4, left: 6, mesh, hero: owner === 'hero' });
+    this.fx.sparks(_v.set(at.x, y + 0.3, at.z), UP, 14, LEAN_PURPLE, 4, 1.0);
   }
 
   /** Poison: damage every half second for a while (refreshed, never stacked). */
@@ -1707,7 +2309,7 @@ export class CombatSystem {
     this.hurt = { t: 0, big: dmg >= me.maxHp * BIG_HIT };
     const at = this.playerPos().clone().add(new Vector3(0, 1.9, 0));
     this.showNumber(at, dmg, PALETTE.blood, false);
-    this.vfx.impact(at, PALETTE.blood, 1.6);
+    this.fx.flash(at, PALETTE.blood, 1.6);
     this.d.hud.flashDamage();
     this.d.audio.hurt();
     this.d.onShake?.(0.4);
@@ -1772,12 +2374,13 @@ export class CombatSystem {
     }
   }
 
-  private showNumber(worldPos: Vector3, value: number | string, color: number, big: boolean): void {
+  /** A number (or a word) over `worldPos`; hits on one `targetId` merge on screen, a `crit` stands out. */
+  private showNumber(worldPos: Vector3, value: number | string, color: number, big: boolean, targetId: number | null = null, crit = false): void {
     this.screen.copy(worldPos).project(this.d.camera);
     if (this.screen.z > 1) return;
     const x = (this.screen.x + 1) / 2 * window.innerWidth;
     const y = (1 - this.screen.y) / 2 * window.innerHeight;
-    this.d.hud.damageNumber(x, y, String(value), color, big);
+    this.d.hud.damageNumber(x, y, value, color, big, targetId, crit);
   }
 
   /** Per-frame: enemy animation and HUD projection. */
@@ -1792,6 +2395,17 @@ export class CombatSystem {
       const visible = this.screen.z < 1 && Math.abs(this.screen.x) < 1.1 && Math.abs(this.screen.y) < 1.1 && dist < (e.def.boss ? 120 : 60) && (e.aggro || e.hp < e.def.maxHp) && !e.def.boss;
       this.d.hud.enemyBar(e.id, e.def.name, (this.screen.x + 1) / 2 * window.innerWidth, (1 - this.screen.y) / 2 * window.innerHeight, e.hp / e.def.maxHp, e.aura ? ELEMENT_COLOR[e.aura.element] : null, visible, e.aura ? e.aura.element : null);
     }
+    // The blade's ribbon, fed every drawn frame from where the hand put the blade this frame, while the cut is live.
+    const blade = this.bladeColor();
+    if (blade !== null && this.d.weaponTips?.(_g, _t)) { this.fx.trail('blade', _g, _t, blade, true); this.bladeFed = true; }
+    else if (this.bladeFed) { this.fx.trail('blade', _g, _t, 0, false); this.bladeFed = false; }
+    // The lock-on ring over the target's middle.
+    const lt = this.lockTarget;
+    if (lt?.alive && this.lockPoint(_v)) {
+      this.screen.copy(_v).project(cam);
+      const on = this.screen.z < 1 && Math.abs(this.screen.x) < 1.1 && Math.abs(this.screen.y) < 1.1;
+      this.d.hud.lockMarker((this.screen.x + 1) / 2 * window.innerWidth, (1 - this.screen.y) / 2 * window.innerHeight, on);
+    } else this.d.hud.lockMarker(0, 0, false);
   }
 }
 

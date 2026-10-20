@@ -1,10 +1,34 @@
 import type { WeaponKind } from '../characters/roster';
 import type { Element } from './Elements';
 
+/** A wave that rides the ground and cuts through everything it passes, once each (Crimson Cleave). */
+export interface CrescentShape {
+  kind: 'crescent';
+  /** Metres it travels, at `speed` m/s. */
+  range: number;
+  speed: number;
+  /** Half its width across the ground (the hit reach either side of its line). */
+  halfWidth: number;
+  /** The skill's burning ground is laid every `burnEvery` metres along its path. */
+  burnEvery: number;
+}
+
+/** A fan of arrows that spreads ±`fan` radians, then each turns after a mob (Moon Volley); the mult is per arrow. */
+export interface VolleyShape { kind: 'volley'; arrows: number; fan: number; range: number; chains: number; chainRange: number }
+
+/**
+ * Stars dropped from `height` metres over the target area (the mark, or `range` ahead), spread within `spread` metres,
+ * each bursting over `radius` metres where it lands (Starfall); the mult is per star.
+ */
+export interface StarfallShape { kind: 'starfall'; stars: number; range: number; height: number; spread: number; radius: number }
+
 export type HitShape =
   | { kind: 'cone'; range: number; halfAngle: number }
   | { kind: 'radius'; radius: number }
-  | { kind: 'bolt'; range: number; chains: number; chainRange: number };
+  | { kind: 'bolt'; range: number; chains: number; chainRange: number }
+  | CrescentShape
+  | VolleyShape
+  | StarfallShape;
 
 /** 'own' resolves to the caster's element; null is physical. */
 export interface AttackDef {
@@ -82,18 +106,24 @@ export const COMBO: Record<WeaponKind, ComboDef> = {
   },
 };
 
+/**
+ * The skills (E), true to their names. Crimson Cleave sends a blood crescent 9 m along the ground that cuts every mob it
+ * passes and leaves its burning ground behind it (a patch every 2 m, the ticks of overlapping patches never doubled);
+ * Moon Volley looses six arrows in a fan that then home in; Starfall drops four stars from the sky onto the target area.
+ */
 export const SKILLS: Record<string, SkillDef> = {
   knight: {
     id: 'crimson-cleave', name: 'Crimson Cleave', cooldown: 8,
-    attack: { mult: 3.0, element: 'own', shape: cone(5, 70), knockback: 4, hitStop: 0.1 },
-    ground: { radius: 3.5, duration: 5, tickMult: 0.4, tickEvery: 1, element: 'blood' },
+    attack: { mult: 3.0, element: 'own', shape: { kind: 'crescent', range: 9, speed: 14, halfWidth: 2, burnEvery: 2 }, knockback: 4, hitStop: 0.1 },
+    // Each patch along the path is as wide as the crescent; one patch's ticks, however many overlap.
+    ground: { radius: 2, duration: 5, tickMult: 0.4, tickEvery: 1, element: 'blood' },
   },
   archer: {
     id: 'moon-volley', name: 'Moon Volley', cooldown: 6,
-    attack: { mult: 2.6, element: 'own', shape: { kind: 'bolt', range: 30, chains: 2, chainRange: 8 }, knockback: 1.5, hitStop: 0.06 },
+    attack: { mult: 0.7, element: 'own', shape: { kind: 'volley', arrows: 6, fan: deg(22), range: 30, chains: 1, chainRange: 8 }, knockback: 1.5, hitStop: 0.06 },
   },
   wizard: {
     id: 'starfall', name: 'Starfall', cooldown: 5,
-    attack: { mult: 2.0, element: 'own', shape: { kind: 'bolt', range: 16, chains: 2, chainRange: 7 }, knockback: 1, hitStop: 0.05 },
+    attack: { mult: 0.8, element: 'own', shape: { kind: 'starfall', stars: 4, range: 16, height: 12, spread: 3, radius: 1.8 }, knockback: 1, hitStop: 0.05 },
   },
 };

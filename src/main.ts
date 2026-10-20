@@ -17,6 +17,7 @@ import { CONTROLLER, createControllerState, startDash, stepController } from './
 import { Party } from './player/Party';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera';
 import { Atmosphere } from './render/Atmosphere';
+import { CombatFx } from './render/CombatFx';
 import { PALETTE } from './render/palette';
 import { LOOKS, Renderer } from './render/Renderer';
 import { CARRIAGE } from './world/Carriage';
@@ -52,6 +53,9 @@ const fog = new FogExp2(PALETTE.fog, islandFog.density);
 scene.fog = fog;
 const bubbles = new Bubbles();
 scene.add(bubbles.group);
+/** The fight's pooled effects (blade ribbons, swing crescents, sparks, flashes, shocks, dust, telegraphs, the cast rune). */
+const combatFx = new CombatFx();
+scene.add(combatFx.group);
 const fogTarget = new Color();
 let portalCooldown = 0;
 
@@ -172,9 +176,13 @@ const lightBudget = new LightBudget(scene, 6);
 lightBudget.collect(scene);
 
 const combat = new CombatSystem({
-  scene, world, sky, hud, camera, game, audio, inventory, controller, party, spawn: SPAWN, events,
+  scene, world, sky, hud, camera, game, audio, inventory, controller, party, spawn: SPAWN, events, fx: combatFx,
   onForceSwitch: (i) => { party.update(Party.cooldown); switchTo(i); },
   onShake: (a) => tpc.shake(a),
+  onKick: (dir, amount) => tpc.kick(dir, amount),
+  onPunch: (delta, seconds) => tpc.punchFov(delta, seconds),
+  onPulse: (strength) => renderer.pulse(strength),
+  weaponTips: (guard, tip) => rigs[party.activeIndex].weaponTips(guard, tip),
   onTrip: (strength, seconds) => renderer.trip(strength, seconds),
   onKill: (kind) => adventures.quests.kill(kind),
   muzzle: () => rigs[party.activeIndex].muzzle(new Vector3()),
@@ -400,6 +408,9 @@ function pressF(): void {
 }
 
 const focus = new Vector3();
+/** Where the camera looks on the ground (Tab's "in front"), and the locked-on target's middle. */
+const lookAhead = new Vector3();
+const lockAt = new Vector3();
 game
   .add({
     update(dt) {
@@ -411,6 +422,8 @@ game
         if (input.locked && input.justPressed(`Digit${i + 1}`)) switchTo(i);
       }
       if (input.locked && input.justPressed('KeyF')) pressF();
+      // Tab: lock on to the nearest enemy in front of the camera, or let go.
+      if (input.locked && input.justPressed('Tab')) combat.toggleLock(tpc.forward(lookAhead));
       combat.update(dt, {
         attack: input.locked && input.mouseJustPressed(0),
         heavyHeld: input.locked && input.mouseDown(2),
@@ -544,7 +557,8 @@ game
         wasLocked = false;
       } else {
         if (!wasLocked) { endOrbit(); tpc.snapTo(focus); wasLocked = true; }
-        tpc.update(focus, dt);
+        // Locked on: the camera eases round to keep the hero and the target in frame.
+        tpc.update(focus, dt, combat.lockPoint(lockAt));
         // `?cam=x,y,z` (debug) pins the camera at a world position looking at the `face` point.
         if (camParam) { camera.position.set(camParam[0], camParam[1], camParam[2]); const fx = faceParam ? faceParam[0] : SPAWN.x; const fz = faceParam ? faceParam[1] : SPAWN.z; camera.lookAt(fx, world.heightAt(fx, fz) + 1.2, fz); }
         // Sizzlin' Slowness: the world leans a little and sways while the lean has hold of you.
@@ -610,6 +624,8 @@ game
       if (titleMusic && input.locked) { audio.title(false); titleMusic = false; }
       game.paused = !input.locked;
       minimap.draw(controller.pos.x, controller.pos.z, tpc.yaw, combat.enemies.map((e) => ({ x: e.pos.x, z: e.pos.z, alive: e.alive, aggro: e.aggro, boss: !!e.def.boss })), inventory.reveals(), area.npcs.map((n) => ({ x: n.pos.x, z: n.pos.z })));
+      // The fight's effects run on real time (they keep moving through a hit-stop), after the camera has moved.
+      combatFx.update(dt, camera);
       renderer.render(scene, camera);
     },
   });
@@ -620,6 +636,8 @@ declare global {
     __ginseng: {
       scene: Scene; camera: PerspectiveCamera; terrain: Terrain; world: World['heights']; area: World; sky: Sky; controller: typeof controller;
       party: Party<(typeof ROSTER)[number]>; tpc: ThirdPersonCamera; input: Input; game: Game; renderer: Renderer; combat: CombatSystem;
+      /** The fight's pooled effects (live counts: `fx.live`). */
+      fx: CombatFx;
       inventory: Inventory; hud: Hud; companions: Companion[]; audio: Audio;
       /** Quests and side adventures; F and its current target (headless checks press F without pointer lock). */
       adventures: Adventures; pressF: () => void; interactTarget: typeof interactTarget;
@@ -630,4 +648,4 @@ declare global {
     };
   }
 }
-window.__ginseng = { scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs, events };
+window.__ginseng = { scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, fx: combatFx, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs, events };

@@ -4,6 +4,9 @@ export interface CameraWorld {
   heightAt(x: number, z: number, y?: number): number;
 }
 
+/** How fast the yaw eases toward a locked-on target (per second). */
+const LOCK_EASE = 5;
+
 /**
  * Orbit spring-arm camera. Yaw is also the movement reference frame.
  * yaw = 0 looks toward -z (north); positive yaw rotates clockwise when viewed from above.
@@ -55,13 +58,27 @@ export class ThirdPersonCamera {
     return out.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
   }
 
-  update(target: Vector3, dt: number): void {
+  /**
+   * Follows `target` (the hero's head). With `lock` (a locked-on enemy's middle) the yaw eases round until the camera
+   * looks over the hero at it, so both stay framed; the mouse still turns the rig, the lock just keeps pulling back.
+   */
+  update(target: Vector3, dt: number, lock?: Vector3): void {
     const k = 1 - Math.exp(-dt * 14);
     if (!this.initialised) {
       this.focus.copy(target);
       this.initialised = true;
     } else {
       this.focus.lerp(target, k);
+    }
+    if (lock) {
+      const dx = lock.x - this.focus.x;
+      const dz = lock.z - this.focus.z;
+      // (Too close to tell a direction: hold the yaw rather than spin.)
+      if (dx * dx + dz * dz > 2.25) {
+        const want = Math.atan2(-dx, -dz);
+        const diff = Math.atan2(Math.sin(want - this.yaw), Math.cos(want - this.yaw));
+        this.yaw += diff * (1 - Math.exp(-dt * LOCK_EASE));
+      }
     }
     const cp = Math.cos(this.pitch);
     this.desired.set(

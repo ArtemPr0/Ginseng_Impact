@@ -516,4 +516,10 @@ export class Audio {
     line.gain.gain.linearRampToValueAtTime(0, t + VOICE_FADE);
     line.src.stop(t + VOICE_FADE);
   }
+
+  /**
+   * Where effects synthesised outside this class plug in (CombatSfx, through toneAt / noiseAt): the effects' master
+   * gain, so they share the effects' volume, the muffle and the compressor. Null until unlock().
+   */
+  get sfxInput(): AudioNode | null { return this.master; }
 }
