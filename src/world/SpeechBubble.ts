@@ -14,7 +14,8 @@ export class SpeechBubble {
   constructor(private readonly heightAbove: number) {
     this.canvas.width = 512;
     this.canvas.height = 112;
-    this.mat = new SpriteMaterial({ map: new CanvasTexture(this.canvas), transparent: true, depthWrite: false, depthTest: false, opacity: 0 });
+    // Depth-tested: a wall between you and the speaker hides it (the stone head's sits in front of its mouth).
+    this.mat = new SpriteMaterial({ map: new CanvasTexture(this.canvas), transparent: true, depthWrite: false, depthTest: true, opacity: 0 });
     this.sprite = new Sprite(this.mat);
     this.sprite.scale.set(2.6, 2.6 * (112 / 512), 1);
     this.sprite.position.y = heightAbove;

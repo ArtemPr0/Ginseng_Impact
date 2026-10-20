@@ -101,7 +101,9 @@ export class Carriage {
       label: () => (this.driving ? null : 'Share a smoke and a drink with the Count'),
       act: () => {
         shared++;
-        this.passenger?.speak();
+        // Whichever of his lines comes to him.
+        const p = this.passenger;
+        if (p) p.speak(1, Math.floor(Math.random() * p.def.lines.length));
         // A pull of his pipe and a sip of his cup: the quarter swims.
         trip(0.6 + Math.min(0.3, shared * 0.1), 6);
       },

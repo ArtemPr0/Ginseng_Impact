@@ -148,7 +148,7 @@ function switchTo(i: number): boolean {
   return true;
 }
 
-Npc.sound = { voice: (url, gain) => audio.voice(url, gain), slurp: (gain) => audio.slurp(gain) };
+Npc.sound = { voice: (url, gain, channel) => audio.voice(url, gain, channel), slurp: (gain) => audio.slurp(gain) };
 Rig.sound = { slurp: (gain) => audio.slurp(gain), rustle: () => audio.rustle(), munch: () => audio.munch() };
 const lightBudget = new LightBudget(scene, 6);
 lightBudget.collect(scene);
