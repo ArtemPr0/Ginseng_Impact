@@ -34,6 +34,12 @@ describe('Save', () => {
     expect(storage.map.has(SAVE_KEY)).toBe(true);
     expect(save.has()).toBe(true);
     expect(save.load()).toEqual(s);
+    // And what comes back restores into a bag whose numbers are numbers.
+    const back = new Inventory();
+    back.restore(save.load()!.inventory);
+    expect(back.atkBonus('knight')).toBe(48);
+    expect(back.critBonus('knight')).toBeCloseTo(0.05);
+    expect(back.charmOf('archer')?.itemId).toBe('lunar-charm');
     // Another Save on the same storage (the next page load) reads it too; another key does not.
     expect(new Save(storage).load()).toEqual(s);
     expect(new Save(storage, 'other').load()).toBeNull();
@@ -65,6 +71,14 @@ describe('Save', () => {
     expect(bad(JSON.stringify({ ...sample(), bosses: { yeti: {} } }))).toBeNull();
     expect(bad(JSON.stringify({ ...sample(), inventory: { shards: 1, entries: [{ count: 1 }] } }))).toBeNull();
     expect(bad(JSON.stringify({ ...sample(), inventory: { shards: 1, entries: [{ itemId: 'x', count: 1, affix: { atk: 2 } }] } }))).toBeNull();
+    // An affix's lines must be finite numbers and its element one of the seven: atk '9' would reach computeDamage as "409".
+    const affixed = (affix: unknown) => JSON.stringify({ ...sample(), inventory: { shards: 1, entries: [{ itemId: 'fang-cleaver', count: 1, equippedBy: 'knight', affix }] } });
+    expect(bad(affixed({ name: 'of the Moon', atk: '9' }))).toBeNull();
+    expect(bad(affixed({ name: 'of the Moon', crit: 'lots' }))).toBeNull();
+    expect(bad(affixed({ name: 'of the Moon', element: 'plasma' }))).toBeNull();
+    expect(bad(affixed({ name: 'of the Moon', hp: null }))).toBeNull();
+    expect(bad(affixed({ name: 'of the Moon', element: 'constructor' }))).toBeNull();
+    expect(bad(affixed({ name: 'of the Moon', atk: 9, hp: 40, crit: 0.05, element: 'lunar' }))).not.toBeNull();
     expect(bad(JSON.stringify({ ...sample(), newGamePlus: 'no' }))).toBeNull();
     // `state` is optional, and extra fields are no harm.
     expect(bad(JSON.stringify({ ...sample(), state: { kills: 3 }, extra: true }))).not.toBeNull();
@@ -108,6 +122,25 @@ describe('Save', () => {
     expect(fresh.tick(0.5, snap)).toBe(false);
     expect(fresh.tick(0.5, snap)).toBe(true);
     expect(writes).toBe(5);
+  });
+
+  it('ignores a NaN, infinite or negative dt, so the minute throttle stays', () => {
+    const save = new Save(memory());
+    let writes = 0;
+    const snap = () => { writes++; return sample(); };
+    save.markDirty();
+    expect(save.tick(NaN, snap)).toBe(false);
+    expect(save.tick(-5, snap)).toBe(false);
+    expect(save.tick(Infinity, snap)).toBe(false);
+    expect(save.tick(SAVE_INTERVAL - 1, snap)).toBe(false);
+    expect(save.tick(1, snap)).toBe(true);
+    expect(writes).toBe(1);
+    // The clock is still sane afterwards: the next write waits its minute out.
+    save.markDirty();
+    expect(save.tick(NaN, snap)).toBe(false);
+    expect(save.tick(0, snap)).toBe(false);
+    expect(save.tick(SAVE_INTERVAL, snap)).toBe(true);
+    expect(writes).toBe(2);
   });
 
   it('survives a storage that throws', () => {

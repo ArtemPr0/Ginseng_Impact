@@ -36,8 +36,9 @@ export const CHESTS: ChestDef[] = [
   // The Frost March: in the snow north of the chasm, between the broken column and the colossus's shore.
   { id: 'frost-march', zone: 'island', x: 92, z: -88, kind: 'hoard', respawn: CHEST_RESPAWN, shards: [50, 120],
     table: [{ itemId: 'wisp-ember', chance: 0.6 }, { itemId: 'yeti-pelt', chance: 0.15 }, { itemId: 'rot-salve', chance: 0.3 }, { itemId: 'moon-dew', chance: 0.4 }, { itemId: 'glacier-maul', chance: 0.03 }] },
-  // The castle terrace, east of the gate and the Antlered King's throne (the south wall ends at z 1).
-  { id: 'castle-terrace', zone: 'island', x: -84, z: 5, kind: 'hoard', respawn: CHEST_RESPAWN, shards: [40, 100],
+  // The castle terrace, east of the gate and the Antlered King's throne (the south wall ends at z 1), on the flat of
+  // the castle's rock and off the worn road up to the gate (LAYOUT.paths[3]: 3.8 m from its centreline).
+  { id: 'castle-terrace', zone: 'island', x: -80, z: 2, kind: 'hoard', respawn: CHEST_RESPAWN, shards: [40, 100],
     table: [{ itemId: 'sentinel-core', chance: 0.3 }, { itemId: 'rune-shard', chance: 0.6 }, { itemId: 'lotus-tea', chance: 0.4 }, { itemId: 'moon-dew', chance: 0.4 }, { itemId: 'crown-blade', chance: 0.05 }] },
   // Past the world tree's roots on the north side (they end at z -117), away from the graves and the priest.
   { id: 'world-tree', zone: 'island', x: 44, z: -122, kind: 'hoard', respawn: CHEST_RESPAWN, shards: [40, 110],
@@ -58,8 +59,9 @@ export const CHESTS: ChestDef[] = [
   // In the snow among the graves west of the chapel.
   { id: 'chapel-graves', zone: 'galaxy', x: 884, z: 150, kind: 'hoard', respawn: CHEST_RESPAWN, shards: [40, 100],
     table: [{ itemId: 'old-bone', chance: 0.7 }, { itemId: 'wisp-ember', chance: 0.5 }, { itemId: 'rot-salve', chance: 0.3 }, { itemId: 'moon-dew', chance: 0.4 }, { itemId: 'tide-blade', chance: 0.03 }] },
-  // Bucket Street: one more bucket among the buckets, at the head of the street by the first purple house.
-  { id: 'street-mimic', zone: 'galaxy', x: 900, z: 10, kind: 'mimic', respawn: CHEST_RESPAWN, shards: [40, 100],
+  // Bucket Street: one more bucket among the buckets, at the head of the street between the purple mushrooms' line
+  // (z 11, every 7 m) and the diamond wizard mid-street (900, 18): 4 m from the nearest mushroom, 5.3 m from him.
+  { id: 'street-mimic', zone: 'galaxy', x: 904, z: 14.5, kind: 'mimic', respawn: CHEST_RESPAWN, shards: [40, 100],
     table: [{ itemId: 'lotus-tea', chance: 0.5 }, { itemId: 'rune-shard', chance: 0.5 }, { itemId: 'wisp-ember', chance: 0.5 }, { itemId: 'witch-staff', chance: 0.06 }] },
   // ----- The Sunken City -----
   // The square before the sea castle's gate, between the long tables of goblets.

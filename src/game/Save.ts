@@ -5,6 +5,7 @@
  */
 import type { Zone } from './Events';
 import type { InvSnapshot } from '../items/Inventory';
+import { AFFIX_TOKENS, type Affix } from '../items/Items';
 
 export interface SaveV1 {
   v: 1;
@@ -52,11 +53,24 @@ const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object
 const isStrList = (v: unknown): v is string[] => Array.isArray(v) && v.every(isStr);
 const isRecordOf = <T>(v: unknown, ok: (x: unknown) => x is T): v is Record<string, T> => isObj(v) && Object.values(v).every(ok);
 
+/** The seven elements an affix may name (items/Items AFFIX_TOKENS); a Set, so 'constructor' and its kin are not in it. */
+const ELEMENTS = new Set<string>(Object.keys(AFFIX_TOKENS));
+const isOptNum = (v: unknown): v is number | undefined => v === undefined || isNum(v);
+
+/**
+ * An affix with a string name and, where present, finite numbers for atk/hp/crit and a real element: a line like
+ * atk '9' would otherwise ride through Inventory.atkBonus into computeDamage as the string "409".
+ */
+function isAffix(v: unknown): v is Affix {
+  return isObj(v) && isStr(v.name) && isOptNum(v.atk) && isOptNum(v.hp) && isOptNum(v.crit)
+    && (v.element === undefined || (isStr(v.element) && ELEMENTS.has(v.element)));
+}
+
 function isInventory(v: unknown): v is InvSnapshot {
   if (!isObj(v) || !isNum(v.shards) || !Array.isArray(v.entries)) return false;
   return v.entries.every((e) => isObj(e) && isStr(e.itemId) && isNum(e.count)
     && (e.equippedBy === undefined || isStr(e.equippedBy)) && (e.charmOf === undefined || isStr(e.charmOf))
-    && (e.affix === undefined || (isObj(e.affix) && isStr(e.affix.name))));
+    && (e.affix === undefined || isAffix(e.affix)));
 }
 
 /** A version-1 document with every required field of the right shape, or null. */
@@ -133,10 +147,11 @@ export class Save {
 
   /**
    * Advances the autosave clock; writes `snapshot()` when dirty and SAVE_INTERVAL seconds have passed since the last
-   * write (or attempt). Returns whether it wrote.
+   * write (or attempt). Returns whether it wrote. A NaN, infinite or negative dt counts for nothing (a NaN clock
+   * would otherwise write on every dirty tick for good).
    */
   tick(dt: number, snapshot: () => SaveV1): boolean {
-    this.clock += Math.max(0, dt);
+    this.clock += Number.isFinite(dt) ? Math.max(0, dt) : 0;
     if (!this.dirty || this.clock - this.lastWrite < SAVE_INTERVAL) return false;
     return this.write(snapshot());
   }

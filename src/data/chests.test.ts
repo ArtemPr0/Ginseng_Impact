@@ -31,8 +31,11 @@ function pathDist(p: XZ, path: ReadonlyArray<readonly [number, number]>): number
   return path.length === 1 ? dist(p, { x: path[0][0], z: path[0][1] }) : best;
 }
 
-/** Everything that walks a route: the NPC loops (world/NPCs.ts), the island's big walkers (LAYOUT), the mobs' patrols. */
-const WALKS: Array<{ zone: Zone; path: ReadonlyArray<readonly [number, number]> }> = [
+/**
+ * Everything that walks a route: the NPC loops (world/NPCs.ts), the island's big walkers (LAYOUT), the mobs' patrols,
+ * and the island's worn footpaths (LAYOUT.paths), which a chest must leave open: 2.5 m from their centreline.
+ */
+const WALKS: Array<{ zone: Zone; path: ReadonlyArray<readonly [number, number]>; clearance?: number }> = [
   { zone: 'island', path: [[40, 60], [50, 62], [58, 56]] },                 // the wanderer crossing the desert's edge
   { zone: 'island', path: [[-52, 70], [-30, 70.4], [-12, 70]] },             // the lantern walker on the village street
   { zone: 'island', path: [[-58, 70], [-34, 70], [-8, 70]] },                // the carrier on the village street
@@ -41,7 +44,13 @@ const WALKS: Array<{ zone: Zone; path: ReadonlyArray<readonly [number, number]> 
   { zone: 'island', path: LAYOUT.logGiantPath },
   { zone: 'island', path: LAYOUT.riderPath },
   ...ENEMY_SPAWNS.filter((s) => s.patrol).map((s) => ({ zone: zoneOf(s.x, s.z), path: s.patrol! })),
+  ...LAYOUT.paths.map((path) => ({ zone: 'island' as Zone, path, clearance: 2.5 })),
 ];
+
+/** Bucket Street's purple mushrooms with their glows (LeanQuarter.ts): every 7 m along z 11 and z 25 from x 934, except by the stalls. */
+const STALLS = [{ x: 915, z: 8.6 }, { x: 879, z: 27.4 }];
+const STREET_MUSHROOMS: XZ[] = [];
+for (let x = 934; x > 842; x -= 7) for (const z of [11, 25]) if (!STALLS.some((st) => Math.hypot(st.x - x, st.z - z) < 3)) STREET_MUSHROOMS.push({ x, z });
 
 /** The buildings the chests sit by, placed as the world places them (World.ts, LeanQuarter.ts, Sunken.ts, Vale.ts). */
 const face = (yaw: number) => Math.PI / 2 - yaw;
@@ -63,7 +72,7 @@ const BUILDINGS: Footprint[] = ([
   gridFootprint('stone-throne', 956, GY, -176, face(Math.PI / 2)),
   gridFootprint('castle', Q.castle.x, GY, Q.castle.z, face(0)),
   ...[924, 906, 888, 870, 852].flatMap((x) => [4, 32].map((z): Footprint => ({ kind: 'box', x, z, hw: 3.4, hd: 3.4, top: GY + 9 }))),
-  { kind: 'box', x: 915, z: 8.6, hw: 1.8, hd: 1.2, top: GY + 1.1 }, { kind: 'box', x: 879, z: 27.4, hw: 1.8, hd: 1.2, top: GY + 1.1 },
+  ...STALLS.map((st): Footprint => ({ kind: 'box', x: st.x, z: st.z, hw: 1.8, hd: 1.2, top: GY + 1.1 })),
   gridFootprint('sea-castle', -1000, -48, -80, 0),
   ...[12, 2, -8, -18, -28, -38, -48].flatMap((z, i) => [-1, 1].map((side): Footprint => ({ kind: 'box', x: -1000 + side * (10.5 + (i % 2) * 0.8), z, hw: 3.3, hd: 3.3, top: -42 }))),
   gridFootprint('crowned-head', 1000 - 85, 0, 900 + 20, face(0.25), 1.5),
@@ -113,10 +122,11 @@ describe('CHESTS', () => {
     }
   });
 
-  it('keeps at least 3 m from every NPC spot and walker path, and 4 m from every mob spawn', () => {
+  it('keeps at least 3 m from every NPC spot and walker path, 2.5 m from the footpaths, and 4 m from every mob spawn', () => {
+    expect(WALKS.filter((w) => w.clearance === 2.5).length).toBe(LAYOUT.paths.length);
     for (const c of CHESTS) {
       for (const [id, a] of Object.entries(ANCHORS)) expect(dist(c, a), `${c.id} vs ${id}`).toBeGreaterThanOrEqual(3);
-      for (const w of WALKS) if (w.zone === c.zone) expect(pathDist(c, w.path), `${c.id} vs a walker`).toBeGreaterThanOrEqual(3);
+      for (const w of WALKS) if (w.zone === c.zone) expect(pathDist(c, w.path), `${c.id} vs the path from ${w.path[0]}`).toBeGreaterThanOrEqual(w.clearance ?? 3);
       for (const s of ENEMY_SPAWNS) if (zoneOf(s.x, s.z) === c.zone) expect(dist(c, s), `${c.id} vs ${s.kind}`).toBeGreaterThanOrEqual(4);
     }
   });
@@ -127,7 +137,10 @@ describe('CHESTS', () => {
       for (const f of BUILDINGS) expect(footprintContains(f, c.x, c.z), `${c.id} inside ${f.kind === 'grid' ? f.id : `${f.kind} at ${f.x},${f.z}`}`).toBe(false);
       // The small pads level the ground under one creature or NPC each; the big ones (the castle's rock, the world tree) are ground.
       if (c.zone === 'island') for (const p of PADS) if (p.r < 10) expect(dist(c, p), `${c.id} on the pad at ${p.x},${p.z}`).toBeGreaterThan(p.r);
+      // Bucket Street's mushrooms stand every 7 m along both kerbs: a chest keeps 2.5 m from each.
+      if (c.zone === 'galaxy') for (const m of STREET_MUSHROOMS) expect(dist(c, m), `${c.id} on the mushroom at ${m.x},${m.z}`).toBeGreaterThanOrEqual(2.5);
     }
+    expect(STREET_MUSHROOMS.length).toBeGreaterThan(20);
   });
 
   it('sits on the island\'s ground, not in the chasm or over the cliff', () => {

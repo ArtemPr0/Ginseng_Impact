@@ -17,6 +17,9 @@ export interface InvSnapshot { shards: number; entries: Array<Omit<InvEntry, 'ui
 
 let nextUid = 1;
 
+/** Weapons and charms are one to an entry (each is wielded or worn on its own); everything else stacks. */
+const single = (d: ItemDef): boolean => d.kind === 'weapon' || d.kind === 'charm';
+
 /** Pure inventory: stacks, equipment per character, the charm slot per character, Moon Shards (the currency, `shards`). */
 export class Inventory {
   readonly entries: InvEntry[] = [];
@@ -28,24 +31,26 @@ export class Inventory {
     return d;
   }
 
-  /** Adds an item; plain stackables merge (an affixed item is its own entry). Returns the entry uid. */
+  /**
+   * Adds an item; plain stackables merge (an affixed item is its own entry). Weapons and charms never stack: each is
+   * its own entry, so two heroes wear one lunar charm each and the spare still sells. Returns the (first) entry uid.
+   */
   add(itemId: string, count = 1, affix?: Affix): number {
     const d = this.def(itemId);
-    if (d.kind !== 'weapon' && !affix) {
+    if (!single(d) && !affix) {
       const existing = this.entries.find((e) => e.itemId === itemId && !e.affix);
       if (existing) { existing.count += count; return existing.uid; }
     }
-    const e: InvEntry = { uid: nextUid++, itemId, count: d.kind === 'weapon' ? 1 : count };
+    const e = this.push(itemId, single(d) ? 1 : count, affix);
+    if (single(d)) for (let i = 1; i < count; i++) this.push(itemId, 1, affix);
+    return e.uid;
+  }
+
+  private push(itemId: string, count: number, affix?: Affix): InvEntry {
+    const e: InvEntry = { uid: nextUid++, itemId, count };
     if (affix) e.affix = { ...affix };
     this.entries.push(e);
-    if (d.kind === 'weapon' && count > 1) {
-      for (let i = 1; i < count; i++) {
-        const more: InvEntry = { uid: nextUid++, itemId, count: 1 };
-        if (affix) more.affix = { ...affix };
-        this.entries.push(more);
-      }
-    }
-    return e.uid;
+    return e;
   }
 
   count(itemId: string): number {
@@ -56,9 +61,17 @@ export class Inventory {
     return this.count(itemId) > 0;
   }
 
-  /** Removes `count` of an item from its loose entries (never from a wielded weapon or a worn charm). */
+  /** How many of an item are neither wielded nor worn (what `remove` may take). */
+  loose(itemId: string): number {
+    return this.entries.filter((e) => e.itemId === itemId && !e.equippedBy && !e.charmOf).reduce((n, e) => n + e.count, 0);
+  }
+
+  /**
+   * Removes `count` of an item from its loose entries (never from a wielded weapon or a worn charm). All or nothing:
+   * when fewer than `count` are loose it takes none and returns false.
+   */
   remove(itemId: string, count = 1): boolean {
-    if (this.count(itemId) < count) return false;
+    if (this.loose(itemId) < count) return false;
     let left = count;
     for (let i = this.entries.length - 1; i >= 0 && left > 0; i--) {
       const e = this.entries[i];
@@ -184,17 +197,22 @@ export class Inventory {
     return { shards: this.shards, entries };
   }
 
-  /** Replaces the bag with a snapshot's; entries get fresh uids. An entry whose item no longer exists is dropped. */
+  /**
+   * Replaces the bag with a snapshot's; entries get fresh uids. An entry whose item no longer exists is dropped, and a
+   * hand-edited save is kept sane: a weapon or charm with count n becomes n entries, only a weapon is wielded and only
+   * a charm worn, and where the save gives one hero two of either the first wins.
+   */
   restore(s: InvSnapshot): void {
     this.entries.length = 0;
     this.shards = Math.max(0, Math.floor(s.shards)) || 0;
     for (const e of s.entries) {
-      if (!ITEMS[e.itemId] || !(e.count > 0)) continue;
-      const entry: InvEntry = { uid: nextUid++, itemId: e.itemId, count: Math.floor(e.count) };
-      if (e.equippedBy) entry.equippedBy = e.equippedBy;
-      if (e.charmOf) entry.charmOf = e.charmOf;
-      if (e.affix) entry.affix = { ...e.affix };
-      this.entries.push(entry);
+      const d = ITEMS[e.itemId];
+      const n = Math.floor(e.count);
+      if (!d || !(n > 0)) continue;
+      const first = this.push(e.itemId, single(d) ? 1 : n, e.affix);
+      if (d.kind === 'weapon' && e.equippedBy && !this.equipped(e.equippedBy)) first.equippedBy = e.equippedBy;
+      if (d.kind === 'charm' && e.charmOf && !this.charmOf(e.charmOf)) first.charmOf = e.charmOf;
+      if (single(d)) for (let i = 1; i < n; i++) this.push(e.itemId, 1, e.affix);
     }
   }
 }
