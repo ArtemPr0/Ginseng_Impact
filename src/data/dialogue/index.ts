@@ -25,8 +25,8 @@ function merge(...books: DialogueBook[]): DialogueBook {
 /** NPC id → persona and lines, for every NPC in NPC_DEFS and the Stone Head. */
 export const DIALOGUE: DialogueBook = merge(ISLAND_A, ISLAND_B, KINGDOM, REALMS);
 
-/** Items the story adds later (the quests give and take them); not in ITEMS yet. */
-export const NEW_ITEM_IDS: readonly string[] = ['drowned-bell', 'grave-crown', 'old-ledger'];
+/** Items the books name that are not in ITEMS yet. None now: the story's items (data/quests.ts) are all in ITEMS. */
+export const NEW_ITEM_IDS: readonly string[] = [];
 
 /** Every quest the books advance or ask about ('quest:<id>:<stage>' actions, Cond.quest). */
 export const QUEST_IDS: readonly string[] = ['silence', 'throne', 'croak', 'trip', 'crown', 'lean', 'sound', 'bell', 'grave', 'penny', 'books', 'rose', 'bride'];
