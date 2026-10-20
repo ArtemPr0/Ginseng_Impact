@@ -388,7 +388,7 @@ describe('open', () => {
   });
 
   it('leads through the reaction when one scored', () => {
-    const { state, mind } = mk({ now: 5 });
+    const { state, ctx, mind } = mk({ now: 5 });
     state.record(kill('beast'));
     const conv = mind.open('brannoc');
     expect(conv.first.line.id).toBe('b.greet.first');
@@ -397,7 +397,33 @@ describe('open', () => {
     expect(conv.nodes[1].text).toBe('You killed Fog Beast. It owed me money.');
     expect(conv.nodes[1].choices.map((c) => c.to)).toEqual(['b.topic.warden', 'b.topic.offer', 'b.topic.self', 'b.topic.secret', 'b.bye.go']);
     expect(Object.keys(state.npc.brannoc.said).sort()).toEqual(['b.greet.first', 'b.react.beast']);
-    expect(mind.choose('brannoc', conv.first.choices[0])?.line.id).toBe('b.react.beast');
+    const next = mind.choose('brannoc', conv.first.choices[0]);
+    expect(next?.line.id).toBe('b.react.beast');
+    expect(next?.choices.map((c) => c.to)).toEqual(['b.topic.warden', 'b.topic.offer', 'b.topic.self', 'b.topic.secret', 'b.bye.go']);
+    // Remembered when the conversation opened; following the '…' does not count it a second time.
+    expect(state.npc.brannoc.said['b.react.beast']).toEqual({ n: 1, at: 5 });
+    // Said once, not once ever: a fresh kill long after brings it back.
+    state.tick(395);
+    state.record(kill('beast'));
+    expect(new Mind({ ...ctx, now: 400 }).open('brannoc').first.choices.map((c) => c.to)).toEqual(['b.react.beast']);
+
+    // A once reaction is reached the same way (not cut off by its own once check), counted once, and never again.
+    const book: DialogueBook = {
+      ...BOOK,
+      brannoc: { ...BOOK.brannoc, lines: BOOK.brannoc.lines.map((l) => (l.id === 'b.react.beast' ? { ...l, once: true } : l)) },
+    };
+    const once = mk({ now: 5, book });
+    once.state.record(kill('beast'));
+    const conv2 = once.mind.open('brannoc');
+    expect(conv2.first.choices).toEqual([{ label: CONTINUE_LABEL, to: 'b.react.beast', action: null }]);
+    const reaction = once.mind.choose('brannoc', conv2.first.choices[0]);
+    expect(reaction?.line.id).toBe('b.react.beast');
+    expect(reaction?.text).toBe('You killed Fog Beast. It owed me money.');
+    expect(reaction?.choices.map((c) => c.to)).toEqual(['b.topic.warden', 'b.topic.offer', 'b.topic.self', 'b.topic.secret', 'b.bye.go']);
+    expect(once.state.npc.brannoc.said['b.react.beast']).toEqual({ n: 1, at: 5 });
+    once.state.tick(395);
+    once.state.record(kill('beast'));
+    expect(new Mind({ ...once.ctx, now: 400 }).open('brannoc').first.choices.map((c) => c.to)).not.toContain('b.react.beast');
   });
 
   it('follows choices to the next node and ends on the bye', () => {

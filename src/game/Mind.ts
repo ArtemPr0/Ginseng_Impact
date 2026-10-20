@@ -282,6 +282,11 @@ interface Session {
   met: number;
   /** Lines said in this conversation (not offered again in its hub). */
   said: Set<string>;
+  /**
+   * Lines remembered when the conversation opened but not shown yet (the reaction behind the greet's '…'):
+   * `choose` delivers each without counting it a second time, then it is an ordinary line again.
+   */
+  pending: Set<string>;
   /** The hub's topic order, fixed when the conversation opened. */
   order: string[];
   /** The conversation's bye line (null: none in the book), settled at the first hub; undefined until then. */
@@ -345,7 +350,7 @@ export class Mind {
       this.session = null;
       return { npcId, nodes: [], first: { line: SILENT, text: SILENT.text, choices: [{ label: LEAVE_LABEL, action: { kind: 'close' } }] } };
     }
-    this.session = { npcId, met: this.metBefore(npcId), said: new Set(), order: [] };
+    this.session = { npcId, met: this.metBefore(npcId), said: new Set(), pending: new Set(), order: [] };
     const greet = this.best(npcId, 'greet')?.line ?? null;
     const reactBest = this.best(npcId, 'react');
     // A greet with its own choices stands as written: no room for a reaction after it.
@@ -359,7 +364,10 @@ export class Mind {
     const reactNode = react ? this.resolve(npcId, react, true) : null;
     if (greet) {
       first = this.resolve(npcId, greet, !reactNode);
-      if (reactNode) first.choices = [{ label: CONTINUE_LABEL, to: reactNode.line.id, action: null }];
+      if (reactNode) {
+        first.choices = [{ label: CONTINUE_LABEL, to: reactNode.line.id, action: null }];
+        this.session.pending.add(reactNode.line.id);
+      }
     } else if (reactNode) {
       first = reactNode;
     } else {
@@ -375,17 +383,20 @@ export class Mind {
 
   /**
    * Follows a choice's `to` (after the integration has executed its action) to the next node, or null when the
-   * conversation ends: no `to`, an unknown line, or a `once` line already said.
+   * conversation ends: no `to`, an unknown line, or a `once` line already said. The reaction `open` remembered
+   * behind the greet's '…' is delivered as it is: `once` or not, it is not counted again.
    */
   choose(npcId: string, choice: Partial<Choice> | ResolvedChoice): Resolved | null {
     const npc = this.ctx.book[npcId];
     if (!npc || !choice.to) return null;
     const line = npc.lines.find((l) => l.id === choice.to);
     if (!line) return null;
-    if (line.once && this.ctx.state.npc[npcId]?.said[line.id]) return null;
-    if (!this.session || this.session.npcId !== npcId) this.session = { npcId, met: this.metBefore(npcId), said: new Set(), order: [] };
+    const session = this.session?.npcId === npcId ? this.session : null;
+    const remembered = session?.pending.delete(line.id) ?? false;
+    if (!remembered && line.once && this.ctx.state.npc[npcId]?.said[line.id]) return null;
+    if (!session) this.session = { npcId, met: this.metBefore(npcId), said: new Set(), pending: new Set(), order: [] };
     const node = this.resolve(npcId, line, true);
-    this.remember(npcId, line.id);
+    if (!remembered) this.remember(npcId, line.id);
     return node;
   }
 

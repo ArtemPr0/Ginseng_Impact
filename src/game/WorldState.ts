@@ -63,7 +63,7 @@ export const SALIENCE_DECAY = 60;
 /** "Never": far enough in the past that no `within` test can match it. */
 export const NEVER = -1e9;
 
-/** Feats that set a world flag (dodge and attack only count). */
+/** Feats that set a world flag (dodge only counts; attack is recorded only). */
 const FEAT_FLAG: Partial<Record<Feat, Flag>> = {
   lick: 'licked', ale: 'ale', fountain: 'fountain', skyeye: 'skyeyes', carriage: 'carriage', bounce: 'bounce',
   fly: 'flew', swim: 'swam', climb: 'climbed', crit: 'crit', chest: 'chest', levelup: 'levelup', sip: 'sip',
