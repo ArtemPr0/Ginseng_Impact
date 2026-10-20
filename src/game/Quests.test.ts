@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { VOICES } from '../data/voices';
 import { dialogueFor, type DialogueWorld } from './Dialogue';
 import { Events } from './Events';
-import { Quests } from './Quests';
+import { QUESTS, Quests } from './Quests';
 
 describe('Quests', () => {
   it('starts every quest at none and tracks only the ones in progress', () => {
@@ -46,6 +46,58 @@ describe('Quests', () => {
     q.kill('warden');
     q.start('throne', 'active');
     expect(steps.slice(3)).toEqual(['throne:active', 'throne:slain']);
+  });
+});
+
+describe('Quests — the save', () => {
+  it('snapshots every quest, the flag-like ones too', () => {
+    const q = new Quests();
+    expect(Object.keys(q.snapshot()).sort()).toEqual(Object.keys(QUESTS).sort());
+    q.set('throne', 'active');
+    q.set('trip', 'done');
+    expect(q.snapshot()).toEqual({ throne: 'active', croak: 'none', lean: 'none', sound: 'none', trip: 'done', crown: 'none' });
+  });
+
+  it('restores stages without firing any step, with one onChange at the end', () => {
+    const q = new Quests();
+    let changes = 0;
+    q.onChange = () => changes++;
+    q.set('sound', 'found');
+    changes = 0;
+    q.restore({ throne: 'active', croak: 'returned', trip: 'done', bogus: 'whatever', constructor: 'nope' });
+    expect(changes).toBe(1);
+    expect(q.stage('throne')).toBe('active');
+    expect(q.stage('croak')).toBe('returned');
+    expect(q.stage('trip')).toBe('done');
+    // Replaced, not merged: what the snapshot does not name is back at none.
+    expect(q.stage('sound')).toBe('none');
+    expect(q.tracker().map((t) => t.title)).toEqual(['The Usurped Throne', 'The Prodigal Croak']);
+    // A kill logged before the restore does not move a restored quest (the save already settled that).
+    const r = new Quests();
+    r.kill('warden');
+    r.restore({ throne: 'active' });
+    expect(r.stage('throne')).toBe('active');
+    expect(r.snapshot()).toEqual({ ...new Quests().snapshot(), throne: 'active' });
+    // A stage the quest does not have (no dialogue path would ever move it on) is ignored, so the quest is not stuck.
+    const s = new Quests();
+    s.restore({ throne: 'bogus', trip: 'active', croak: 'constructor', lean: 'none', sound: 'done', crown: 'done' });
+    expect(s.snapshot()).toEqual({ throne: 'none', croak: 'none', lean: 'none', sound: 'done', trip: 'none', crown: 'done' });
+    expect(s.active('throne')).toBe(false);
+    expect(s.tracker()).toEqual([]);
+  });
+
+  it('keeps the kill log across a save: a quest given later still counts the kill', () => {
+    const a = new Quests();
+    a.kill('warden');
+    a.kill('yeti');
+    expect(a.slain().sort()).toEqual(['warden', 'yeti']);
+    const b = new Quests();
+    b.restoreSlain(a.slain());
+    expect(b.stage('throne')).toBe('none');
+    b.start('throne', 'active');
+    expect(b.stage('throne')).toBe('slain');
+    b.restoreSlain([]);
+    expect(b.slain()).toEqual([]);
   });
 });
 
