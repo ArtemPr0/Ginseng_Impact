@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { Color } from 'three';
-import { LAYER, LAYER_COUNT, TEXTURE_LAYERS } from '../render/Ground';
+import { Heightfield, LAYER, LAYER_COUNT, TEXTURE_LAYERS } from '../render/Ground';
+import { gridFootprint } from '../world/Colliders';
 import { Noise2D, smoothstep } from '../world/noise';
 import { ENEMY_SPAWNS } from './enemies';
 import {
-  ABYSS_Y, CHAPEL_Y, CUPS, CUP_R, DOCK_PAD, FREEBOARD, MOAT_BED, PLOT_Y, REALM_CELL, REALM_SCULPTS, SNOW_FLATS, VALE_HEAD,
-  VALE_HEAD_PATH, VALE_HEAD_Y, VALE_PATH_GRADE, VALE_RIVER, landDistance, landMask, padMask, padY, realmField, realmHeight,
-  realmLayers, realmTint, sculptFor, sdRect, sdShape, snowY, type Pad, type RealmSculpt,
+  ABYSS_Y, CHAPEL_Y, CROWNED_HEAD, CUPS, CUP_R, DOCK, FREEBOARD, MOAT_BED, MOAT_BED_RECT, MOAT_LEVEL, PLOT_PADS, PLOT_Y, REALM_CELL,
+  REALM_SCULPTS, SEABED_FALL, SNOW_FLATS, VALE_DOME, VALE_HEAD_PATH, VALE_HEAD_SEAT, VALE_HEAD_Y, VALE_PATH, VALE_PATH_GRADE, VALE_RIVER,
+  hillHeight, landDistance, landMask, onGrid, padMask, padY, realmField, realmHeight, realmLayers, realmTint, sculptFor, sdRect,
+  sdSeg, sdShape, snowY, type Pad, type RealmSculpt,
 } from './sculpts';
 import { ANCHORS, GALAXY, GRAVEYARD, LEAN_QUARTER, REALMS, SUNKEN, VALE } from './world';
 
@@ -14,8 +16,33 @@ const noise = new Noise2D(1337);
 const SCULPTS: readonly RealmSculpt[] = Object.values(REALM_SCULPTS);
 const realmDef = (s: RealmSculpt) => REALMS.find((r) => r.id === s.id)!;
 const h = (s: RealmSculpt, x: number, z: number) => realmHeight(s, x, z, noise);
-/** The realm-wide scans (a distance transform over a whole field, 200 segments) take well under a second; this is headroom for a loaded machine. */
-const SCAN_TIMEOUT = 30_000;
+/** The realm-wide scans (a distance transform over a whole field, 200 segments, a baked field) take a second or two; this is headroom for a heavily loaded machine. */
+const SCAN_TIMEOUT = 120_000;
+
+/** Each realm baked once, as the game draws it (render/Ground.ts Heightfield: heightAt is exactly the drawn surface). */
+const BAKED = new Map<RealmSculpt, Heightfield>();
+function drawn(s: RealmSculpt): Heightfield {
+  let f = BAKED.get(s);
+  if (!f) {
+    f = new Heightfield(sculptFor(s, noise));
+    f.bake();
+    BAKED.set(s, f);
+  }
+  return f;
+}
+
+/** The floater whose disc holds (x, z), if any (things standing there stand on its own collider, over the void). */
+const floaterAt = (s: RealmSculpt, x: number, z: number) => (s.clear ?? []).find((f) => Math.hypot(x - f.disc.x, z - f.disc.z) < f.disc.r);
+
+/**
+ * The alley of graves' 12 dead trees where the builders put them in the game (World.ts builds every realm on one
+ * rng(5150) stream, the graveyard last): x, z and the y Graveyard.ts stands them at (y0 + 0.6 for |x| < 16, else y0).
+ * Any change to a builder before it moves them, so step 7 sends every one through h().
+ */
+const GRAVE_TREES: ReadonlyArray<readonly [number, number, number]> = [
+  [-14.34, -925.05, 0.6], [17.06, -939.05, 0], [-19.44, -949.24, 0], [15.77, -959.04, 0.6], [-19.0, -970.53, 0], [16.29, -982.46, 0],
+  [-18.19, -994.01, 0], [19.35, -1003.61, 0], [-14.08, -1013.12, 0.6], [19.61, -1024.69, 0], [-19.34, -1038.58, 0], [16.02, -1049.33, 0],
+];
 
 /** Deterministic pseudo-random numbers in [0, 1). */
 function rng(seed: number): () => number {
@@ -114,7 +141,7 @@ function landPoints(s: RealmSculpt, count: number, seed: number): Array<[number,
 
 /** The slope Heightfield.bake hands the layers: |∇h| / (1 + |∇h|) by central differences over one cell. */
 function slopeAt(s: RealmSculpt, x: number, z: number): number {
-  const e = s.cell ?? REALM_CELL;
+  const e = REALM_CELL;
   const g = Math.hypot((h(s, x + e, z) - h(s, x - e, z)) / (2 * e), (h(s, x, z + e) - h(s, x, z - e)) / (2 * e));
   return g / (1 + g);
 }
@@ -149,8 +176,15 @@ describe('realm sculpts: pads keep their height', () => {
     expect(h(g, 822, 0)).toBeCloseTo(MOAT_BED, 6);
     expect(h(g, LEAN_QUARTER.chapel.x, LEAN_QUARTER.chapel.z)).toBeCloseTo(CHAPEL_Y, 6);
     expect(snowY(LEAN_QUARTER.chapel.z)).toBeCloseTo(CHAPEL_Y, 6);
-    for (const f of SNOW_FLATS) expect(h(g, f.x, f.z), f.name).toBeCloseTo(snowY(f.z), 6);
-    expect(h(g, DOCK_PAD.x, DOCK_PAD.z)).toBeCloseTo(GALAXY.y, 6);
+    for (const f of SNOW_FLATS) expect(h(g, f.x, f.z), f.name).toBeCloseTo(f.y, 6);
+    // The snow gate stays on the floor's own level; the cottages and the plague doctor ride the slope (the plan's h() sweep).
+    expect(SNOW_FLATS.find((f) => f.name === 'snow-gate')!.y).toBe(GALAXY.y);
+    for (const f of SNOW_FLATS) if (f.name !== 'snow-gate') expect(f.y, f.name).toBeCloseTo(snowY(f.z), 9);
+    // The moat's bed holds Q.moat less a cell all round, on the grid (its walls rise over the last cell inside the sheet).
+    expect(MOAT_BED_RECT).toEqual([817.5, 826.5, -37.5, 73.5]);
+    // The sky dock floats over the void like the cups: no ground under its island, let alone its floor.
+    expect(h(g, LEAN_QUARTER.dock.x, LEAN_QUARTER.dock.z)).toBe(ABYSS_Y);
+    expect(DOCK.below).toBeLessThan(GALAXY.y - 20);
   });
 
   it('no placement the builders stand at a fixed height moves', () => {
@@ -167,8 +201,7 @@ describe('realm sculpts: pads keep their height', () => {
         [813, 72, gy, 'yard crystal'], [1000, 69, gy, 'checker road'], [989, 52, gy, 'causeway tower'], [1011, -14, gy, 'causeway tower'],
         [1000, 72, gy, 'ring portal'], [988, 70, gy, 'ring portal'], [1000, -66, gy, 'galaxy hall'], [1000, -75, gy, 'marble throne'],
         [1035, -55, gy, 'lean-chucker pavilion'], [1027, 66, gy, 'tea stream end'], [1057, 10, gy, 'first lean wave'],
-        [1186, 15, gy, 'dock dragon'], [1175, 8, gy, 'sky bar'], [1181, 21.8, gy, 'dock tree'], [1172.2, 10.9, gy, 'dock table'],
-        ...[0, 1, 2, 3, 4].map((i): [number, number, number, string] => { const a = -2.4 + i * 1.1; return [1180 + Math.cos(a) * 10.8, 12 + Math.sin(a) * 10.8, gy, 'dock lamp']; }),
+        [946.5, 86, gy, 'snow gate pillar'], [953.5, 86, gy, 'snow gate pillar'], [955.6, 87.8, gy, 'broken gate'],
       ],
       vale: [
         [1024, 976, vy, 'tavern'], [1015, 973, vy, 'yard table'], [1015, 978.4, vy, 'yard table'], [1019, 966, vy, 'campfire'],
@@ -186,10 +219,12 @@ describe('realm sculpts: pads keep their height', () => {
         [-1010.5, 12, sy, 'house'], [-988.7, -38, sy, 'house'], [-1004.8, 0, sy, 'stall'], [-1036, 20, sy, 'kelp'], [-964, 68, sy, 'kelp'],
       ],
       graveyard: [
-        [3.4, -917, y0, 'wall'], [-3.4, -1044, y0, 'wall'], [2.2, -980, y0, 'shrine brazier'], [0, -980, y0, 'candles'], [0, -1015, y0, 'toadstool'],
+        [2.78, -917, y0, "wall's alley face"], [-2.78, -1044, y0, "wall's alley face"], [2.2, -980, y0, 'shrine brazier'], [0, -980, y0, 'candles'], [0, -1015, y0, 'toadstool'],
         [0, -1045, y0, 'ring portal'], [0, -1095, y0, 'gothic tower (sunk 0.5 m on purpose)'], [14, -1088, y0, 'round tower'], [-10, -1078, y0, 'arena brazier'],
         [0, -909, y0, 'way home'], [0, -1068, y0, 'cyclops lord'], [5.0, -919, PLOT_Y, 'grave'], [12.6, -1043.6, PLOT_Y, 'grave'], [-8.8, -980, PLOT_Y, 'grave'],
-        [15.9, -1050, PLOT_Y, 'plot tree'], [-14, -925, PLOT_Y, 'plot tree'], [-18, -960, y0, 'tree beyond the plot'], [20, -1046, y0, 'tree beyond the plot'],
+        [-5.0, -1042.8, PLOT_Y, 'grave'], [12.6, -918.7, PLOT_Y, 'grave'], [-12.6, -1042.8, PLOT_Y, 'grave'],
+        // The trees off the plots' rises (the three on them are the alley test's: they go through h()).
+        ...GRAVE_TREES.filter(([x]) => Math.abs(x) <= 15 || Math.abs(x) >= 16.5).map(([x, z, y]): [number, number, number, string] => [x, z, y, 'dead tree']),
       ],
     };
     for (const s of SCULPTS) {
@@ -201,13 +236,20 @@ describe('realm sculpts: pads keep their height', () => {
 
 describe('realm sculpts: the land', () => {
   for (const s of SCULPTS) {
-    it(`${s.id}: every ANCHORS entry inside the realm is on land and on a pad`, () => {
+    it(`${s.id}: every ANCHORS entry inside the realm is on land and on a pad, but for those on a floater over the void`, () => {
       const R = realmDef(s);
       const bad: string[] = [];
       let n = 0;
       for (const [id, a] of Object.entries(ANCHORS)) {
         if (Math.hypot(a.x - R.x, a.z - R.z) > R.radius) continue;
         n++;
+        const f = floaterAt(s, a.x, a.z);
+        if (f) {
+          // On the floater's own collider (the sky dock's Old Ribs and Sir Velvet): the ground stays far below its foot.
+          const got = h(s, a.x, a.z);
+          if (!(got < f.below - 0.25)) bad.push(`${id} (${a.x}, ${a.z}) on ${f.name}: ground ${got.toFixed(2)} under its foot at ${f.below.toFixed(2)}`);
+          continue;
+        }
         const land = landMask(s, a.x, a.z, noise), pad = padMask(s, a.x, a.z).mask;
         if (!(land > 0.99) || !(pad >= 0.99)) bad.push(`${id} (${a.x}, ${a.z}): land ${land.toFixed(3)}, pad ${pad.toFixed(3)}`);
       }
@@ -220,9 +262,10 @@ describe('realm sculpts: the land', () => {
       const bad: string[] = [];
       for (const sp of ENEMY_SPAWNS) {
         if (Math.hypot(sp.x - R.x, sp.z - R.z) > R.radius) continue;
-        if ((s.clear ?? []).some((f) => Math.hypot(sp.x - f.disc.x, sp.z - f.disc.z) < f.disc.r)) {
+        const f = floaterAt(s, sp.x, sp.z);
+        if (f) {
           // Over the void in a cup: the ground must stay far below it.
-          if (!(h(s, sp.x, sp.z) < GALAXY.y - 20)) bad.push(`${sp.kind} (${sp.x}, ${sp.z}) has ground under its cup`);
+          if (!(h(s, sp.x, sp.z) < f.below - 0.25)) bad.push(`${sp.kind} (${sp.x}, ${sp.z}) has ground under its ${f.name}`);
           continue;
         }
         const land = landMask(s, sp.x, sp.z, noise);
@@ -266,7 +309,7 @@ describe('realm sculpts: the land', () => {
         const s = k / 100, deck = gy + Math.sin(Math.PI * s) * 4.2;
         for (const across of [-1.9, 0, 1.9]) {
           const x = ax + (bx - ax) * s + sx * across, z = az + (bz - az) * s + sz * across;
-          // Where it rises out of the plaza or comes down on the dock, the floor is the deck's own level.
+          // Where it rises out of the plaza, the floor is the deck's own level (it comes down on the dock's own collider).
           if (padMask(g, x, z).mask >= 0.99) continue;
           const got = h(g, x, z);
           if (!(got < deck - 0.25)) bad.push(`wave (${ax.toFixed(0)}, ${az.toFixed(0)}) at s ${s.toFixed(2)}: ground ${got.toFixed(2)}, deck ${deck.toFixed(2)}`);
@@ -301,7 +344,7 @@ describe('realm sculpts: the land', () => {
   it('sunken: the seabed falls away to the abyss past its disc', () => {
     const s = REALM_SCULPTS.sunken;
     if (s.edge.kind !== 'seabed' || s.land.kind !== 'disc') throw new Error('the sunken city is a seabed disc');
-    const fall = s.edge.fall ?? 60, d = s.land.disc;
+    const fall = s.edge.fall ?? SEABED_FALL, d = s.land.disc;
     expect(h(s, d.x + d.r + fall + 1, d.z)).toBe(ABYSS_Y);
     expect(h(s, d.x, d.z - d.r + 10)).toBeGreaterThan(s.base - 2);
     // Gentle: under one metre a metre all the way down.
@@ -338,9 +381,10 @@ describe('realm sculpts: the land', () => {
       }
       for (let k = 0; k < N; k++) {
         if (wet[k] || wet[k + 1]) continue;
-        // No tears anywhere (a 0.1 m step never jumps more than a gradient of 6 allows, cliffs included)…
+        // No tears anywhere (a 0.1 m step never jumps more than a gradient of 8 allows, cliffs included: their steepest
+        // ground is about 6.2, see the scan below)…
         const dh = Math.abs(hs[k + 1] - hs[k]);
-        if (!(dh < 0.6)) bad.push(`${s.id} (${xs[k].toFixed(2)}, ${zs[k].toFixed(2)}) → 0.1 m: ${dh.toFixed(3)}`);
+        if (!(dh < 0.8)) bad.push(`${s.id} (${xs[k].toFixed(2)}, ${zs[k].toFixed(2)}) → 0.1 m: ${dh.toFixed(3)}`);
         // …and on the land, under 1.5 m a metre.
         if (k + 10 > N || wet[k + 10] || !land[k] || !land[k + 10]) continue;
         const dm = Math.abs(hs[k + 10] - hs[k]);
@@ -349,6 +393,28 @@ describe('realm sculpts: the land', () => {
     }
     expect(bad, bad.slice(0, 20).join('\n')).toEqual([]);
   }, SCAN_TIMEOUT);
+
+  for (const s of SCULPTS) {
+    if (s.edge.kind !== 'cliff') continue;
+    it(`${s.id}: the steepest cliff ground (every metre of the cliff band, central differences) is under a gradient of 8`, () => {
+      // The cliff's smoothstep is 4.2..4.6 steep straight across the border; the border's fbm warp adds its own gradient
+      // where it bends, up to about 6.2 (the kingdom's). Not one sample of the band may tear past 8.
+      const f = realmField(s);
+      const d = 0.05;
+      let worst = 0, at = '', band = 0;
+      for (let z = f.z0; z <= f.z0 + f.size; z += 1) for (let x = f.x0; x <= f.x0 + f.size; x += 1) {
+        const e = landDistance(s, x, z, noise);
+        if (e < -6 || e > 60) continue;
+        band++;
+        const g = Math.hypot((h(s, x + d, z) - h(s, x - d, z)) / (2 * d), (h(s, x, z + d) - h(s, x, z - d)) / (2 * d));
+        if (g > worst) { worst = g; at = `(${x}, ${z})`; }
+      }
+      expect(band).toBeGreaterThan(5000);
+      expect(worst, `steepest ${worst.toFixed(2)} at ${at}`).toBeLessThan(8);
+      // And it is a cliff: steeper than its smoothstep alone somewhere.
+      expect(worst).toBeGreaterThan(4);
+    }, SCAN_TIMEOUT);
+  }
 
   it("the vale: the cobbled path climbs to the crowned head at a gradient of at most 0.3, the head's ground level on the hill", () => {
     const v = REALM_SCULPTS.vale;
@@ -365,12 +431,51 @@ describe('realm sculpts: the land', () => {
     }
     expect(worst).toBeLessThanOrEqual(0.3);
     expect(run).toBeGreaterThan(30);
-    // It starts level with the bridge's bank and ends on the head's own ground, on top of the hill.
+    // It starts level with the bridge's bank and ends on the head's seat, the top of the hill, where the head stands.
     expect(h(v, VALE_HEAD_PATH[0][0], VALE_HEAD_PATH[0][1])).toBeCloseTo(VALE.y, 6);
-    expect(h(v, VALE_HEAD.x, VALE_HEAD.z)).toBeCloseTo(VALE_HEAD_Y, 6);
-    expect(VALE_HEAD_Y).toBeGreaterThan(VALE.y + 7);
-    for (let a = 0; a < 16; a++) expect(h(v, VALE_HEAD.x + Math.cos(a) * VALE_HEAD.r * 0.99, VALE_HEAD.z + Math.sin(a) * VALE_HEAD.r * 0.99)).toBeCloseTo(VALE_HEAD_Y, 6);
+    expect(h(v, CROWNED_HEAD.x, CROWNED_HEAD.z)).toBeCloseTo(VALE_HEAD_Y, 6);
+    expect(VALE_HEAD_Y).toBeCloseTo(VALE.y + 5, 9);
+    for (let a = 0; a < 16; a++) expect(h(v, VALE_HEAD_SEAT.x + Math.cos(a) * VALE_HEAD_SEAT.r * 0.99, VALE_HEAD_SEAT.z + Math.sin(a) * VALE_HEAD_SEAT.r * 0.99)).toBeCloseTo(VALE_HEAD_Y, 6);
+    // Vale.ts's braziers where the path meets the head ((928, 928.5) ± 2.8 across it) are on the seat's rim: h() puts them there.
+    for (const [x, z] of [[926.75, 931], [929.25, 926]]) expect(h(v, x, z)).toBeCloseTo(VALE_HEAD_Y, 6);
   });
+
+  it("the vale: the crowned head's mound rests level on its seat (every floor-touching collider cell, sculpted and drawn), on a smooth hill", () => {
+    const v = REALM_SCULPTS.vale, field = drawn(v);
+    const H = CROWNED_HEAD;
+    const y = h(v, H.x, H.z);
+    const f = gridFootprint('crowned-head', H.x, y, H.z, H.yaw, H.scale);
+    expect(f).not.toBeNull();
+    const g = f!, c = Math.cos(g.rotY), sn = Math.sin(g.rotY);
+    let cells = 0, far = 0;
+    const bad: string[] = [];
+    for (let k = 0; k < g.nz; k++) for (let i = 0; i < g.nx; i++) {
+      // Floor-touching: the cell's ground part (`low`, colliderGrids.ts) starts at the model's feet.
+      if (g.data[(k * g.nx + i) * 3] === 0) continue;
+      cells++;
+      for (const [du, dv] of [[0, 0], [1, 0], [0, 1], [1, 1], [0.5, 0.5]]) {
+        // The cell's corners and middle, from the model's frame back into the world (Colliders.ts gridCell's turn, inverted).
+        const lx = g.minX + (i + du) * g.cell, lz = g.minZ + (k + dv) * g.cell;
+        const x = H.x + lx * c + lz * sn, z = H.z - lx * sn + lz * c;
+        far = Math.max(far, Math.hypot(x - H.x, z - H.z));
+        const a = h(v, x, z), b = field.heightAt(x, z);
+        if (!(Math.abs(a - y) < 1e-6) || !(Math.abs(b - y) < 0.02)) bad.push(`(${x.toFixed(1)}, ${z.toFixed(1)}): sculpt ${a.toFixed(3)}, drawn ${b.toFixed(3)} for ${y}`);
+      }
+    }
+    // (The reviewed mound: 849 cells reaching 17.7 m from where it stands.)
+    expect(cells).toBeGreaterThan(800);
+    expect(far).toBeGreaterThan(17);
+    expect(bad, `${bad.length} points off the seat:\n${bad.slice(0, 20).join('\n')}`).toEqual([]);
+    // Off the pads (the seat, the path's spur, the bridge's banks), the hill is exactly the dome: no fbm hills on it.
+    let checked = 0;
+    for (let a = 0; a < 64; a++) for (const r of [18, 22, 26, 30, 34]) {
+      const x = VALE_DOME.disc.x + Math.cos((a / 64) * Math.PI * 2) * r, z = VALE_DOME.disc.z + Math.sin((a / 64) * Math.PI * 2) * r;
+      if (padMask(v, x, z).mask > 0 || sdSeg(x, z, VALE_PATH) < 12) continue;
+      checked++;
+      expect(h(v, x, z), `(${x.toFixed(1)}, ${z.toFixed(1)})`).toBeCloseTo(VALE.y + hillHeight(VALE_DOME, x, z), 6);
+    }
+    expect(checked).toBeGreaterThan(120);
+  }, SCAN_TIMEOUT);
 
   it('the vale: the land stops short of the floating castle; the river runs its full length between raised banks', () => {
     const v = REALM_SCULPTS.vale;
@@ -395,6 +500,95 @@ describe('realm sculpts: the land', () => {
     expect(landMask(g, 0, -862, noise)).toBeGreaterThan(0);
     expect(landMask(g, 0, -1150, noise)).toBe(0);
   });
+});
+
+describe('realm sculpts: sharp edges are drawn as sculpted', () => {
+  it('the grid is world-aligned, and the moat and the grave plots lie on its lines', () => {
+    const on = (v: number) => Math.abs(v / REALM_CELL - Math.round(v / REALM_CELL)) < 1e-9;
+    for (const s of SCULPTS) { const f = realmField(s); expect(on(f.x0) && on(f.z0) && on(f.size), s.id).toBe(true); }
+    expect(PLOT_PADS).toEqual([[4.5, 15, -1068, -916.5], [-15, -4.5, -1068, -916.5]]);
+    for (const v of [...PLOT_PADS.flat(), ...MOAT_BED_RECT]) expect(on(v), `${v}`).toBe(true);
+    expect(onGrid([816, 828, -40, 75])).toEqual([816, 828, -39, 75]);
+    expect(onGrid([816, 828, -40, 75], 1)).toEqual(MOAT_BED_RECT);
+  });
+
+  it('the alley of graves: each plot rises over one column of cells, and the drawn ground there is the sculpt', () => {
+    const g = REALM_SCULPTS.graveyard, field = drawn(g), y0 = GRAVEYARD.y;
+    const bad: string[] = [];
+    const same = (x: number, z: number) => {
+      const a = h(g, x, z), b = field.heightAt(x, z);
+      if (!(Math.abs(a - b) < 1e-4)) bad.push(`(${x.toFixed(2)}, ${z.toFixed(2)}): sculpt ${a.toFixed(4)}, drawn ${b.toFixed(4)}`);
+    };
+    // Across the long sides (the inner rise x ±3..4.5, the outer ±15..16.5) and the ends (z −1069.5..−1068, −916.5..−915),
+    // away from the four corner cells of each plot (where the rise rounds off and nothing stands).
+    for (let z = -1066.5; z <= -918; z += 0.37) for (let ax = 2; ax <= 18; ax += 0.05) for (const side of [-1, 1]) same(side * ax, z);
+    for (let ax = 6; ax <= 13.5; ax += 0.25) for (let z = -1071; z <= -1066; z += 0.05) for (const side of [-1, 1]) same(side * ax, z);
+    for (let ax = 6; ax <= 13.5; ax += 0.25) for (let z = -918.5; z <= -913.5; z += 0.05) for (const side of [-1, 1]) same(side * ax, z);
+    expect(bad, `${bad.length} points:\n${bad.slice(0, 20).join('\n')}`).toEqual([]);
+    // The tops are level at PLOT_Y, the rise one cell, the floor beyond at y0.
+    for (const side of [-1, 1]) {
+      expect(field.heightAt(side * 4.5, -1000)).toBeCloseTo(PLOT_Y, 5);
+      expect(field.heightAt(side * 15, -1000)).toBeCloseTo(PLOT_Y, 5);
+      expect(field.heightAt(side * 3, -1000)).toBeCloseTo(y0, 5);
+      expect(field.heightAt(side * 16.5, -1000)).toBeCloseTo(y0, 5);
+      expect(field.heightAt(side * 3.75, -1000)).toBeCloseTo((y0 + PLOT_Y) / 2, 5);
+    }
+  }, SCAN_TIMEOUT);
+
+  it('the alley of graves: the trees off the rises keep their height; the three the outer rise moves stand on the drawn ground through h()', () => {
+    const g = REALM_SCULPTS.graveyard, field = drawn(g);
+    // The step-7 sweep list: these three (and, to be safe from the shared random stream, every dead tree) go through h().
+    const moved = GRAVE_TREES.filter(([x, z, y]) => !(Math.abs(h(g, x, z) - y) < 0.02));
+    expect(moved.map(([x, z]) => [x, z])).toEqual([[15.77, -959.04], [16.29, -982.46], [16.02, -1049.33]]);
+    expect(moved.map(([x, z]) => +h(g, x, z).toFixed(3))).toEqual([0.292, 0.084, 0.192]);
+    // Wherever the stream drops a tree (Graveyard.ts: |x| 14..20, z −925..−1050), h() is the drawn ground.
+    const bad: string[] = [];
+    for (let ax = 14; ax <= 20; ax += 0.01) for (const z of [-925, -959.04, -982.46, -1012.7, -1049.33, -1050]) for (const side of [-1, 1]) {
+      const x = side * ax, a = h(g, x, z), b = field.heightAt(x, z);
+      if (!(Math.abs(a - b) < 1e-4)) bad.push(`(${x.toFixed(2)}, ${z}): sculpt ${a.toFixed(4)}, drawn ${b.toFixed(4)}`);
+    }
+    expect(bad, bad.slice(0, 20).join('\n')).toEqual([]);
+  }, SCAN_TIMEOUT);
+
+  it("the alley of graves: the walls stand flush on the alley's floor and never float; behind them the plots' rise banks against their plot face", () => {
+    const g = REALM_SCULPTS.graveyard, field = drawn(g), y0 = GRAVEYARD.y;
+    // Graveyard.ts: stone-wall segments at x ±3.4 (footprint ±0.62: x ±2.78..±4.02), z from −917 down past −1046, at y0.
+    const bad: string[] = [];
+    let banked = 0;
+    for (let z = -1046; z <= -917; z += 0.25) for (const side of [-1, 1]) {
+      for (let ax = 2.78; ax <= 4.0201; ax += 0.02) {
+        const v = field.heightAt(side * ax, z), a = h(g, side * ax, z);
+        if (!(v >= y0 - 1e-6) || !(a >= y0 - 1e-6)) bad.push(`(${side * ax}, ${z}) under the wall's foot: drawn ${v}, sculpt ${a}`);
+        banked = Math.max(banked, v - y0);
+      }
+      for (const ax of [2.78, 3]) if (!(Math.abs(field.heightAt(side * ax, z) - y0) < 1e-6)) bad.push(`(${side * ax}, ${z}): the alley face is not on the floor`);
+    }
+    expect(bad, bad.slice(0, 20).join('\n')).toEqual([]);
+    expect(banked).toBeLessThan(0.41);
+  }, SCAN_TIMEOUT);
+
+  it("the kingdom: the moat's walls are drawn inside its water sheet, the banks beside it level above the water (no dry trench)", () => {
+    const g = REALM_SCULPTS.galaxy, field = drawn(g), M = LEAN_QUARTER.moat;
+    const bad: string[] = [];
+    // Within 2 m outside the sheet, the drawn ground never dips to the water.
+    for (let x = M[0] - 2; x <= M[1] + 2; x += 0.05) for (let z = M[2] - 2; z <= M[3] + 2; z += 0.25) {
+      const d = sdRect(x, z, M);
+      if (d <= 0 || d > 2) continue;
+      const v = field.heightAt(x, z);
+      if (!(v > MOAT_LEVEL)) bad.push(`(${x.toFixed(2)}, ${z.toFixed(2)}) outside the sheet: drawn ${v.toFixed(3)} under the water at ${MOAT_LEVEL}`);
+    }
+    // Across the channel, away from its ends: the drawn ground is the sculpt, level with the banks at x 816 and 828, the
+    // walls one cell each inside the sheet, the bed level between.
+    for (let z = -37; z <= 73; z += 1.7) for (let x = 812; x <= 832; x += 0.05) {
+      const a = h(g, x, z), b = field.heightAt(x, z);
+      if (!(Math.abs(a - b) < 0.01)) bad.push(`(${x.toFixed(2)}, ${z.toFixed(2)}): sculpt ${a.toFixed(3)}, drawn ${b.toFixed(3)}`);
+      if (x >= 817.5 && x <= 826.5 && !(Math.abs(b - MOAT_BED) < 1e-4)) bad.push(`(${x.toFixed(2)}, ${z.toFixed(2)}): the bed at ${b.toFixed(3)}`);
+    }
+    expect(bad, `${bad.length} points:\n${bad.slice(0, 20).join('\n')}`).toEqual([]);
+    for (const x of [816, 828]) expect(field.heightAt(x, 0)).toBeCloseTo(GALAXY.y, 4);
+    // The torches either side of the bridge stand on level drawn ground.
+    for (const x of [814.8, 829.4]) for (const z of [14, 22]) expect(field.heightAt(x, z)).toBeCloseTo(GALAXY.y, 4);
+  }, SCAN_TIMEOUT);
 });
 
 describe('realm sculpts: layers and tint', () => {
@@ -469,9 +663,12 @@ describe('realm sculpts: sculptFor', () => {
   for (const s of SCULPTS) {
     it(`${s.id}: a Sculpt over the whole land whose height is realmHeight at 1000 random land points`, () => {
       const sc = sculptFor(s, noise);
-      expect(sc.cell).toBe(s.cell ?? REALM_CELL);
+      // Every realm at the specified 1.5 m; the largest field (the sunken city's) 135k vertices, the kingdom's 118k.
+      expect(sc.cell).toBe(REALM_CELL);
+      expect(REALM_CELL).toBe(1.5);
       expect(sc.voidBelow).toBe(ABYSS_Y + 1);
       expect(Math.abs(sc.size / sc.cell - Math.round(sc.size / sc.cell))).toBeLessThan(1e-9);
+      expect((Math.round(sc.size / sc.cell) + 1) ** 2).toBeLessThan(140_000);
       const pts = landPoints(s, 1000, 3);
       expect(pts.length).toBe(1000);
       const bad: string[] = [];

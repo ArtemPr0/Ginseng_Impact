@@ -14,10 +14,19 @@
  * (the sequential PADS formula of world/Terrain.ts, so a later pad overrides an earlier one), then each water rect
  * raises its banks above the water and cuts down to its bed, then the lip rises over the last LIP_RISE metres off the
  * pads. Outside: one smooth fall from that height to WORLD.abyssY that passes `base − drop` exactly `width` metres past
- * the border (a gradient of about 4 at its steepest, no shelf), or for a seabed a gentle fall over `fall` metres.
+ * the border, or for a seabed a gentle fall over `fall` metres. A cliff's smoothstep is 4.2 to 4.6 steep straight across
+ * the border at its steepest, no shelf; where the border's fbm warp bends it the warp's own gradient adds to that, so the
+ * steepest cliff ground is about 6.2 (the kingdom's; the vale's 6.0, the alley's 5.5).
  *
- * Things that float over the void (the lean cups, the sky islands, the vale's floating castle and its platforms) are
- * `clear` zones: the land is cut back from them far enough that the cliff has already fallen below them.
+ * Sharp edges are drawn exactly: every realm bakes at REALM_CELL on a world-aligned grid, and a pad with a linear blend
+ * one cell wide off a rect on grid lines (the moat's bed, the grave plots) rises across exactly one column of cells,
+ * which the baked grid draws just as the sculpt has it along the rect's sides. In its four corner cells the rise rounds
+ * off (up to 0.18 m from the drawn at a grave plot's corners, where nothing stands), and at the moat's open ends, under
+ * the water, the rolling ground beyond meets it; there, as everywhere else, the sculpt equals the drawn ground at the
+ * vertices only.
+ *
+ * Things that float over the void (the lean cups, the sky islands and the sky dock, the vale's floating castle and its
+ * platforms) are `clear` zones: the land is cut back from them far enough that the cliff has already fallen below them.
  *
  * Layers: each realm paints a default ground (with an accent patched in by fbm), then its layer rects in order, each
  * taking its coverage from what lies under it through an fbm-warped border with an optional fray (a ragged edge eaten
@@ -46,6 +55,12 @@ export type LayerName = keyof typeof LAYER;
 export interface Pad extends Shape {
   y: number | ((x: number, z: number) => number);
   blend: number;
+  /**
+   * How the blend eases: 'smooth' (the default, the PADS smoothstep) or 'linear', a straight rise. A linear blend one
+   * cell wide off a rect whose edges lie on grid lines is drawn exactly by the baked grid (a sharp edge: a moat wall,
+   * a raised plot), so what stands by it on the sculpt's height stands on the drawn ground.
+   */
+  ease?: 'smooth' | 'linear';
   /** How far the land extends past this pad (default: the realm's `land.margin`). */
   margin?: number;
   /** How far the land's border wanders here (default: the realm's `land.wobble`). */
@@ -65,9 +80,10 @@ export interface LayerRect extends Shape {
 /**
  * Swimmable water over a rect: its surface `level` and the `bed` the ground is cut to. The ground round it is raised to
  * FREEBOARD above the water (fully for WATER_BANK metres, fading out by BANK_OUT); inside, the bank slopes down to the
- * bed over `bank` metres (default WATER_BANK; 0 = stone walls, a channel cut straight down).
+ * bed over `bank` metres (default WATER_BANK; 0 = a channel cut straight down). `cut: false` leaves the ground under
+ * the water to the pads (a walled channel whose bed is a pad with grid-exact walls inside the sheet: the lean moat).
  */
-export interface WaterRect { rect: Rect; level: number; bed: number; bank?: number }
+export interface WaterRect { rect: Rect; level: number; bed: number; bank?: number; cut?: boolean }
 
 /** A dome of extra relief: `height` at its centre, easing to 0 at `disc.r`; `falloff` 0..1 is the share of the radius the ease takes (1 = a full smoothstep dome). */
 export interface ExtraHill { disc: Disc; height: number; falloff: number }
@@ -105,15 +121,14 @@ export interface RealmSculpt {
   extraHills?: ExtraHill[];
   /** Floating things the land keeps clear of. */
   clear?: Floater[];
-  /** Grid cell in metres (default REALM_CELL). */
-  cell?: number;
-  /** The grid's lines sit at multiples of the cell plus this (so a sharp feature can fall mid-cell). */
-  gridPhase?: number;
 }
 
 // ---------- constants ----------
 
-/** Realm grid cell in metres (the island bakes at 1 m). */
+/**
+ * Realm grid cell in metres (the island bakes at 1 m). Every realm's grid is world-aligned: its vertices sit at
+ * multiples of REALM_CELL, which the sharp edges (the moat's walls, the grave plots' rises) are laid on.
+ */
 export const REALM_CELL = 1.5;
 /** The land mask falls from 1 to 0 over the last metres inside the warped border. */
 export const LAND_SOFT = 3;
@@ -124,8 +139,8 @@ export const WATER_BANK = 3;
 /** Outside a water rect the ground is raised to FREEBOARD above the water over its first WATER_BANK metres, fading out by BANK_OUT. */
 export const BANK_OUT = 8;
 export const FREEBOARD = 0.3;
-/** Default run of a seabed edge, from the land's rim down to the abyss. */
-export const SEABED_FALL = 90;
+/** Default run of a seabed edge, from the land's rim down to the abyss (a gradient of at most 0.9 for the sunken city's 42 m). */
+export const SEABED_FALL = 70;
 /** The wavelength of the fbm that warps every land border. */
 export const BORDER_WAVELENGTH = 70;
 /** How far the far tint leans from the layers' own colours toward the island's palette (navy/moss/stone/snow/seabed). */
@@ -195,6 +210,18 @@ export function hillHeight(h: ExtraHill, x: number, z: number): number {
   return h.height * (1 - smoothstep(h.disc.r * (1 - f), h.disc.r, d));
 }
 
+/**
+ * A rect moved onto the realm grid: each edge in to the nearest grid line (a multiple of REALM_CELL), then `inset`
+ * whole cells further in. A pad on such a rect with a linear blend of REALM_CELL rises across exactly one column of
+ * cells, which the baked grid draws just as the sculpt has it.
+ */
+export function onGrid(r: Rect, inset = 0): Rect {
+  const c = REALM_CELL;
+  // (The 1e-9 keeps an edge that is on a line up to rounding where it is, rather than a whole cell further in.)
+  const up = (v: number) => Math.ceil(v / c - 1e-9) * c, down = (v: number) => Math.floor(v / c + 1e-9) * c;
+  return [up(r[0]) + inset * c, down(r[1]) - inset * c, up(r[2]) + inset * c, down(r[3]) - inset * c];
+}
+
 /** A pad's height at (x, z). */
 export function padY(p: Pad, x: number, z: number): number {
   return typeof p.y === 'number' ? p.y : p.y(x, z);
@@ -211,27 +238,37 @@ const Q = LEAN_QUARTER;
 const GY = GALAXY.y;
 /** The plaza (Kingdom.ts: the porcelain floor and its box, x 940..1060, z -85..75). */
 export const PLAZA: Rect = [940, 1060, -85, 75];
-/** The lean moat's water and bed (LeanQuarter.ts: the sheet and `api.water` at gy − 0.35, the channel's floor box at gy − 2.2). */
+/** The lean moat's water and bed (LeanQuarter.ts: the sheet and `api.water` at gy − 0.35 over Q.moat, the channel's floor box at gy − 2.2). */
 export const MOAT_LEVEL = GY - 0.35;
 export const MOAT_BED = GY - 2.2;
+/**
+ * The moat's level bed: Q.moat (x 816..828, z −40..75) on the grid and one cell in. Its walls are linear one-cell
+ * rises from it to the banks' grid lines (x 816 and 828, z −39 and 75: −40 is off the grid), so the drawn channel is
+ * exactly the sculpt's and lies inside the water sheet, and the banks outside it stay level above the water (no dry
+ * trench along them; between z −40 and −39 the sheet's end is under the bank).
+ */
+export const MOAT_BED_RECT: Rect = onGrid(Q.moat, 1);
 /** The snow quarter climbs 3 m from the plaza's level toward the chapel (level again from z 150). */
 export const snowY = (z: number): number => GY + 3 * smoothstep(80, 150, z);
-/** The chapel's own level ground (LEAN_QUARTER.chapel; the crypt door at (902.6, 146.5) is inside it). */
+/**
+ * The chapel's own level ground (LEAN_QUARTER.chapel). Interiors.ts's crypt door (its interactable at (902.6, 146.5))
+ * and the crypt's way back up (a teleport to (904.8, 144.1)) are on it, at 27: both still use GALAXY.y (24), 3 m into
+ * the ground, until step 6 puts them at h().
+ */
 export const CHAPEL_PAD: Disc = { x: Q.chapel.x, z: Q.chapel.z, r: 14 };
 export const CHAPEL_Y = 27;
 /**
- * Level ground under the snow quarter's clusters, each at the slope's height at its middle: the four cottages
- * (LeanQuarter.ts, boxes hw 3.3), the plague doctor on his chest (931, 124.6) and the gate the path comes in by
- * (its pillars at (950 ± 3.5, 86), the broken gate at (955.6, 87.8)).
+ * Level ground under the snow quarter's clusters: the four cottages (LeanQuarter.ts, boxes hw 3.3) and the plague
+ * doctor on his chest (931, 124.6) at the slope's height at their middle (the plan sweeps them to h()), and the gate the
+ * path comes in by (its pillars at (950 ± 3.5, 86), the broken gate at (955.6, 87.8)) at the floor's own GY, so it
+ * stays where it stands.
  */
-export const SNOW_FLATS: ReadonlyArray<Disc & { name: string }> = [
-  { name: 'cottage-nw', x: 865.5, z: 100, r: 5 }, { name: 'cottage-w', x: 865.5, z: 120, r: 5 },
-  { name: 'cottage-e', x: 954.5, z: 150, r: 5 }, { name: 'cottage-se', x: 954.5, z: 168, r: 5 },
-  { name: 'plague-doctor', x: 931, z: 124.6, r: 3 },
-  { name: 'snow-gate', x: 951, z: 86.5, r: 6 },
+export const SNOW_FLATS: ReadonlyArray<Disc & { name: string; y: number }> = [
+  { name: 'cottage-nw', x: 865.5, z: 100, r: 5, y: snowY(100) }, { name: 'cottage-w', x: 865.5, z: 120, r: 5, y: snowY(120) },
+  { name: 'cottage-e', x: 954.5, z: 150, r: 5, y: snowY(150) }, { name: 'cottage-se', x: 954.5, z: 168, r: 5, y: snowY(168) },
+  { name: 'plague-doctor', x: 931, z: 124.6, r: 3, y: snowY(124.6) },
+  { name: 'snow-gate', x: 951, z: 86.5, r: 6, y: GY },
 ];
-/** The sky dock's ground (LEAN_QUARTER.dock: the floating island's top, r 12, the lamps on its rim at 10.8). */
-export const DOCK_PAD: Disc = { x: Q.dock.x, z: Q.dock.z, r: 20 };
 /** The cup islands (Kingdom.ts `cups`): 22 m lean cups floating east of the plaza, their lean at gy, their foot at gy − 0.96 H. */
 export const CUPS: ReadonlyArray<readonly [number, number]> = [[1082, 10], [1108, -12], [1136, 14]];
 const CUP_H = MODELS['lean-cup-island'].height;
@@ -240,12 +277,26 @@ export const CUP_R = 0.28 * CUP_H;
 const CUP_FOOT = GY - CUP_H * 0.96;
 /** The floating-island model's half-width at scale 1 (its collider grid: 0.26 H). */
 const ISLAND_HALF = 0.26 * MODELS['floating-island'].height;
+/** world/Heart.ts ISLAND_TOP: a floating island's walkable top, as a share of its height above its foot. */
+const ISLAND_TOP = 0.46;
+/**
+ * The sky dock (LeanQuarter.ts): the floating-island model at scale 2.4, its top the dock's floor at gy, its foot
+ * (at gy − 24.3, its underside's glows above it) far down in the void. It floats like the cups: no land reaches it, and
+ * Old Ribs and Sir Velvet (ANCHORS bartender, dock-knight) stand on its own collider.
+ */
+const DOCK_SCALE = 2.4;
+export const DOCK: Floater = {
+  name: 'sky-dock',
+  disc: { x: Q.dock.x, z: Q.dock.z, r: ISLAND_HALF * DOCK_SCALE + 0.4 },
+  below: GY - MODELS['floating-island'].height * DOCK_SCALE * ISLAND_TOP,
+};
 
-/** The kingdom's things over the void east of the plaza: the cups, and the two sky islands of LeanQuarter.ts. */
+/** The kingdom's things over the void east of the plaza: the cups, the two sky islands and the dock of LeanQuarter.ts. */
 const GALAXY_FLOATERS: Floater[] = [
   ...CUPS.map(([x, z], i): Floater => ({ name: `cup-${i}`, disc: { x, z, r: 0.29 * CUP_H + 0.4 }, below: CUP_FOOT })),
   { name: 'island-tree', disc: { x: 1088, z: -50, r: ISLAND_HALF * 1.2 + 0.4 }, below: GY + 4 },
   { name: 'island-tower', disc: { x: 1124, z: -40, r: ISLAND_HALF * 1.4 + 0.4 }, below: GY - 4 },
+  DOCK,
 ];
 
 const GALAXY_SCULPT: RealmSculpt = {
@@ -259,12 +310,11 @@ const GALAXY_SCULPT: RealmSculpt = {
     { name: 'castle-yard', rect: Q.castleYard, y: GY, blend: 8 },
     { name: 'snow', rect: Q.snow, y: (_x, z) => snowY(z), blend: 8 },
     { name: 'chapel', disc: CHAPEL_PAD, y: CHAPEL_Y, blend: 6 },
-    ...SNOW_FLATS.map((d): Pad => ({ name: d.name, disc: { x: d.x, z: d.z, r: d.r }, y: snowY(d.z), blend: 4 })),
-    { name: 'dock', disc: DOCK_PAD, y: GY, blend: 5, margin: 3, wobble: 2 },
-    // Last and sharp: a sunken channel with stone walls (its water rect cuts it the same way).
-    { name: 'moat-bed', rect: Q.moat, y: MOAT_BED, blend: 0.01 },
+    ...SNOW_FLATS.map((d): Pad => ({ name: d.name, disc: { x: d.x, z: d.z, r: d.r }, y: d.y, blend: 4 })),
+    // Last: the sunken channel, its walls one-cell linear rises on grid lines inside the sheet (the water leaves it be).
+    { name: 'moat-bed', rect: MOAT_BED_RECT, y: MOAT_BED, blend: REALM_CELL, ease: 'linear' },
   ],
-  // No hills on the east terraces (the plaza's open edge where the lean waves leave for the cups, and the dock).
+  // No hills on the plaza's open east edge, where the lean waves leave for the cups.
   hills: { amp: 3, wavelength: 60, seed: 11, mask: (x) => 1 - smoothstep(1040, 1058, x) },
   land: {
     kind: 'pads', margin: 28, wobble: 5,
@@ -272,7 +322,7 @@ const GALAXY_SCULPT: RealmSculpt = {
     extra: [{ name: 'plaza-south', rect: [956, 1044, 76, 80], margin: 18, wobble: 3 }],
   },
   edge: { kind: 'cliff', drop: 70, width: 22, lip: 1.2 },
-  water: [{ rect: Q.moat, level: MOAT_LEVEL, bed: MOAT_BED, bank: 0 }],
+  water: [{ rect: Q.moat, level: MOAT_LEVEL, bed: MOAT_BED, cut: false }],
   layerRects: [
     { rect: Q.court, layer: 'flagstone', warp: 5, blend: 10 },
     { rect: Q.castleYard, layer: 'flagstone', warp: 4, blend: 8 },
@@ -281,7 +331,6 @@ const GALAXY_SCULPT: RealmSculpt = {
     { rect: PLAZA, layer: 'marble', warp: 6, blend: 12, fray: 0.35 },
     // (5 m north of the quarter, so the snow drifts onto the street's and the plaza's stone; frayed into the rock south.)
     { rect: [Q.snow[0], Q.snow[1], Q.snow[2] - 5, Q.snow[3]], layer: 'snow', warp: 7, blend: 12, fray: 0.3 },
-    { disc: DOCK_PAD, layer: 'moss', warp: 3, blend: 6, fray: 0.3 },
   ],
   defaultLayer: 'rock',
   accent: { layer: 'moss', wavelength: 28, cover: 0.85, flat: true },
@@ -289,50 +338,59 @@ const GALAXY_SCULPT: RealmSculpt = {
   cloudSea: GY - 40,
   sky: 'kingdom',
   clear: GALAXY_FLOATERS,
-  // The moat's walls (x 816, 828) fall mid-cell, so the drawn wall leans inside the channel, never into the street.
-  gridPhase: 0.75,
 };
 
 // ---------- the Dragon's Vale ----------
 
 const VY = VALE.y;
-/** The crowned head's hill: a dome west of the river (the head lies on its east shoulder). */
-export const VALE_DOME: ExtraHill = { disc: { x: VALE.x - 92, z: VALE.z + 16, r: 42 }, height: 9, falloff: 1 };
-/** Where the crowned head lies (Vale.ts: X − 85, Z + 20) and its own level ground on top of the hill. */
-export const VALE_HEAD: Disc = { x: VALE.x - 85, z: VALE.z + 20, r: 6 };
-export const VALE_HEAD_Y = VY + hillHeight(VALE_DOME, VALE_HEAD.x, VALE_HEAD.z);
+/** The crowned head as Vale.ts places it: at (X − 85, Z + 20), turned face(0.25) = π/2 − 0.25, half again its registry size. */
+export const CROWNED_HEAD = { x: VALE.x - 85, z: VALE.z + 20, yaw: Math.PI / 2 - 0.25, scale: 1.5 } as const;
+/**
+ * The head's level seat. crowned-head.glb at that scale is 21 m tall and lies on its own mound: its floor-touching
+ * collider cells (colliderGrids.ts, `low` > 0) spread 32 × 24 m, out to 17.7 m from where it is placed, and their
+ * enclosing circle is r 16.56 about (914.9, 918.4). The seat is that circle and 0.94 m more, level all over, so no part
+ * of the mound floats or sinks wherever its model stands at h() on it.
+ */
+export const VALE_HEAD_SEAT: Disc = { x: 914.9, z: 918.4, r: 17.5 };
+/**
+ * The seat's height: what the cobbled path climbs, at under 0.28, on its 18 m straight run from the bridge's bank to the
+ * seat between Vale.ts's braziers (the plan's 9 m dome would take a gradient of 0.5 there).
+ */
+export const VALE_HEAD_Y = VY + 5;
+/** The crowned head's hill: a mesa whose level top is the seat, easing down to the meadows by r 40 (the fbm hills masked off on it). */
+export const VALE_DOME: ExtraHill = { disc: { x: VALE_HEAD_SEAT.x, z: VALE_HEAD_SEAT.z, r: 40 }, height: VALE_HEAD_Y - VY, falloff: 1 - VALE_HEAD_SEAT.r / 40 };
 /** The river (Vale.ts: riverX = X − 45, 10 m wide, z0..z1 = Z − 120..Z + 125), its surface at vy − 0.35 over a bed 2.2 m down. */
 export const VALE_RIVER: WaterRect = { rect: [VALE.x - 50, VALE.x - 40, VALE.z - 120, VALE.z + 125], level: VY - 0.35, bed: VY - 2.2 };
 /** The bridge's banks (Vale.ts: the braziers at riverX ± 6.5, bridgeZ ± 3; the slab deck spans the water on its own collider). */
 export const VALE_BANKS: readonly [Rect, Rect] = [[VALE.x - 55, VALE.x - 50, VALE.z + 35, VALE.z + 45], [VALE.x - 40, VALE.x - 35, VALE.z + 35, VALE.z + 45]];
 /**
  * The cobbled path from the bridge up to the head: Vale.ts's cobble line (from the bridge's west end (949, 939) along
- * −(2, 1)/√5, between the brazier pair at (928, 928.5) ± 2.8 m) carried on to where it meets the head's ground. It
+ * −(2, 1)/√5) as far as the head's seat, which it meets just short of the brazier pair at (928, 928.5) ± 2.8 m. It
  * starts on the west bank (clear of the water) and is 4 m wide.
  */
 const PATH_DIR = { x: -2 / Math.sqrt(5), z: -1 / Math.sqrt(5) };
 const PATH_A = { x: 947.5, z: 939 + (947.5 - 949) * 0.5 };
 const PATH_LEN = (() => {
-  // The first point along the line from A that is on the head's disc.
-  const ox = PATH_A.x - VALE_HEAD.x, oz = PATH_A.z - VALE_HEAD.z;
+  // The first point along the line from A that is on the seat.
+  const ox = PATH_A.x - VALE_HEAD_SEAT.x, oz = PATH_A.z - VALE_HEAD_SEAT.z;
   const b = ox * PATH_DIR.x + oz * PATH_DIR.z;
-  const c = ox * ox + oz * oz - VALE_HEAD.r * VALE_HEAD.r;
+  const c = ox * ox + oz * oz - VALE_HEAD_SEAT.r * VALE_HEAD_SEAT.r;
   return -b - Math.sqrt(b * b - c);
 })();
 export const VALE_PATH: Seg = { ax: PATH_A.x, az: PATH_A.z, bx: PATH_A.x + PATH_DIR.x * PATH_LEN, bz: PATH_A.z + PATH_DIR.z * PATH_LEN, r: 2 };
 /** Where the path leaves the bank and starts to climb (the west bank's edge, x = X − 55). */
 const PATH_FLAT = (PATH_A.x - VALE_BANKS[0][0]) / -PATH_DIR.x;
-/** The climb's gradient: the head's height over the path's run from the bank (≈ 0.28). */
+/** The climb's gradient: the seat's height over the path's run from the bank (5 m over 18 m: 0.277). */
 export const VALE_PATH_GRADE = (VALE_HEAD_Y - VY) / (PATH_LEN - PATH_FLAT);
-/** The path's height: level on the bank, a straight climb to the head's ground (a cone round the head's disc meets it there). */
+/** The path's height: level on the bank, a straight climb to the seat (a cone round the seat meets it there). */
 export const valePathY = (x: number, z: number): number => {
   const s = segT(x, z, VALE_PATH) * PATH_LEN;
   const ramp = VY + VALE_PATH_GRADE * Math.max(0, s - PATH_FLAT);
-  const cone = VALE_HEAD_Y - VALE_PATH_GRADE * Math.max(0, sdDisc(x, z, VALE_HEAD));
+  const cone = VALE_HEAD_Y - VALE_PATH_GRADE * Math.max(0, sdDisc(x, z, VALE_HEAD_SEAT));
   return Math.min(VALE_HEAD_Y, Math.max(ramp, cone));
 };
-/** The path as a polyline from the bank to the head's middle (for the gradient check). */
-export const VALE_HEAD_PATH: ReadonlyArray<readonly [number, number]> = [[VALE_PATH.ax, VALE_PATH.az], [VALE_PATH.bx, VALE_PATH.bz], [VALE_HEAD.x, VALE_HEAD.z]];
+/** The path as a polyline from the bank over the seat to where the head stands (for the gradient check). */
+export const VALE_HEAD_PATH: ReadonlyArray<readonly [number, number]> = [[VALE_PATH.ax, VALE_PATH.az], [VALE_PATH.bx, VALE_PATH.bz], [CROWNED_HEAD.x, CROWNED_HEAD.z]];
 /** The floating castle (Vale.ts: X + 130, Z + 10, its rock's foot at vy + 18; half-width 0.37 H) and its chained platforms. */
 const VALE_FLOATERS: Floater[] = [
   { name: 'floating-castle', disc: { x: VALE.x + 130, z: VALE.z + 10, r: 0.375 * MODELS['floating-castle'].height + 0.5 }, below: VY + 18 },
@@ -354,11 +412,18 @@ const VALE_SCULPT: RealmSculpt = {
     { name: 'arrival', rect: [VALE.x - 8, VALE.x + 8, VALE.z + 104, VALE.z + 116], y: VY, blend: 6 },
     { name: 'bridge-west-bank', rect: VALE_BANKS[0], y: VY, blend: 4 },
     { name: 'bridge-east-bank', rect: VALE_BANKS[1], y: VY, blend: 4 },
-    { name: 'crowned-head', disc: VALE_HEAD, y: VALE_HEAD_Y, blend: 6 },
+    { name: 'crowned-head', disc: VALE_HEAD_SEAT, y: VALE_HEAD_Y, blend: 6 },
     // A spur up the hill: the path's wide blend makes its flanks gentle slopes, not an embankment.
     { name: 'head-path', seg: VALE_PATH, y: valePathY, blend: 10 },
   ],
-  hills: { amp: 3.5, wavelength: 55, seed: 23 },
+  // (Off on the crowned head's hill, so it is the smooth mesa its seat needs; back in full past 55 m from its middle.)
+  hills: {
+    amp: 3.5, wavelength: 55, seed: 23,
+    mask: (x, z) => {
+      const dx = x - VALE_DOME.disc.x, dz = z - VALE_DOME.disc.z;
+      return smoothstep(VALE_DOME.disc.r - 5, VALE_DOME.disc.r + 15, Math.sqrt(dx * dx + dz * dz));
+    },
+  },
   land: {
     kind: 'pads', margin: 35, wobble: 5,
     // Beyond the pads' 35 m: the hill, the river to both its ends, and the meadows the mobs roam (the fog beasts by the
@@ -380,8 +445,8 @@ const VALE_SCULPT: RealmSculpt = {
     { rect: [VALE.x - 6, VALE.x + 6, VALE.z - 14, VALE.z + 114], layer: 'cobble', warp: 3, blend: 6, fray: 0.3 },
     { seg: VALE_PATH, layer: 'cobble', warp: 1.5, blend: 3, fray: 0.3 },
     { disc: { x: VALE.x + 19, z: VALE.z + 66, r: 7 }, layer: 'soil', warp: 2, blend: 5, fray: 0.4 },
-    // The crown: the head lies on bare rock.
-    { disc: { x: VALE_HEAD.x, z: VALE_HEAD.z, r: 11 }, layer: 'rock', warp: 3, blend: 7, fray: 0.3 },
+    // The crown: the head's mound stands on bare rock, frayed into the grass of the seat's rim.
+    { disc: { x: CROWNED_HEAD.x, z: CROWNED_HEAD.z, r: 14 }, layer: 'rock', warp: 3, blend: 7, fray: 0.3 },
   ],
   defaultLayer: 'grass',
   accent: { layer: 'moss', wavelength: 33, cover: 0.7 },
@@ -395,13 +460,19 @@ const VALE_SCULPT: RealmSculpt = {
 
 /** The city's walkable floor (Sunken.ts SUNKEN_FLOOR: the kelp road, the street and the square in one slab). */
 export const SUNKEN_PAD: Rect = [-1040, -960, -140, 70];
+/**
+ * How far the dunes reach from the city's middle before the seabed falls away (the plan's 300 m, cut back): 54 m past
+ * the slab's farthest corner (146 m out), further than the murk (fog 0.024) lets anything show; the fall takes
+ * SEABED_FALL more. So the field bakes at REALM_CELL like every realm, in 135k vertices (the kingdom's: 118k), not 280k.
+ */
+export const SEABED_R = 200;
 
 const SUNKEN_SCULPT: RealmSculpt = {
   id: 'sunken',
   base: SUNKEN.y,
   pads: [{ name: 'floor', rect: SUNKEN_PAD, y: SUNKEN.y, blend: 6 }],
   hills: { amp: 1.2, wavelength: 30, seed: 5 },
-  land: { kind: 'disc', disc: { x: SUNKEN.x, z: SUNKEN.z, r: 300 } },
+  land: { kind: 'disc', disc: { x: SUNKEN.x, z: SUNKEN.z, r: SEABED_R } },
   edge: { kind: 'seabed', fall: SEABED_FALL },
   layerRects: [
     // The cobbled way (Sunken.ts: cobbleFloor(X, −40, 16, 130)) and the square before the castle (cobbleFloor(X, −78, 46, 36)).
@@ -414,17 +485,28 @@ const SUNKEN_SCULPT: RealmSculpt = {
   grass: false,
   cloudSea: null,
   sky: 'island',
-  // A level floor and 1.2 m dunes in the murk need no 1.5 m cells: 3 m keeps the 790 m field near 70k vertices.
-  cell: 3,
 };
 
 // ---------- the Alley of Graves ----------
 
 const GX = GRAVEYARD.x, GZ = GRAVEYARD.z;
-/** The alley (Graveyard.ts: the walls stand at x ± 3.4, the floor box runs z ± 120). */
-export const ALLEY_PAD: Rect = [GX - 4, GX + 4, GZ - 120, GZ + 120];
-/** The raised grave plots (Graveyard.ts: boxes at x ± 10.25, hw 5.75, z R.z + 8 ± 76, top y0 + 0.6). */
-export const PLOT_PADS: readonly [Rect, Rect] = [[GX + 4.5, GX + 16, GZ - 68, GZ + 84], [GX - 16, GX - 4.5, GZ - 68, GZ + 84]];
+/**
+ * The alley's level floor (Graveyard.ts: the floor box runs z ± 120): x ±3, out to where the plots' rises begin under
+ * the walls (those stand at x ±3.4, their alley faces at ±2.78, so they stand on the floor and are banked behind).
+ */
+export const ALLEY_PAD: Rect = [GX - 3, GX + 3, GZ - 120, GZ + 120];
+/**
+ * The raised grave plots. Graveyard.ts's boxes span x ±(4.5..16), z −1068..−916 (at x ± 10.25, hw 5.75, z R.z + 8 ± 76),
+ * top y0 + 0.6. On the grid their level tops hold x ±(4.5..15), z −1068..−916.5, every grave on them (|x| 5.0..12.6,
+ * z −1042.8..−918.7), and each rises linearly over the one column of cells round that, so the drawn plot is exactly the
+ * sculpt's: x ±(3..4.5) under and behind the alley's walls (their alley faces stay on the level floor at x ±2.78),
+ * ±(15..16.5) at the outer edge, z −1069.5..−1068 and −916.5..−915 at the ends. (A rise of 0.6 m cannot fit between the
+ * walls' plot faces at ±4.02 and the first graves at ±5.0 in 1.5 m cells; the walls hide it.) The dead trees Graveyard.ts
+ * scatters over |x| 14..20 straddle the outer rise, so step 7 stands every one at h(), which is exact on the drawn ground
+ * there. (As under today's plot boxes, two arena braziers (±8, −1062) and the sitting skeletons' stones (±6, −944.7)
+ * stand at y0 inside the plots, 0.6 m deep.)
+ */
+export const PLOT_PADS: readonly [Rect, Rect] = [onGrid([GX + 4.5, GX + 16, GZ - 68, GZ + 84]), onGrid([GX - 16, GX - 4.5, GZ - 68, GZ + 84])];
 export const PLOT_Y = GRAVEYARD.y + 0.6;
 /** The cyclops lord's arena before the gothic tower (ENEMY_SPAWNS: (0, −1068), a boss's 30 m territory). */
 export const ARENA_PAD: Disc = { x: GX, z: GZ - 68, r: 30 };
@@ -436,8 +518,8 @@ const GRAVEYARD_SCULPT: RealmSculpt = {
     { name: 'alley', rect: ALLEY_PAD, y: GRAVEYARD.y, blend: 3, margin: 20 },
     // Before the plots: graves and the plots' trees stand on them as far south as z −1050, inside the arena's circle.
     { name: 'arena', disc: ARENA_PAD, y: GRAVEYARD.y, blend: 4, margin: 8 },
-    { name: 'plot-east', rect: PLOT_PADS[0], y: PLOT_Y, blend: 0.5 },
-    { name: 'plot-west', rect: PLOT_PADS[1], y: PLOT_Y, blend: 0.5 },
+    { name: 'plot-east', rect: PLOT_PADS[0], y: PLOT_Y, blend: REALM_CELL, ease: 'linear' },
+    { name: 'plot-west', rect: PLOT_PADS[1], y: PLOT_Y, blend: REALM_CELL, ease: 'linear' },
   ],
   // Mounds beyond the plots' trees only (they stand on level floor out to |x| 20, the mist sprites low over it).
   hills: { amp: 2, wavelength: 40, seed: 31, mask: (x) => smoothstep(21, 30, Math.abs(x - GX)) },
@@ -479,11 +561,11 @@ interface Compiled {
   wobble: Float64Array;
   /** A disc of land instead (the seabed): x, z, r, wobble. */
   disc: readonly [number, number, number, number] | null;
-  /** Pads in order: their parts [start, end), blend, and height (a number, or `fn`). */
-  pads: Array<{ start: number; end: number; blend: number; y: number; fn: ((x: number, z: number) => number) | null }>;
+  /** Pads in order: their parts [start, end), blend (smoothstep, or `linear`), and height (a number, or `fn`). */
+  pads: Array<{ start: number; end: number; blend: number; linear: boolean; y: number; fn: ((x: number, z: number) => number) | null }>;
   /** Layer rects in order: their parts, texture index, warp, blend, fray, how far past the shape they can reach and how deep inside they are solid. */
   layers: Array<{ start: number; end: number; layer: number; warp: number; blend: number; fray: number; reach: number; solid: number }>;
-  /** Water rects: cx, cz, hx, hz, level, bed, bank (7 each). */
+  /** Water rects: cx, cz, hx, hz, level, bed, bank, cut (1 or 0) (WATER_STRIDE each). */
   water: Float64Array;
   /** Extra hills (domes): x, z, r, inner radius, height (5 each). */
   domes: Float64Array;
@@ -506,6 +588,7 @@ interface Compiled {
 }
 
 const COMPILED = new WeakMap<RealmSculpt, Compiled>();
+const WATER_STRIDE = 8;
 
 /** The cliff from `top` at the border down past base − drop at `width` to the abyss (one smoothstep, no shelf). */
 function cliffHeight(top: number, e: number, base: number, drop: number, width: number): number {
@@ -529,7 +612,7 @@ function compile(s: RealmSculpt): Compiled {
   const L = s.land;
   const pads = s.pads.map((p) => {
     const r = L.kind === 'pads' ? push(p, p.margin ?? L.margin, p.wobble ?? L.wobble) : push(p);
-    return { ...r, blend: p.blend, y: typeof p.y === 'number' ? p.y : 0, fn: typeof p.y === 'number' ? null : p.y };
+    return { ...r, blend: p.blend, linear: p.ease === 'linear', y: typeof p.y === 'number' ? p.y : 0, fn: typeof p.y === 'number' ? null : p.y };
   });
   if (L.kind === 'pads' && L.extra) for (const l of L.extra) push(l, l.margin ?? L.margin, l.wobble ?? L.wobble);
   const landParts = L.kind === 'pads' ? kinds.length : 0;
@@ -538,7 +621,7 @@ function compile(s: RealmSculpt): Compiled {
     reach: l.blend * 0.5 + l.warp + 0.5, solid: l.blend * 1.25 + l.warp + 0.5,
   }));
   const water: number[] = [];
-  for (const w of s.water ?? []) water.push((w.rect[0] + w.rect[1]) * 0.5, (w.rect[2] + w.rect[3]) * 0.5, (w.rect[1] - w.rect[0]) * 0.5, (w.rect[3] - w.rect[2]) * 0.5, w.level, w.bed, w.bank ?? WATER_BANK);
+  for (const w of s.water ?? []) water.push((w.rect[0] + w.rect[1]) * 0.5, (w.rect[2] + w.rect[3]) * 0.5, (w.rect[1] - w.rect[0]) * 0.5, (w.rect[3] - w.rect[2]) * 0.5, w.level, w.bed, w.bank ?? WATER_BANK, w.cut === false ? 0 : 1);
   const domes: number[] = [];
   for (const h of s.extraHills ?? []) domes.push(h.disc.x, h.disc.z, h.disc.r, h.disc.r * (1 - Math.min(1, Math.max(1e-3, h.falloff))), h.height);
   const edge = s.edge;
@@ -617,7 +700,7 @@ function padBlend(c: Compiled, base: number, x: number, z: number, out: { mask: 
     const p = pads[i];
     const d = sdParts(c, p.start, p.end, x, z);
     if (d >= p.blend) continue;
-    const t = d <= 0 ? 1 : 1 - smoothstep(0, p.blend, d);
+    const t = d <= 0 ? 1 : p.linear ? 1 - d / p.blend : 1 - smoothstep(0, p.blend, d);
     if (t <= 0) continue;
     const py = p.fn ? p.fn(x, z) : p.y;
     const m2 = 1 - (1 - m) * (1 - t);
@@ -675,10 +758,10 @@ export function landMask(s: RealmSculpt, x: number, z: number, noise: Noise2D): 
   return 1 - smoothstep(-LAND_SOFT, 0, landDistance(s, x, z, noise));
 }
 
-/** Banks raised above each water rect's surface round it, the ground inside cut down to its bed. */
+/** Banks raised above each water rect's surface round it, the ground inside cut down to its bed (unless a pad shapes it). */
 function applyWater(c: Compiled, x: number, z: number, h: number): number {
   const W = c.water;
-  for (let i = 0; i < W.length; i += 7) {
+  for (let i = 0; i < W.length; i += WATER_STRIDE) {
     const d = sdBox(x, z, W[i], W[i + 1], W[i + 2], W[i + 3]);
     if (d >= BANK_OUT) continue;
     const shore = W[i + 4] + FREEBOARD;
@@ -686,6 +769,7 @@ function applyWater(c: Compiled, x: number, z: number, h: number): number {
       if (h < shore) h = lerp(h, shore, 1 - smoothstep(WATER_BANK, BANK_OUT, d));
       continue;
     }
+    if (!W[i + 7]) continue;
     const bank = W[i + 6];
     h = bank > 0 ? lerp(Math.max(h, shore), W[i + 5], smoothstep(0, bank, -d)) : W[i + 5];
   }
@@ -765,7 +849,7 @@ function layerWeights(s: RealmSculpt, x: number, z: number, slope: number, noise
   // Wet within 3 m of water (or everywhere, under the sea).
   let wet = s.wet ?? 0;
   const W = c.water;
-  for (let i = 0; i < W.length; i += 7) wet = Math.max(wet, 1 - smoothstep(0, 3, sdBox(x, z, W[i], W[i + 1], W[i + 2], W[i + 3])));
+  for (let i = 0; i < W.length; i += WATER_STRIDE) wet = Math.max(wet, 1 - smoothstep(0, 3, sdBox(x, z, W[i], W[i + 1], W[i + 2], W[i + 3])));
   out[LAYER.wet] = Math.min(1, Math.max(0, wet));
   // Out on the cliff band and beyond, nothing but rock.
   const e = landSd(c, x, z, noise ? borderWarp(x, z, noise) : 0);
@@ -781,7 +865,7 @@ function layerWeights(s: RealmSculpt, x: number, z: number, slope: number, noise
   const layers = c.layers;
   for (let i = 0; i < layers.length; i++) paint(out, layers[i].layer, coverage(c, layers[i], x, z, noise));
   // The bed under the water.
-  for (let i = 0; i < W.length; i += 7) {
+  for (let i = 0; i < W.length; i += WATER_STRIDE) {
     paint(out, LAYER.seabed, 1 - smoothstep(-1.5, 0.5, sdBox(x, z, W[i], W[i + 1], W[i + 2], W[i + 3])));
   }
   paint(out, LAYER.rock, Math.max(smoothstep(0.45, 0.8, slope), band));
@@ -881,10 +965,11 @@ export function realmTint(s: RealmSculpt, x: number, z: number, _h: number, slop
 
 /**
  * The square the realm's ground is baked over: the land's bounds (every shape grown by its margin and wobble), grown
- * by how far the edge reaches, made square and snapped to the cell (plus the realm's grid phase).
+ * by how far the edge reaches, made square and snapped to the world-aligned grid (corner and vertices at multiples of
+ * REALM_CELL, where the sharp edges lie).
  */
 export function realmField(s: RealmSculpt): { x0: number; z0: number; size: number } {
-  const cell = s.cell ?? REALM_CELL;
+  const cell = REALM_CELL;
   let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
   const grow = (b: { x0: number; x1: number; z0: number; z1: number }, m: number) => {
     x0 = Math.min(x0, b.x0 - m); x1 = Math.max(x1, b.x1 + m); z0 = Math.min(z0, b.z0 - m); z1 = Math.max(z1, b.z1 + m);
@@ -900,15 +985,14 @@ export function realmField(s: RealmSculpt): { x0: number; z0: number; size: numb
   // (Two cells over: snapping the corner down to the grid can shift the square by up to one.)
   const n = Math.ceil(Math.max(x1 - x0, z1 - z0) / cell) + 2;
   const size = n * cell;
-  const phase = s.gridPhase ?? 0;
-  const snap = (c: number) => Math.floor((c - size / 2 - phase) / cell) * cell + phase;
+  const snap = (c: number) => Math.floor((c - size / 2) / cell) * cell;
   return { x0: snap((x0 + x1) / 2), z0: snap((z0 + z1) / 2), size };
 }
 
 /**
- * The realm as render/Ground.ts's Sculpt: its field square at REALM_CELL (or the realm's own cell), chunks that are all
- * abyss skipped (`voidBelow`), and height/layers/tint closures over this module's functions. The tint reuses the
- * weights `layers` just wrote for the same vertex (Heightfield.bake asks for both in turn).
+ * The realm as render/Ground.ts's Sculpt: its field square at REALM_CELL, chunks that are all abyss skipped
+ * (`voidBelow`), and height/layers/tint closures over this module's functions. The tint reuses the weights `layers`
+ * just wrote for the same vertex (Heightfield.bake asks for both in turn).
  */
 export function sculptFor(s: RealmSculpt, noise: Noise2D): Sculpt {
   const f = realmField(s);
@@ -918,7 +1002,7 @@ export function sculptFor(s: RealmSculpt, noise: Noise2D): Sculpt {
     x0: f.x0,
     z0: f.z0,
     size: f.size,
-    cell: s.cell ?? REALM_CELL,
+    cell: REALM_CELL,
     voidBelow: ABYSS_Y + 1,
     height: (x, z) => realmHeight(s, x, z, noise),
     layers: (x, z, h, slope, out) => {
