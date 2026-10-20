@@ -21,9 +21,9 @@
  * Sharp edges are drawn exactly: every realm bakes at REALM_CELL on a world-aligned grid, and a pad with a linear blend
  * one cell wide off a rect on grid lines (the moat's bed, the grave plots) rises across exactly one column of cells,
  * which the baked grid draws just as the sculpt has it along the rect's sides. In its four corner cells the rise rounds
- * off (up to 0.18 m from the drawn at a grave plot's corners, where nothing stands), and at the moat's open ends, under
- * the water, the rolling ground beyond meets it; there, as everywhere else, the sculpt equals the drawn ground at the
- * vertices only.
+ * off (up to 0.18 m from the drawn at a grave plot's corners, where nothing stands but the ends of the alley's walls,
+ * which hide it), and at the moat's open ends, under the water, the rolling ground beyond meets it; there, as
+ * everywhere else, the sculpt equals the drawn ground at the vertices only.
  *
  * Things that float over the void (the lean cups, the sky islands and the sky dock, the vale's floating castle and its
  * platforms) are `clear` zones: the land is cut back from them far enough that the cliff has already fallen below them.
@@ -248,20 +248,40 @@ export const MOAT_BED = GY - 2.2;
  * trench along them; between z −40 and −39 the sheet's end is under the bank).
  */
 export const MOAT_BED_RECT: Rect = onGrid(Q.moat, 1);
-/** The snow quarter climbs 3 m from the plaza's level toward the chapel (level again from z 150). */
+/**
+ * The snow quarter climbs 3 m from the plaza's level toward the chapel, level again from z 150 (the quarter's top,
+ * Q.snow's x 860..960, z 150..175, is all at CHAPEL_Y).
+ *
+ * Step 6's notes for the snow quarter (here, on CHAPEL_PAD and on SNOW_FLATS). LeanQuarter.ts stands all of it at gy
+ * (24): each placement listed moves to h(), and every height written gy + k for it (a footprint's top, a fire, a glow)
+ * becomes h() + k at its own x, z. On the slope:
+ * - the path's snow pillars (scale 0.8; box footprints hw 0.45, top gy + 2.1) at (940.85, 110.41) 25.21,
+ *   (935.36, 106.39) 24.96, (920.63, 133.30) 26.57 and (916.02, 128.30) 26.31;
+ * - its torches (cyl footprints r 0.25, top gy + 2.4; fires at gy + 2.3) at (941.75, 95.56) 24.38, (947.71, 98.84)
+ *   24.53 and (926.83, 117.27) 25.65, and the fourth, (931.79, 121.93), on the plague doctor's flat at 26.10;
+ * - the seeded graves (at gy − 0.05) and dead trees (at gy − 0.1; cyl footprints, top gy + 6);
+ * - the snow's mistLayers, laid over all of Q.snow at gy, would lie up to 3 m under the slope, and the plan allows mist
+ *   on flat pads only: step 6 lays it level over the quarter's top at CHAPEL_Y (sculpted 27 all over, drawn 27 but in
+ *   the last cell along its sides, 26.96 at worst), or drops it.
+ */
 export const snowY = (z: number): number => GY + 3 * smoothstep(80, 150, z);
 /**
- * The chapel's own level ground (LEAN_QUARTER.chapel). Interiors.ts's crypt door (its interactable at (902.6, 146.5))
- * and the crypt's way back up (a teleport to (904.8, 144.1)) are on it, at 27: both still use GALAXY.y (24), 3 m into
- * the ground, until step 6 puts them at h().
+ * The chapel's own level ground (LEAN_QUARTER.chapel), at CHAPEL_Y: 3 m above the gy LeanQuarter.ts and Interiors.ts
+ * use today. Step 6 puts at h() everything on it: the snow-chapel model, whose 832 floor-touching collider cells (all
+ * within 5.3 m of where it stands) read exactly 27, sculpted and drawn, so it sits level; Interiors.ts's crypt door
+ * (its interactable at (902.6, 146.5)) and the crypt's way back up (a teleport to (904.8, 144.1)), both still on
+ * GALAXY.y; and the candlelight LeanQuarter.ts hangs at the door at gy + 1.4, 1.6 m under the pad until it is
+ * h() + 1.4.
  */
 export const CHAPEL_PAD: Disc = { x: Q.chapel.x, z: Q.chapel.z, r: 14 };
 export const CHAPEL_Y = 27;
 /**
- * Level ground under the snow quarter's clusters: the four cottages (LeanQuarter.ts, boxes hw 3.3) and the plague
- * doctor on his chest (931, 124.6) at the slope's height at their middle (the plan sweeps them to h()), and the gate the
- * path comes in by (its pillars at (950 ± 3.5, 86), the broken gate at (955.6, 87.8)) at the floor's own GY, so it
- * stays where it stands.
+ * Level ground under the snow quarter's clusters, each at the slope's height at its middle: the four cottages
+ * (LeanQuarter.ts: box footprints hw 3.3, top gy + 6, and window glows at gy + 2.4) and the plague doctor on his chest
+ * at (931, 124.6), at 26.10 (ANCHORS['plague-doctor'].y, world.ts:154, and the chest's cyl footprint, r 1.15, whose
+ * top gy + 1.3 = 25.3 lies under the ground there), all in the plan's h() sweep with their tops at h() + k (see snowY);
+ * and the gate the path comes in by (its pillars at (950 ± 3.5, 86), footprint tops gy + 2.6, the broken gate at
+ * (955.6, 87.8)) at the floor's own GY, so it stays where it stands and its tops hold.
  */
 export const SNOW_FLATS: ReadonlyArray<Disc & { name: string; y: number }> = [
   { name: 'cottage-nw', x: 865.5, z: 100, r: 5, y: snowY(100) }, { name: 'cottage-w', x: 865.5, z: 120, r: 5, y: snowY(120) },
@@ -355,6 +375,12 @@ export const VALE_HEAD_SEAT: Disc = { x: 914.9, z: 918.4, r: 17.5 };
 /**
  * The seat's height: what the cobbled path climbs, at under 0.28, on its 18 m straight run from the bridge's bank to the
  * seat between Vale.ts's braziers (the plan's 9 m dome would take a gradient of 0.5 there).
+ *
+ * Step 7's h() items on the seat, which Vale.ts places at vy (0), 5 m under it: the crowned head itself (Vale.ts L188,
+ * the plan's own h() item) and the two braziers where the path meets it, at (926.75, 931.00) and (929.25, 926.00)
+ * (X − 72 ∓ 2.8 uz, Z + 28.5 ± 2.8 ux), which read 5.000 (drawn 4.98..5.00 under them). Their models go to h(), their
+ * cyl footprints (r 0.6, top vy + 1.3, until then 3.7 m under the seat) to h() + 1.3, and their fires (vy + 1.5) to
+ * h() + 1.5.
  */
 export const VALE_HEAD_Y = VY + 5;
 /** The crowned head's hill: a mesa whose level top is the seat, easing down to the meadows by r 40 (the fbm hills masked off on it). */
@@ -496,17 +522,39 @@ const GX = GRAVEYARD.x, GZ = GRAVEYARD.z;
  */
 export const ALLEY_PAD: Rect = [GX - 3, GX + 3, GZ - 120, GZ + 120];
 /**
- * The raised grave plots. Graveyard.ts's boxes span x ±(4.5..16), z −1068..−916 (at x ± 10.25, hw 5.75, z R.z + 8 ± 76),
- * top y0 + 0.6. On the grid their level tops hold x ±(4.5..15), z −1068..−916.5, every grave on them (|x| 5.0..12.6,
- * z −1042.8..−918.7), and each rises linearly over the one column of cells round that, so the drawn plot is exactly the
- * sculpt's: x ±(3..4.5) under and behind the alley's walls (their alley faces stay on the level floor at x ±2.78),
- * ±(15..16.5) at the outer edge, z −1069.5..−1068 and −916.5..−915 at the ends. (A rise of 0.6 m cannot fit between the
- * walls' plot faces at ±4.02 and the first graves at ±5.0 in 1.5 m cells; the walls hide it.) The dead trees Graveyard.ts
- * scatters over |x| 14..20 straddle the outer rise, so step 7 stands every one at h(), which is exact on the drawn ground
- * there. (As under today's plot boxes, two arena braziers (±8, −1062) and the sitting skeletons' stones (±6, −944.7)
- * stand at y0 inside the plots, 0.6 m deep.)
+ * Where the graves end, on a grid line: Graveyard.ts lays their rows while z > zArena + 24 (−1044; the last row at
+ * −1042.5 ± 0.3). The southernmost tree on a plot stands well north of it, at (−14.08, −1013.12).
  */
-export const PLOT_PADS: readonly [Rect, Rect] = [onGrid([GX + 4.5, GX + 16, GZ - 68, GZ + 84]), onGrid([GX - 16, GX - 4.5, GZ - 68, GZ + 84])];
+const PLOTS_SOUTH = GZ - 68 + 24;
+/**
+ * The raised grave plots. Graveyard.ts's boxes span x ±(4.5..16), z −1068..−916 (at x ± 10.25, hw 5.75, z R.z + 8 ± 76),
+ * top y0 + 0.6. On the grid their level tops hold x ±(4.5..15), z −1044..−916.5 (ending where the graves do,
+ * PLOTS_SOUTH), every grave on them (|x| 5.0..12.6, z −1042.8..−918.7), and each rises linearly over the one column of
+ * cells round that, so the drawn plot is exactly the sculpt's: x ±(3..4.5) under and behind the alley's walls (their
+ * alley faces stay on the level floor at x ±2.78), ±(15..16.5) at the outer edge, z −1045.5..−1044 and −916.5..−915 at
+ * the ends. South of them lies the arena's level floor at y0, where Graveyard.ts stands two of the arena's braziers,
+ * (±8, −1062) (today inside its plot boxes, 0.6 m deep): they stand on it as placed.
+ *
+ * The walls, stone-wall segments centred at x ±3.4, z −917..−1044 (footprints x ±2.78..±4.02), placed at y0: a 0.6 m
+ * rise cannot fit between their plot faces at ±4.02 and the first graves at ±5.0 in 1.5 m cells (the vertex at x 4.5
+ * cannot be both y0 and PLOT_Y), so the rise runs under them and they hide it. The ground is 0.16 at a wall's middle
+ * and at most 0.41 at its plot face, sculpted and drawn, never under y0 beneath its footprint, and flush with the floor
+ * along its alley face (±2.78..3). They keep y0.
+ *
+ * Step 7's notes for the alley:
+ * - h() items. The dead trees Graveyard.ts scatters over |x| 14..20 straddle the outer rise, so step 7 stands every one
+ *   at h(), which is exact on the drawn ground there (of today's twelve, (15.77, −959.04) goes to 0.292 and
+ *   (16.29, −982.46) to 0.084). The sitting skeletons' seats, the boulders at (±6, −944.72) (Graveyard.ts: their spawns
+ *   (±6, −945) moved 0.28 m back along their yaw), stand at y0 mid-plot, so the 0.5 m stone is buried while its
+ *   skeleton stands at 0.6: step 7 stands them at h() (the seat at PLOT_Y, its top at 1.1). The sculpt cannot fix them
+ *   without a hole in the plot.
+ * - Removals. The plan removes Graveyard.ts's floor mesh and plotSlab; step 7 must also remove its `solid` floor box
+ *   (x ±24, z ±120, top y0) and its two plot boxes (x ±10.25 hw 5.75, z −1068..−916, top y0 + 0.6): the ground's own
+ *   collision replaces them. A plot box kept would stand up to 0.4 m proud of the drawn ground over x 15..16 of the
+ *   outer rise (drawn 0.6 down to 0.2) and round the h() tree at (15.77, −959.04) (ground 0.292), and 0.6 m proud of
+ *   the arena's floor over z −1068..−1045.5, round the braziers there.
+ */
+export const PLOT_PADS: readonly [Rect, Rect] = [onGrid([GX + 4.5, GX + 16, PLOTS_SOUTH, GZ + 84]), onGrid([GX - 16, GX - 4.5, PLOTS_SOUTH, GZ + 84])];
 export const PLOT_Y = GRAVEYARD.y + 0.6;
 /** The cyclops lord's arena before the gothic tower (ENEMY_SPAWNS: (0, −1068), a boss's 30 m territory). */
 export const ARENA_PAD: Disc = { x: GX, z: GZ - 68, r: 30 };
@@ -516,7 +564,7 @@ const GRAVEYARD_SCULPT: RealmSculpt = {
   base: GRAVEYARD.y,
   pads: [
     { name: 'alley', rect: ALLEY_PAD, y: GRAVEYARD.y, blend: 3, margin: 20 },
-    // Before the plots: graves and the plots' trees stand on them as far south as z −1050, inside the arena's circle.
+    // Before the plots: their graves stand on them as far south as z −1042.8, inside the arena's circle.
     { name: 'arena', disc: ARENA_PAD, y: GRAVEYARD.y, blend: 4, margin: 8 },
     { name: 'plot-east', rect: PLOT_PADS[0], y: PLOT_Y, blend: REALM_CELL, ease: 'linear' },
     { name: 'plot-west', rect: PLOT_PADS[1], y: PLOT_Y, blend: REALM_CELL, ease: 'linear' },
