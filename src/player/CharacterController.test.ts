@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CONTROLLER, createControllerState, stepController, type ControllerInput, type WorldQuery } from './CharacterController';
+import { CONTROLLER, createControllerState, startDash, stepController, type ControllerInput, type WorldQuery } from './CharacterController';
 
 const flat: WorldQuery = { heightAt: () => 0 };
 const idle = (): ControllerInput => ({ move: { x: 0, z: 0 }, sprint: false, jump: false, jumpHeld: false, fly: false });
@@ -319,5 +319,61 @@ describe('stepController — vertical walls (landmark footprints)', () => {
     expect(s.pos.y).toBeLessThan(y);
     expect(s.mode).toBe('ground');
     expect(s.pos.y).toBeCloseTo(0, 1);
+  });
+});
+
+describe('stepController — dash (the dodge roll)', () => {
+  it('carries the hero at least 3.5 m and is over within 0.3 s, ending in a walk (no long slide)', () => {
+    const s = createControllerState({ x: 0, y: 0, z: 0 });
+    startDash(s, { x: 1, z: 0 });
+    run(idle(), 18, flat, s); // 0.3 s
+    expect(s.pos.x).toBeGreaterThanOrEqual(3.5);
+    expect(s.dashLeft).toBe(0);
+    expect(s.mode).toBe('ground');
+    expect(s.pos.y).toBeCloseTo(0);
+    expect(Math.hypot(s.vel.x, s.vel.z)).toBeLessThanOrEqual(CONTROLLER.walkSpeed + 1e-9);
+    const x = s.pos.x;
+    run(idle(), 30, flat, s);
+    expect(s.pos.x - x).toBeLessThan(0.5);
+    expect(Math.hypot(s.vel.x, s.vel.z)).toBeCloseTo(0);
+  });
+
+  it('holds its direction and speed against the stick and the ground drag while it lasts', () => {
+    const s = createControllerState({ x: 0, y: 0, z: 0 });
+    startDash(s, { x: 0, z: -1 });
+    run({ ...idle(), move: { x: 1, z: 0 } }, 6, flat, s); // 0.1 s in
+    expect(s.dashLeft).toBeGreaterThan(0);
+    expect(s.vel.z).toBeCloseTo(-CONTROLLER.dashSpeed);
+    expect(s.vel.x).toBeCloseTo(0);
+  });
+
+  it('normalises the direction, and backsteps when there is none', () => {
+    const s = createControllerState({ x: 0, y: 0, z: 0 });
+    startDash(s, { x: 3, z: 4 });
+    expect(s.dashDir.x).toBeCloseTo(0.6);
+    expect(s.dashDir.z).toBeCloseTo(0.8);
+    const t = createControllerState({ x: 0, y: 0, z: 0 });
+    t.yaw = 0; // faces +x
+    startDash(t, { x: 0, z: 0 });
+    expect(t.dashDir.x).toBeCloseTo(-1);
+    expect(t.dashDir.z).toBeCloseTo(0);
+  });
+
+  it('cannot be jumped out of (the roll finishes on the ground)', () => {
+    const s = createControllerState({ x: 0, y: 0, z: 0 });
+    startDash(s, { x: 1, z: 0 });
+    run({ ...idle(), jump: true, jumpHeld: true }, 6, flat, s);
+    expect(s.mode).toBe('ground');
+    expect(s.pos.y).toBeCloseTo(0);
+  });
+
+  it('ends at a walk even when the roll leaves the ground (off a ledge, the stick still pushed)', () => {
+    const ledge: WorldQuery = { heightAt: (x) => (x < 2 ? 0 : -5) };
+    const s = createControllerState({ x: 0, y: 0, z: 0 });
+    startDash(s, { x: 1, z: 0 });
+    run({ ...idle(), move: { x: 1, z: 0 } }, 18, ledge, s); // 0.3 s: over the edge before the roll ends
+    expect(s.mode).toBe('air');
+    expect(s.dashLeft).toBe(0);
+    expect(Math.hypot(s.vel.x, s.vel.z)).toBeLessThanOrEqual(CONTROLLER.walkSpeed + 1e-9);
   });
 });
