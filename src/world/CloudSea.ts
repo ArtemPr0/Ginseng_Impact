@@ -1,5 +1,6 @@
 import { Color, type ColorRepresentation, DoubleSide, Group, Mesh, PlaneGeometry, ShaderMaterial, UniformsLib, UniformsUtils } from 'three';
 import { PALETTE } from '../render/palette';
+import { CameraJump } from '../render/Sky';
 
 const VERT = /* glsl */ `
 varying vec3 vWorld;
@@ -48,8 +49,6 @@ void main() {
 
 /** Each layer's drop under the top one, opacity, noise scale, and how far it lifts the fog toward the tint. */
 const LAYERS: ReadonlyArray<readonly [number, number, number, number]> = [[0, 0.95, 0.016, 0.3], [-9, 0.9, 0.01, 0.22], [-22, 0.85, 0.007, 0.15]];
-/** A camera move longer than this in one frame is a teleport (the arrival curtain is down): the next change is at once. */
-const JUMP = 150;
 
 const ease = (t: number) => t * t * (3 - 2 * t);
 
@@ -124,11 +123,11 @@ export class CloudSea {
   /** How much the place's fog takes the sea with distance (shared uniform: 0 on the island, 1 in a realm). */
   private readonly fogged = { value: 0 };
   private foggedTo = 0;
-  /** Where the camera was last frame (`seen`: there was a last frame). */
-  private readonly lastCam = { x: 0, y: 0, z: 0 };
-  private seen = false;
-  /** The camera jumped this frame (a teleport, or the first frame): a change asked for now is made at once. */
-  private jumped = true;
+  /**
+   * Whether the camera jumped this frame (a teleport, or the first frame): a change asked for now is made at once. (The
+   * sky's own, on the same rule: Sky.ts CameraJump.)
+   */
+  private readonly jump = new CameraJump();
 
   constructor(y: number) {
     this.state = new CloudLevel(y);
@@ -178,7 +177,7 @@ export class CloudSea {
    * after a teleport the change is immediate (the arrival curtain hides it): no cloud lingers over a drowned floor.
    */
   setLevel(y: number | null, seconds = 1): void {
-    this.state.set(y, this.jumped ? 0 : seconds);
+    this.state.set(y, this.jump.jumped ? 0 : seconds);
     this.place();
   }
 
@@ -190,17 +189,14 @@ export class CloudSea {
   setAir(sky: ColorRepresentation | null): void {
     this.tintTo.set(sky ?? PALETTE.electric);
     this.foggedTo = sky === null ? 0 : 1;
-    if (this.jumped) {
+    if (this.jump.jumped) {
       this.tint.copy(this.tintTo);
       this.fogged.value = this.foggedTo;
     }
   }
 
   update(dt: number, cam: { x: number; y: number; z: number }): void {
-    const last = this.lastCam;
-    this.jumped = !this.seen || Math.hypot(cam.x - last.x, cam.z - last.z) > JUMP || Math.abs(cam.y - last.y) > JUMP;
-    last.x = cam.x; last.y = cam.y; last.z = cam.z;
-    this.seen = true;
+    this.jump.update(cam);
     this.state.step(dt);
     const k = 1 - Math.exp(-2 * dt);
     this.tint.lerp(this.tintTo, k);

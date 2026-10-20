@@ -140,6 +140,11 @@ export interface SkyPreset {
   stars: number;
   moon: number;
   eclipse: number;
+  /**
+   * The open night's lights and apparitions (0..1): the moon's glow in the clouds, the shooting stars and the colossal
+   * face in the clouds. None under the lake.
+   */
+  wonders: number;
 }
 
 const col = (hex: number, k = 1): Color => new Color(hex).multiplyScalar(k);
@@ -147,12 +152,44 @@ const TMP_COLOR = new Color();
 const REFL_COLOR = new Color();
 const BLOOD_TINT = new Color(1.9, 0.12, 0.1);
 
+/** Moves a colour uniform toward `hex` by `k` (module-level, so the frame loop makes no new function objects). */
+function lerpUniform(u: ShaderMaterial['uniforms'], name: string, hex: number, k: number): void {
+  (u[name].value as Color).lerp(TMP_COLOR.set(hex), k);
+}
+
+/** What a reflection blends toward: a realm's own colour (in a scratch colour), or the dome's own when it has none. */
+function reflectionTarget(c: ColorRepresentation | undefined, own: Color): Color {
+  return c === undefined ? own : REFL_COLOR.set(c);
+}
+
+/** A camera move longer than this in one frame is a teleport (the arrival curtain is down). */
+export const CAMERA_JUMP = 150;
+
+/**
+ * Whether the camera jumped this frame: its first frame, or a move of more than CAMERA_JUMP metres since the last (a
+ * teleport, under the arrival curtain). The sky and the cloud sea make a change of place at once on such a frame.
+ */
+export class CameraJump {
+  /** The camera jumped at the last update (true until the first). */
+  jumped = true;
+  private readonly last = { x: 0, y: 0, z: 0 };
+  private seen = false;
+
+  update(cam: { x: number; y: number; z: number }): boolean {
+    const l = this.last;
+    this.jumped = !this.seen || Math.hypot(cam.x - l.x, cam.z - l.z) > CAMERA_JUMP || Math.abs(cam.y - l.y) > CAMERA_JUMP;
+    l.x = cam.x; l.y = cam.y; l.z = cam.z;
+    this.seen = true;
+    return this.jumped;
+  }
+}
+
 /**
  * The sky's colours, moon and clock as uniform objects shared with everything that reflects the sky (water, polished
  * ground). On the island the colours follow the island dome's own; in a realm they follow the realm's own sky
- * (Sky.setReflection: the kingdom's, the dream's, the vale's and the alley's presets, the drowned city's murk, a
- * room's dark), so a reflection always matches the sky above it. The moon's direction and colour (blood moon
- * included) are the dome's.
+ * (Sky.setReflection: the kingdom's, the dream's, the presets of the vale, the alley and the drowned city, which the
+ * island dome shows over them, a room's dark), so a reflection always matches the sky above it. The moon's direction
+ * and colour (blood moon included) are the dome's.
  */
 export const SKY_SHARED = {
   uSkyHorizon: { value: new Color(0x1f3080) },
@@ -164,20 +201,31 @@ export const SKY_SHARED = {
   uSkyTime: { value: 0 },
 };
 
-/** The island's reference night (#28, 01.16.36, 01.22.56) and the graveyard's amber storm (01.16.54). */
+/**
+ * The island's reference night (#28, 01.16.36, 01.22.56), the graveyard's amber storm (01.16.54) and the other places
+ * the island dome shows over.
+ */
 export const SKIES: Record<string, SkyPreset> = {
   island: {
     horizon: 0x1f3080, mid: 0x0f1a6a, zenith: 0x050a26, cloudDark: 0x0a1036, cloudLit: 0x4a64c8, cover: 0.5, swirl: 0.7,
-    vortex: 0.5, vortexA: 0x3a3cff, vortexB: 0xc04ad8, vortexC: 0xff8a3a, nebula: 1, stars: 1, moon: 1, eclipse: 1,
+    vortex: 0.5, vortexA: 0x3a3cff, vortexB: 0xc04ad8, vortexC: 0xff8a3a, nebula: 1, stars: 1, moon: 1, eclipse: 1, wonders: 1,
   },
   // The Dragon's Vale (Dd5Bqt7vQ5T): a deep teal-blue night, thin clouds, many stars (the aurora is SkyEvents').
   vale: {
     horizon: 0x13405a, mid: 0x0a2048, zenith: 0x030818, cloudDark: 0x08182e, cloudLit: 0x3a6a9a, cover: 0.3, swirl: 0.3,
-    vortex: 0, vortexA: 0x000000, vortexB: 0x000000, vortexC: 0x000000, nebula: 0.4, stars: 1.2, moon: 1, eclipse: 0,
+    vortex: 0, vortexA: 0x000000, vortexB: 0x000000, vortexC: 0x000000, nebula: 0.4, stars: 1.2, moon: 1, eclipse: 0, wonders: 1,
   },
   graveyard: {
     horizon: 0x3a1460, mid: 0x5a2a28, zenith: 0x1a0c06, cloudDark: 0x2a1206, cloudLit: 0xd88a2a, cover: 0.34, swirl: 0.25,
-    vortex: 0, vortexA: 0x000000, vortexB: 0x000000, vortexC: 0x000000, nebula: 0, stars: 0.25, moon: 0, eclipse: 0,
+    vortex: 0, vortexA: 0x000000, vortexB: 0x000000, vortexC: 0x000000, nebula: 0, stars: 0.25, moon: 0, eclipse: 0, wonders: 1,
+  },
+  // The Sunken City under the lake (DeVj-Z8POjl): no night over it, only the lake's teal murk past the water ceiling,
+  // all its fog's colour (data/world SUNKEN) from the horizon up past the ceiling's edge, so the gap under that edge
+  // shows no band, darker only straight up; one even overcast of murk; no moon, black sun, stars, vortex or nebula,
+  // and none of the night's wonders.
+  sunken: {
+    horizon: 0x0a3a4e, mid: 0x0a3a4e, zenith: 0x02101a, cloudDark: 0x0a3a4e, cloudLit: 0x0a3a4e, cover: 0, swirl: 0,
+    vortex: 0, vortexA: 0x000000, vortexB: 0x000000, vortexC: 0x000000, nebula: 0, stars: 0, moon: 0, eclipse: 0, wonders: 0,
   },
 };
 
@@ -209,7 +257,11 @@ export class Sky {
   private preset: SkyPreset = SKIES.island;
   /** The sky the reflections follow instead of this dome's (a realm's own), or null. */
   private reflection: SkyColors | null = null;
-  private readonly cur = { cover: 0.5, swirl: 0.7, vortex: 0.5, nebula: 1, stars: 1, moon: 1, eclipse: 1 };
+  private readonly cur = { cover: 0.5, swirl: 0.7, vortex: 0.5, nebula: 1, stars: 1, moon: 1, eclipse: 1, wonders: 1 };
+  /** The moon's glow in the dome's clouds before `wonders` (electric, or blood-red under a blood moon). */
+  private readonly moonGlow = new Color(PALETTE.electric).multiplyScalar(0.5);
+  /** Whether the camera jumped this frame (a teleport): a new place's sky is then there at once. */
+  private readonly jump = new CameraJump();
   /** Where the black sun hangs: low in the north-west, over the forest gorge and the spire castle. */
   readonly eclipseDir = new Vector3(-0.62, 0.17, -0.77).normalize();
   /** 0..1 lightning flash, decays. */
@@ -226,7 +278,7 @@ export class Sky {
         uCloudDark: { value: col(SKIES.island.cloudDark) },
         uCloudLit: { value: SKY_SHARED.uSkyCloud.value.clone() },
         uMoonDir: { value: this.moonDir },
-        uMoonGlow: { value: new Color(PALETTE.electric).multiplyScalar(0.5) },
+        uMoonGlow: { value: this.moonGlow.clone() },
         uTime: { value: 0 },
         uNebulaA: { value: new Color(PALETTE.dusk).multiplyScalar(0.5) },
         uNebulaB: { value: new Color(PALETTE.electric).multiplyScalar(0.45) },
@@ -323,17 +375,24 @@ export class Sky {
     this.group.add(this.glow);
   }
 
-  /** Blends toward another sky over a couple of seconds (the graveyard's amber storm, back to the island night). */
+  /**
+   * Blends toward another sky over a couple of seconds (the graveyard's amber storm, back to the island night). Asked
+   * right after a teleport (the camera jumped this frame: the arrival curtain is down) the new sky is there at once, so
+   * nothing of the last place's sky (the island's black sun over the drowned city) lingers as the curtain lifts.
+   */
   setPreset(p: SkyPreset): void {
     this.preset = p;
+    if (this.jump.jumped) this.blendPreset(1);
   }
 
   /**
    * What water and polished ground reflect (SKY_SHARED): a realm's own sky (its colours may change from frame to
-   * frame: the same object is read each frame), or null for this dome's own colours. Blended in update (1 − e^(−2·dt)).
+   * frame: the same object is read each frame), or null for this dome's own colours. Blended in update (1 − e^(−2·dt));
+   * at once right after a teleport, like the preset (call setPreset first).
    */
   setReflection(c: SkyColors | null): void {
     this.reflection = c;
+    if (this.jump.jumped) this.blendReflection(1);
   }
 
   /**
@@ -358,20 +417,19 @@ export class Sky {
     return SKY_RADIUS * 0.94 * Math.tan((4.5 * Math.PI) / 180);
   }
 
-  private blendPreset(dt: number): void {
-    const k = 1 - Math.exp(-dt * 1.2);
+  /** Moves the dome toward its preset by `k` (0..1: update's 1 − e^(−1.2·dt); 1 is at once). */
+  private blendPreset(k: number): void {
     const u = this.domeMat.uniforms;
     const p = this.preset;
-    const tmp = TMP_COLOR;
-    const lerpC = (name: string, hex: number) => (u[name].value as Color).lerp(tmp.set(hex), k);
-    lerpC('uHorizon', p.horizon); lerpC('uMid', p.mid); lerpC('uZenith', p.zenith);
-    lerpC('uCloudDark', p.cloudDark); lerpC('uCloudLit', p.cloudLit);
-    lerpC('uVortexA', p.vortexA); lerpC('uVortexB', p.vortexB); lerpC('uVortexC', p.vortexC);
+    lerpUniform(u, 'uHorizon', p.horizon, k); lerpUniform(u, 'uMid', p.mid, k); lerpUniform(u, 'uZenith', p.zenith, k);
+    lerpUniform(u, 'uCloudDark', p.cloudDark, k); lerpUniform(u, 'uCloudLit', p.cloudLit, k);
+    lerpUniform(u, 'uVortexA', p.vortexA, k); lerpUniform(u, 'uVortexB', p.vortexB, k); lerpUniform(u, 'uVortexC', p.vortexC, k);
     const c = this.cur;
     c.cover += (p.cover - c.cover) * k; c.swirl += (p.swirl - c.swirl) * k; c.vortex += (p.vortex - c.vortex) * k;
     c.nebula += (p.nebula - c.nebula) * k; c.stars += (p.stars - c.stars) * k; c.moon += (p.moon - c.moon) * k;
-    c.eclipse += (p.eclipse - c.eclipse) * k;
+    c.eclipse += (p.eclipse - c.eclipse) * k; c.wonders += (p.wonders - c.wonders) * k;
     u.uCover.value = c.cover; u.uSwirl.value = c.swirl; u.uVortexAmount.value = c.vortex; u.uNebula.value = c.nebula;
+    (u.uMoonGlow.value as Color).copy(this.moonGlow).multiplyScalar(c.wonders);
     this.starMat.uniforms.uOpacity.value = c.stars;
     const moonOn = c.moon > 0.05;
     this.moon.visible = moonOn && !this.faceModel;
@@ -381,16 +439,17 @@ export class Sky {
     this.eclipse.visible = c.eclipse > 0.05;
   }
 
-  /** SKY_SHARED's colours toward the realm's sky, or toward the dome's own (the island restores its own). */
-  private blendReflection(dt: number): void {
-    const k = 1 - Math.exp(-2 * dt);
+  /**
+   * SKY_SHARED's colours toward the realm's sky, or toward the dome's own (the island restores its own), by `k` (0..1:
+   * update's 1 − e^(−2·dt); 1 is at once).
+   */
+  private blendReflection(k: number): void {
     const r = this.reflection;
     const u = this.domeMat.uniforms;
-    const to = (c: ColorRepresentation | undefined, own: Color) => (c === undefined ? own : REFL_COLOR.set(c));
-    SKY_SHARED.uSkyHorizon.value.lerp(to(r?.horizon, u.uHorizon.value as Color), k);
-    SKY_SHARED.uSkyMid.value.lerp(to(r?.mid, u.uMid.value as Color), k);
-    SKY_SHARED.uSkyZenith.value.lerp(to(r?.zenith, u.uZenith.value as Color), k);
-    SKY_SHARED.uSkyCloud.value.lerp(to(r?.cloud, u.uCloudLit.value as Color), k);
+    SKY_SHARED.uSkyHorizon.value.lerp(reflectionTarget(r?.horizon, u.uHorizon.value as Color), k);
+    SKY_SHARED.uSkyMid.value.lerp(reflectionTarget(r?.mid, u.uMid.value as Color), k);
+    SKY_SHARED.uSkyZenith.value.lerp(reflectionTarget(r?.zenith, u.uZenith.value as Color), k);
+    SKY_SHARED.uSkyCloud.value.lerp(reflectionTarget(r?.cloud, u.uCloudLit.value as Color), k);
   }
 
   setBloodMoon(on: boolean): void {
@@ -400,13 +459,15 @@ export class Sky {
     SKY_SHARED.uMoonCol.value.set(on ? 1.6 : 0.85, on ? 0.15 : 0.9, on ? 0.15 : 1.25);
     this.moonMat.color.set(on ? PALETTE.blood : PALETTE.moon).multiplyScalar(on ? 1.9 : 1.6);
     this.glowMat.color.set(on ? PALETTE.blood : PALETTE.electric);
-    (this.domeMat.uniforms.uMoonGlow.value as Color).set(on ? PALETTE.blood : PALETTE.electric).multiplyScalar(on ? 0.35 : 0.5);
+    this.moonGlow.set(on ? PALETTE.blood : PALETTE.electric).multiplyScalar(on ? 0.35 : 0.5);
+    (this.domeMat.uniforms.uMoonGlow.value as Color).copy(this.moonGlow).multiplyScalar(this.cur.wonders);
   }
 
   update(dt: number, cameraPosition: Vector3): void {
+    this.jump.update(cameraPosition);
     this.time += dt;
-    this.blendPreset(dt);
-    this.blendReflection(dt);
+    this.blendPreset(1 - Math.exp(-dt * 1.2));
+    this.blendReflection(1 - Math.exp(-2 * dt));
     this.domeMat.uniforms.uTime.value = this.time;
     SKY_SHARED.uSkyTime.value = this.time;
     this.eclipseMat.uniforms.uTime.value = this.time;
@@ -416,7 +477,7 @@ export class Sky {
     // Sky face: period 180 s, visible ~40 s, starting at 100 s.
     const fp = (this.time % 180) / 180;
     const sf = fp > 0.55 && fp < 0.78 ? Math.sin(((fp - 0.55) / 0.23) * Math.PI) : 0;
-    this.skyFace.material.opacity = sf * 0.55;
+    this.skyFace.material.opacity = sf * 0.55 * this.cur.wonders;
     // Moon face: period 150 s, visible ~30 s.
     const phase = (this.time % 150) / 150;
     const face = phase > 0.6 && phase < 0.8 ? Math.sin(((phase - 0.6) / 0.2) * Math.PI) : 0;
@@ -434,7 +495,7 @@ export class Sky {
     }
     if (this.streakT < 1.1) {
       this.streak.position.addScaledVector(this.streakDir, dt);
-      this.streak.material.opacity = Math.sin((this.streakT / 1.1) * Math.PI) * 0.9;
+      this.streak.material.opacity = Math.sin((this.streakT / 1.1) * Math.PI) * 0.9 * this.cur.wonders;
     } else this.streak.material.opacity = 0;
     this.flash = Math.max(0, this.flash - dt * 4);
     this.domeMat.uniforms.uFlash.value = this.flash;

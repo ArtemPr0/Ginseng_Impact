@@ -29,8 +29,8 @@ describe('REALM_SKY', () => {
     expect('island' in REALM_SKY).toBe(false);
   });
 
-  it('the vale and the alley reflect the very sky the island dome shows over them (their SKIES preset)', () => {
-    for (const id of ['vale', 'graveyard'] as const) {
+  it('the vale, the alley and the drowned city reflect the very sky the island dome shows over them (their SKIES preset)', () => {
+    for (const id of ['vale', 'graveyard', 'sunken'] as const) {
       const p = SKIES[id];
       expect(REALM_SKY[id]).toEqual({ horizon: p.horizon, mid: p.mid, zenith: p.zenith, cloud: p.cloudLit });
     }

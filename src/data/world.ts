@@ -306,16 +306,16 @@ export const CLOUD_LEVEL: Record<Zone, number | null> = {
 export interface RealmSky { horizon: number; mid: number; zenith: number; cloud: number }
 /**
  * Each realm's own sky for its water and gloss to reflect: main.ts blends SKY_SHARED toward the realm's, and back to
- * the island dome's own colours on the island. The vale and the alley show the island dome with their SKIES preset,
- * so theirs are the preset's colours; the dream's is its tie-dye nebula's violet; the drowned city's its teal murk;
- * the rooms' their own dark. The kingdom's darkens with its night: Kingdom.ts kingdomSkyColors() works it out from
- * the dome's own colours, so it has no entry here.
+ * the island dome's own colours on the island. The vale, the alley and the drowned city show the island dome with
+ * their SKIES preset, so theirs are the preset's colours (the drowned city's: the lake's teal murk); the dream's is its
+ * tie-dye nebula's violet; the rooms' their own dark. The kingdom's darkens with its night: Kingdom.ts
+ * kingdomSkyColors() works it out from the dome's own colours, so it has no entry here.
  */
 export const REALM_SKY: Partial<Record<Zone, RealmSky>> = {
   vale: { horizon: 0x13405a, mid: 0x0a2048, zenith: 0x030818, cloud: 0x3a6a9a },
   graveyard: { horizon: 0x3a1460, mid: 0x5a2a28, zenith: 0x1a0c06, cloud: 0xd88a2a },
   dream: { horizon: 0x5a2a8a, mid: 0x34125e, zenith: 0x10051f, cloud: 0xc860f0 },
-  sunken: { horizon: 0x0a3a4e, mid: 0x072a3a, zenith: 0x02101a, cloud: 0x2a8aa0 },
+  sunken: { horizon: 0x0a3a4e, mid: 0x0a3a4e, zenith: 0x02101a, cloud: 0x0a3a4e },
   treehouse: { horizon: 0x1e1236, mid: 0x120a26, zenith: 0x06040e, cloud: 0x3a2a5a },
   'tavern-room': { horizon: 0x2a1408, mid: 0x180a04, zenith: 0x0a0402, cloud: 0x6a3a1c },
   'crypt-room': { horizon: 0x1c1824, mid: 0x100c14, zenith: 0x060508, cloud: 0x3a3048 },

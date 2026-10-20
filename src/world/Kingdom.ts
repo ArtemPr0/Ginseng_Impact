@@ -67,19 +67,28 @@ const smooth = (a: number, b: number, x: number) => {
   return t * t * (3 - 2 * t);
 };
 
+/**
+ * One channel (0 red, 1 green, 2 blue) of the dome's gradient at a night blend, given its two smoothsteps at the view
+ * height (`up` toward the zenith, `down` toward the low band). Module-level, as are the other helpers the frame loop
+ * calls: nothing new is made per call.
+ */
+function skyChannel(i: number, night: number, up: number, down: number): number {
+  const K = KINGDOM_SKY;
+  const zen = K.zenith.plaza[i] + (K.zenith.night[i] - K.zenith.plaza[i]) * night;
+  const mid = K.mid.plaza[i] + (K.mid.night[i] - K.mid.plaza[i]) * night;
+  const low = K.low.plaza[i] + (K.low.night[i] - K.low.plaza[i]) * night;
+  const c = mid + (zen - mid) * up;
+  return c + (low - c) * down;
+}
+
+/** One channel of the aurora's average ink at strength `s`. */
+const inkChannel = (i: number, s: number) => ((KINGDOM_SKY.ink[0][i] + KINGDOM_SKY.ink[1][i]) / 2) * s;
+
 /** The dome's gradient (KINGDOM_SKY_GLSL, before the aurora and the stars) at view height `e` for a night blend. */
 export function kingdomSkyAt(e: number, night: number, out: Color): Color {
-  const K = KINGDOM_SKY;
   const up = smooth(0.1, 0.75, e);
   const down = smooth(0.32, -0.02, e) * 0.85;
-  const ch = (i: number) => {
-    const zen = K.zenith.plaza[i] + (K.zenith.night[i] - K.zenith.plaza[i]) * night;
-    const mid = K.mid.plaza[i] + (K.mid.night[i] - K.mid.plaza[i]) * night;
-    const low = K.low.plaza[i] + (K.low.night[i] - K.low.plaza[i]) * night;
-    const c = mid + (zen - mid) * up;
-    return c + (low - c) * down;
-  };
-  return out.setRGB(ch(0), ch(1), ch(2));
+  return out.setRGB(skyChannel(0, night, up, down), skyChannel(1, night, up, down), skyChannel(2, night, up, down));
 }
 
 /** The sky a reflection sees, as Sky.setReflection takes it. */
@@ -100,10 +109,9 @@ export function kingdomSkyColors(night: number, out: KingdomSkyColors = kingdomS
   kingdomSkyAt(0.95, night, out.zenith);
   kingdomSkyAt(0.5, night, out.cloud);
   const s = K.aurora.plaza + (K.aurora.night - K.aurora.plaza) * night;
-  const ink = (i: number) => ((K.ink[0][i] + K.ink[1][i]) / 2) * s;
-  out.cloud.r += ink(0);
-  out.cloud.g += ink(1);
-  out.cloud.b += ink(2);
+  out.cloud.r += inkChannel(0, s);
+  out.cloud.g += inkChannel(1, s);
+  out.cloud.b += inkChannel(2, s);
   return out;
 }
 
@@ -204,16 +212,31 @@ function horizonGrid(): Mesh {
   return grid;
 }
 
-/** The wire computers fade out between these distances from the camera (and in the fog before that). */
-const WIRE_FADE = [260, 480] as const;
+/** The wire computers fade out between these distances from the camera (and in the fog before that): gone past 320 m. */
+export const WIRE_FADE = [200, 320] as const;
+/** How far each computer's top stays under the cloud sea's top layer (more than the 2 m it bobs). */
+const WIRE_SUNK = 4;
 
 /**
- * A 1990s computer drawn in neon lines: CRT monitor, keyboard, tower. Its lines glow (add light), take the fog, fade
- * with distance from the camera and never draw above the camera's eye line (so never against the sky).
+ * Where the i-th of the seven wire computers stands round the kingdom's centre (its angle, distance and size, and the
+ * height of its base): far out under the cliffs, sunk whole in the cloud sea, its top (`top` model units up: the
+ * computer's own, wireComputer) WIRE_SUNK under the sea's top layer `clouds`.
  */
-function wireComputer(color: number): { group: Group; mat: LineBasicMaterial } {
+export function wireComputerSpot(i: number, clouds: number, top: number): { a: number; dist: number; size: number; y: number } {
+  const size = 36 + (i % 3) * 8;
+  return { a: (i / 7) * Math.PI * 2 + 0.3, dist: 440 + (i % 3) * 35, size, y: clouds - WIRE_SUNK - top * size };
+}
+
+/**
+ * A 1990s computer drawn in neon lines: CRT monitor, keyboard, tower (`top`: its highest point, in model units). Its
+ * lines glow (add light, writing no depth: drawn before the cloud sea, a line that wrote depth would cut a hole in the
+ * layers behind it and show the bright sky through them), take the fog, fade with distance from the camera and never
+ * draw above the camera's eye line (so never against the sky).
+ */
+export function wireComputer(color: number): { group: Group; mat: LineBasicMaterial; top: number } {
   const g = new Group();
-  const mat = new LineBasicMaterial({ color, transparent: true, opacity: 0.75, fog: true, toneMapped: false, blending: AdditiveBlending });
+  let top = 0;
+  const mat = new LineBasicMaterial({ color, transparent: true, opacity: 0.75, fog: true, toneMapped: false, blending: AdditiveBlending, depthWrite: false });
   mat.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying float vFade;')
@@ -228,6 +251,7 @@ function wireComputer(color: number): { group: Group; mat: LineBasicMaterial } {
     const l = new LineSegments(new EdgesGeometry(new BoxGeometry(w, h, d)), mat);
     l.position.set(x, y, z);
     g.add(l);
+    top = Math.max(top, y + h / 2);
   };
   box(1.3, 1.0, 1.1, 0, 0.75, 0);       // the CRT's shell
   box(1.0, 0.75, 0.05, 0, 0.78, 0.58);   // its screen
@@ -244,7 +268,7 @@ function wireComputer(color: number): { group: Group; mat: LineBasicMaterial } {
   const kg = new BufferGeometry();
   kg.setAttribute('position', new Float32BufferAttribute(pts, 3));
   g.add(new LineSegments(kg, mat));
-  return { group: g, mat };
+  return { group: g, mat, top };
 }
 
 function crescentMoon(): Mesh {
@@ -644,19 +668,18 @@ export function buildKingdom(api: RealmApi, hooks: { soundWanted(): boolean; fou
   const grid = horizonGrid();
   grid.position.set(R.x, clouds - 26, R.z);
   sky.add(dome, grid);
-  // Wireframe computers far out all round, sunk to their screens in the cloud sea under the cliffs: their tops (bobbing
-  // 2 m) stay under the plaza's floor, so from the kingdom they are only ever a glow below, never lines across the sky.
+  // Wireframe computers far out all round, sunk whole in the cloud sea under the cliffs: each top (bobbing 2 m) stays
+  // WIRE_SUNK under the sea's top layer, so from anywhere in the kingdom they are a glow seen down through the gaps in
+  // the clouds, never lines against the sky or the haze where the sea thins out; and they are gone past 320 m.
   const computers: Array<{ group: Group; mat: LineBasicMaterial; y: number }> = [];
   for (let i = 0; i < 7; i++) {
-    const a = (i / 7) * Math.PI * 2 + 0.3;
     const c = wireComputer(i % 2 ? 0xff5ec8 : 0x5ee8ff);
-    const dist = 440 + (i % 3) * 35;
-    const y = clouds - 36;
-    c.group.scale.setScalar(36 + (i % 3) * 8);
+    const { a, dist, size, y } = wireComputerSpot(i, clouds, c.top);
+    c.group.scale.setScalar(size);
     c.group.position.set(R.x + Math.cos(a) * dist, y, R.z + Math.sin(a) * dist);
     c.group.rotation.y = -a - Math.PI / 2;
     sky.add(c.group);
-    computers.push({ ...c, y });
+    computers.push({ group: c.group, mat: c.mat, y });
   }
   // Two moons: a pale crescent and a huge holographic CD-ROM, turning.
   const crescent = crescentMoon();

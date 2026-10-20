@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Color } from 'three';
-import { KINGDOM_SKY_GLSL, kingdomSkyAt, kingdomSkyColors, type KingdomSkyColors } from './Kingdom';
+import { CLOUD_LEVEL, GALAXY } from '../data/world';
+import { KINGDOM_SKY_GLSL, kingdomSkyAt, kingdomSkyColors, type KingdomSkyColors, WIRE_FADE, wireComputer, wireComputerSpot } from './Kingdom';
 
 /** The dome shader's own numbers, written out by hand (zenith, middle, low; plaza = night 0, quarters = night 1). */
 const SHADER = {
@@ -69,5 +70,31 @@ describe('the dome shader', () => {
     }
     expect(KINGDOM_SKY_GLSL).toContain('smoothstep(0.1, 0.75, e)');
     expect(KINGDOM_SKY_GLSL).toContain('smoothstep(0.32, -0.02, e) * 0.85');
+  });
+});
+
+describe('the wire computers', () => {
+  it('stand far out, sunk whole in the cloud sea: every top, bobbing 2 m, stays 2 m under its top layer', () => {
+    const clouds = CLOUD_LEVEL.galaxy!;
+    const { top } = wireComputer(0x5ee8ff);
+    // (The tower case's top, the highest of its boxes.)
+    expect(top).toBeCloseTo(1.4, 6);
+    for (let i = 0; i < 7; i++) {
+      const s = wireComputerSpot(i, clouds, top);
+      expect(s.y + top * s.size + 2, `computer ${i}`).toBeLessThanOrEqual(clouds - 2);
+      expect(s.dist, `computer ${i}`).toBeGreaterThan(GALAXY.radius + 100);
+    }
+  });
+
+  it('glow without writing depth (a line drawn before the clouds must not cut holes in the layers behind it)', () => {
+    const { mat } = wireComputer(0xff5ec8);
+    expect(mat.depthWrite).toBe(false);
+    expect(mat.transparent).toBe(true);
+    expect(mat.fog).toBe(true);
+  });
+
+  it('are gone past 320 m from the camera (the plan)', () => {
+    expect(WIRE_FADE[0]).toBeLessThan(WIRE_FADE[1]);
+    expect(WIRE_FADE[1]).toBeLessThanOrEqual(320);
   });
 });

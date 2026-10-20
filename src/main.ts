@@ -576,9 +576,12 @@ game
       atmosphere.group.visible = !realm?.indoors;
       // Each world has its own grade (bloom, saturation, lift); the renderer blends toward it.
       renderer.setLook(LOOKS[air?.look ?? realm?.id ?? 'island'] ?? LOOKS.island);
+      // (Right after a teleport the new sky is there at once: Sky.setPreset.)
       sky.setPreset(SKIES[realm?.id ?? 'island'] ?? SKIES.island);
-      // A realm with a sky of its own (the kingdom, the frog's dream) hides the island's moon, stars and aurora.
-      sky.group.visible = skyEvents.group.visible = !realm?.ownSky;
+      // A realm with a sky of its own (the kingdom, the frog's dream) hides the island's moon, stars and aurora; under
+      // the lake the island dome shows only the lake's murk (SKIES.sunken) and none of the sky's apparitions show.
+      sky.group.visible = !realm?.ownSky;
+      skyEvents.group.visible = !realm?.ownSky && !realm?.underwater;
       // Its water and polished floors reflect the place's own sky (the kingdom's darkens with its night; the island's
       // is its dome's), the cloud sea lies at the place's own level in the place's own air (none under the lake or
       // indoors), and the map shows the place.
