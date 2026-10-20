@@ -74,18 +74,46 @@ export class Quests {
   }
 
   /** Kinds slain before their quest was given (the quest starts already done with that step). */
-  private readonly slain = new Set<string>();
+  private readonly killed = new Set<string>();
 
   /** An enemy of `kind` died. */
   kill(kind: string): void {
-    this.slain.add(kind);
+    this.killed.add(kind);
     for (const k of KILL_STEPS) if (k.kind === kind && this.stage(k.quest) === k.from) this.set(k.quest, k.to);
   }
 
   /** Gives quest `id` at `stage`, moved on at once by any kill made before it was given. */
   start(id: QuestId, stage: string): void {
     this.set(id, stage);
-    for (const k of KILL_STEPS) if (k.quest === id && k.from === stage && this.slain.has(k.kind)) this.set(id, k.to);
+    for (const k of KILL_STEPS) if (k.quest === id && k.from === stage && this.killed.has(k.kind)) this.set(id, k.to);
+  }
+
+  /** Every quest's stage (the flag-like ones too: trip, crown), for the save. */
+  snapshot(): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const id of Object.keys(QUESTS) as QuestId[]) out[id] = this.stage(id);
+    return out;
+  }
+
+  /**
+   * Sets the stages from a snapshot without any step firing (no kill steps, no rewards: the save already holds what
+   * they gave); unknown quests are ignored. onChange fires once at the end.
+   */
+  restore(s: Record<string, string>): void {
+    this.stages.clear();
+    for (const [id, stage] of Object.entries(s)) if (Object.prototype.hasOwnProperty.call(QUESTS, id) && typeof stage === 'string' && stage !== 'none') this.stages.set(id as QuestId, stage);
+    this.onChange?.();
+  }
+
+  /** The kinds killed so far (the kill log a save keeps, so a quest given later still counts them). */
+  slain(): string[] {
+    return Array.from(this.killed);
+  }
+
+  /** Puts the kill log back (replacing it) without moving any quest. */
+  restoreSlain(list: readonly string[]): void {
+    this.killed.clear();
+    for (const kind of list) if (typeof kind === 'string') this.killed.add(kind);
   }
 
   /** The tracker: every quest in progress with its current objective. */

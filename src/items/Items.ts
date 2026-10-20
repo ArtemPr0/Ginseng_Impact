@@ -89,3 +89,52 @@ export const ITEMS: Record<string, ItemDef> = {
 
 export const RARITY_COLOR: Record<1 | 2 | 3 | 4, number> = { 1: 0xdfe6ff, 2: 0x4f7cff, 3: 0x8b3dff, 4: 0xff2a2a };
 export const RARITY_NAME: Record<1 | 2 | 3 | 4, string> = { 1: 'Common', 2: 'Fine', 3: 'Rare', 4: 'Mythic' };
+
+// ----- Affixes: the bonus lines a dropped weapon rolls by its rarity ("Fang Cleaver of the Moon") -----
+
+export interface Affix {
+  atk?: number;
+  hp?: number;
+  /** Extra crit chance, 0..1. */
+  crit?: number;
+  /** Mythic lines carry an element (the name's token). */
+  element?: Element;
+  /** "of the Moon" and the like. */
+  name: string;
+}
+
+/** The token each element lends an affix name: "of the Moon", "of the Blood", ... */
+export const AFFIX_TOKENS: Record<Element, string> = { lunar: 'Moon', blood: 'Blood', fog: 'Fog', tide: 'Tide', rot: 'Rot', stone: 'Stone', astral: 'Astral' };
+const AFFIX_ELEMENTS = Object.keys(AFFIX_TOKENS) as Element[];
+/** How far the attack line grows with rarity. */
+const AFFIX_SCALE: Record<number, number> = { 2: 1, 3: 1.5, 4: 2 };
+
+/**
+ * Rolls the bonus lines for an item of `rarity` from `rnd` (0..1; seedable, so a given sequence always rolls the same
+ * affix): common none; fine one line; rare two; mythic two and an element. Lines are attack +4..+12 (scaled by rarity),
+ * HP +40..+160 and crit +3%..+8%, never the same line twice. Null for a common item.
+ */
+export function rollAffix(rarity: number, rnd: () => number): Affix | null {
+  if (rarity < 2) return null;
+  const pick = (n: number) => Math.min(n - 1, Math.max(0, Math.floor(rnd() * n)));
+  const range = (lo: number, hi: number) => lo + rnd() * (hi - lo);
+  const element = AFFIX_ELEMENTS[pick(AFFIX_ELEMENTS.length)];
+  const affix: Affix = { name: `of the ${AFFIX_TOKENS[element]}` };
+  if (rarity >= 4) affix.element = element;
+  const scale = AFFIX_SCALE[Math.min(4, rarity)];
+  const kinds: Array<'atk' | 'hp' | 'crit'> = ['atk', 'hp', 'crit'];
+  const lines = rarity >= 3 ? 2 : 1;
+  for (let i = 0; i < lines; i++) {
+    const kind = kinds.splice(pick(kinds.length), 1)[0];
+    if (kind === 'atk') affix.atk = Math.round(range(4, 12) * scale);
+    else if (kind === 'hp') affix.hp = Math.round(range(40, 160) / 10) * 10;
+    else affix.crit = Math.round(range(0.03, 0.08) * 1000) / 1000;
+  }
+  return affix;
+}
+
+/** The item's name with its affix: "Fang Cleaver of the Moon". */
+export function entryName(itemId: string, affix?: Affix | null): string {
+  const name = ITEMS[itemId]?.name ?? itemId;
+  return affix ? `${name} ${affix.name}` : name;
+}
