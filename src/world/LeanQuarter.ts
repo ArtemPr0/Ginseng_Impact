@@ -57,6 +57,8 @@ function restyle(model: ModelRig, fn: (mat: MeshStandardMaterial) => void): void
 export interface LeanQuarterHooks {
   /** The world swirls (renderer.trip): a sip from a lean fountain. */
   trip(strength: number, seconds: number): void;
+  /** The hero sipped from a fountain (the world announces the feat). */
+  sip?(): void;
 }
 
 /** Builds the quarters into the kingdom realm; returns the fountains to sip from. */
@@ -129,7 +131,7 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
       pos: at, range: 2.8, zone: R.id,
       label: () => 'Sip from the fountain',
       // One sip and the court spins.
-      act: () => hooks.trip(0.55, 5),
+      act: () => { hooks.trip(0.55, 5); hooks.sip?.(); },
     });
   }
   const courtBarrels: Placement[] = [[958, -122], [960, -126], [1042, -122], [1040, -125.5], [964, -152], [1036, -150]].map(([x, z]) => ({ x, y: gy, z, yaw: api.rnd() * 6, scale: 1 }));

@@ -2,6 +2,7 @@ import { Group, Vector3 } from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import type { Npc } from '../world/NPCs';
 import { Adventures, type AdventureDeps } from './Adventures';
+import { Events } from './Events';
 
 // No GLB fetches in node: the sack's model stays unloaded.
 vi.mock('../models/ModelRig', () => ({ loadModelOrWarn: () => Promise.resolve(null), ModelRig: class {} }));
@@ -12,7 +13,7 @@ function npc(id: string, x: number, z: number, talkRange = 4.2): Npc {
 }
 
 /** The hero at the origin, among `npcs` and doors (`range` 3 m) in their zones. */
-function setup(npcs: Npc[], doors: Array<{ x: number; z: number; zone: string | null; label: string }> = []) {
+function setup(npcs: Npc[], doors: Array<{ x: number; z: number; zone: string | null; label: string }> = [], events?: Events) {
   const seat = { root: new Group() };
   const world = {
     npcs,
@@ -32,6 +33,7 @@ function setup(npcs: Npc[], doors: Array<{ x: number; z: number; zone: string | 
     activeRig: () => ({ root: new Group() }),
     debuffs: () => [],
     fight: { spawnBoss: () => { throw new Error('no fight here'); }, despawn: quiet },
+    events,
   } as unknown as AdventureDeps;
   return { a: new Adventures(deps), world, seat };
 }
@@ -83,5 +85,31 @@ describe('Croak out of the sack', () => {
     expect(croak.hidden).toBe(false);
     expect(seat.root.visible).toBe(true);
     expect(world.moveNpcToZone).toHaveBeenCalledWith(croak, 'galaxy');
+  });
+});
+
+describe('What the adventures announce', () => {
+  it('puts the lick, the rowers\' ale and every quest step on the bus', () => {
+    const events = new Events();
+    const feats: string[] = [];
+    const steps: string[] = [];
+    events.on('feat', (e) => feats.push(e.what));
+    events.on('quest', (e) => steps.push(`${e.id}:${e.stage}`));
+    const { a } = setup([npc('frogking', 2, 0)], [], events);
+    a.quests.set('croak', 'done');
+    a.quests.set('trip', 'done');
+    a.talk('frogking')!.choices.find((c) => c.label === '*lick*')!.run!();
+    a.talk('rowers')!.choices.find((c) => c.label === 'Hell yeah!')!.run!();
+    expect(feats).toEqual(['lick', 'ale']);
+    expect(steps).toEqual(['croak:done', 'trip:done']);
+    expect(a.dreamLeft).toBeGreaterThan(0);
+    expect(a.aleLeft).toBeGreaterThan(0);
+  });
+
+  it('stays quiet without a bus', () => {
+    const { a } = setup([npc('frogking', 2, 0)]);
+    a.quests.set('croak', 'done');
+    expect(() => a.talk('rowers')!.choices.find((c) => c.label === 'Hell yeah!')!.run!()).not.toThrow();
+    expect(a.aleLeft).toBeGreaterThan(0);
   });
 });

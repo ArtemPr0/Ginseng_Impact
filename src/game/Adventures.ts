@@ -18,6 +18,7 @@ import type { Teleport } from '../world/Interact';
 import type { Npc } from '../world/NPCs';
 import type { Boat, World } from '../world/World';
 import { dialogueFor, type DialogueNode, type DialogueWorld } from './Dialogue';
+import type { Events } from './Events';
 import { Quests } from './Quests';
 
 /** Seconds in the frog's dream, and of the rowers' ale. */
@@ -46,6 +47,8 @@ export interface AdventureDeps {
   trip?: (strength: number, seconds: number) => void;
   /** Bosses outside the spawn list (Yung Lean off his throne). */
   fight: { spawnBoss(kind: EnemyKind, x: number, z: number, yaw: number): Enemy; despawn(e: Enemy): void };
+  /** The game's event bus: the feats here (the lick, the ale) and every quest step are announced on it. */
+  events?: Events;
 }
 
 export class Adventures {
@@ -61,6 +64,7 @@ export class Adventures {
 
   constructor(private readonly d: AdventureDeps) {
     this.quests.onChange = () => this.refreshHud();
+    this.quests.events = d.events ?? null;
     this.sack.visible = false;
     void loadModelOrWarn('croak-bag', MODELS['croak-bag']?.label).then((g) => {
       if (!g) return;
@@ -76,7 +80,7 @@ export class Adventures {
       take: (id) => d.inventory.remove(id, 1),
       bagCroak: () => this.bagCroak(),
       lick: () => this.enterDream(),
-      drinkAle: () => { this.aleLeft = ALE_SECONDS; d.audio.slurp(1); d.hud.announce("Rowers' Ale · stamina lasts longer"); },
+      drinkAle: () => { this.aleLeft = ALE_SECONDS; d.audio.slurp(1); d.hud.announce("Rowers' Ale · stamina lasts longer"); d.events?.emit({ kind: 'feat', what: 'ale' }); },
       challengeKing: () => this.challengeKing(),
       announce: (text) => d.hud.announce(text),
     };
@@ -142,6 +146,7 @@ export class Adventures {
   private enterDream(): void {
     this.dreamLeft = DREAM_SECONDS;
     this.d.audio.cast();
+    this.d.events?.emit({ kind: 'feat', what: 'lick' });
     // The lick hits: the world melts for a few seconds as the dream takes you.
     this.d.trip?.(1, 6);
     this.d.teleport(DREAM.x, DREAM.y + 0.05, DREAM.z + 30, -Math.PI / 2, DREAM.name);
