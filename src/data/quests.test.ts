@@ -1,7 +1,8 @@
 /**
  * The quest graph (data/quests.ts) against the dialogue books, the item and enemy tables and the world: every stage a
- * book names exists and every step a book takes is one the graph allows; the rewards are the books' headers; the main
- * story can be finished; the triggers fire when they should, and only then.
+ * book names exists and every step a book takes is one the graph allows; the rewards are the books' headers, paid once
+ * (never again for a step to the stage a quest is at); the main story can be finished through every stage of every main
+ * quest; the triggers fire when they should, and only then.
  */
 import { describe, expect, it } from 'vitest';
 import type { Feat, GameEvent, Zone } from '../game/Events';
@@ -12,7 +13,7 @@ import type { Cond } from './dialogue/types';
 import { ENEMY_DEFS } from './enemies';
 import {
   FIVE_VOICES, QUEST_GRAPH, QUEST_ORDER, canStep, edge, isAtLeast, journal, rewardFor, stageIndex, triggersFor, voicesHeld,
-  type QuestId, type Reward,
+  type QuestId, type QuestNode, type Reward,
 } from './quests';
 import { REALMS } from './world';
 
@@ -70,9 +71,10 @@ function bookReferences(): Array<{ at: string; id: string; stage: string }> {
 }
 
 /**
- * A small game around the graph: the stages, the bosses slain and the kill log; every step validated by canStep (with
- * the stages), its reward noted unless the step is unpaid, and announced as a 'quest' event that goes through the
- * triggers again, as the integration will.
+ * A small game around the graph: the stages, the bosses slain and the kill log; every step taken the way quests.ts's
+ * header says the game will: validated by canStep (with the stages), its reward noted as rewardFor gives it for that
+ * step (none when the step is unpaid, and the graph's own none for a step to the stage the quest is at), then, unless
+ * the quest is there already, the stage set and announced as a 'quest' event that goes through the triggers again.
  */
 class Game {
   readonly stages: Record<string, string> = {};
@@ -82,6 +84,13 @@ class Game {
   readonly paid: string[] = [];
   /** 'quest:stage' of every step a trigger took. */
   readonly triggered: string[] = [];
+  /** Every stage entered, in order. */
+  private readonly entered: Array<[QuestId, string]> = [];
+
+  /** The stages quest `id` has been at, in order, from 'none'. */
+  visited(id: QuestId): string[] {
+    return ['none', ...this.entered.filter(([q]) => q === id).map(([, s]) => s)];
+  }
 
   /** A talk or one of the game's own steps: always the next stage in the order. */
   talk(id: QuestId, to: string): void {
@@ -92,17 +101,18 @@ class Game {
 
   /** Tries a step; false (and nothing changes) when the graph refuses it. */
   attempt(id: QuestId, to: string): boolean {
-    const from = this.stages[id] ?? 'none';
-    if (!canStep(id, from, to, this.stages)) return false;
-    if (from !== to) this.step(id, to, false);
+    if (!canStep(id, this.stages[id] ?? 'none', to, this.stages)) return false;
+    this.step(id, to, false);
     return true;
   }
 
   private step(id: QuestId, to: string, unpaid: boolean): void {
     const from = this.stages[id] ?? 'none';
     expect(canStep(id, from, to, this.stages), `${id}: ${from}→${to}`).toBe(true);
+    if (!unpaid && rewardFor(id, to, from)) this.paid.push(`${id}:${to}`);
+    if (from === to) return; // there already: no stage to set, nothing to announce
     this.stages[id] = to;
-    if (!unpaid && rewardFor(id, to)) this.paid.push(`${id}:${to}`);
+    this.entered.push([id, to]);
     this.emit({ kind: 'quest', id, stage: to });
   }
 
@@ -115,6 +125,29 @@ class Game {
     }
   }
 }
+
+interface Purse { shards: number; bag: string[] }
+
+/**
+ * A step exactly as quests.ts's header writes the recipe, on a purse and a bag, with no re-entry check of its own:
+ * canStep; then rewardFor with the stage the quest is at (the charge first, failing softly when short; then take, give,
+ * shards); then the stage. False when the step fails.
+ */
+function recipe(stages: Record<string, string>, purse: Purse, id: QuestId, to: string): boolean {
+  const from = stages[id] ?? 'none';
+  if (!canStep(id, from, to, stages)) return false;
+  const r = rewardFor(id, to, from);
+  if ((r?.charge ?? 0) > purse.shards) return false;
+  purse.shards -= r?.charge ?? 0;
+  for (const item of r?.take ?? []) { const k = purse.bag.indexOf(item); if (k >= 0) purse.bag.splice(k, 1); }
+  purse.bag.push(...(r?.give ?? []));
+  purse.shards += r?.shards ?? 0;
+  stages[id] = to;
+  return true;
+}
+
+/** A quest's last stage. */
+const lastOf = (q: QuestNode): string => q.order[q.order.length - 1];
 
 describe('quest graph: shape', () => {
   it('has exactly the quests the dialogue books know (QUEST_IDS), each under its own id', () => {
@@ -296,10 +329,48 @@ describe('quest graph: rewards', () => {
     licked.emit(feat('lick'));
     expect(licked.paid).toEqual([]);
   });
+
+  it('pays nothing for a step to the stage a quest is already at, and each stage its due from the stage before', () => {
+    const problems: string[] = [];
+    for (const q of nodes) {
+      q.order.forEach((s, i) => {
+        if (rewardFor(q.id, s, s) !== undefined) problems.push(`${q.id} ${s}→${s} pays`);
+        if (i > 0 && rewardFor(q.id, s, q.order[i - 1]) !== rewardFor(q.id, s)) problems.push(`${q.id} ${q.order[i - 1]}→${s} does not pay the stage's reward`);
+      });
+    }
+    expect(problems, problems.join('\n')).toEqual([]);
+    // The finished stages that pay: each one entered again as canStep allows, for nothing.
+    const paying = nodes.filter((q) => rewardFor(q.id, lastOf(q)) !== undefined);
+    expect(paying.map((q) => `${q.id}.${lastOf(q)}`)).toEqual(['throne.done', 'croak.done', 'trip.god', 'sound.done', 'bell.done', 'grave.done', 'crown.done', 'lean.done', 'penny.done', 'books.done']);
+    for (const q of paying) {
+      expect(canStep(q.id, lastOf(q), lastOf(q)), q.id).toBe(true);
+      expect(rewardFor(q.id, lastOf(q), lastOf(q)), q.id).toBeUndefined();
+    }
+  });
+
+  it("pays a finished quest once, however often its last step is taken: the header's recipe, to the letter", () => {
+    // The Antlered King's 'Take the reward', clicked twice (or taken again from the line left open).
+    const stages: Record<string, string> = { throne: 'slain' };
+    const purse: Purse = { shards: 0, bag: [] };
+    expect(recipe(stages, purse, 'throne', 'done')).toBe(true);
+    expect(recipe(stages, purse, 'throne', 'done')).toBe(true);
+    expect(stages.throne).toBe('done');
+    expect(purse).toEqual({ shards: 1500, bag: ['antler-signet'] });
+    // Every quest's last step, taken twice from the stage before it, with what it takes in the bag and shards to spare.
+    for (const q of nodes) {
+      const [before, last] = q.order.slice(-2);
+      const s: Record<string, string> = { bell: 'found', [q.id]: before }; // the bride's shore needs the bell found
+      const p: Purse = { shards: 100, bag: [...(rewardFor(q.id, last)?.take ?? [])] };
+      expect(recipe(s, p, q.id, last), `${q.id} ${before}→${last}`).toBe(true);
+      const once: Purse = { shards: p.shards, bag: [...p.bag] };
+      expect(recipe(s, p, q.id, last), `${q.id} ${last}→${last}`).toBe(true);
+      expect(p, `${q.id}.${last} entered again`).toEqual(once);
+    }
+  });
 });
 
 describe('the main story', () => {
-  it('can be finished from nothing with talks, the four boss kills and the two pickups', () => {
+  it('can be finished from nothing with talks, the four boss kills and the two pickups: every stage entered, every purse paid once', () => {
     const g = new Game();
     g.talk('silence', 'told');              // the Stone Head: 'I will gather them.'
     g.talk('throne', 'active');             // the Antlered King
@@ -313,16 +384,25 @@ describe('the main story', () => {
     g.emit(kill('dmt-entity'));             // the Frog God, on the second trip
     g.talk('sound', 'active');              // Yung Lean: the Bittersweet Blade
     g.emit(loot('lost-sound'));
+    g.talk('sound', 'done');                // Yung Lean: 'Take the signed cup.'
     g.talk('bell', 'active');               // the Fish King
     g.emit(loot('drowned-bell'));
+    g.talk('bell', 'done');                 // the Fish King: 'Keep it?'
     g.talk('grave', 'active');              // the Skeleton King
     g.emit(kill('cyclops-lord'));
     expect(g.stages.silence).toBe('five');  // the fifth voice: the Stone Head hears them
+    g.talk('grave', 'done');                // the Skeleton King: 'Take the shards.'
     g.talk('silence', 'open');              // 'I will wake him.'
     g.emit(kill('hollowking'));
     expect(g.stages.silence).toBe('ended');
     expect(g.triggered).toEqual(['throne:slain', 'trip:god', 'sound:found', 'bell:found', 'grave:slain', 'silence:five', 'silence:ended']);
     expect(voicesHeld(g.stages)).toEqual(['antler-signet', 'third-eye', 'lost-sound', 'drowned-bell', 'grave-crown']);
+    // Every stage of every main quest, in its order, each once.
+    const main = nodes.filter((q) => q.kind === 'main');
+    expect(main.map((q) => q.id)).toEqual(['silence', 'throne', 'croak', 'trip', 'sound', 'bell', 'grave']);
+    for (const q of main) expect(g.visited(q.id), q.id).toEqual(q.order);
+    // Every purse of the main story, each once.
+    expect(g.paid).toEqual(['throne:done', 'croak:done', 'trip:god', 'sound:active', 'sound:done', 'bell:done', 'grave:slain', 'grave:done']);
   });
 
   it('counts the Frog God slain on the first trip, before waking, and never takes the eye back', () => {

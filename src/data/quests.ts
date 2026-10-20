@@ -5,10 +5,13 @@
  * stages). Pure data and pure functions: no three.js, no DOM, nothing wired (game/Quests.ts becomes graph-driven later).
  *
  * How the game is meant to use it:
- *  - A book's 'quest:<id>:<stage>' choice is a step: `canStep(id, current, stage, stages)`; when it holds, apply
- *    `rewardFor(id, stage)` (charge first: a player short of shards fails the step softly and nothing changes), then set
- *    the stage and announce it on the bus. The books never pay; this graph pays, exactly once, on entering a stage, as
- *    each book's QUEST GRAPH EXPECTATIONS header says.
+ *  - A book's 'quest:<id>:<stage>' choice is a step from the stage the quest is at: `canStep(id, current, stage,
+ *    stages)`; when it holds, apply `rewardFor(id, stage, current)` (charge first: a player short of shards fails the
+ *    step softly and nothing changes), then set the stage and announce it on the bus. A step to the stage the quest is
+ *    already at applies nothing and announces nothing: canStep allows one only into the last stage (the choice that
+ *    finished a quest, clicked twice or taken again from a line left open) and for the lick's waking, `rewardFor` with
+ *    that `from` is undefined, and there is no stage to set. The books never pay; this graph pays, exactly once, on
+ *    entering a stage, as each book's QUEST GRAPH EXPECTATIONS header says.
  *  - Every event goes through `triggersFor(e, stages, bossesSlain, slain)`; each step it returns is applied the same
  *    way (no reward when `unpaid`) if its quest is still at `from`. Each step announces a 'quest' event, which goes
  *    through `triggersFor` again: that is how chains settle (three bosses slain before Corvin asks: asked, then worthy).
@@ -52,9 +55,12 @@ export interface StageDef {
   objective: string;
   /** Where to go next. Every stage between 'none' and the last has one; on 'none' it is whoever gives the quest. */
   marker?: Marker;
-  /** Paid once, on entering the stage. */
+  /** Paid once, on entering the stage from another stage (never on a step to the stage the quest is already at). */
   reward?: Reward;
-  /** The quest's last stage. Entering it again is a harmless no-op: canStep allows it and nothing is paid twice. */
+  /**
+   * The quest's last stage. Entering it again is a harmless no-op: canStep allows it, `rewardFor(id, stage, stage)` is
+   * undefined and the header's recipe sets and announces nothing, so nothing is paid twice.
+   */
   terminal?: boolean;
   /** Entering this stage also needs these quests at least at these stages (canStep checks them when given the stages). */
   requires?: Array<[QuestId, string]>;
@@ -364,9 +370,9 @@ function meets(def: StageDef, stages: Record<string, string>): boolean {
 
 /**
  * Whether quest `id` may go from `from` to `to`: the next stage in its order, a listed `repeatable` or `shortcuts`
- * step, or the terminal stage entered again (a no-op that pays nothing: croak set 'done' again by a later lick). Never
- * backwards or past a stage otherwise. Given the current `stages`, the target's `requires` must hold too (not on a
- * re-entry).
+ * step, or the terminal stage entered again (the choice that finished the quest, clicked twice or taken again from a
+ * line left open: a no-op, which `rewardFor(id, to, from)` pays nothing for). Never backwards or past a stage
+ * otherwise. Given the current `stages`, the target's `requires` must hold too (not on a re-entry).
  */
 export function canStep(id: string, from: string, to: string, stages?: Record<string, string>): boolean {
   const node = questNode(id);
@@ -380,8 +386,14 @@ export function canStep(id: string, from: string, to: string, stages?: Record<st
   return i === j || stages === undefined || meets(node.stages[to], stages);
 }
 
-/** What entering stage `to` of quest `id` costs and pays (undefined: nothing, or no such stage). */
-export function rewardFor(id: string, to: string): Reward | undefined {
+/**
+ * What entering stage `to` of quest `id` costs and pays (undefined: nothing, or no such stage). Given `from`, the stage
+ * the quest is at, a step to the stage it is already at pays nothing (a terminal re-entry, the lick's done→done): that
+ * stage was paid for when it was first entered. The game passes `from` (the header's recipe); without it, this is the
+ * stage's own reward, as the reward table reads it.
+ */
+export function rewardFor(id: string, to: string, from?: string): Reward | undefined {
+  if (from === to) return undefined;
   const node = questNode(id);
   return node && node.order.includes(to) ? node.stages[to].reward : undefined;
 }
