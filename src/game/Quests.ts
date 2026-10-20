@@ -52,6 +52,9 @@ const KILL_STEPS: Array<{ kind: string; quest: QuestId; from: string; to: string
   { kind: 'warden', quest: 'throne', from: 'active', to: 'slain' },
 ];
 
+/** The stages quest `id` can be at besides 'none': its objectives' and 'done' (just 'done' for the flag-like trip and crown). */
+const knownStage = (id: QuestId, stage: unknown): stage is string => stage === 'done' || (typeof stage === 'string' && Object.hasOwn(QUESTS[id].objectives, stage));
+
 export class Quests {
   private readonly stages = new Map<QuestId, string>();
   /** Called after any change (the HUD redraws the tracker). */
@@ -97,11 +100,15 @@ export class Quests {
 
   /**
    * Sets the stages from a snapshot without any step firing (no kill steps, no rewards: the save already holds what
-   * they gave); unknown quests are ignored. onChange fires once at the end.
+   * they gave). Unknown quests are ignored, and so is a stage the quest does not have (no dialogue path would ever
+   * move it on, so the quest would be stuck there): it stays at 'none'. onChange fires once at the end.
    */
   restore(s: Record<string, string>): void {
     this.stages.clear();
-    for (const [id, stage] of Object.entries(s)) if (Object.prototype.hasOwnProperty.call(QUESTS, id) && typeof stage === 'string' && stage !== 'none') this.stages.set(id as QuestId, stage);
+    for (const [id, stage] of Object.entries(s)) {
+      if (!Object.hasOwn(QUESTS, id) || !knownStage(id as QuestId, stage)) continue;
+      this.stages.set(id as QuestId, stage);
+    }
     this.onChange?.();
   }
 

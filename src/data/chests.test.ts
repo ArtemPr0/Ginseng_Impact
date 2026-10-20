@@ -52,31 +52,44 @@ const STALLS = [{ x: 915, z: 8.6 }, { x: 879, z: 27.4 }];
 const STREET_MUSHROOMS: XZ[] = [];
 for (let x = 934; x > 842; x -= 7) for (const z of [11, 25]) if (!STALLS.some((st) => Math.hypot(st.x - x, st.z - z) < 3)) STREET_MUSHROOMS.push({ x, z });
 
-/** The buildings the chests sit by, placed as the world places them (World.ts, LeanQuarter.ts, Sunken.ts, Vale.ts). */
+/**
+ * The buildings the chests sit by, placed as the world places them (World.ts, LeanQuarter.ts, Sunken.ts, Vale.ts), by
+ * their baked collider grids. The ruins have none (World.ts places them with no collider at all), so theirs come back
+ * null: a test below pins exactly that, so a renamed id cannot quietly blank the check.
+ */
 const face = (yaw: number) => Math.PI / 2 - yaw;
 const GY = 24;
 const Q = LEAN_QUARTER;
-const BUILDINGS: Footprint[] = ([
-  gridFootprint('cathedral', LAYOUT.cathedral.x, LAYOUT.cathedral.y, LAYOUT.cathedral.z, LAYOUT.cathedral.yaw, LAYOUT.cathedral.scale),
-  gridFootprint('castle', LAYOUT.castle.x, 4.4, LAYOUT.castle.z, LAYOUT.castle.yaw),
-  gridFootprint('throne', LAYOUT.throne.x, 4.4, LAYOUT.throne.z),
-  gridFootprint('world-tree', LAYOUT.worldTree.x, 1.2, LAYOUT.worldTree.z),
-  gridFootprint('church', LAYOUT.church.x, 0, LAYOUT.church.z, Math.PI / 2),
-  gridFootprint('tower', LAYOUT.tower.x, 0, LAYOUT.tower.z),
-  gridFootprint('treehouse', LAYOUT.treehouse.x, 0, LAYOUT.treehouse.z, Math.PI / 2),
-  gridFootprint('observatory', LAYOUT.observatory.x, 0, LAYOUT.observatory.z),
-  ...LAYOUT.ruins.map((r) => gridFootprint(r.arch ? 'ruin-arch' : 'ruin-column', r.x, 0, r.z, r.yaw)),
-  gridFootprint('snow-chapel', Q.chapel.x, GY, Q.chapel.z, face(Math.atan2(86 - Q.chapel.z, 950 - Q.chapel.x))),
-  gridFootprint('gothic-pavilion', 1043, GY, -160, face(Math.PI)),
-  gridFootprint('dragon-throne', 1000, GY, -172, face(Math.PI / 2)),
-  gridFootprint('stone-throne', 956, GY, -176, face(Math.PI / 2)),
-  gridFootprint('castle', Q.castle.x, GY, Q.castle.z, face(0)),
+const ruinKind = (r: { arch: boolean }) => (r.arch ? 'ruin-arch' : 'ruin-column');
+const GRIDS: Array<[string, Footprint | null]> = [
+  ['cathedral', gridFootprint('cathedral', LAYOUT.cathedral.x, LAYOUT.cathedral.y, LAYOUT.cathedral.z, LAYOUT.cathedral.yaw, LAYOUT.cathedral.scale)],
+  ['castle', gridFootprint('castle', LAYOUT.castle.x, 4.4, LAYOUT.castle.z, LAYOUT.castle.yaw)],
+  ['throne', gridFootprint('throne', LAYOUT.throne.x, 4.4, LAYOUT.throne.z)],
+  ['world-tree', gridFootprint('world-tree', LAYOUT.worldTree.x, 1.2, LAYOUT.worldTree.z)],
+  ['church', gridFootprint('church', LAYOUT.church.x, 0, LAYOUT.church.z, Math.PI / 2)],
+  ['tower', gridFootprint('tower', LAYOUT.tower.x, 0, LAYOUT.tower.z)],
+  ['treehouse', gridFootprint('treehouse', LAYOUT.treehouse.x, 0, LAYOUT.treehouse.z, Math.PI / 2)],
+  ['observatory', gridFootprint('observatory', LAYOUT.observatory.x, 0, LAYOUT.observatory.z)],
+  ...LAYOUT.ruins.map((r): [string, Footprint | null] => [ruinKind(r), gridFootprint(ruinKind(r), r.x, 0, r.z, r.yaw)]),
+  ['snow-chapel', gridFootprint('snow-chapel', Q.chapel.x, GY, Q.chapel.z, face(Math.atan2(86 - Q.chapel.z, 950 - Q.chapel.x)))],
+  ['gothic-pavilion', gridFootprint('gothic-pavilion', 1043, GY, -160, face(Math.PI))],
+  ['dragon-throne', gridFootprint('dragon-throne', 1000, GY, -172, face(Math.PI / 2))],
+  ['stone-throne', gridFootprint('stone-throne', 956, GY, -176, face(Math.PI / 2))],
+  ['lean-castle', gridFootprint('castle', Q.castle.x, GY, Q.castle.z, face(0))],
+  ['sea-castle', gridFootprint('sea-castle', -1000, -48, -80, 0)],
+  ['crowned-head', gridFootprint('crowned-head', 1000 - 85, 0, 900 + 20, face(0.25), 1.5)],
+];
+/** How many of GRIDS resolve: every building but the eight ruins. */
+const GRIDS_RESOLVED = GRIDS.length - LAYOUT.ruins.length;
+const BUILDINGS: Footprint[] = [
+  ...GRIDS.map(([, f]) => f).filter((f): f is Footprint => f !== null),
   ...[924, 906, 888, 870, 852].flatMap((x) => [4, 32].map((z): Footprint => ({ kind: 'box', x, z, hw: 3.4, hd: 3.4, top: GY + 9 }))),
   ...STALLS.map((st): Footprint => ({ kind: 'box', x: st.x, z: st.z, hw: 1.8, hd: 1.2, top: GY + 1.1 })),
-  gridFootprint('sea-castle', -1000, -48, -80, 0),
   ...[12, 2, -8, -18, -28, -38, -48].flatMap((z, i) => [-1, 1].map((side): Footprint => ({ kind: 'box', x: -1000 + side * (10.5 + (i % 2) * 0.8), z, hw: 3.3, hd: 3.3, top: -42 }))),
-  gridFootprint('crowned-head', 1000 - 85, 0, 900 + 20, face(0.25), 1.5),
-] as Array<Footprint | null>).filter((f): f is Footprint => f !== null);
+];
+/** The chest's own footprint: the coin block and the barrel are about 1.4 m across, so a ring of 0.9 m must be clear too. */
+const CHEST_R = 0.9;
+const ring = (c: XZ): XZ[] => [c, ...Array.from({ length: 8 }, (_, i) => ({ x: c.x + Math.cos((i / 8) * Math.PI * 2) * CHEST_R, z: c.z + Math.sin((i / 8) * Math.PI * 2) * CHEST_R }))];
 
 describe('CHESTS', () => {
   it('has about fourteen chests with unique ids and the right mix of kinds', () => {
@@ -132,15 +145,32 @@ describe('CHESTS', () => {
   });
 
   it('stands outside the buildings and the creatures\' pads', () => {
-    expect(BUILDINGS.length).toBeGreaterThan(20);
+    // Every building named resolves to its baked grid, except the ruins, which have none and are kept off by distance.
+    expect(GRIDS.filter(([, f]) => f === null).map(([id]) => id)).toEqual(LAYOUT.ruins.map(ruinKind));
+    expect(GRIDS.filter(([, f]) => f !== null)).toHaveLength(GRIDS_RESOLVED);
+    expect(GRIDS_RESOLVED).toBe(15);
+    expect(BUILDINGS.length).toBeGreaterThan(GRIDS_RESOLVED + 20);
     for (const c of CHESTS) {
-      for (const f of BUILDINGS) expect(footprintContains(f, c.x, c.z), `${c.id} inside ${f.kind === 'grid' ? f.id : `${f.kind} at ${f.x},${f.z}`}`).toBe(false);
+      for (const f of BUILDINGS) for (const p of ring(c)) expect(footprintContains(f, p.x, p.z), `${c.id} inside ${f.kind === 'grid' ? f.id : `${f.kind} at ${f.x},${f.z}`}`).toBe(false);
+      // The ruins (an arch 6.6 m tall, a column 4.5 m) have no collider: the chest keeps 4 m from each one's centre.
+      if (c.zone === 'island') for (const r of LAYOUT.ruins) expect(dist(c, r), `${c.id} on the ${ruinKind(r)} at ${r.x},${r.z}`).toBeGreaterThanOrEqual(4);
       // The small pads level the ground under one creature or NPC each; the big ones (the castle's rock, the world tree) are ground.
       if (c.zone === 'island') for (const p of PADS) if (p.r < 10) expect(dist(c, p), `${c.id} on the pad at ${p.x},${p.z}`).toBeGreaterThan(p.r);
       // Bucket Street's mushrooms stand every 7 m along both kerbs: a chest keeps 2.5 m from each.
       if (c.zone === 'galaxy') for (const m of STREET_MUSHROOMS) expect(dist(c, m), `${c.id} on the mushroom at ${m.x},${m.z}`).toBeGreaterThanOrEqual(2.5);
     }
     expect(STREET_MUSHROOMS.length).toBeGreaterThan(20);
+  });
+
+  it('keeps clear of the seeded flora no test can reproduce (LeanQuarter.ts, rng 5150 through the whole realm build)', () => {
+    // The treasury's twelve crystals land anywhere in x 945..973, z -180..-144: the court chest stays 2 m outside that.
+    const court = chestById('court-treasury')!;
+    expect(court.x < 943 || court.x > 975 || court.z < -182 || court.z > -142, `court-treasury at ${court.x},${court.z}`).toBe(true);
+    // The graveyard's 36 graves and 16 bare trees fill x 866..954, z 92..170 except within 10 m (graves) and 9 m (trees)
+    // of the chapel: the chapel chest sits inside that ring, 2 m or more short of where a tree may stand.
+    const graves = chestById('chapel-graves')!;
+    expect(dist(graves, LEAN_QUARTER.chapel), `chapel-graves at ${graves.x},${graves.z}`).toBeLessThanOrEqual(7);
+    expect(dist(graves, { x: 902.6, z: 146.5 }), 'chapel-graves vs the chapel door').toBeGreaterThanOrEqual(4);
   });
 
   it('sits on the island\'s ground, not in the chasm or over the cliff', () => {

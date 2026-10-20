@@ -90,6 +90,15 @@ export const ITEMS: Record<string, ItemDef> = {
 export const RARITY_COLOR: Record<1 | 2 | 3 | 4, number> = { 1: 0xdfe6ff, 2: 0x4f7cff, 3: 0x8b3dff, 4: 0xff2a2a };
 export const RARITY_NAME: Record<1 | 2 | 3 | 4, string> = { 1: 'Common', 2: 'Fine', 3: 'Rare', 4: 'Mythic' };
 
+/**
+ * The item `itemId` names, or undefined. Only ITEMS' own keys count: ITEMS['constructor'], ITEMS['__proto__'] and
+ * ITEMS['toString'] are truthy too (every object inherits them), and a hand-edited save naming one would otherwise
+ * carry a phantom item with no kind.
+ */
+export function itemDef(itemId: string): ItemDef | undefined {
+  return Object.hasOwn(ITEMS, itemId) ? ITEMS[itemId] : undefined;
+}
+
 // ----- Affixes: the bonus lines a dropped weapon rolls by its rarity ("Fang Cleaver of the Moon") -----
 
 export interface Affix {
@@ -135,6 +144,6 @@ export function rollAffix(rarity: number, rnd: () => number): Affix | null {
 
 /** The item's name with its affix: "Fang Cleaver of the Moon". */
 export function entryName(itemId: string, affix?: Affix | null): string {
-  const name = ITEMS[itemId]?.name ?? itemId;
+  const name = itemDef(itemId)?.name ?? itemId;
   return affix ? `${name} ${affix.name}` : name;
 }

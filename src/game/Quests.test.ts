@@ -59,6 +59,12 @@ describe('Quests — the save', () => {
     r.restore({ throne: 'active' });
     expect(r.stage('throne')).toBe('active');
     expect(r.snapshot()).toEqual({ ...new Quests().snapshot(), throne: 'active' });
+    // A stage the quest does not have (no dialogue path would ever move it on) is ignored, so the quest is not stuck.
+    const s = new Quests();
+    s.restore({ throne: 'bogus', trip: 'active', croak: 'constructor', lean: 'none', sound: 'done', crown: 'done' });
+    expect(s.snapshot()).toEqual({ throne: 'none', croak: 'none', lean: 'none', sound: 'done', trip: 'none', crown: 'done' });
+    expect(s.active('throne')).toBe(false);
+    expect(s.tracker()).toEqual([]);
   });
 
   it('keeps the kill log across a save: a quest given later still counts the kill', () => {

@@ -5,7 +5,7 @@
  */
 import type { Zone } from './Events';
 import type { InvSnapshot } from '../items/Inventory';
-import { AFFIX_TOKENS, type Affix } from '../items/Items';
+import { AFFIX_TOKENS, ITEMS, itemDef, type Affix } from '../items/Items';
 
 export interface SaveV1 {
   v: 1;
@@ -21,6 +21,8 @@ export interface SaveV1 {
   inventory: InvSnapshot;
   /** Quest id → stage (Quests.snapshot). */
   quests: Record<string, string>;
+  /** Enemy kinds killed so far (Quests.slain): a quest given after its kill still counts it (Quests.restoreSlain). */
+  slain: string[];
   /** Feats and flags set so far (WorldState). */
   flags: string[];
   /** WorldState snapshot, once it exists. */
@@ -66,9 +68,16 @@ function isAffix(v: unknown): v is Affix {
     && (v.element === undefined || (isStr(v.element) && ELEMENTS.has(v.element)));
 }
 
+/**
+ * An item id: a key ITEMS owns, or one it has not at all (an item since removed: Inventory.restore drops that entry
+ * and keeps the bag); never a key every object inherits ('constructor', '__proto__', 'toString'), which ITEMS[id]
+ * answers with something truthy that is no item.
+ */
+const isItemId = (v: unknown): v is string => isStr(v) && (itemDef(v) !== undefined || !(v in ITEMS));
+
 function isInventory(v: unknown): v is InvSnapshot {
   if (!isObj(v) || !isNum(v.shards) || !Array.isArray(v.entries)) return false;
-  return v.entries.every((e) => isObj(e) && isStr(e.itemId) && isNum(e.count)
+  return v.entries.every((e) => isObj(e) && isItemId(e.itemId) && isNum(e.count)
     && (e.equippedBy === undefined || isStr(e.equippedBy)) && (e.charmOf === undefined || isStr(e.charmOf))
     && (e.affix === undefined || isAffix(e.affix)));
 }
@@ -81,7 +90,7 @@ function validateV1(raw: Record<string, unknown>): SaveV1 | null {
     && isNum(raw.yaw) && isStr(raw.hero)
     && isRecordOf(raw.hp, isNum)
     && isInventory(raw.inventory)
-    && isRecordOf(raw.quests, isStr)
+    && isRecordOf(raw.quests, isStr) && isStrList(raw.slain)
     && isStrList(raw.flags)
     && isObj(raw.progress) && isNum(raw.progress.xp) && isNum(raw.progress.level)
     && isRecordOf(raw.bosses, (b): b is { slainAt: number } => isObj(b) && isNum(b.slainAt))

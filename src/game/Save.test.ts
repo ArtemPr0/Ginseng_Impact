@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SAVE_INTERVAL, SAVE_KEY, Save, migrate, type SaveV1, type StorageLike } from './Save';
 import { Inventory } from '../items/Inventory';
+import { Quests } from './Quests';
 
 /** An in-memory localStorage. */
 function memory(): StorageLike & { map: Map<string, string> } {
@@ -17,7 +18,7 @@ function sample(): SaveV1 {
   return {
     v: 1, t: 1_700_000_000_000, zone: 'galaxy', pos: { x: 1000, y: 24, z: -50 }, yaw: 0.5, hero: 'knight',
     hp: { knight: 1700, archer: 900, wizard: 650 }, inventory: inv.snapshot(),
-    quests: { throne: 'active', trip: 'done' }, flags: ['licked', 'ale'],
+    quests: { throne: 'active', trip: 'done' }, slain: ['yeti'], flags: ['licked', 'ale'],
     progress: { xp: 10, level: 2 }, bosses: { yeti: { slainAt: 1_699_999_000_000 } },
     chests: ['gorge-head'], companions: ['vigil'], newGamePlus: false,
   };
@@ -59,7 +60,7 @@ describe('Save', () => {
     expect(bad(JSON.stringify({ ...sample(), v: 2 }))).toBeNull();
     expect(bad(JSON.stringify({ ...sample(), v: '1' }))).toBeNull();
     const without = (key: keyof SaveV1) => { const s: Partial<SaveV1> = sample(); delete s[key]; return JSON.stringify(s); };
-    for (const key of ['t', 'zone', 'pos', 'yaw', 'hero', 'hp', 'inventory', 'quests', 'flags', 'progress', 'bosses', 'chests', 'companions', 'newGamePlus'] as const) {
+    for (const key of ['t', 'zone', 'pos', 'yaw', 'hero', 'hp', 'inventory', 'quests', 'slain', 'flags', 'progress', 'bosses', 'chests', 'companions', 'newGamePlus'] as const) {
       expect(bad(without(key)), key).toBeNull();
     }
     expect(bad(JSON.stringify({ ...sample(), zone: 'moon' }))).toBeNull();
@@ -68,9 +69,17 @@ describe('Save', () => {
     expect(bad(JSON.stringify({ ...sample(), hp: { knight: 'full' } }))).toBeNull();
     expect(bad(JSON.stringify({ ...sample(), quests: { throne: 2 } }))).toBeNull();
     expect(bad(JSON.stringify({ ...sample(), flags: ['a', 1] }))).toBeNull();
+    expect(bad(JSON.stringify({ ...sample(), slain: ['warden', 3] }))).toBeNull();
+    expect(bad(JSON.stringify({ ...sample(), slain: 'warden' }))).toBeNull();
     expect(bad(JSON.stringify({ ...sample(), bosses: { yeti: {} } }))).toBeNull();
     expect(bad(JSON.stringify({ ...sample(), inventory: { shards: 1, entries: [{ count: 1 }] } }))).toBeNull();
     expect(bad(JSON.stringify({ ...sample(), inventory: { shards: 1, entries: [{ itemId: 'x', count: 1, affix: { atk: 2 } }] } }))).toBeNull();
+    // An item id that is a key every object inherits is no item (ITEMS['constructor'] is truthy all the same): refused.
+    for (const itemId of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+      expect(bad(JSON.stringify({ ...sample(), inventory: { shards: 1, entries: [{ itemId, count: 1 }] } })), itemId).toBeNull();
+    }
+    // One that merely no longer exists passes: Inventory.restore drops that entry and keeps the rest of the bag.
+    expect(bad(JSON.stringify({ ...sample(), inventory: { shards: 1, entries: [{ itemId: 'gone-item', count: 1 }] } }))).not.toBeNull();
     // An affix's lines must be finite numbers and its element one of the seven: atk '9' would reach computeDamage as "409".
     const affixed = (affix: unknown) => JSON.stringify({ ...sample(), inventory: { shards: 1, entries: [{ itemId: 'fang-cleaver', count: 1, equippedBy: 'knight', affix }] } });
     expect(bad(affixed({ name: 'of the Moon', atk: '9' }))).toBeNull();
@@ -85,6 +94,21 @@ describe('Save', () => {
     expect(migrate(undefined)).toBeNull();
     expect(migrate(sample())).toEqual(sample());
     expect(migrate({ ...sample(), v: 7 })).toBeNull();
+  });
+
+  it('carries the kill log, so a quest accepted after the reload still counts the kill', () => {
+    const storage = memory();
+    const q = new Quests();
+    q.kill('warden');
+    new Save(storage).write({ ...sample(), quests: q.snapshot(), slain: q.slain() });
+    const loaded = new Save(storage).load()!;
+    expect(loaded.slain).toEqual(['warden']);
+    const r = new Quests();
+    r.restore(loaded.quests);
+    r.restoreSlain(loaded.slain);
+    expect(r.stage('throne')).toBe('none');
+    r.start('throne', 'active');
+    expect(r.stage('throne')).toBe('slain');
   });
 
   it('autosaves when dirty and a minute has passed since the last write', () => {

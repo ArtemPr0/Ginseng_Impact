@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Inventory } from './Inventory';
-import { WEAPON_ACCEPTS, entryName } from './Items';
+import { ITEMS, WEAPON_ACCEPTS, entryName } from './Items';
 
 describe('Inventory', () => {
   it('stacks materials and consumables, keeps weapons and charms as separate entries', () => {
@@ -298,6 +298,29 @@ describe('Inventory — snapshot and restore', () => {
     inv.restore({ shards: -4, entries: [{ itemId: 'gone-item', count: 1 }, { itemId: 'moon-dew', count: 0 }, { itemId: 'rune-shard', count: 2.7 }, { itemId: 'old-bone', count: 0.5 }] });
     expect(inv.shards).toBe(0);
     expect(inv.entries).toEqual([{ uid: expect.any(Number), itemId: 'rune-shard', count: 2 }]);
+  });
+
+  it('drops entries whose id is a key every object inherits, not an item', () => {
+    // ITEMS['constructor'], ITEMS['__proto__'] and ITEMS['toString'] are all truthy: a hand-edited save naming them
+    // would otherwise keep phantom entries with no kind, whose sale pays NaN shards (and spend fails for ever after).
+    const inv = new Inventory();
+    inv.restore({ shards: 10, entries: [{ itemId: 'constructor', count: 1 }, { itemId: '__proto__', count: 1 }, { itemId: 'toString', count: 2 }, { itemId: 'rune-shard', count: 1 }] });
+    expect(inv.entries.map((e) => e.itemId)).toEqual(['rune-shard']);
+    expect(inv.sell(inv.entries[0].uid)).toBe(ITEMS['rune-shard'].value);
+    expect(inv.shards).toBe(10 + ITEMS['rune-shard'].value);
+    expect(inv.spend(5)).toBe(true);
+    expect(() => inv.add('constructor')).toThrow(/Unknown item/);
+    expect(() => inv.add('__proto__')).toThrow(/Unknown item/);
+    expect(entryName('constructor')).toBe('constructor');
+  });
+
+  it('caps a saved weapon or charm stack at 99 entries, and leaves a stackable count alone', () => {
+    const inv = new Inventory();
+    inv.restore({ shards: 0, entries: [{ itemId: 'lunar-charm', count: 1e6 }, { itemId: 'travelers-blade', count: 150, equippedBy: 'vesper' }, { itemId: 'moon-dew', count: 1e6 }] });
+    expect(inv.entries.filter((e) => e.itemId === 'lunar-charm')).toHaveLength(99);
+    expect(inv.entries.filter((e) => e.itemId === 'travelers-blade')).toHaveLength(99);
+    expect(inv.equipped('vesper')?.itemId).toBe('travelers-blade');
+    expect(inv.entries.filter((e) => e.itemId === 'moon-dew')).toEqual([{ uid: expect.any(Number), itemId: 'moon-dew', count: 1e6 }]);
   });
 
   it('restores a charm or weapon stack one to an entry, and keeps a hand-edited save sane', () => {

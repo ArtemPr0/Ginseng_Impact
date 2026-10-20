@@ -1,4 +1,4 @@
-import { ITEMS, canWield, type Affix, type ItemDef, type WeaponClass } from './Items';
+import { canWield, itemDef, type Affix, type ItemDef, type WeaponClass } from './Items';
 
 export interface InvEntry {
   uid: number;
@@ -19,14 +19,17 @@ let nextUid = 1;
 
 /** Weapons and charms are one to an entry (each is wielded or worn on its own); everything else stacks. */
 const single = (d: ItemDef): boolean => d.kind === 'weapon' || d.kind === 'charm';
+/** The most entries one saved weapon or charm stack unfolds into (a hand-edited count of 1e9 would hang the tab). */
+const MAX_SINGLES = 99;
 
 /** Pure inventory: stacks, equipment per character, the charm slot per character, Moon Shards (the currency, `shards`). */
 export class Inventory {
   readonly entries: InvEntry[] = [];
   shards = 0;
 
+  /** The item's definition; throws for an id that names no item (Items.itemDef: never an inherited key like 'constructor'). */
   def(itemId: string): ItemDef {
-    const d = ITEMS[itemId];
+    const d = itemDef(itemId);
     if (!d) throw new Error(`Unknown item ${itemId}`);
     return d;
   }
@@ -198,17 +201,20 @@ export class Inventory {
   }
 
   /**
-   * Replaces the bag with a snapshot's; entries get fresh uids. An entry whose item no longer exists is dropped, and a
-   * hand-edited save is kept sane: a weapon or charm with count n becomes n entries, only a weapon is wielded and only
-   * a charm worn, and where the save gives one hero two of either the first wins.
+   * Replaces the bag with a snapshot's; entries get fresh uids. An entry whose item no longer exists (or whose id is no
+   * item at all: 'constructor', '__proto__') is dropped, and a hand-edited save is kept sane: a weapon or charm with
+   * count n becomes n entries (at most MAX_SINGLES), only a weapon is wielded and only a charm worn, and where the save
+   * gives one hero two of either the first wins.
    */
   restore(s: InvSnapshot): void {
     this.entries.length = 0;
     this.shards = Math.max(0, Math.floor(s.shards)) || 0;
     for (const e of s.entries) {
-      const d = ITEMS[e.itemId];
-      const n = Math.floor(e.count);
-      if (!d || !(n > 0)) continue;
+      const d = itemDef(e.itemId);
+      if (!d) continue;
+      let n = Math.floor(e.count);
+      if (single(d)) n = Math.min(n, MAX_SINGLES);
+      if (!(n > 0)) continue;
       const first = this.push(e.itemId, single(d) ? 1 : n, e.affix);
       if (d.kind === 'weapon' && e.equippedBy && !this.equipped(e.equippedBy)) first.equippedBy = e.equippedBy;
       if (d.kind === 'charm' && e.charmOf && !this.charmOf(e.charmOf)) first.charmOf = e.charmOf;
