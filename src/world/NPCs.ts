@@ -54,6 +54,18 @@ export interface NpcDef {
 
 export const NPC_DEFS: NpcDef[] = [
   {
+    // The giant head at the causeway's end (LAYOUT.head; its eyes and its own spoken lines are world/StoneHead.ts): it
+    // has no body of its own and is talked to from anywhere on the rise before its face (ANCHORS), or the causeway's
+    // end. Its bubble floats at its mouth's height (StoneHead.ts MOUTH, 14.4 m, less the 1.4 its own bubble hangs
+    // below it), over the anchor's ground (~7.6 m on the rise).
+    id: 'stone-head', name: 'The Stone Head', title: "The Kingdom's Last Voice", weapon: 'staff',
+    model: 'wizard-npc', accent: PALETTE.blood, invisible: true, talkRange: 30,
+    lines: [VOICES['head-doing-here'].text, VOICES['head-blocking'].text, 'Left. No. My left.'],
+    // (Facing down the causeway, as the face does.)
+    behaviour: { kind: 'stand', yaw: Math.PI / 2 },
+    bubbleAbove: 5.4,
+  },
+  {
     id: 'king', name: 'The Antlered King', title: 'Who Buys What the Fog Drops', weapon: 'sword',
     model: 'king', accent: PALETTE.witch,
     lines: ['Kneel or do not. The candles do not care.', 'Bring me what the great ones drop. I pay in shards and in silence.', 'My crown was antlers before it was gold. Everything here was something else first.'],
@@ -439,7 +451,7 @@ export class Npc {
   private speed = 0;
   /** Sound hooks, set once by main.ts (NPCs never import the audio engine). */
   static sound: { voice(url: string, gain: number, channel?: 'npc' | 'mob' | 'head'): Promise<number>; slurp(gain: number): void } | null = null;
-  private bubble: SpeechBubble | null = null;
+  private speech: SpeechBubble | null = null;
   private voiceWait = 4;
   private speaking = 0;
   private lastPhase = 0;
@@ -496,19 +508,45 @@ export class Npc {
     bubble.say(text, 2.4);
   }
 
-  /** The bubble over his head (or where his def puts it), made the first time he has something to say. */
+  /**
+   * Says `text` in his speech bubble (a bark, a line he has no recording of), for longer the longer it is; the bubble
+   * shows the new line at once. Nothing while he is out of the world (in the sack, off his throne to fight).
+   */
+  bubble(text: string, seconds = Math.min(5, 1.6 + text.length * 0.05)): void {
+    if (this.gone || !text) return;
+    this.bubbleFor().say(text, seconds);
+  }
+
+  /**
+   * The bubble over his head (or where his def puts it), made the first time he has something to say. One with no
+   * body (invisible: the dragon, the Stone Head) is hidden itself, so his bubble hangs in the group he stands in, over
+   * his spot (he never walks).
+   */
   private bubbleFor(): SpeechBubble {
-    if (!this.bubble) {
-      this.bubble = new SpeechBubble(this.def.bubbleAbove ?? (MODELS[this.def.model]?.height ?? 1.8) + 0.55);
-      this.object.add(this.bubble.sprite);
+    if (!this.speech) {
+      const above = this.def.bubbleAbove ?? (MODELS[this.def.model]?.height ?? 1.8) + 0.55;
+      const host = this.def.invisible ? this.object.parent : null;
+      if (host) {
+        const at = new Vector3(this.pos.x, this.pos.y + above, this.pos.z);
+        host.updateWorldMatrix(true, false);
+        host.worldToLocal(at);
+        this.speech = new SpeechBubble(at.y);
+        this.speech.sprite.position.copy(at);
+        // (The world shows a zone's things again when the player comes back; a bubble shows itself when it speaks.)
+        this.speech.sprite.userData.hidden = true;
+        host.add(this.speech.sprite);
+      } else {
+        this.speech = new SpeechBubble(above);
+        this.object.add(this.speech.sprite);
+      }
     }
-    return this.bubble;
+    return this.speech;
   }
 
   /** Voice lines and sips for NPCs that have them; `d` is the distance to the player. */
   private sounds(dt: number, d: number): void {
     const v = this.def.voice;
-    this.bubble?.update(dt);
+    this.speech?.update(dt);
     if (this.speaking > 0) this.speaking -= dt;
     if (v) {
       this.voiceWait -= dt;

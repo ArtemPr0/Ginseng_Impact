@@ -128,7 +128,8 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
       { kind: 'hop', range: 22, windup: 0.9, recover: 1.3, weight: 2 },
       { kind: 'mirror', range: 30, windup: 1.2, recover: 1.4, weight: 1 },
     ],
-    drops: [{ itemId: 'third-eye', chance: 1 }, { itemId: 'moon-dew', chance: 1 }],
+    // (No Third Eye here: the quest graph hands it over once, on the first kill, data/quests.ts trip 'god'.)
+    drops: [{ itemId: 'moon-dew', chance: 1 }],
   },
   // The chapel on spider legs (DdmvaMvMvS4): it walks the sky over the west cliffs above the treetops, and when you
   // come near it spits webs that pin you where you stand and drops nets over where you are.

@@ -117,6 +117,9 @@ export const VILLAGE = {
  * absolute height (a balcony perch). Loop NPCs start at the first point of their path instead.
  */
 export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: number }> = {
+  // The Stone Head (bodiless, LAYOUT.head): where you stand before its face, on the rise 4 m short of its chin (the
+  // head's collider starts at z -140), so its bubble hangs just in front of the mouth and 30 m reach the causeway's end.
+  'stone-head': { x: 0, z: -136 },
   // Round the island tavern's yard table (World.ts, x 22.9..26.1, z 70.2..71.4), on barrel stools.
   aldous: { x: 23.6, z: 72.3, dy: 0.02 }, mirren: { x: 25.4, z: 72.3, dy: 0.02 },
   'gob-a': { x: 23.6, z: 69.3, dy: 0.02 }, 'gob-b': { x: 25.4, z: 69.3, dy: 0.02 },
