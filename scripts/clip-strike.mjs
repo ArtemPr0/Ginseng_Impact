@@ -5,23 +5,17 @@
  * to move (the wind-up) and when it comes to rest again (the settle), plus the other swings of a multi-strike clip and,
  * for jumps, the hips' arc (take-off, apex, landing). The numbers feed src/characters/heroClips.ts.
  *
- *   node scripts/clip-strike.mjs public/models/knight.glb [boneRegex]
+ *   node scripts/clip-strike.mjs public/models/knight.glb [boneRegex] [--curve <clip substring>]
  *
  * Speeds are in body heights per second (the file is measured unscaled). Loads the GLB the way clip-reach.mjs does,
  * except that textures are dropped from the file's JSON first: three's GLTFLoader needs a DOM to decode images, and
- * only the skeleton and the clips matter here.
+ * only the skeleton and the clips matter here. `stripTextures`, `loadGlb` and `measure` are exported for other tools;
+ * the command line runs only when this file is the entry point.
  */
 import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { AnimationMixer, Box3, Vector3 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-
-const args = process.argv.slice(2);
-const curveAt = args.indexOf('--curve');
-/** `--curve <clip substring>`: the bone's speed and height and the hips' height every 1/30 s of that clip. */
-const curveOf = curveAt >= 0 ? args.splice(curveAt, 2)[1] : null;
-const [file, boneArg] = args;
-if (!file) { console.log('usage: node scripts/clip-strike.mjs <file.glb> [boneRegex] [--curve <clip substring>]'); process.exit(1); }
-const boneRe = new RegExp(boneArg ?? 'hand|wrist', 'i');
 
 /** A GLB with its images, textures and samplers removed (materials keep their colours), as an ArrayBuffer. */
 export function stripTextures(buf) {
@@ -62,66 +56,55 @@ export async function loadGlb(path) {
   return new Promise((res, rej) => new GLTFLoader().parse(ab, '', res, rej));
 }
 
-const gltf = await loadGlb(file);
-const scene = gltf.scene;
-scene.updateMatrixWorld(true);
-const height = new Box3().setFromObject(scene).getSize(new Vector3()).y || 1;
-const bones = [];
-scene.traverse((o) => { if (o.isBone && boneRe.test(o.name)) bones.push(o); });
-// The right side first (a sword hand, a string hand), then the shortest name (the hand itself before its fingers).
-const bone = bones.sort((a, b) => (/right|_r\b|\.r\b/i.test(b.name) ? 1 : 0) - (/right|_r\b|\.r\b/i.test(a.name) ? 1 : 0) || a.name.length - b.name.length)[0];
-const hips = (() => { let h = null; scene.traverse((o) => { if (!h && o.isBone && /hips$/i.test(o.name)) h = o; }); return h; })();
-if (!bone) {
-  // A clip-only file (hero-climb.glb carries rotations for the heroes' skeleton, no bones of its own): just the list.
-  const names = []; scene.traverse((o) => { if (o.isBone) names.push(o.name); });
-  console.log(`\n${file}: no bone matches ${boneRe} (bones: ${names.join(', ') || 'none'}); clips:`);
-  for (const c of gltf.animations) console.log(`  ${c.name}  ${c.duration.toFixed(3)} s  ${c.tracks.length} tracks`);
-  process.exit(0);
-}
-
-const mixer = new AnimationMixer(scene);
 const RATE = 120;
-const p = new Vector3();
-const q = new Vector3();
-const h = new Vector3();
 const f2 = (x) => x.toFixed(2);
 
-/** Samples the bone's world speed (heights/s) and the hips' height through the clip. */
-function sample(clip) {
-  const action = mixer.clipAction(clip);
-  action.play();
-  const n = Math.max(2, Math.round(clip.duration * RATE));
-  const t = [];
-  const speed = [];
-  const hipsY = [];
-  const boneY = [];
-  for (let i = 0; i <= n; i++) {
-    const time = Math.min(clip.duration - 1e-5, (clip.duration * i) / n);
-    action.time = time;
-    mixer.update(0);
-    scene.updateMatrixWorld(true);
-    bone.getWorldPosition(p);
-    if (hips) hipsY.push(hips.getWorldPosition(h).y / height);
-    boneY.push(p.y / height);
-    if (i > 0) { speed.push(p.distanceTo(q) / (clip.duration / n) / height); t.push(time); }
-    q.copy(p);
-  }
-  action.stop();
-  mixer.uncacheClip(clip);
-  // A little smoothing (three samples) against the baked keys' jitter.
-  const s = speed.map((_, i) => (speed[Math.max(0, i - 1)] + speed[i] + speed[Math.min(speed.length - 1, i + 1)]) / 3);
-  return { t, s, hipsY, boneY, dt: clip.duration / n };
-}
+/**
+ * The measuring rig for one loaded GLB: the matched bone (the right side first: a sword hand, a string hand; then the
+ * shortest name, the hand itself before its fingers), the hips, the body height, and `sample(clip)`. `bone` is null
+ * for a clip-only file (hero-climb.glb carries rotations for the heroes' skeleton and no bones of its own).
+ */
+export function measure(gltf, boneRe = /hand|wrist/i) {
+  const scene = gltf.scene;
+  scene.updateMatrixWorld(true);
+  const height = new Box3().setFromObject(scene).getSize(new Vector3()).y || 1;
+  const bones = [];
+  scene.traverse((o) => { if (o.isBone && boneRe.test(o.name)) bones.push(o); });
+  const bone = bones.sort((a, b) => (/right|_r\b|\.r\b/i.test(b.name) ? 1 : 0) - (/right|_r\b|\.r\b/i.test(a.name) ? 1 : 0) || a.name.length - b.name.length)[0] ?? null;
+  const hips = (() => { let h = null; scene.traverse((o) => { if (!h && o.isBone && /hips$/i.test(o.name)) h = o; }); return h; })();
+  const mixer = new AnimationMixer(scene);
+  const p = new Vector3();
+  const q = new Vector3();
+  const h = new Vector3();
 
-/** The curve of one clip, every 1/30 s: time, the bone's speed and height, the hips' height (all in body heights). */
-function printCurve(clip) {
-  const { t, s, hipsY, boneY, dt } = sample(clip);
-  console.log(`\n${clip.name} (${clip.duration.toFixed(3)} s) — t s | ${bone.name} speed h/s | ${bone.name} y h | hips y h`);
-  const step = Math.max(1, Math.round(1 / 30 / dt));
-  for (let i = 0; i < s.length; i += step) {
-    const bar = '#'.repeat(Math.round(Math.min(40, (s[i] / Math.max(...s)) * 40)));
-    console.log(`${t[i].toFixed(2).padStart(5)} | ${s[i].toFixed(2).padStart(5)} | ${boneY[i + 1].toFixed(3)} | ${hipsY.length ? hipsY[i + 1].toFixed(3) : '-'} ${bar}`);
+  /** Samples the bone's world speed (heights/s) and the hips' height through the clip. */
+  function sample(clip) {
+    const action = mixer.clipAction(clip);
+    action.play();
+    const n = Math.max(2, Math.round(clip.duration * RATE));
+    const t = [];
+    const speed = [];
+    const hipsY = [];
+    const boneY = [];
+    for (let i = 0; i <= n; i++) {
+      const time = Math.min(clip.duration - 1e-5, (clip.duration * i) / n);
+      action.time = time;
+      mixer.update(0);
+      scene.updateMatrixWorld(true);
+      bone.getWorldPosition(p);
+      if (hips) hipsY.push(hips.getWorldPosition(h).y / height);
+      boneY.push(p.y / height);
+      if (i > 0) { speed.push(p.distanceTo(q) / (clip.duration / n) / height); t.push(time); }
+      q.copy(p);
+    }
+    action.stop();
+    mixer.uncacheClip(clip);
+    // A little smoothing (three samples) against the baked keys' jitter.
+    const s = speed.map((_, i) => (speed[Math.max(0, i - 1)] + speed[i] + speed[Math.min(speed.length - 1, i + 1)]) / 3);
+    return { t, s, hipsY, boneY, dt: clip.duration / n };
   }
+
+  return { scene, height, bone, bones, hips, sample };
 }
 
 /** The local maxima of `s` above `floor`, at least `gap` seconds apart, strongest first. */
@@ -134,52 +117,88 @@ function peaks(t, s, floor, gap) {
   return kept;
 }
 
-if (curveOf) {
-  const clip = gltf.animations.find((c) => c.name.toLowerCase().includes(curveOf.toLowerCase()));
-  if (!clip) { console.log('clips:', gltf.animations.map((c) => c.name).join(', ')); process.exit(1); }
-  printCurve(clip);
-  process.exit(0);
-}
-
-const rows = [];
-const arcs = [];
-for (const clip of gltf.animations) {
-  const { t, s, hipsY, dt } = sample(clip);
-  const peak = Math.max(...s);
-  const at = s.indexOf(peak);
-  const quiet = peak * 0.2;
-  const hold = Math.round(0.12 / dt);
-  // The wind-up starts when the hand last left its rest before the blow; it settles once it stays slow after it.
-  let windup = at;
-  for (let i = at; i >= 0; i--) { if (s[i] < quiet) { windup = i; break; } if (i === 0) windup = 0; }
-  let settle = s.length - 1;
-  for (let i = at; i < s.length; i++) { if (s.slice(i, i + hold).every((v) => v < quiet) && i + hold <= s.length) { settle = i; break; } }
-  const others = peaks(t, s, peak * 0.35, 0.25).filter((pk) => pk.i !== at).slice(0, 4);
-  rows.push({
-    name: clip.name, dur: clip.duration, blow: t[at], frac: t[at] / clip.duration, peak, windup: t[windup], settle: t[settle],
-    others: others.map((pk) => `${f2(pk.t)} (${Math.round((pk.v / peak) * 100)}%)`).join(', ') || '-',
-  });
-  if (hipsY.length && /jump|leap|hop/i.test(clip.name)) {
-    const rest = hipsY[0];
-    const apexI = hipsY.indexOf(Math.max(...hipsY));
-    const band = 0.02;
-    let takeoff = apexI;
-    for (let i = apexI; i >= 0; i--) if (hipsY[i] <= rest + band) { takeoff = i; break; }
-    let land = hipsY.length - 1;
-    for (let i = apexI; i < hipsY.length; i++) if (hipsY[i] <= rest + band) { land = i; break; }
-    const crouch = Math.min(...hipsY.slice(0, apexI + 1));
-    const stepT = clip.duration / (hipsY.length - 1);
-    arcs.push({ name: clip.name, dur: clip.duration, takeoff: takeoff * stepT, apex: apexI * stepT, land: land * stepT, rise: hipsY[apexI] - rest, crouch: rest - crouch });
+/** The curve of one clip, every 1/30 s: time, the bone's speed and height, the hips' height (all in body heights). */
+function printCurve(rig, clip) {
+  const { t, s, hipsY, boneY, dt } = rig.sample(clip);
+  console.log(`\n${clip.name} (${clip.duration.toFixed(3)} s) — t s | ${rig.bone.name} speed h/s | ${rig.bone.name} y h | hips y h`);
+  const step = Math.max(1, Math.round(1 / 30 / dt));
+  for (let i = 0; i < s.length; i += step) {
+    const bar = '#'.repeat(Math.round(Math.min(40, (s[i] / Math.max(...s)) * 40)));
+    console.log(`${t[i].toFixed(2).padStart(5)} | ${s[i].toFixed(2).padStart(5)} | ${boneY[i + 1].toFixed(3)} | ${hipsY.length ? hipsY[i + 1].toFixed(3) : '-'} ${bar}`);
   }
 }
 
-console.log(`\n${file}: bone ${bone.name} (${bones.length} match ${boneRe}), body height ${height.toFixed(3)} units, ${gltf.animations.length} clips\n`);
-console.log('| clip | duration s | blow s | blow frac | wind-up s | settle s | peak h/s | other swings s (% of peak) |');
-console.log('|---|---|---|---|---|---|---|---|');
-for (const r of rows) console.log(`| ${r.name} | ${r.dur.toFixed(3)} | ${f2(r.blow)} | ${r.frac.toFixed(3)} | ${f2(r.windup)} | ${f2(r.settle)} | ${f2(r.peak)} | ${r.others} |`);
-if (arcs.length) {
-  console.log('\nJump arcs (hips height; take-off = the hips leave the rest band, land = back in it):\n');
-  console.log('| clip | duration s | take-off s | apex s | land s | rise h | crouch h |');
-  console.log('|---|---|---|---|---|---|---|');
-  for (const a of arcs) console.log(`| ${a.name} | ${a.dur.toFixed(3)} | ${f2(a.takeoff)} | ${f2(a.apex)} | ${f2(a.land)} | ${a.rise.toFixed(3)} | ${a.crouch.toFixed(3)} |`);
+/** The command line: the table for every clip of `file` (or one clip's curve). Returns the exit code. */
+export async function main(argv) {
+  const args = argv.slice();
+  const curveAt = args.indexOf('--curve');
+  /** `--curve <clip substring>`: the bone's speed and height and the hips' height every 1/30 s of that clip. */
+  const curveOf = curveAt >= 0 ? args.splice(curveAt, 2)[1] : null;
+  const [file, boneArg] = args;
+  if (!file) { console.log('usage: node scripts/clip-strike.mjs <file.glb> [boneRegex] [--curve <clip substring>]'); return 1; }
+  const boneRe = new RegExp(boneArg ?? 'hand|wrist', 'i');
+  const gltf = await loadGlb(file);
+  const rig = measure(gltf, boneRe);
+  const { bone, bones, height } = rig;
+  if (!bone) {
+    // A clip-only file (hero-climb.glb carries rotations for the heroes' skeleton, no bones of its own): just the list.
+    const names = []; rig.scene.traverse((o) => { if (o.isBone) names.push(o.name); });
+    console.log(`\n${file}: no bone matches ${boneRe} (bones: ${names.join(', ') || 'none'}); clips:`);
+    for (const c of gltf.animations) console.log(`  ${c.name}  ${c.duration.toFixed(3)} s  ${c.tracks.length} tracks`);
+    return 0;
+  }
+
+  if (curveOf) {
+    const clip = gltf.animations.find((c) => c.name.toLowerCase().includes(curveOf.toLowerCase()));
+    if (!clip) { console.log('clips:', gltf.animations.map((c) => c.name).join(', ')); return 1; }
+    printCurve(rig, clip);
+    return 0;
+  }
+
+  const rows = [];
+  const arcs = [];
+  for (const clip of gltf.animations) {
+    const { t, s, hipsY, dt } = rig.sample(clip);
+    const peak = Math.max(...s);
+    const at = s.indexOf(peak);
+    const quiet = peak * 0.2;
+    const hold = Math.round(0.12 / dt);
+    // The wind-up starts when the hand last left its rest before the blow; it settles once it stays slow after it.
+    let windup = at;
+    for (let i = at; i >= 0; i--) { if (s[i] < quiet) { windup = i; break; } if (i === 0) windup = 0; }
+    let settle = s.length - 1;
+    for (let i = at; i < s.length; i++) { if (s.slice(i, i + hold).every((v) => v < quiet) && i + hold <= s.length) { settle = i; break; } }
+    const others = peaks(t, s, peak * 0.35, 0.25).filter((pk) => pk.i !== at).slice(0, 4);
+    rows.push({
+      name: clip.name, dur: clip.duration, blow: t[at], frac: t[at] / clip.duration, peak, windup: t[windup], settle: t[settle],
+      others: others.map((pk) => `${f2(pk.t)} (${Math.round((pk.v / peak) * 100)}%)`).join(', ') || '-',
+    });
+    if (hipsY.length && /jump|leap|hop/i.test(clip.name)) {
+      const rest = hipsY[0];
+      const apexI = hipsY.indexOf(Math.max(...hipsY));
+      const band = 0.02;
+      let takeoff = apexI;
+      for (let i = apexI; i >= 0; i--) if (hipsY[i] <= rest + band) { takeoff = i; break; }
+      let land = hipsY.length - 1;
+      for (let i = apexI; i < hipsY.length; i++) if (hipsY[i] <= rest + band) { land = i; break; }
+      const crouch = Math.min(...hipsY.slice(0, apexI + 1));
+      const stepT = clip.duration / (hipsY.length - 1);
+      arcs.push({ name: clip.name, dur: clip.duration, takeoff: takeoff * stepT, apex: apexI * stepT, land: land * stepT, rise: hipsY[apexI] - rest, crouch: rest - crouch });
+    }
+  }
+
+  console.log(`\n${file}: bone ${bone.name} (${bones.length} match ${boneRe}), body height ${height.toFixed(3)} units, ${gltf.animations.length} clips\n`);
+  console.log('| clip | duration s | blow s | blow frac | wind-up s | settle s | peak h/s | other swings s (% of peak) |');
+  console.log('|---|---|---|---|---|---|---|---|');
+  for (const r of rows) console.log(`| ${r.name} | ${r.dur.toFixed(3)} | ${f2(r.blow)} | ${r.frac.toFixed(3)} | ${f2(r.windup)} | ${f2(r.settle)} | ${f2(r.peak)} | ${r.others} |`);
+  if (arcs.length) {
+    console.log('\nJump arcs (hips height; take-off = the hips leave the rest band, land = back in it):\n');
+    console.log('| clip | duration s | take-off s | apex s | land s | rise h | crouch h |');
+    console.log('|---|---|---|---|---|---|---|');
+    for (const a of arcs) console.log(`| ${a.name} | ${a.dur.toFixed(3)} | ${f2(a.takeoff)} | ${f2(a.apex)} | ${f2(a.land)} | ${a.rise.toFixed(3)} | ${a.crouch.toFixed(3)} |`);
+  }
+  return 0;
 }
+
+// The CLI only when run directly (`node scripts/clip-strike.mjs …`), never on import.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) process.exit(await main(process.argv.slice(2)));

@@ -1275,6 +1275,7 @@ export class Rig {
     const dodging = !!hero && !!pose.dodge && pose.dodge.t < dodgeFor;
     const freshHurt = !!pose.hurt && (this.lastHurt < 0 || pose.hurt.t < this.lastHurt);
     const freshDodge = !!pose.dodge && (this.lastDodge < 0 || pose.dodge.t < this.lastDodge);
+    let walked = false;
     if (hero && pose.dead) {
       // Down: the death clip once, held on its last frame.
       const key = this.heroCut('death', hero.death);
@@ -1293,7 +1294,10 @@ export class Rig {
       this.shotClip = k === 'heavy' ? 'heavy' : k === 'skill' || k === 'burst' ? 'cast' : 'attack';
       // A new swing starts when the progress counter restarts or the attack kind changes.
       const fresh = this.lastAttack === undefined || pose.attack < this.lastAttack || this.lastKind !== k;
-      const duration = pose.attackDuration ?? (cut ? cutSeconds(m.id, cut) : 0.6);
+      // The game seconds the move lasts: the caller's, else the cut's own; a body with neither (a companion's swing,
+      // the Stream's witches casting) plays its clip at 1× from the start, as it always did.
+      const fit = pose.attackDuration ?? (cut ? cutSeconds(m.id, cut) : undefined);
+      const duration = fit ?? 0.6;
       if (pose.charging) {
         // Hold the heavy at its wind-up while the charge builds: the charge clip when there is one (Wren aims), else
         // the heavy cut itself, frozen at heavyHold.
@@ -1308,10 +1312,13 @@ export class Rig {
         }
         this.wasCharging = true;
       } else if (fresh || m.playing !== key || this.wasCharging) {
-        // Released: the held wind-up plays on through the blow in what is left of the swing; a swing started fresh is
+        // Released: the held wind-up plays on so that its blow lands when the game's does (a tap let go before the hold
+        // frame catches up instead of trailing the damage), then at the cut's own pace; a swing started fresh is
         // fitted to its game duration and picks up at the progress the game is already at.
-        if (this.wasCharging && m.playing === key) m.resumeFit(Math.max(0.05, (1 - pose.attack) * duration));
-        else if (!m.play(key, { once: true, fitTo: duration, fade: cut?.fade ?? (hero ? 0.08 : 0.18), restart: true, at: pose.attack })) m.play('attack', true, 1, duration);
+        if (this.wasCharging && m.playing === key) {
+          const strike = m.strikeOf(key);
+          m.resumeStrike(strike, (strike - pose.attack) * duration, cut?.speed ?? 1);
+        } else if (!m.play(key, { once: true, fitTo: fit, fade: cut?.fade ?? (hero ? 0.08 : 0.18), restart: true, at: fit ? pose.attack : undefined })) m.play('attack', true, 1, fit);
         this.wasCharging = false;
       }
       this.lastKind = k;
@@ -1347,7 +1354,9 @@ export class Rig {
       if (v > 0.3) { if (!m.play('swim', false, Math.max(0.7, v / 2.6))) m.play('walk', false, 0.6); }
       else if (!m.play('swimIdle')) m.play('idle');
     }
-    else this.ground(pose, v);
+    else walked = true;
+    if (walked) this.ground(pose, v);
+    else this.gait = ''; // (whatever else the body did, the next step fades in at the idle's 0.12 s, not the gait's 0.25 s)
     // A small hit: the reaction's flinch over the upper body, on top of whatever he is doing, eased in and out.
     if (hero && freshHurt && !pose.hurt!.big) {
       const h = hero.hit;

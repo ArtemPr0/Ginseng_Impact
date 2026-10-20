@@ -372,14 +372,16 @@ export class CombatSystem {
     this.iframes = Math.max(0, this.iframes - dt);
     this.dodgeCd = Math.max(0, this.dodgeCd - dt);
     this.frenzyLeft = Math.max(0, this.frenzyLeft - dt);
-    // What the body is shown: the hit and the dodge age out; a fallen hero lies there, then the party moves on.
+    // What the body is shown: the hit and the dodge age out; a fallen hero lies there, then the party moves on. The
+    // hold stops only the hero's own moves (below): mobs, shots, pending jobs, puddles and the effects run on, so the
+    // killing blow's burst finishes and nothing fights in place.
     if (this.hurt) { this.hurt.t += dt; if (this.hurt.t > 1.2) this.hurt = null; }
     if (this.dodge) { this.dodge.t += dt; if (this.dodge.t > 1) this.dodge = null; }
     if (this.downed) {
       this.downed.t += dt;
       if (this.downed.t >= DOWN_HOLD) { this.downed = null; this.finishDown(); return; }
-      return;
     }
+    const down = this.downed !== null;
     for (const cd of this.cooldowns.values()) cd.update(dt);
     // (Taken off the list before it runs: a callback can wipe the party, which empties the list mid-loop.)
     for (let i = this.delayed.length - 1; i >= 0; i--) {
@@ -459,7 +461,7 @@ export class CombatSystem {
     const canBurst = grounded || flying;
 
     // --- dodge (a short cooldown: no chaining rolls into permanent invulnerability) ---
-    if (input.dodge && grounded && !this.burstCast && this.dodgeCd <= 0) {
+    if (input.dodge && grounded && !down && !this.burstCast && this.dodgeCd <= 0) {
       this.dodgeCd = 0.9;
       this.iframes = Math.max(this.iframes, 0.5);
       this.casting = null;
@@ -472,7 +474,7 @@ export class CombatSystem {
     }
 
     // --- light attack ---
-    if (input.attack && canShoot && !this.casting && !this.heavy && !this.burstCast && this.heavyCharge === 0) {
+    if (input.attack && canShoot && !down && !this.casting && !this.heavy && !this.burstCast && this.heavyCharge === 0) {
       this.softLock(7);
       const started = this.combo.press();
       if (started !== null) { this.spawnSlash(me, COMBO[me.weapon].hits[started]); d.audio.swing(false); }
@@ -491,7 +493,7 @@ export class CombatSystem {
       this.heavyCharge = Math.min(1, this.heavyCharge + dt / 1.1);
       if (this.heavyCharge > 0.3 && this.heavyCharge - dt / 1.1 <= 0.3) this.vfx.impact(this.playerPos().clone().add(new Vector3(0, 1.2, 0)), ELEMENT_COLOR[this.elementOf(me)], 1.2);
     }
-    if ((input.heavyRelease || (!input.heavyHeld && this.heavyCharge > 0)) && this.heavyCharge > 0 && !this.heavy) {
+    if ((input.heavyRelease || (!input.heavyHeld && this.heavyCharge > 0)) && this.heavyCharge > 0 && !this.heavy && !down) {
       this.softLock(8);
       // The swing picks up at the wind-up frame the charge held (heroClips.ts), and lands on the clip's blow.
       const timing = heavyTiming(me.id);
@@ -1228,7 +1230,7 @@ export class CombatSystem {
       }
       case 'grab': {
         const range = (e.currentAttack?.range ?? 3.4) + e.def.bodyRadius * sc;
-        if (!this.grab && inCone({ x: e.pos.x, z: e.pos.z }, e.yaw, { x: c.pos.x, z: c.pos.z }, range, 0.9)) {
+        if (!this.grab && !this.downed && inCone({ x: e.pos.x, z: e.pos.z }, e.yaw, { x: c.pos.x, z: c.pos.z }, range, 0.9)) {
           this.grab = { e, t: 0 };
           this.damagePlayer(e.def.atk * 0.4, e.def.element);
           this.d.hud.announce('Grabbed!');
@@ -1672,6 +1674,7 @@ export class CombatSystem {
 
   /** Poison: damage every half second for a while (refreshed, never stacked). */
   poisonPlayer(dps: number, seconds: number): void {
+    if (this.downed) return; // (a fallen hero passes no poison on to the next)
     this.poisonDps = Math.max(this.poisonDps * (this.poisonLeft > 0 ? 1 : 0), dps);
     this.poisonLeft = Math.max(this.poisonLeft, seconds);
   }
@@ -1713,8 +1716,10 @@ export class CombatSystem {
     this.heavyCharge = 0;
     this.burstCast = null;
     this.grab = null;
+    for (const cb of this.combos.values()) { cb.swinging = false; cb.swingTime = 0; }
     this.iframes = DOWN_HOLD + 1;
-    this.d.hud.announce(`${this.active.name} falls`);
+    // (A wipe gets one banner, the fog's, from finishDown.)
+    if (this.d.party.members.some((m) => m !== this.active && (this.hp.get(m.id) ?? 0) > 0)) this.d.hud.announce(`${this.active.name} falls`);
     // A ghoul who saw it gloats.
     const c = this.d.controller;
     const gloat = this.enemies.find((e) => e.alive && e.aggro && e.def.voices && Math.hypot(e.pos.x - c.pos.x, e.pos.z - c.pos.z) < 25);

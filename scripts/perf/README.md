@@ -33,6 +33,9 @@ node scripts/clip-strike.mjs public/models/archer.glb lefthand   # another bone 
 node scripts/clip-strike.mjs public/models/knight.glb --curve Sword_Judgment   # that clip every 1/30 s: hand speed and height, hips height
 ```
 
+Another tool can `import { loadGlb, measure } from './clip-strike.mjs'` (a GLB loaded in node without a DOM; the bone,
+hips and `sample(clip)` of a loaded file): the command line runs only when the file is the entry point.
+
 To watch a move in the built game (same build/serve/headless-Chrome steps as above; the page must be in `?at=` mode):
 
 ```bash

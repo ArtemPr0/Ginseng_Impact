@@ -179,8 +179,14 @@ export interface PlayOptions {
   once?: boolean;
   /** Playback rate (ignored when `fitTo` is set). */
   speed?: number;
-  /** Play the whole clip in this many seconds: its rate is clamped to 0.5–2.5×. */
+  /** Play the whole clip in this many seconds, at a rate within `rate`. */
   fitTo?: number;
+  /**
+   * Bounds on the fitted rate, [min, max]. The options form (the heroes' cuts, which are already windowed to the
+   * move) defaults to 0.5–2.5×; the positional form keeps its old 0.3× floor and no ceiling, so a 6.2 s
+   * Sit_to_Stand still fits a mob's 1.4 s rise at 4.4×.
+   */
+  rate?: [number, number];
   /** Crossfade seconds from whatever is playing (0.18 by default). */
   fade?: number;
   /**
@@ -191,6 +197,10 @@ export interface PlayOptions {
   /** Start this far into the clip, 0..1. */
   at?: number;
 }
+
+/** The fitted-rate bounds: the options form's, and the positional form's (its old floor, no ceiling). */
+const FIT_RATE: [number, number] = [0.5, 2.5];
+const LEGACY_RATE: [number, number] = [0.3, Infinity];
 
 const mirrored = new WeakMap<AnimationClip, AnimationClip>();
 
@@ -305,6 +315,8 @@ export class ModelRig {
   private readonly bindPose: Array<{ bone: Object3D; q: Quaternion; p: Vector3 }> = [];
   private current: AnimationAction | null = null;
   private currentKey = '';
+  /** A resumed wind-up fitted to its blow (resumeStrike): past `at` seconds of the clip it plays at `rate`. */
+  private strikeFit: { action: AnimationAction; at: number; rate: number } | null = null;
   readonly height: number;
   /** Bounding-box height of the file before scaling (model units), for shader effects in local space. */
   readonly rawHeight: number;
@@ -436,14 +448,16 @@ export class ModelRig {
    * Crossfades to a clip (or a cut). `once` clips (attacks, hits) clamp on their last frame. `fitTo` plays the whole
    * clip in that many seconds, so a swing finishes exactly when the game's attack window does. The positional form
    * `play(key, once, speed, fitTo)` and the options form `play(key, { once, speed, fitTo, fade, restart, at })` do the
-   * same thing. (The fade never warps: a warped crossfade would throw the fitted rate away and end the clip at 1×.)
+   * same thing, except for the fitted rate's bounds (PlayOptions.rate). (The fade never warps: a warped crossfade
+   * would throw the fitted rate away and end the clip at 1×.)
    */
   play(key: ClipKey | string, onceOrOpts: boolean | PlayOptions = false, speed = 1, fitTo?: number): boolean {
-    const o: PlayOptions = typeof onceOrOpts === 'object' ? onceOrOpts : { once: onceOrOpts, speed, fitTo };
+    const o: PlayOptions = typeof onceOrOpts === 'object' ? onceOrOpts : { once: onceOrOpts, speed, fitTo, rate: LEGACY_RATE };
     let action = this.find(key);
     if (!action) return false;
     const once = !!o.once;
-    const rate = (a: AnimationAction): number => (o.fitTo ? Math.min(2.5, Math.max(0.5, a.getClip().duration / Math.max(0.05, o.fitTo))) : o.speed ?? 1);
+    const [lo, hi] = o.rate ?? FIT_RATE;
+    const rate = (a: AnimationAction): number => (o.fitTo ? Math.min(hi, Math.max(lo, a.getClip().duration / Math.max(0.05, o.fitTo))) : o.speed ?? 1);
     const same = !!this.current && this.current.getClip() === action.getClip();
     // Asking again for the clip that is playing keeps it going (and lets go of a holdAt freeze).
     if (same && !once) { this.current!.timeScale = rate(this.current!); this.current!.paused = false; return true; }
@@ -459,6 +473,7 @@ export class ModelRig {
     action.play();
     this.current = action;
     this.currentKey = key;
+    this.strikeFit = null;
     return true;
   }
 
@@ -645,6 +660,23 @@ export class ModelRig {
     a.timeScale = Math.max(0.3, (a.getClip().duration - a.time) / Math.max(0.05, seconds));
   }
 
+  /**
+   * Unfreezes the current clip (a held wind-up) so that `strike` (0..1 of the clip) lands `seconds` from now, within
+   * 0.5–4×; past the blow it plays on at `afterRate` (the cut's own speed), which update() switches to. A charge let go
+   * before the hold frame was reached catches up to the blow instead of trailing the damage (resumeFit spread the
+   * whole rest of the clip over the rest of the move, which put the blow late).
+   */
+  resumeStrike(strike: number, seconds: number, afterRate = 1): void {
+    const a = this.current;
+    if (!a) return;
+    a.paused = false;
+    const at = a.getClip().duration * Math.max(0, Math.min(1, strike));
+    const left = at - a.time;
+    if (left <= 0) { a.timeScale = afterRate; this.strikeFit = null; return; }
+    a.timeScale = Math.min(4, Math.max(0.5, left / Math.max(0.05, seconds)));
+    this.strikeFit = { action: a, at, rate: afterRate };
+  }
+
   /** First node whose name matches (bone lookups: `bone(/right.?hand/i)`), or null. */
   bone(pattern: RegExp): Object3D | null {
     let found: Object3D | null = null;
@@ -672,6 +704,11 @@ export class ModelRig {
 
   update(dt: number): void {
     this.mixer.update(dt);
+    const sf = this.strikeFit;
+    if (sf && (sf.action !== this.current || sf.action.time >= sf.at)) {
+      if (sf.action === this.current) sf.action.timeScale = sf.rate;
+      this.strikeFit = null;
+    }
     for (const d of this.damped) d.bone.quaternion.slerp(d.rest, this.armDamp);
   }
 

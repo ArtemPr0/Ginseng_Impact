@@ -202,9 +202,9 @@ describe('ModelRig cuts (a stand-in skeleton with the knight clip names)', () =>
     expect(first.isRunning()).toBe(true); // fading out under the new swing
     expect(second.isRunning()).toBe(true);
     expect(rig.playing).toBe('hero:attack1');
-    // The positional form still works for every other caller.
+    // The positional form still works for every other caller, with its old fit range (Enemy's hit flinch: 2.56×).
     expect(rig.play('hit', true, 1, 0.65)).toBe(true);
-    expect(rig.action!.timeScale).toBeCloseTo(Math.min(2.5, 1.667 / 0.65), 2);
+    expect(rig.action!.timeScale).toBeCloseTo(1.667 / 0.65, 2);
     expect(rig.play('walk', false, 1.3)).toBe(true);
     expect(rig.action!.timeScale).toBe(1.3);
   });
@@ -221,6 +221,52 @@ describe('ModelRig cuts (a stand-in skeleton with the knight clip names)', () =>
     const up = rig.cut('hero:jumpUp', { key: K.jump.key, from: K.jump.takeoff[0], to: K.jump.takeoff[1], groundHips: true });
     const upHips = up!.getClip().tracks.find((t) => /Hips\.position$/.test(t.name))!;
     for (let i = 1; i < upHips.values.length; i += 3) expect(upHips.values[i]).toBeLessThanOrEqual(1 + 1e-6); // the leap is the controller's
+  });
+
+  it('the positional form keeps its old fit range: a 6.2 s stand-up fits a 1.4 s rise at 4.4×', () => {
+    // Enemy.ts plays Sit_to_Stand_Transition_M (6.208 s on the skeletons) with play('stand', true, 1, STAND_UP = 1.4):
+    // Sword_Shout (6.208 s) stands in for it here. The heroes' cuts, asked through the options form, stay within 0.5–2.5×.
+    expect(rig.play('cast', true, 1, 1.4)).toBe(true);
+    expect(rig.action!.timeScale).toBeCloseTo(6.208 / 1.4, 2);
+    expect(rig.play('hit', true, 1, 100)).toBe(true);
+    expect(rig.action!.timeScale).toBeCloseTo(0.3, 5); // the old floor
+    rig.play('cast', { once: true, fitTo: 1.4 });
+    expect(rig.action!.timeScale).toBe(2.5);
+    rig.play('heavy', { once: true, fitTo: 1.4, rate: [0.3, Infinity] });
+    expect(rig.action!.timeScale).toBeCloseTo(4.333 / 1.4, 2);
+  });
+
+  it('a held wind-up let go early catches up to its blow, then plays on at the cut\'s pace', () => {
+    const cutDur = rig.cut('hero:heavy', K.heavy)!.getClip().duration; // 1.5 s of Sword_Judgment
+    const strike = K.heavy.strike!;
+    const speed = K.heavy.speed!;
+    // The game's time from the held frame to the blow (CombatSystem starts the swing at heavyHold).
+    const seconds = (strike - K.heavyHold) * cutSeconds('knight', K.heavy);
+    // A tap: one frame in, the hold frame (heavyHold 0.24 of the cut) was never reached.
+    rig.play('hero:heavy', { once: true, speed });
+    rig.update(0.02);
+    const a = rig.action!;
+    expect(a.time).toBeLessThan(cutDur * K.heavyHold);
+    rig.resumeStrike(strike, seconds, speed);
+    expect(a.timeScale).toBeCloseTo((cutDur * strike - a.time) / seconds, 3);
+    expect(a.timeScale).toBeGreaterThan(speed); // catching up
+    let steps = 0;
+    while (a.time < cutDur * strike && steps < 200) { rig.update(0.01); steps++; }
+    expect(steps * 0.01).toBeCloseTo(seconds, 1); // the blow came when the game's did
+    expect(a.timeScale).toBeCloseTo(speed, 5); // and the follow-through runs at the cut's own pace
+    // Held at the frame (the usual charge): from there the blow is a plain 1.3× away.
+    rig.play('hero:heavy', { once: true, speed, restart: true });
+    const b = rig.action!;
+    expect(b).not.toBe(a);
+    for (let i = 0; i < 40; i++) { rig.update(0.01); rig.holdAt(K.heavyHold); }
+    expect(b.paused).toBe(true);
+    rig.resumeStrike(strike, seconds, speed);
+    expect(b.paused).toBe(false);
+    expect(b.timeScale).toBeCloseTo(speed, 1);
+    // Switching clips forgets the fit.
+    rig.play('idle');
+    rig.update(0.5);
+    expect(b.timeScale).toBeCloseTo((cutDur * strike - cutDur * K.heavyHold) / seconds, 1); // untouched by the handover
   });
 
   it('a flinch layer holds only the asked bones and plays once', () => {
