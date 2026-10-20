@@ -41,6 +41,56 @@ export function pierceStop(stop: number, nth: number): number {
   return nth <= 1 ? stop : stop * PIERCE_STOP;
 }
 
+/** A shot riding the ground (Crimson Cleave's crescent) rides up a step of RIDE_UP metres at most, and down RIDE_DROP at most. */
+export const RIDE_UP = 1.2;
+export const RIDE_DROP = 2.5;
+/** A ground-riding shot lays its burning patch only on ground at most PATCH_DROP metres under its base. */
+export const PATCH_DROP = 0.5;
+
+/**
+ * One step of a shot riding the ground: the height its base rides at over `ground` (the ground under it, asked RIDE_UP
+ * over its base `base`), or null where it breaks on a step higher than RIDE_UP. Up a slope or down one it follows the
+ * ground; over a drop deeper than RIDE_DROP it holds its height and sails across.
+ */
+export function rideBase(base: number, ground: number): number | null {
+  if (ground > base + RIDE_UP) return null;
+  return ground > base - RIDE_DROP ? ground : base;
+}
+
+/**
+ * Where a ground-riding shot lays a patch of burning ground, asked as rideBase is (its base, the ground under it): on
+ * that ground; at its base where the ground rises over it (the step or wall it broke on: the patch lies at the foot);
+ * nowhere (null) over ground more than PATCH_DROP below it, where it sails across a drop and a patch at its height would
+ * hang in the air (its tick, across the ground only, burning whatever stands far below).
+ */
+export function patchHeight(base: number, ground: number): number | null {
+  return ground < base - PATCH_DROP ? null : Math.min(ground, base);
+}
+
+/** What one blow charges the burst (full at 100). */
+export const HIT_ENERGY = 6;
+/** How many bodies one cast of a many-shot skill charges the burst for (CastCharge). */
+export const CAST_BODIES = 3;
+
+/**
+ * The burst charge of one cast of a many-shot skill (Moon Volley's six arrows, Starfall's four stars), shared by its
+ * shots: HIT_ENERGY for each body the cast strikes, the first time any of its shots strikes it, CAST_BODIES bodies at
+ * most. A cast so charges no more than the single chaining bolt each of these skills was (a body and two chained on,
+ * 18 at most), however many of its shots land: twelve hits at a blow's worth each would fill the burst in two casts.
+ */
+export class CastCharge {
+  private readonly struck = new Set<number>();
+
+  constructor(readonly bodies = CAST_BODIES) {}
+
+  /** A shot of the cast struck body `id`: what that charges (HIT_ENERGY for a body new to the cast under the cap, else 0). */
+  take(id: number): number {
+    if (this.struck.has(id) || this.struck.size >= this.bodies) return 0;
+    this.struck.add(id);
+    return HIT_ENERGY;
+  }
+}
+
 /** The combo counter: hits in a row, each landing within `window` seconds of the last; a pause drops it to 0. */
 export class HitStreak {
   count = 0;

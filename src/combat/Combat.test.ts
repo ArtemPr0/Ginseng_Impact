@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  ComboTracker, Cooldown, CRIT_CHANCE, CRIT_MULT, computeDamage, cutWindow, HitStreak, inCone, inRadius, LOCK_RANGE, lockHolds, LockOn,
-  PIERCE_STOP, pickLockTarget, pierceStop, rollHit, UNLOCK_RANGE,
+  CAST_BODIES, CastCharge, ComboTracker, Cooldown, CRIT_CHANCE, CRIT_MULT, computeDamage, cutWindow, HIT_ENERGY, HitStreak, inCone, inRadius,
+  LOCK_RANGE, lockHolds, LockOn, PATCH_DROP, patchHeight, PIERCE_STOP, pickLockTarget, pierceStop, RIDE_DROP, RIDE_UP, rideBase, rollHit,
+  UNLOCK_RANGE,
 } from './Combat';
 
 describe('computeDamage', () => {
@@ -204,6 +205,124 @@ describe('pierceStop', () => {
     expect(pierceStop(0.1, 6)).toBeCloseTo(0.03, 9);
     // Three skeletons in its path: 0.16 s of freeze in all, where a full stop on each was 0.3 s.
     expect([1, 2, 3].reduce((t, n) => t + pierceStop(0.1, n), 0)).toBeCloseTo(0.16, 9);
+  });
+
+  it('leaves a shot that does not pierce (nth 0) its full stop, and cuts a reaction past the first body like a blow', () => {
+    expect(pierceStop(0.06, 0)).toBe(0.06);
+    // A reaction's 0.1 on the first body the crescent cuts stands; on the third it only catches the fight too.
+    expect(pierceStop(0.1, 1)).toBe(0.1);
+    expect(pierceStop(0.1, 3)).toBeCloseTo(0.03, 9);
+  });
+});
+
+describe('CastCharge', () => {
+  it('charges the burst once for each body a many-shot cast strikes, CAST_BODIES at most: the single chaining bolt it was', () => {
+    expect(HIT_ENERGY).toBe(6);
+    expect(CAST_BODIES).toBe(3);
+    // Moon Volley into three mobs: six arrows, each striking its mark and chaining on to another (twelve hits, 72 at a
+    // blow's worth each); the chaining bolt it was struck the three once each.
+    const volley = new CastCharge();
+    const hits = [1, 2, 2, 3, 3, 1, 1, 2, 2, 3, 3, 1];
+    expect(hits.reduce((sum, id) => sum + volley.take(id), 0)).toBe(3 * HIT_ENERGY);
+  });
+
+  it('charges a lone body once however many shots land on it, and nothing for bodies past the cap', () => {
+    const one = new CastCharge();
+    expect([7, 7, 7, 7, 7, 7].map((id) => one.take(id))).toEqual([6, 0, 0, 0, 0, 0]);
+    // Starfall's four stars, each bursting over the same five mobs huddled together.
+    const stars = new CastCharge();
+    const struck = [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5];
+    expect(struck.map((id) => stars.take(id)).slice(0, 5)).toEqual([6, 6, 6, 0, 0]);
+    // Each cast charges afresh.
+    expect(new CastCharge().take(1)).toBe(6);
+  });
+});
+
+describe('the crescent riding the ground', () => {
+  /**
+   * Crimson Cleave's crescent, flown the way CombatSystem's projectile loop flies it: 14 m/s along +x from x = 0 for 9 m,
+   * 60 steps a second, riding 0.2 m over `ground(x)` (rideBase; a break ends the run); a patch every 2 m of the run from
+   * 1 m out, and one where it ends unless one lies within a metre behind, each where patchHeight puts it. Returns the
+   * patches laid, as [x, y], and where the run ended.
+   */
+  function cleave(ground: (x: number) => number): { patches: Array<[number, number]>; end: number } {
+    const ride = 0.2;
+    const speed = 14;
+    const every = 2;
+    const dt = 1 / 60;
+    let x = 0;
+    let y = ground(0) + ride;
+    let life = 9 / speed;
+    let next = every / 2;
+    const patches: Array<[number, number]> = [];
+    const lay = () => {
+      const at = patchHeight(y - ride, ground(x));
+      if (at !== null) patches.push([x, at]);
+    };
+    for (;;) {
+      life -= dt;
+      x += speed * dt;
+      const to = rideBase(y - ride, ground(x));
+      if (to !== null) y = to + ride;
+      while (x >= next) { lay(); next += every; }
+      if (to === null || life <= 0) {
+        if (x - (next - every) > every * 0.5) lay();
+        return { patches, end: x };
+      }
+    }
+  }
+
+  it('lays no patch in the air off a 3 m ledge: it sails across, its burning ground stays on the ground up top', () => {
+    const ledge = (x: number) => (x < 4 ? 10 : 7);
+    const { patches, end } = cleave(ledge);
+    expect(end).toBeGreaterThanOrEqual(9);
+    // (At its own height, 10, the three over the drop would hang 3 m over the ground at 7.)
+    expect(patches).toHaveLength(2);
+    for (const [x, y] of patches) {
+      expect(x).toBeLessThan(4);
+      expect(y).toBeCloseTo(10, 9);
+    }
+  });
+
+  it('rides down a 2 m step and lays its patches on the ground below it', () => {
+    const step = (x: number) => (x < 4 ? 10 : 8);
+    const { patches } = cleave(step);
+    expect(patches).toHaveLength(5);
+    for (const [x, y] of patches) expect(y).toBeCloseTo(step(x), 9);
+  });
+
+  it('follows a slope down, every patch on it', () => {
+    const slope = (x: number) => 5 - x * 0.4;
+    const { patches } = cleave(slope);
+    expect(patches).toHaveLength(5);
+    for (const [x, y] of patches) expect(y).toBeCloseTo(slope(x), 9);
+  });
+
+  it('breaks on a step higher than RIDE_UP, its last patch at the foot of it', () => {
+    const wall = (x: number) => (x < 4 ? 10 : 11.5);
+    const { patches, end } = cleave(wall);
+    expect(end).toBeGreaterThanOrEqual(4);
+    expect(end).toBeLessThan(4 + 14 / 60 + 1e-9);
+    expect(patches).toHaveLength(3);
+    expect(patches[2][0]).toBe(end);
+    for (const [, y] of patches) expect(y).toBeCloseTo(10, 9);
+  });
+
+  it('rideBase follows the ground RIDE_UP up and RIDE_DROP down, breaks above, holds over a deeper drop', () => {
+    expect(RIDE_UP).toBe(1.2);
+    expect(RIDE_DROP).toBe(2.5);
+    expect(rideBase(10, 11.1)).toBe(11.1);
+    expect(rideBase(10, 11.3)).toBeNull();
+    expect(rideBase(10, 7.6)).toBe(7.6);
+    expect(rideBase(10, 7)).toBe(10);
+  });
+
+  it('patchHeight lays on the ground under it, none over ground more than PATCH_DROP below, at the foot of a rise', () => {
+    expect(PATCH_DROP).toBe(0.5);
+    expect(patchHeight(10, 10)).toBe(10);
+    expect(patchHeight(10, 9.6)).toBe(9.6);
+    expect(patchHeight(10, 9.4)).toBeNull();
+    expect(patchHeight(10, 11.5)).toBe(10);
   });
 });
 

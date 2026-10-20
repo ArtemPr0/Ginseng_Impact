@@ -20,7 +20,7 @@ import { surface } from '../render/Materials';
 import type { Sky } from '../render/Sky';
 import type { Hud } from '../ui/Hud';
 import { glowSprite } from '../render/Glow';
-import { ComboTracker, Cooldown, CRIT_CHANCE, computeDamage, cutWindow, HitStreak, inCone, inRadius, LockOn, pierceStop, rollHit } from './Combat';
+import { CastCharge, ComboTracker, Cooldown, CRIT_CHANCE, computeDamage, cutWindow, HIT_ENERGY, HitStreak, inCone, inRadius, LockOn, patchHeight, pierceStop, RIDE_UP, rideBase, rollHit } from './Combat';
 import { ELEMENT_COLOR, REACTIONS, applyElement, type Element, type ReactionId } from './Elements';
 import { Enemy, type EnemyHome } from './Enemy';
 import { chainTo, steer, type Homing, type NearestQuarry } from './Homing';
@@ -67,8 +67,8 @@ interface Projectile {
   from: Vector3;
   /**
    * The CombatFx ribbon drawn behind it ('arrow0'/'arrow1' for Wren's arrows, 'trip0'-'trip2' for three of her trip
-   * volley's, 'bolt' for Orlan's, 'star0'/'star1' for Starfall's falling stars; a newer shot takes an id over), and the
-   * ribbon's half-width.
+   * volley's, 'bolt' for Orlan's, 'star0'/'star1' for Starfall's falling stars; a newer shot takes an id over; no more
+   * than SHOT_RIBBONS shots draw one at once), and the ribbon's half-width.
    */
   trail: string | null;
   trailW: number;
@@ -84,6 +84,8 @@ interface Projectile {
   fade: { value: number } | null;
   /** Orlan's star, turned as it flies so its points twinkle. */
   twinkle: SpriteMaterial | null;
+  /** The burst charge its cast shares (Moon Volley's arrows, Starfall's stars: Combat.CastCharge); null: each hit charges. */
+  cast: CastCharge | null;
 }
 
 type ProjectileKind = 'bolt' | 'arrow' | 'log' | 'ring' | 'fire' | 'cup' | 'trip' | 'web' | 'orb' | 'gem' | 'crescent' | 'star';
@@ -114,6 +116,13 @@ interface HitOpts {
   companion?: boolean;
   /** Where it struck (a shot's head); by default the body's side facing the hero, at about the swing's height. */
   at?: Vector3;
+  /**
+   * The body's place in a piercing shot's line, 1 being the first it cuts (0: not a piercing shot): past the first, the
+   * blow's hit-stop and its reaction's are cut to Combat.pierceStop's.
+   */
+  pierced?: number;
+  /** The cast it is a shot of (Moon Volley, Starfall): the burst is charged through it, per body rather than per hit (Combat.CastCharge). */
+  cast?: CastCharge | null;
 }
 
 export interface CombatInput { attack: boolean; heavyHeld: boolean; heavyRelease: boolean; skill: boolean; burst: boolean; dodge: boolean }
@@ -174,6 +183,8 @@ const aim = new Vector3();
 const side = new Vector3();
 const IFRAMES = 0.6;
 const BURST_MAX = 100;
+/** A reaction's freeze of the fight (on a piercing shot's bodies past its first, Combat.pierceStop's cut of it). */
+const REACTION_STOP = 0.1;
 /** Seconds a fallen hero lies there (dying_backwards is down by then) before the party switches or wipes. */
 const DOWN_HOLD = 1.2;
 /** A hit of this share of max HP or more throws the whole body (the full Hit_Reaction); less is a flinch. */
@@ -222,9 +233,15 @@ const LEAN_PURPLE = 0xb36bff;
 /**
  * The trip volley's three brightest arrows, by their place in it (both flanks of the fan and its middle, early, midway
  * and late), each with a ribbon of its own for its whole flight: three of CombatFx's four ribbon slots (her arrows'
- * two let go as the volley starts, see tripArrow).
+ * two let go as the volley starts, see tripArrow, and her arrows draw none while any of these three flies, see
+ * nextArrowTrail).
  */
 const TRIP_RIBBONS = new Map<number, string>([[1, 'trip0'], [5, 'trip1'], [8, 'trip2']]);
+/**
+ * Ribbons shots may draw at once: CombatFx's four less the blade's. A fifth live id would take a slot from a live ribbon
+ * every step, all of them fed on one CombatFx clock tick (spawnProjectile holds the line).
+ */
+const SHOT_RIBBONS = 3;
 /** The lean cyclone's trail keeps this many puddles wet at once; laying another starts the oldest drying up. */
 const CYCLONE_PUDDLES = 4;
 /** A puddle's last seconds, shrinking away. */
@@ -411,9 +428,19 @@ export class CombatSystem {
     p.trail = null;
   }
 
-  /** The next of Wren's two arrow ribbons, round-robin (the newest two arrows in the air draw one). */
-  private nextArrowTrail(): string {
-    return `arrow${this.arrowTrails++ % 2}`;
+  /**
+   * The next of Wren's two arrow ribbons, round-robin (the newest two arrows in the air draw one); none while any of her
+   * trip volley's three still flies (they live 4 s and she shoots again once the volley's 1.6 s are up: their three and
+   * her two would be five ids for CombatFx's four slots).
+   */
+  private nextArrowTrail(): string | undefined {
+    return this.tripRibbonsFlying() ? undefined : `arrow${this.arrowTrails++ % 2}`;
+  }
+
+  /** True while a shot still in the air draws one of the trip volley's ribbons (TRIP_RIBBONS). */
+  private tripRibbonsFlying(): boolean {
+    for (const id of TRIP_RIBBONS.values()) if (this.trailOwners.has(id)) return true;
+    return false;
   }
 
   /** Whatever shot draws ribbon `id` lets go of it (it fades out). */
@@ -847,14 +874,19 @@ export class CombatSystem {
     const pp = { x: c.pos.x, y: c.pos.y, z: c.pos.z };
     let anyAggro = false;
     let bossNear: Enemy | null = null;
+    // A boss in the fight, for the score: one after the hero, or one the smoke turned on its own for a while (the boss
+    // layer plays on through its brawl instead of fading out and back in).
+    let bossFight = false;
     for (const e of this.enemies) {
       // Turned on its own by Orlan's smoke: it goes for another mob (and cannot see the hero at all).
       if (e.status.brawl > 0 && !e.brawling) e.brawlTarget = this.brawlFoe(e);
       const foe = e.brawling ? e.brawlTarget : null;
       const action = e.update(dt, foe ? foe.pos : pp);
+      const boss = !!e.def.boss && e.aggro && e.alive;
+      bossFight ||= boss;
       if (foe) { if (action) this.brawlHit(e, foe); continue; }
       anyAggro ||= e.aggro && e.status.confuse <= 0;
-      if (e.def.boss && e.aggro && e.alive) bossNear = bossNear ?? e;
+      if (boss) bossNear = bossNear ?? e;
       if (action?.kind === 'melee') {
         const inRange = inCone({ x: e.pos.x, z: e.pos.z }, e.yaw, { x: c.pos.x, z: c.pos.z }, e.def.brain.attackRange + 0.6, 1.0);
         this.vfx.slash(new Vector3(e.pos.x, e.pos.y, e.pos.z), e.yaw, PALETTE.ultramarine, e.def.brain.attackRange, 1.0);
@@ -882,10 +914,11 @@ export class CombatSystem {
     d.sky.setBloodMoon(anyAggro || this.burstCast !== null);
     if (bossNear) d.hud.setBoss(bossNear.def.name, bossNear.def.title ?? '', bossNear.hp / bossNear.def.maxHp, true);
     else d.hud.setBoss('', '', 0, false);
-    // The score's boss layer: on while a boss has the hero in its sights, off once it falls or gives up the chase.
-    if ((bossNear !== null) !== this.bossMusic) {
-      this.bossMusic = bossNear !== null;
-      d.audio.score.layer('boss', this.bossMusic);
+    // The score's boss layer: on while a boss has the hero in its sights (or brawls in the smoke), off once it falls or
+    // gives up the chase.
+    if (bossFight !== this.bossMusic) {
+      this.bossMusic = bossFight;
+      d.audio.score.layer('boss', bossFight);
     }
 
     // --- projectiles ---
@@ -898,13 +931,13 @@ export class CombatSystem {
       p.pos.addScaledVector(p.vel, dt);
       let blocked = false;
       if (p.ground > 0) {
-        // Riding the ground: up a slope and down again; a wall, or a step it cannot ride up, breaks it; over a drop it
-        // holds its height.
+        // Riding the ground (Combat.rideBase): up a slope and down again; a wall, or a step it cannot ride up, breaks
+        // it; over a drop it holds its height.
         const w = d.world as Partial<HeightWorld> & WorldQuery;
         const base = p.pos.y - p.ground;
-        const gy = d.world.heightAt(p.pos.x, p.pos.z, base + 1.2);
-        if (w.blocked?.(p.pos.x, p.pos.z) || gy > base + 1.2) blocked = true;
-        else if (gy > base - 2.5) p.pos.y = gy + p.ground;
+        const to = w.blocked?.(p.pos.x, p.pos.z) ? null : rideBase(base, d.world.heightAt(p.pos.x, p.pos.z, base + RIDE_UP));
+        if (to === null) blocked = true;
+        else p.pos.y = to + p.ground;
       }
       p.object.position.copy(p.pos);
       if (p.wobble > 0) {
@@ -956,9 +989,9 @@ export class CombatSystem {
           // (The star's burst strikes it, with everything else under it.)
           if (p.aoe > 0) { dead = true; break; }
           p.hit.add(e.id);
-          // (The crescent freezes the fight on the first body it cuts and only catches on each after, its blows as heavy.)
-          const stop = p.pierce ? pierceStop(p.hitStop, p.hit.size) : p.hitStop;
-          this.hitEnemy(e, p.atk, p.mult, p.element, p.knockback, stop, { at: p.object.position, heavy: p.hitStop >= 0.08 });
+          // (The crescent freezes the fight on the first body it cuts and only catches on each after, a reaction there
+          // too, its blows as heavy; a shot of a many-shot skill charges the burst through its cast.)
+          this.hitEnemy(e, p.atk, p.mult, p.element, p.knockback, p.hitStop, { at: p.object.position, heavy: p.hitStop >= 0.08, pierced: p.pierce ? p.hit.size : 0, cast: p.cast });
           p.onHit?.(e);
           // The crescent cuts on through.
           if (p.pierce) continue;
@@ -1072,10 +1105,17 @@ export class CombatSystem {
     this.fx.trail(p.trail!, _g.copy(o).add(_side), _t.copy(o).sub(_side), p.color, true);
   }
 
-  /** A patch of the crescent's burning ground under it, and the dust it kicks up. */
+  /**
+   * A patch of the crescent's burning ground on the ground under it, and the dust it kicks up (Combat.patchHeight); none
+   * over a drop it sails across at its own height, where the patch, its dust and its tick (across the ground only) would
+   * hang in the air over whatever stands below.
+   */
   private layBurn(p: Projectile): void {
     const b = p.burn!;
-    const at = new Vector3(p.pos.x, p.pos.y - p.ground, p.pos.z);
+    const base = p.pos.y - p.ground;
+    const y = patchHeight(base, this.d.world.heightAt(p.pos.x, p.pos.z, base + RIDE_UP));
+    if (y === null) return;
+    const at = new Vector3(p.pos.x, y, p.pos.z);
     this.addZone(b.def, b.atk, at, b.group);
     this.fx.dust(at, 1.3);
   }
@@ -1086,7 +1126,7 @@ export class CombatSystem {
     for (const e of this.enemies.slice()) {
       if (!e.alive || p.hit.has(e.id) || !this.reachable(e, p.aoe, at)) continue;
       p.hit.add(e.id);
-      this.hitEnemy(e, p.atk, p.mult, p.element, p.knockback, p.hitStop);
+      this.hitEnemy(e, p.atk, p.mult, p.element, p.knockback, p.hitStop, { cast: p.cast });
     }
     this.fx.flash(_v.set(at.x, at.y + 0.5, at.z), _col.set(p.color).multiplyScalar(0.8), 3);
     this.fx.flash(_v, _col.copy(MOON).multiplyScalar(0.6), 1.4);
@@ -1203,7 +1243,8 @@ export class CombatSystem {
   private tripArrow(me: CharacterDef, i: number): void {
     const c = this.d.controller;
     // (The volley's three ribbons and her two arrows' would be five ids for CombatFx's four slots, stolen back and forth
-    // every frame: arrows still in the air from before the volley let theirs go as it starts.)
+    // every frame: arrows still in the air from before the volley let theirs go as it starts, and her arrows draw none
+    // until these three are down, see nextArrowTrail.)
     if (i === 0) { this.releaseRibbon('arrow0'); this.releaseRibbon('arrow1'); }
     const ribbon = TRIP_RIBBONS.get(i);
     const from = this.d.muzzle?.(me) ?? new Vector3(c.pos.x, c.pos.y + 1.4, c.pos.z);
@@ -1804,7 +1845,9 @@ export class CombatSystem {
    * Moon Volley: VolleyShape.arrows arrows fanned ±fan either side of her aim, each turning after a mark a moment
    * later (the locked-on enemy first, then the nearest, shared round the fan); with nothing to hunt, at a sky eye
    * ahead or down onto the ground along each one's own line. Each chains once: from the body it strikes on to the
-   * nearest other within chainRange, chasing that one (Homing.chainTo). The two outermost draw the arrow ribbons.
+   * nearest other within chainRange, chasing that one (Homing.chainTo). The two outermost draw the arrow ribbons (none
+   * while the trip volley's fly). The volley charges the burst per body it strikes, not per arrow: 18 at most, what the
+   * single chaining bolt Moon Volley was charged (Combat.CastCharge), where twelve hits at a blow's worth each were 72.
    */
   private moonVolley(me: CharacterDef, def: AttackDef, shape: VolleyShape): void {
     const c = this.d.controller;
@@ -1821,6 +1864,9 @@ export class CombatSystem {
       seen.add(m.id);
     }
     const sky = marks.length ? null : this.aimTarget(from, c.yaw);
+    // (No ribbons while the trip volley's fly: see nextArrowTrail.)
+    const ribbons = !this.tripRibbonsFlying();
+    const cast = new CastCharge();
     for (let i = 0; i < shape.arrows; i++) {
       const k = shape.arrows > 1 ? (i / (shape.arrows - 1)) * 2 - 1 : 0;
       const a = c.yaw + k * shape.fan;
@@ -1832,10 +1878,10 @@ export class CombatSystem {
         point = sky ? sky.pos.clone() : new Vector3(px, this.d.world.heightAt(px, pz, c.pos.y + 2), pz);
       }
       const vel = new Vector3(Math.cos(a), 0.12, Math.sin(a)).normalize().multiplyScalar(24);
-      const trail = i === 0 ? 'arrow0' : i === shape.arrows - 1 ? 'arrow1' : undefined;
+      const trail = !ribbons ? undefined : i === 0 ? 'arrow0' : i === shape.arrows - 1 ? 'arrow1' : undefined;
       // (A lighter hit-stop each: six freezes in a row would stutter the volley.)
       this.spawnProjectile(from.clone(), vel, 'player', atk, def.mult, element, 1.0, color, shape.chains, shape.chainRange, def.knockback, def.hitStop * 0.4, 0.24, 'arrow', {
-        homing: { target, point, delay: 0.12, turn: 5, age: 0 }, trail, trailW: 0.05,
+        homing: { target, point, delay: 0.12, turn: 5, age: 0 }, trail, trailW: 0.05, cast,
       });
     }
     this.sfx.swing('bow', true);
@@ -1844,7 +1890,9 @@ export class CombatSystem {
 
   /**
    * Starfall: StarfallShape.stars stars dropped from `height` over the target area (the mark within `range`, else
-   * half that ahead), the first on the mark and the rest round it within `spread`, one every 0.12 s.
+   * half that ahead), the first on the mark and the rest round it within `spread`, one every 0.12 s. The stars charge
+   * the burst per body they strike, not per star: 18 at most, what the single chaining bolt Starfall was charged
+   * (Combat.CastCharge).
    */
   private starfall(me: CharacterDef, def: AttackDef, shape: StarfallShape): void {
     const c = this.d.controller;
@@ -1856,19 +1904,20 @@ export class CombatSystem {
     const color = ELEMENT_COLOR[this.elementOf(me)];
     const atk = this.atkOf(me);
     const turn = Math.random() * Math.PI * 2;
+    const cast = new CastCharge();
     for (let i = 0; i < shape.stars; i++) {
       const a = turn + ((i - 1) / Math.max(1, shape.stars - 1)) * Math.PI * 2;
       const r = i === 0 ? 0 : shape.spread * (0.55 + 0.45 * Math.random());
       const tx = cx + Math.cos(a) * r;
       const tz = cz + Math.sin(a) * r;
-      this.delayed.push({ t: i * 0.12, fn: () => this.dropStar(atk, def, element, color, shape, tx, cy, tz, i) });
+      this.delayed.push({ t: i * 0.12, fn: () => this.dropStar(atk, def, element, color, shape, tx, cy, tz, i, cast) });
     }
     // Motes rising off the staff: the stars going up.
     if (this.d.weaponTips?.(_g, _t)) this.fx.sparks(_t, UP, 10, color, 9, 0.25);
   }
 
   /** One of Starfall's stars, from up high (under any roof) at (tx, tz), falling under gravity; its disc shows 0.5 s before it lands. */
-  private dropStar(atk: number, def: AttackDef, element: Element | null, color: number, shape: StarfallShape, tx: number, ty: number, tz: number, i: number): void {
+  private dropStar(atk: number, def: AttackDef, element: Element | null, color: number, shape: StarfallShape, tx: number, ty: number, tz: number, i: number, cast: CastCharge): void {
     const w = this.d.world as Partial<HeightWorld> & WorldQuery;
     const gy = this.d.world.heightAt(tx, tz, ty + 2);
     const roof = w.ceilingAt?.(tx, tz, gy) ?? Infinity;
@@ -1877,7 +1926,7 @@ export class CombatSystem {
     const g = 28;
     const fall = (-v0 + Math.sqrt(v0 * v0 + 2 * g * h)) / g;
     this.spawnProjectile(new Vector3(tx, gy + h, tz), new Vector3(0, -v0, 0), 'player', atk, def.mult, element, 0.6, color, 0, 0, def.knockback, def.hitStop, 1.5, 'star', {
-      gravity: g, aoe: shape.radius, trail: `star${this.starTrails++ % 2}`, trailW: 0.16, life: fall + 0.6,
+      gravity: g, aoe: shape.radius, trail: `star${this.starTrails++ % 2}`, trailW: 0.16, life: fall + 0.6, cast,
     });
     const warn = () => this.fx.telegraph(-100 - i, 'disc', _v.set(tx, gy, tz), 0, shape.radius, 0.5, color);
     if (fall > 0.5) this.delayed.push({ t: fall - 0.5, fn: warn });
@@ -1949,7 +1998,10 @@ export class CombatSystem {
       if (heavy) this.fx.shock(_v.set(e.pos.x, e.pos.y, e.pos.z), color, 2.5 + 2 * weight);
     }
     this.showNumber(_v.copy(hitAt).add(_w.set(0, 0.5, 0)), dmg, crit ? PALETTE.moon : color, false, e.id, crit);
-    this.d.game.hitStop = Math.max(this.d.game.hitStop, hitStop);
+    // (A piercing shot freezes the fight on the first body it cuts; on each after, the blow and any reaction there only
+    // catch it: Combat.pierceStop. Not a piercing shot, 0: the full stop.)
+    const nth = o.pierced ?? 0;
+    this.d.game.hitStop = Math.max(this.d.game.hitStop, pierceStop(hitStop, nth));
     if (own) {
       this.kick(e.pos.x, e.pos.z, crit ? 0.5 : 0.08 + (heavy ? 0.12 : 0));
       if (heavy || crit) this.feel.punch = true;
@@ -1961,8 +2013,9 @@ export class CombatSystem {
       this.feel.crit = true;
       this.d.events?.emit({ kind: 'feat', what: 'crit', at: { x: hitAt.x, y: hitAt.y, z: hitAt.z } });
     }
-    if (o.energy ?? true) this.burstEnergy = Math.min(BURST_MAX, this.burstEnergy + 6);
-    if (reaction) { this.applyReaction(e, reaction, dmg, at); this.d.audio.reaction(); }
+    // The burst: a blow's worth a hit, or through a many-shot cast, once a body (o.cast).
+    if (o.energy ?? true) this.burstEnergy = Math.min(BURST_MAX, this.burstEnergy + (o.cast ? o.cast.take(e.id) : HIT_ENERGY));
+    if (reaction) { this.applyReaction(e, reaction, dmg, at, pierceStop(REACTION_STOP, nth)); this.d.audio.reaction(); }
     if (died) this.onEnemyDeath(e, at);
   }
 
@@ -1998,13 +2051,14 @@ export class CombatSystem {
     }
   }
 
-  private applyReaction(target: Enemy, id: ReactionId, dmg: number, at: Vector3): void {
+  /** A reaction on `target`: its ring, flash and name, its splash, and a freeze of the fight for `stop` seconds. */
+  private applyReaction(target: Enemy, id: ReactionId, dmg: number, at: Vector3, stop: number): void {
     const r = REACTIONS[id];
     this.fx.shock(_v.set(target.pos.x, target.pos.y, target.pos.z), r.color, Math.max(3, r.aoeRadius * 2));
     this.fx.flash(at, r.color, 2.6);
     this.feel.pulse = Math.max(this.feel.pulse, 0.35);
     this.showNumber(at.clone().add(new Vector3(0, 0.6, 0)), r.name, r.color, true);
-    this.d.game.hitStop = Math.max(this.d.game.hitStop, 0.1);
+    this.d.game.hitStop = Math.max(this.d.game.hitStop, stop);
     if (id === 'conduit') target.defDown = { amount: r.defDown, left: r.defDownDuration };
     if (r.aoeRadius > 0) {
       for (const e of this.enemies.slice()) {
@@ -2049,6 +2103,8 @@ export class CombatSystem {
       life?: number; trail?: string; trailW?: number; pierce?: boolean; aoe?: number; ground?: number; burn?: BurnPath | null;
       /** One of the trip volley's three brightest arrows (bigger, stronger glows). */
       bright?: boolean;
+      /** The burst charge of the cast it is a shot of (Combat.CastCharge). */
+      cast?: CastCharge;
     } = {},
   ): Projectile {
     const object = new Group();
@@ -2179,14 +2235,17 @@ export class CombatSystem {
       hit: new Set(), knockback, hitStop, kind, gravity: extra.gravity ?? 0, poison: extra.poison ?? null, color,
       homing: extra.homing ?? null, wobble: extra.wobble ?? 0, onHit: extra.onHit ?? null, rainbow, seed: Math.random() * 10, web: extra.web ?? 0, by: extra.by ?? null,
       age: 0, from: from.clone(), trail: extra.trail ?? null, trailW: extra.trailW ?? 0.06, pierce: extra.pierce ?? false, aoe: extra.aoe ?? 0,
-      ground: extra.ground ?? 0, burn: extra.burn ?? null, fade, twinkle,
+      ground: extra.ground ?? 0, burn: extra.burn ?? null, fade, twinkle, cast: extra.cast ?? null,
     };
     this.projectiles.push(p);
     // A ribbon id is one shot's at a time: the shot that had it lets go (its ribbon fades) and this one starts afresh.
+    // An id not drawn yet starts only while fewer than SHOT_RIBBONS shots draw one (a switch from Wren's volley to
+    // Orlan's bolt and stars would make six ids for four slots): past that, the shot flies without.
     if (p.trail) {
       const prev = this.trailOwners.get(p.trail);
       if (prev) this.releaseTrail(prev);
-      this.trailOwners.set(p.trail, p);
+      else if (this.trailOwners.size >= SHOT_RIBBONS) p.trail = null;
+      if (p.trail) this.trailOwners.set(p.trail, p);
     }
     return p;
   }
