@@ -310,6 +310,16 @@ if (titleMusic) {
 const HEAD_EYES = new Vector3(LAYOUT.head.x, terrain.heightAt(LAYOUT.head.x, LAYOUT.head.z) - 3 + LAYOUT.head.height * 0.69, LAYOUT.head.z);
 let cinematicT = 0;
 let wasLocked = false;
+/** The realm pause: a slow circle of the hero (radians per second), and the camera rig's pitch and distance for it. */
+const ORBIT = { rate: 0.12, pitch: 0.22, distance: 6 };
+/** The gameplay camera's pitch and distance while the orbit borrows the rig; put back on relock (its yaw stays where the orbit left it: no pop). */
+let orbitFrom: { pitch: number; distance: number } | null = null;
+function endOrbit(): void {
+  if (!orbitFrom) return;
+  tpc.pitch = orbitFrom.pitch;
+  tpc.distance = orbitFrom.distance;
+  orbitFrom = null;
+}
 
 window.addEventListener('resize', () => {
   renderer.resize(window.innerWidth, window.innerHeight);
@@ -336,12 +346,12 @@ function interactTarget(): { kind: 'loot'; take: () => void; label: string } | {
     if (d < n.talkRange && d < bd && Math.abs(n.pos.y - p.y) < 6) { bd = d; best = n; }
   }
   if (best) return { kind: 'talk', npc: best, label: `Talk to ${best.def.name}` };
-  // A companion at your side (close, faced, not fighting: they stop there when you walk up to them): send them home.
+  // A companion waiting at your side (you stood still by it, walked up to it and face it; no enemy on its mind): send it home.
   let comp: Companion | null = null;
   let cd = Infinity;
   for (const c of companions) {
     const d = Math.hypot(c.pos.x - p.x, c.pos.z - p.z);
-    if (d < cd && c.atYourSide(p, controller.yaw)) { cd = d; comp = c; }
+    if (d < cd && c.beside) { cd = d; comp = c; }
   }
   if (comp) return { kind: 'dismiss', companion: comp, label: `Send ${comp.def.name} home` };
   return null;
@@ -481,16 +491,27 @@ game
       focus.set(drawPos.x, drawPos.y + 1.4, drawPos.z);
       if (!input.locked && hud.panel === 'none') {
         if (REALMS.some((r) => Math.hypot(drawPos.x - r.x, drawPos.z - r.z) < r.radius)) {
-          // Inside a realm the island (and the causeway the dolly rides) is hidden: circle the hero slowly instead,
-          // taking over from where the camera was.
-          const rate = 0.12, radius = 6;
-          if (wasLocked) cinematicT = Math.atan2(camera.position.z - focus.z, camera.position.x - focus.x) / rate;
-          cinematicT += dt;
-          const ox = focus.x + Math.cos(cinematicT * rate) * radius;
-          const oz = focus.z + Math.sin(cinematicT * rate) * radius;
-          camera.position.set(ox, Math.max(focus.y + 1.2, world.heightAt(ox, oz, focus.y) + 0.5), oz);
-          camera.lookAt(focus);
+          // Inside a realm the island (and the causeway the dolly rides) is hidden: circle the hero slowly instead, on
+          // the camera's own spring arm, so a room's walls pull it in rather than let it through them (the indoor
+          // realms are smaller than the circle). It takes over from where the camera was and eases out to 6 m.
+          if (!orbitFrom) orbitFrom = { pitch: tpc.pitch, distance: tpc.distance };
+          const ease = Math.min(1, dt * 2);
+          tpc.pitch += (ORBIT.pitch - tpc.pitch) * ease;
+          tpc.yaw += ORBIT.rate * dt;
+          // The arm's own look-ahead samples its length at half-metre steps, so as it eases out a thin solid (a cell of
+          // the tavern's hearth wall) can slip between two of them and the floor clamp pops the camera onto it: march
+          // the orbit line finely first and let the rig out only as far as it is clear (in at once, out eased).
+          const cp = Math.cos(tpc.pitch), sp = Math.sin(tpc.pitch);
+          const ox = Math.sin(tpc.yaw) * cp, oz = Math.cos(tpc.yaw) * cp;
+          let clear = ORBIT.distance;
+          for (let r = 0.3; r <= ORBIT.distance; r += 0.1) {
+            const y = focus.y + sp * r;
+            if (y < world.heightAt(focus.x + ox * r, focus.z + oz * r, y) + 0.5) { clear = Math.max(0.6, r - 0.4); break; }
+          }
+          tpc.distance = Math.min(clear, tpc.distance + (ORBIT.distance - tpc.distance) * ease);
+          tpc.update(focus, dt);
         } else {
+          endOrbit();
           cinematicT += dt;
           const u = (Math.sin(cinematicT * 0.045) + 1) / 2;
           camera.position.set(Math.sin(cinematicT * 0.1) * 2.5, 8.5 + u * 6, 150 - u * 95);
@@ -498,7 +519,7 @@ game
         }
         wasLocked = false;
       } else {
-        if (!wasLocked) { tpc.snapTo(focus); wasLocked = true; }
+        if (!wasLocked) { endOrbit(); tpc.snapTo(focus); wasLocked = true; }
         tpc.update(focus, dt);
         // `?cam=x,y,z` (debug) pins the camera at a world position looking at the `face` point.
         if (camParam) { camera.position.set(camParam[0], camParam[1], camParam[2]); const fx = faceParam ? faceParam[0] : SPAWN.x; const fz = faceParam ? faceParam[1] : SPAWN.z; camera.lookAt(fx, world.heightAt(fx, fz) + 1.2, fz); }

@@ -366,4 +366,14 @@ describe('stepController — dash (the dodge roll)', () => {
     expect(s.mode).toBe('ground');
     expect(s.pos.y).toBeCloseTo(0);
   });
+
+  it('ends at a walk even when the roll leaves the ground (off a ledge, the stick still pushed)', () => {
+    const ledge: WorldQuery = { heightAt: (x) => (x < 2 ? 0 : -5) };
+    const s = createControllerState({ x: 0, y: 0, z: 0 });
+    startDash(s, { x: 1, z: 0 });
+    run({ ...idle(), move: { x: 1, z: 0 } }, 18, ledge, s); // 0.3 s: over the edge before the roll ends
+    expect(s.mode).toBe('air');
+    expect(s.dashLeft).toBe(0);
+    expect(Math.hypot(s.vel.x, s.vel.z)).toBeLessThanOrEqual(CONTROLLER.walkSpeed + 1e-9);
+  });
 });

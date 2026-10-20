@@ -556,8 +556,9 @@ export function stepController(s: ControllerState, input: ControllerInput, world
     }
   }
 
-  // The roll ends short: the speed drops to a walk (not a three-metre slide out of it).
-  if (dashing && s.dashLeft === 0 && s.mode === 'ground') {
+  // The roll ends short, whatever it ran into: the speed drops to a walk (not a three-metre slide out of it, nor an
+  // 18 m/s flight off a ledge or glide into the water).
+  if (dashing && s.dashLeft === 0) {
     const sp = Math.hypot(s.vel.x, s.vel.z);
     if (sp > CONTROLLER.walkSpeed) { s.vel.x *= CONTROLLER.walkSpeed / sp; s.vel.z *= CONTROLLER.walkSpeed / sp; }
   }
