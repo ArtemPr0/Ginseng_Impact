@@ -7,3 +7,6 @@ dist
 # The songs in src/assets/music are your own files, kept out of the public repo (see its README).
 src/assets/music/*
 !src/assets/music/README.md
+!src/assets/music/licensed/
+src/assets/music/licensed/*
+!src/assets/music/licensed/LICENSES.md
