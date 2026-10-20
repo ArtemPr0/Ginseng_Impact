@@ -85,6 +85,10 @@ export const ITEMS: Record<string, ItemDef> = {
   'lunar-charm': { id: 'lunar-charm', name: 'Lunar Charm', kind: 'charm', desc: 'All damage +15% while carried.', value: 90, rarity: 2, dmgMult: 1.15 },
   'third-eye': { id: 'third-eye', name: 'Third Eye of the Frog God', kind: 'charm', desc: 'It still blinks when nobody is looking. +25% damage while carried in the charm slot.', value: 900, rarity: 4, dmgMult: 1.25, color: 0xff5ad6 },
   'star-chart': { id: 'star-chart', name: 'Star Chart', kind: 'key', desc: 'Pim\'s drawing of where the great ones sleep. Marks bosses on the minimap.', value: 100, rarity: 2, reveals: true },
+  // The story's keys (data/quests.ts): two of the five voices, and the book the dragon's reader wants.
+  'drowned-bell': { id: 'drowned-bell', name: 'The Drowned Bell', kind: 'key', desc: 'The sunken city\'s voice, out of the anglers\' lane. It rings under water; up here it hums.', value: 0, rarity: 4 },
+  'grave-crown': { id: 'grave-crown', name: 'The Grave Crown', kind: 'key', desc: 'The Skeleton King\'s first crown, off the Grave Cyclops. He let you keep it: two on one skull looks desperate.', value: 0, rarity: 4 },
+  'old-ledger': { id: 'old-ledger', name: 'An Old Ledger', kind: 'key', desc: 'A century of the Vale\'s debts, Rattlebones on page forty. A book for a dragon to sleep on.', value: 0, rarity: 2 },
 };
 
 export const RARITY_COLOR: Record<1 | 2 | 3 | 4, number> = { 1: 0xdfe6ff, 2: 0x4f7cff, 3: 0x8b3dff, 4: 0xff2a2a };
