@@ -3,8 +3,9 @@
  * is the ground's tint, its hue and brightness near and far; up close (under uDetailFar) the twelve layer weights
  * (layerA/B/C vertex attributes, see Ground.ts LAYER) blend the procedural patterns ported from Floors.ts, Kingdom.ts's
  * porcelain and the graveyard's moss, and the tint takes their pattern but not their colour (the pattern over its
- * mean: Ground.ts splatAlbedo). Each layer has its own roughness and a relief height that bumps the normal, so
- * moonlight and bloom catch stone edges. Marble carries pulsing ore veins and, with wet ground, a Fresnel gloss of the
+ * mean: Ground.ts splatAlbedo). Each layer has its own roughness (never under the material's roughness floor: the
+ * island's sculpt keeps its stone matt under the low moon) and a relief height that bumps the normal, so moonlight and
+ * bloom catch stone edges. Marble carries pulsing ore veins and, with wet ground, a Fresnel gloss of the
  * same sky the water reflects (SKY_SHARED). Fog, lights and shadows are the standard chunks: the ground is lit and
  * shadowed like everything else.
  *
@@ -48,7 +49,7 @@ ${TINT_DEFINES}
 #define BUMP_METRES ${num(BUMP_METRES)}
 #define ORE_STRENGTH ${num(ORE_STRENGTH)}
 #define MARBLE_LEVEL ${num(MARBLE_LEVEL)}
-uniform float uTime; uniform float uDetailFar; uniform float uBump;
+uniform float uTime; uniform float uDetailFar; uniform float uBump; uniform float uRoughFloor;
 uniform vec3 uSkyHorizon; uniform vec3 uSkyMid; uniform vec3 uSkyZenith; uniform vec3 uSkyCloud; uniform vec3 uMoonDir; uniform vec3 uMoonCol; uniform float uSkyTime;
 varying vec4 vA; varying vec4 vB; varying vec4 vC; varying vec3 vW; varying float vDist;
 ${GLSL_NOISE}
@@ -199,7 +200,8 @@ float gWet = vC.w;
     vec3 patternRatio = clamp(acc.rgb / max(patternMean, vec3(0.001)), PATTERN_MIN, PATTERN_MAX);
     ground *= mix(vec3(1.0), patternRatio, gDetail);
     gBump = acc.a * gDetail;
-    gRough = mix(roughness, rough, gDetail);
+    // (The floor: a sculpt can keep every layer matt, so the low moon draws no grey sheen on its stone.)
+    gRough = mix(roughness, max(rough, uRoughFloor), gDetail);
   }
   diffuseColor.rgb *= ground;
 }`;
@@ -245,14 +247,29 @@ const EMISSIVE_FRAGMENT = /* glsl */ `
   }
 }`;
 
-/** The one ground material (share it between every ChunkedGround). */
-export function groundMaterial(): MeshStandardMaterial {
+export interface GroundMaterialOptions {
+  /**
+   * The lowest roughness any layer renders at (Sculpt.roughnessFloor; 0 keeps each layer's own: flagstone 0.6, cobble
+   * 0.55, marble 0.25). Wet ground still halves it.
+   */
+  roughnessFloor?: number;
+}
+
+/**
+ * A ground material. Every one compiles to the same program ('ground'); share one between the chunk sets of sculpts
+ * with the same roughness floor.
+ */
+export function groundMaterial(opts: GroundMaterialOptions = {}): MeshStandardMaterial {
   const mat = new MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
   mat.name = 'ground';
+  // This material's own (a uniform, not a define: one program for every floor).
+  const roughFloor = { value: opts.roughnessFloor ?? 0 };
+  mat.userData.roughFloor = roughFloor;
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = GROUND_UNIFORMS.uTime;
     shader.uniforms.uDetailFar = GROUND_UNIFORMS.uDetailFar;
     shader.uniforms.uBump = GROUND_UNIFORMS.uBump;
+    shader.uniforms.uRoughFloor = roughFloor;
     for (const [k, u] of Object.entries(SKY_SHARED)) shader.uniforms[k] = u;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>

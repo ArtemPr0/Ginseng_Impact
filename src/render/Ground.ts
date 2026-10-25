@@ -124,6 +124,11 @@ export interface Sculpt {
    * average at GROUND_ALBEDO is used, and the layers' own colours show up close.
    */
   tint?(x: number, z: number, h: number, slope: number, out: Color): void;
+  /**
+   * The lowest roughness its layers render at (groundMaterial's roughnessFloor). The island's is 0.85: under its low
+   * moon a glossier flagstone or cobble reads as a grey sheen. A realm leaves it out and keeps its marble glossy.
+   */
+  roughnessFloor?: number;
   /** Chunks whose every vertex is below this height are not built (a realm is mostly void around its land). */
   voidBelow?: number;
 }

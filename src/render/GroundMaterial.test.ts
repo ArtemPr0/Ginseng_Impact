@@ -152,6 +152,29 @@ describe('groundMaterial shader', () => {
     expect(f).not.toMatch(/GROUND_ALBEDO|WET_DARKEN/);
   });
 
+  it('floors every layer\'s roughness at the material\'s own uRoughFloor (one program for every floor), wet still halving it', () => {
+    const f = r.frag;
+    const colorAt = f.indexOf('float gDetail = 1.0 - smoothstep(uDetailFar * 0.6, uDetailFar, vDist);');
+    expect(f.indexOf('uniform float uRoughFloor;')).toBeGreaterThan(0);
+    expect(f.indexOf('uniform float uRoughFloor;')).toBeLessThan(colorAt);
+    // The layers' mix is floored before it fades into the material roughness (0.95) with distance; wet halves the result.
+    expect(f).toContain('gRough = mix(roughness, max(rough, uRoughFloor), gDetail);');
+    expect(f.indexOf('float roughnessFactor = gRough * (1.0 - 0.5 * gWet);')).toBeGreaterThan(f.indexOf('max(rough, uRoughFloor)'));
+    // The flagstone (0.6) and cobble (0.55) branches still carry their own roughness: the floor is per material.
+    expect(f).toMatch(/flagstoneTex\(p, [^;]*\) \* w; patternMean \+= TINT_FLAGSTONE \* w; rough \+= 0\.6 \* w;/);
+    expect(f).toMatch(/cobbleTex\(p\) \* w; patternMean \+= TINT_COBBLE \* w; rough \+= 0\.55 \* w;/);
+    // Each material keeps its own floor: none by default (a realm's marble stays glossy), the island's 0.85.
+    const floorOf = (opts?: Parameters<typeof groundMaterial>[0]) => {
+      const mat = groundMaterial(opts);
+      const shader = { uniforms: {} as Record<string, { value: unknown }>, vertexShader: ShaderLib.standard.vertexShader, fragmentShader: ShaderLib.standard.fragmentShader };
+      (mat.onBeforeCompile as unknown as (s: typeof shader, r: null) => void)(shader, null);
+      expect(mat.customProgramCacheKey()).toBe('ground');
+      return shader.uniforms.uRoughFloor.value;
+    };
+    expect(floorOf()).toBe(0);
+    expect(floorOf({ roughnessFloor: 0.85 })).toBe(0.85);
+  });
+
   it('passes the layer attributes and world position from the vertex shader', () => {
     const v = r.vert;
     for (const needle of ['attribute vec4 layerA; attribute vec4 layerB; attribute vec4 layerC;', 'vA = layerA; vB = layerB; vC = layerC;', 'vW = (modelMatrix * vec4(transformed, 1.0)).xyz;', 'vDist = distance(vW, cameraPosition);']) expect(v).toContain(needle);
@@ -164,6 +187,7 @@ describe('groundMaterial shader', () => {
     expect(r.uniforms.uTime).toBe(GROUND_UNIFORMS.uTime);
     expect(r.uniforms.uDetailFar).toBe(GROUND_UNIFORMS.uDetailFar);
     expect(r.uniforms.uBump).toBe(GROUND_UNIFORMS.uBump);
+    expect((r.uniforms.uRoughFloor as { value: number }).value).toBe(0);
     expect(r.key).toBe('ground');
     const mat = groundMaterial();
     expect(mat.vertexColors).toBe(true);

@@ -4,7 +4,7 @@
  * abyss); `Terrain` bakes it into a Heightfield (render/Ground.ts) once at startup, with the twelve ground layers and
  * the far tint per vertex, and draws it as a ChunkedGround under the splat material. `heightAt` is then exactly the
  * drawn surface (the triangle under the point), `slopeAt` its gradient; beyond the baked square the analytic sculpt
- * answers (the abyss, and the realms' far-off floors, which read it as "no island here").
+ * answers (the abyss, and the realms' far-off floors, which read it as "no island here": at once, without the noise).
  */
 import { Color, type Group, type Vector3 } from 'three';
 import { ChunkedGround, Heightfield, LAYER, type Sculpt } from '../render/Ground';
@@ -128,6 +128,11 @@ export function deadAt(x: number, z: number): number {
   return 1 - smoothstep(WORLD.dead.r - 12, WORLD.dead.r + 6, Math.hypot(x - WORLD.dead.x, z - WORLD.dead.z));
 }
 
+/** 0..1 the meadows: where the island's ground turns to moss (its fbm patches, south and north of the chasm). */
+export function meadowAt(x: number, z: number, noise: Noise2D): number {
+  return smoothstep(-0.2, 0.5, noise.fbm(x * 0.012 + 50, z * 0.012 + 50, 3));
+}
+
 /** 0..1 how frozen a point is. */
 export function frozenAt(x: number, z: number): number {
   return smoothstep(WORLD.frozen.xFrom, WORLD.frozen.xTo, x) * smoothstep(WORLD.frozen.zFrom, WORLD.frozen.zTo, z);
@@ -159,54 +164,86 @@ function corridorEnds(z: number): number {
   return smoothstep(WORLD.corridorZ.min - CORRIDOR_FADE, WORLD.corridorZ.min, z) * (1 - smoothstep(WORLD.corridorZ.max, WORLD.corridorZ.max + CORRIDOR_FADE, z));
 }
 
-/**
- * 1 where the ground must stay as the base sculpt makes it (the level pads and their blends, the footpaths, the
- * river, the eye, the pools, the pond and the stream, the causeway corridor, the village and hamlet rectangles and
- * every FLATS disc), 0 in open ground, blending over 10-15 m: the rolling hills and the rim lip are scaled by its
- * complement.
- */
-export function flatMask(x: number, z: number, noise: Noise2D): number {
-  const B = FLATS.blend;
-  let f = 0;
-  for (const p of PADS) {
-    const edge = p.r + p.blend;
-    const d = Math.hypot(x - p.x, z - p.z);
-    if (d < edge + B) f = Math.max(f, 1 - smoothstep(edge, edge + B, d));
-    if (f >= 1) return 1;
-  }
-  f = Math.max(f, 1 - smoothstep(2.1, 9, pathDistance(x, z)));
-  if (f >= 1) return 1;
-  f = Math.max(f, 1 - smoothstep(14, 22, riverDistance(x, z)));
-  if (f >= 1) return 1;
-  if (Math.abs(x - EYE.x) < EYE.a + 20 && Math.abs(z - EYE.z) < EYE.b + 20) f = Math.max(f, 1 - smoothstep(4, 16, eyeDistance(x, z)));
-  for (const t of LAYOUT.tiers) f = Math.max(f, 1 - smoothstep(t.r + 4, t.r + 14, Math.hypot(x - t.x, z - t.z)));
-  f = Math.max(f, 1 - smoothstep(WORLD.pond.r + 8, WORLD.pond.r + 18, Math.hypot(x - WORLD.pond.x, z - WORLD.pond.z)));
-  f = Math.max(f, (1 - smoothstep(14, 26, Math.abs(x))) * corridorEnds(z));
-  if (f >= 1) return 1;
-  if (z > WORLD.streamZ.min - 20 && z < WORLD.streamZ.max + 20) {
-    const band = smoothstep(WORLD.streamZ.min - 20, WORLD.streamZ.min - 8, z) * (1 - smoothstep(WORLD.streamZ.max + 8, WORLD.streamZ.max + 20, z));
-    f = Math.max(f, (1 - smoothstep(7, 18, Math.abs(x - streamCentre(z, noise)))) * band);
-  }
-  for (const r of FLATS.rects) f = Math.max(f, 1 - smoothstep(0, B, rectDistance(x, z, r)));
-  if (f >= 1) return 1;
-  for (const c of FLATS.discs) {
-    const d = Math.hypot(x - c.x, z - c.z);
-    if (d < c.r + B) f = Math.max(f, 1 - smoothstep(c.r, c.r + B, d));
-    if (f >= 1) return 1;
-  }
-  return f;
+/** Distance from (x, z) to a disc's edge (negative inside), or Infinity when it is further than `reach` from it. */
+function discEdge(x: number, z: number, cx: number, cz: number, r: number, reach: number): number {
+  const dx = x - cx;
+  const dz = z - cz;
+  const far = r + reach;
+  const d2 = dx * dx + dz * dz;
+  return d2 >= far * far ? Infinity : Math.sqrt(d2) - r;
 }
 
-/** The rolling hills of the open ground (metres, roughly ±4.5): two octave bands, long swells and a finer ripple. */
-export function hillsAt(x: number, z: number, noise: Noise2D): number {
-  return noise.fbm(x * 0.018 + 31, z * 0.018 + 31, 3) * 4.5 + noise.fbm(x * 0.045, z * 0.045, 2) * 0.9;
+/**
+ * How much of the rolling hills (and the rim lip), `height` metres here, the ground at (x, z) carries, 0..1: 0 where it
+ * must stay exactly as the bare sculpt makes it (FLATS: the pads out to their blends, the buildings' footprints, every
+ * NPC's spot, the footpaths' trodden core, the water and its banks), 1 in open ground. Past a level edge the hills come
+ * back over a ramp as long as their height needs for the bank it makes to rise no steeper than FLATS.bank, and never
+ * shorter than FLATS.ramp: a low swell returns within a few metres of a house, a tall one over ten.
+ */
+export function reliefAt(x: number, z: number, noise: Noise2D, height = reliefHeight(x, z, noise)): number {
+  const W = FLATS.water;
+  const R = Math.max(FLATS.ramp, (1.5 * Math.abs(height)) / FLATS.bank);
+  // The nearest level edge (metres past it, ≤ 0 inside).
+  let edge = Infinity;
+  for (const p of PADS) edge = Math.min(edge, discEdge(x, z, p.x, p.z, p.r + p.blend, R));
+  if (edge <= 0) return 0;
+  const M = FLATS.margin;
+  for (const c of FLATS.discs) edge = Math.min(edge, discEdge(x, z, c.x, c.z, c.r + M, R));
+  if (edge <= 0) return 0;
+  for (const c of FLATS.npcs) edge = Math.min(edge, discEdge(x, z, c.x, c.z, c.r, R));
+  if (edge <= 0) return 0;
+  for (const r of FLATS.rects) {
+    if (x < r[0] - M - R || x > r[1] + M + R || z < r[2] - M - R || z > r[3] + M + R) continue;
+    edge = Math.min(edge, rectDistance(x, z, r) - M);
+  }
+  if (edge <= 0) return 0;
+  edge = Math.min(edge, pathDistance(x, z) - FLATS.path);
+  edge = Math.min(edge, riverDistance(x, z) - W.river);
+  if (Math.abs(x - EYE.x) < EYE.a + W.eye + R && Math.abs(z - EYE.z) < EYE.b + W.eye + R) edge = Math.min(edge, eyeDistance(x, z) - W.eye);
+  for (const t of LAYOUT.tiers) edge = Math.min(edge, discEdge(x, z, t.x, t.z, t.r + W.tier, R));
+  edge = Math.min(edge, discEdge(x, z, WORLD.pond.x, WORLD.pond.z, WORLD.pond.r + W.pond, R));
+  if (edge <= 0) return 0;
+  let level = 1 - smoothstep(0, R, edge);
+  // The stream's ravine fades out along its length, so it weighs in on its own.
+  if (z > WORLD.streamZ.min - 20 && z < WORLD.streamZ.max + 20) {
+    const band = smoothstep(WORLD.streamZ.min - 20, WORLD.streamZ.min - 8, z) * (1 - smoothstep(WORLD.streamZ.max + 8, WORLD.streamZ.max + 20, z));
+    if (band > 0) level = Math.max(level, (1 - smoothstep(W.stream, W.stream + R, Math.abs(x - streamCentre(z, noise)))) * band);
+  }
+  return 1 - level;
 }
+
+/**
+ * The hills' two octave bands: long swells about 55 m across and a finer ripple, at most `amp` metres each. (The fbm
+ * keeps them well inside that: |hills| p50 1.3 m, p95 3.3 m; open ground moves about a metre on average.)
+ */
+export const HILLS = { swell: { amp: 5.85, freq: 0.018 }, ripple: { amp: 1.17, freq: 0.045 } };
+
+/** The rolling hills of the open ground (metres): two octave bands, long swells and a finer ripple (HILLS). */
+export function hillsAt(x: number, z: number, noise: Noise2D): number {
+  const { swell, ripple } = HILLS;
+  return noise.fbm(x * swell.freq + 31, z * swell.freq + 31, 3) * swell.amp + noise.fbm(x * ripple.freq, z * ripple.freq, 2) * ripple.amp;
+}
+
+/** The relief open ground carries at (x, z) before reliefAt scales it: the hills and the rim's rock lip (metres). */
+export function reliefHeight(x: number, z: number, noise: Noise2D): number {
+  return hillsAt(x, z, noise) + rimLip(islandRadius(x, z, noise));
+}
+
+/** How far the coastline wobbles in or out of its circle (metres; the fbm stays within ±1). */
+const COAST_WOBBLE = 18;
+/**
+ * No land lies further than this from the island's centre (the cliff's foot at the coast's widest, with the wobble's
+ * bound doubled for safety): beyond it the sculpt is the abyss, bar a solid pad.
+ */
+const NO_LAND_BEYOND = WORLD.islandRadius + WORLD.cliffWidth + 2 * COAST_WOBBLE;
+/** The pads that are land even past the cliff (only the castle's). */
+const SOLID_PADS = PADS.filter((p) => p.solid);
 
 /** The island's radius term at (x, z): distance from the centre plus the coastline's wobble (the cliff begins past WORLD.islandRadius). */
 export function islandRadius(x: number, z: number, noise: Noise2D): number {
   const dx = x - WORLD.islandCentre.x;
   const dz = z - WORLD.islandCentre.z;
-  return Math.hypot(dx, dz) + noise.fbm(x * 0.0134 + 9, z * 0.0134 + 9, 3) * 18;
+  return Math.hypot(dx, dz) + noise.fbm(x * 0.0134 + 9, z * 0.0134 + 9, 3) * COAST_WOBBLE;
 }
 
 /** The rock rim at the island's edge: +1.2 m rising from radius 110 to 118 and gone by 124, where the cliff falls. */
@@ -238,22 +275,33 @@ export function knollAt(x: number, z: number): number {
  * always did, and the level pads win last.
  */
 export function terrainHeight(x: number, z: number, noise: Noise2D, relief = true): number {
-  const nx = x * 0.0067;
-  const nz = z * 0.0067;
-  const rolling = noise.fbm(nx, nz, 4) * 7;
-  const detail = noise.noise(x * 0.03, z * 0.03) * 0.8;
+  // Solid pads are land wherever they reach (the castle's rock past the cliff).
+  let padLand = 0;
+  for (const p of SOLID_PADS) {
+    const dd = Math.hypot(x - p.x, z - p.z);
+    if (dd < p.r + p.blend) padLand = Math.max(padLand, 1 - smoothstep(p.r, p.r + p.blend, dd));
+  }
+  // Points no land can reach (the realms' floors, a kilometre out, ask about some every frame) are the abyss: exactly
+  // what the full sculpt below ends in there, without its work.
+  if (padLand <= 0 && Math.hypot(x - WORLD.islandCentre.x, z - WORLD.islandCentre.z) > NO_LAND_BEYOND) return WORLD.abyssY;
   const r = islandRadius(x, z, noise);
   const island = smoothstep(WORLD.islandRadius + WORLD.cliffWidth, WORLD.islandRadius, r);
   const chasmCentre = WORLD.chasmCentreZ + noise.noise(x * 0.017, 3) * 6;
   const chasm = 1 - smoothstep(WORLD.chasmHalfWidth - 6, WORLD.chasmHalfWidth + 8, Math.abs(z - chasmCentre));
   const land = island * (1 - chasm);
+  // Past the cliff and down the chasm: the abyss as well.
+  if (land <= 0 && padLand <= 0) return WORLD.abyssY;
+  const nx = x * 0.0067;
+  const nz = z * 0.0067;
+  const rolling = noise.fbm(nx, nz, 4) * 7;
+  const detail = noise.noise(x * 0.03, z * 0.03) * 0.8;
   let plateau = 3 + rolling + detail;
   // Hills in the open ground and the rock lip along the rim, both off wherever the ground must stay level. They join
   // the base plateau here so that everything carved below (the corridor, the river, the pools, the gorge, the pads)
   // dominates them exactly as it dominated the old rolling.
   if (relief) {
-    const flat = flatMask(x, z, noise);
-    if (flat < 1) plateau += (1 - flat) * (hillsAt(x, z, noise) + rimLip(r));
+    const height = hillsAt(x, z, noise) + rimLip(r);
+    plateau += reliefAt(x, z, noise, height) * height;
   }
   // Flatten a corridor under the causeway so the raised road always sits above the ground. It fades out over
   // CORRIDOR_FADE past each end (it used to stop dead: a 3.6 m wall behind the north stairs, a 2.5 m step behind the spawn).
@@ -338,13 +386,10 @@ export function terrainHeight(x: number, z: number, noise: Noise2D, relief = tru
     }
   }
   // Level pads for buildings and big creatures (always land inside).
-  let padLand = 0;
   for (const p of PADS) {
     const dd = Math.hypot(x - p.x, z - p.z);
     if (dd >= p.r + p.blend) continue;
-    const t = 1 - smoothstep(p.r, p.r + p.blend, dd);
-    plateau = lerp(plateau, p.y, t);
-    if (p.solid) padLand = Math.max(padLand, t);
+    plateau = lerp(plateau, p.y, 1 - smoothstep(p.r, p.r + p.blend, dd));
   }
   return lerp(WORLD.abyssY, plateau, Math.max(land, padLand));
 }
@@ -389,13 +434,14 @@ export function islandSculpt(noise: Noise2D): Sculpt {
   const deadA = new Color(0x4a1430);
   const deadB = new Color(0x6a2a3c);
   const pathColor = new Color(0x34426f);
-  const meadowAt = (x: number, z: number) => smoothstep(-0.2, 0.5, noise.fbm(x * 0.012 + 50, z * 0.012 + 50, 3));
   return {
     x0: -WORLD.size / 2,
     z0: -WORLD.size / 2,
     size: WORLD.size,
     cell: 1,
     voidBelow: WORLD.abyssY + 1,
+    // Matt stone under the low moon (the old island ground was 0.95 everywhere; the moon-sheen rule asks >= 0.85).
+    roughnessFloor: 0.85,
     height: (x, z) => terrainHeight(x, z, noise),
     layers: (x, z, _h, slope, out) => {
       const steep = smoothstep(0.45, 0.8, slope);
@@ -404,7 +450,7 @@ export function islandSculpt(noise: Noise2D): Sculpt {
       const path = pathAt(x, z);
       const fray = noise.fbm(x * 0.3 + 5, z * 0.3 + 5, 2);
       out[LAYER.grass] = 1;
-      paint(out, LAYER.moss, meadowAt(x, z) * 0.75 * (1 - slope));
+      paint(out, LAYER.moss, meadowAt(x, z, noise) * 0.75 * (1 - slope));
       // Rock on steep ground and along the cliff band (the lip and the face below it).
       paint(out, LAYER.rock, Math.max(steep, smoothstep(112, 124, islandRadius(x, z, noise))));
       paint(out, LAYER.snow, frozenAt(x, z) * (1 - smoothstep(0.5, 0.9, slope)));
@@ -437,7 +483,7 @@ export function islandSculpt(noise: Noise2D): Sculpt {
     tint: (x, z, _h, slope, out) => {
       // The old vertex-colour pass, so the ground keeps the colours the island always had, near and far.
       const c = out.copy(ground);
-      c.lerp(moss, meadowAt(x, z) * 0.75 * (1 - slope));
+      c.lerp(moss, meadowAt(x, z, noise) * 0.75 * (1 - slope));
       c.lerp(stone, smoothstep(0.3, 0.85, slope));
       c.lerp(snow, frozenAt(x, z) * (1 - smoothstep(0.5, 0.9, slope)) * 0.85);
       c.lerp(streamBed, streamAt(x, z, noise) * 0.8);
@@ -486,7 +532,7 @@ export class Terrain {
   }
 
   private chunks(): ChunkedGround {
-    if (!this.ground) this.ground = new ChunkedGround(this.field, groundMaterial(), { chunk: 32, lod: [64, 160], castShadowNear: true });
+    if (!this.ground) this.ground = new ChunkedGround(this.field, groundMaterial({ roughnessFloor: this.field.s.roughnessFloor }), { chunk: 32, lod: [64, 160], castShadowNear: true });
     return this.ground;
   }
 

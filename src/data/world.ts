@@ -321,35 +321,6 @@ export const PADS: ReadonlyArray<{ x: number; z: number; r: number; y: number; b
 ];
 
 /**
- * Level ground for the island's relief (Terrain.flatMask): the rolling hills (and the rim lip) are switched off inside
- * these discs and rectangles, on the pads, the paths and the water, and blend back in over `blend` metres, so every
- * building, camp and pair of feet stays on even ground. Discs {x, z, r}; rects [x0, x1, z0, z1].
- */
-export interface FlatDisc { x: number; z: number; r: number }
-export const FLATS: { blend: number; discs: readonly FlatDisc[]; rects: ReadonlyArray<readonly [number, number, number, number]> } = {
-  blend: 12,
-  discs: [
-    { x: 68, z: -18, r: 32 }, // the cathedral
-    { x: 20, z: 63, r: 12 }, // the island tavern and its yard
-    { x: -24, z: 52, r: 8 }, // the skeletons' campfire
-    { x: 32, z: 64, r: 8 }, // the cloister
-    { x: -46, z: 48, r: 7 }, // Pim's observatory
-    { x: -66, z: 57, r: 14 }, // the demon church
-    { x: 83, z: 32, r: 14 }, // the wizard's tower
-    { x: -90, z: 30, r: 10 }, // the tree house
-    { x: -40, z: -24, r: 12 }, // the mushroom tavern
-    { x: -56, z: -10, r: 13 }, // the portal clearing and the face tree
-    ...LAYOUT.ruins.map((r) => ({ x: r.x, z: r.z, r: 6 })),
-    // Every NPC's spot on the island, so nobody stands on a slope (realm anchors lie far outside the island's square).
-    ...Object.values(ANCHORS).filter((a) => Math.abs(a.x) < 200 && Math.abs(a.z) < 200).map((a) => ({ x: a.x, z: a.z, r: 5 })),
-  ],
-  rects: [
-    [-64, -4, 58, 82], // the village street and its two rows of houses
-    [-14, 30, -22, 2], // the hamlet on the eye's north bank
-  ],
-};
-
-/**
  * The hamlet knoll (the reference frame's village terrace, world-look-28): the ground within `r` of (x, z) is raised
  * `rise` metres, blending back over `blend`. The eye bridge lands at `landing` (its north end) on the old bank level;
  * from there the terrace climbs over `face` metres with a `riser`-high step at each of the `risers` distances from the
@@ -361,3 +332,72 @@ export const KNOLL = {
   landing: { x: 0, z: -3, r: 1.5, face: 8 },
   risers: [3.6, 5.4] as readonly number[], riser: 0.45, riserRun: 0.3,
 } as const;
+
+/**
+ * Where the island's relief (Terrain.reliefAt) leaves the ground exactly as the bare sculpt makes it. The rolling hills
+ * (and the rim lip) are off on these footprints, on the pads out to their blends (PADS), round every NPC's spot, on the
+ * footpaths' trodden core and on the water and its banks, and come back past each over a short ramp; everywhere else
+ * the island rolls in full (the old mask also flattened every blend 12 m further and every path 9 m out, which left a
+ * fifth of the land rolling). Discs {x, z, r}; rects [x0, x1, z0, z1]. A building added to the island gets its
+ * footprint here (its collider grid's extent, Colliders.gridFootprint, turned by its yaw), or it stands on a slope.
+ */
+export interface FlatDisc { x: number; z: number; r: number }
+export type FlatRect = readonly [number, number, number, number];
+export const FLATS: {
+  ramp: number; bank: number; margin: number; path: number;
+  water: { river: number; eye: number; tier: number; pond: number; stream: number };
+  discs: readonly FlatDisc[]; rects: readonly FlatRect[]; npcs: readonly FlatDisc[];
+} = {
+  /**
+   * The hills come back past a level edge over at least `ramp` metres, and over as many more as their height needs for
+   * the bank they make to rise no steeper than `bank` (the hero walks up to 1.2; a pit round a house would read as one).
+   */
+  ramp: 3,
+  bank: 0.5,
+  /**
+   * Level ground kept round every footprint (discs and rects) before the ramp begins: doorsteps, porches and the props
+   * set by a door stand on the bare sculpt too.
+   */
+  margin: 3,
+  /** Half-width of a footpath's trodden core (its soil, pathAt), level along the path: every path keeps its 0.35. */
+  path: 2.1,
+  /**
+   * The water's level cores (metres): the river's channel (from its centre line), the eye's rim (from its outline),
+   * the koi pools' stone rims and the lily pond's shore (from their edges), the stream's ravine (from its centre line).
+   * The carves themselves keep every pool's water in its basin and lift the river's banks; hills beyond only roll them.
+   */
+  water: { river: 9.5, eye: 2, tier: 1, pond: 2, stream: 5 },
+  discs: [
+    { x: 20, z: 63, r: 6 }, // the island tavern (its grid: 8.2 x 7.7 m)
+    { x: -24, z: 52, r: 3.5 }, // the skeletons' campfire ring and their barrels
+    { x: -46, z: 48, r: 6 }, // Pim's observatory (7.9 x 7.8 m)
+    { x: -47, z: -2, r: 9 }, // the face tree (13 x 10.8 m)
+    { x: -56, z: -10, r: 4 }, // the galaxy portal
+    { x: -40, z: -26, r: 9 }, // the mushroom tavern's tables and lantern poles (7.5 m out)
+    { x: 0, z: -146, r: 8.5 }, // the stone head (10.3 x 12.4 m, sunk 3 m)
+    // The hamlet knoll's top and its houses (the farthest, at (26, -14), reaches 18.9 m out).
+    { x: KNOLL.x, z: KNOLL.z, r: KNOLL.r + 2 },
+    // Model slots waiting for their GLB (they render nothing yet): the ruined nave, the frozen arch gate, the colossus
+    // statue by the dead wood, and the ruins.
+    { x: 18, z: -136, r: 10 },
+    { x: 58, z: -90, r: 5 },
+    { x: 10, z: -96, r: 6 },
+    ...LAYOUT.ruins.map((r) => ({ x: r.x, z: r.z, r: 3.5 })),
+    // The bridges' ends: each deck is set from the higher of its two banks (Walkways), so both stay as they were.
+    { x: LAYOUT.chasmBridge.ax, z: LAYOUT.chasmBridge.az, r: 3 },
+    { x: LAYOUT.chasmBridge.bx, z: LAYOUT.chasmBridge.bz, r: 3 },
+    { x: -64 - 11.3, z: -124, r: 3 }, // the gorge's stone bridge (Heart.ts, WORLD.gorge.x ± 11.3)
+    { x: -64 + 11.3, z: -124, r: 3 },
+  ],
+  rects: [
+    [-58, -6, 60, 80], // the village: its two rows of houses (6.4 x 5.5 m each) and the street between them
+    [47.8, 88.2, -31.3, -4.7], // the cathedral at 0.7 (38.4 x 24.6 m, its long axis east-west), its feet at a fixed y
+    [-72.2, -59.8, 48.1, 65.9], // the demon church (16.8 x 11.3 m, turned to face east)
+    [72.3, 93.7, 16.9, 47.1], // the wizard's tower on its rock (20.4 x 29.2 m)
+    [-100.5, -79.5, 18.4, 41.6], // the tree house (22.2 x 20 m, turned)
+    [26.5, 37.5, 63.5, 68.5], // the cloister's arches, out to where its height is sampled (z 68)
+    [-80, -54, 6, 12], // the witches' bridge over the stream (its 23 m deck, both banks)
+  ],
+  // Every NPC's spot on the island, 2 m round (realm anchors lie far outside the island's square).
+  npcs: Object.values(ANCHORS).filter((a) => Math.abs(a.x) < 200 && Math.abs(a.z) < 200).map((a) => ({ x: a.x, z: a.z, r: 2 })),
+};
