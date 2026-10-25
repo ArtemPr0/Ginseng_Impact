@@ -20,6 +20,17 @@ export class ThirdPersonCamera {
   private time = 0;
   /** How far out the spring arm is (0..1 of the way to the desired position), eased out after a block. */
   private arm = 1;
+  /** A directional impulse on the camera (kick), decaying at 9/s; added on top of the shake. */
+  private readonly kickVec = new Vector3();
+  private readonly kickDir = new Vector3();
+  /** The camera's resting fov, read once at the first punch; the punch eases out and back from it. */
+  private baseFov: number | null = null;
+  private punchActive = false;
+  private punchDelta = 0;
+  private punchSeconds = 0.2;
+  private punchT = 0;
+  private punchStart = 0;
+  private fovOffset = 0;
 
   constructor(readonly camera: PerspectiveCamera, private readonly world: CameraWorld) {}
 
@@ -88,11 +99,48 @@ export class ThirdPersonCamera {
       this.camera.position.z += (Math.random() - 0.5) * a;
       this.shakeAmount *= Math.exp(-dt * 9);
     }
+    if (this.kickVec.lengthSq() > 1e-8) {
+      const p = this.camera.position;
+      p.add(this.kickVec);
+      // A kick reaches half a metre, enough to push the camera under the ground: clamp again where it landed.
+      const kickFloor = this.world.heightAt(p.x, p.z, p.y) + 0.5;
+      if (p.y < kickFloor) p.y = kickFloor;
+      this.kickVec.multiplyScalar(Math.exp(-dt * 9));
+      if (this.kickVec.lengthSq() < 1e-8) this.kickVec.set(0, 0, 0);
+    }
     this.camera.lookAt(this.focus);
+    if (this.punchActive) {
+      this.punchT += dt;
+      const k = Math.min(1, this.punchT / this.punchSeconds);
+      // Out and back on a half sine, starting from wherever a previous punch left the fov (no pop).
+      this.fovOffset = this.punchStart * (1 - k) + this.punchDelta * Math.sin(k * Math.PI);
+      if (k >= 1) { this.punchActive = false; this.fovOffset = 0; }
+      this.camera.fov = this.baseFov! + this.fovOffset;
+      this.camera.updateProjectionMatrix();
+    }
   }
 
   shake(amount: number): void {
     this.shakeAmount = Math.min(1, this.shakeAmount + amount);
+  }
+
+  /** A positional impulse of `amount` metres along `dir` (a heavy landing, a crit), decaying at 9/s; adds to the shake. */
+  kick(dir: Vector3, amount: number): void {
+    this.kickDir.copy(dir);
+    if (this.kickDir.lengthSq() < 1e-8) return;
+    this.kickVec.addScaledVector(this.kickDir.normalize(), amount);
+    // Never more than half a metre, however many hits land in one frame.
+    if (this.kickVec.lengthSq() > 0.25) this.kickVec.setLength(0.5);
+  }
+
+  /** Eases the fov out by `delta` degrees and back over `seconds` (the base fov is read once, at the first punch). */
+  punchFov(delta: number, seconds: number): void {
+    this.baseFov ??= this.camera.fov;
+    this.punchDelta = delta;
+    this.punchSeconds = Math.max(0.05, seconds);
+    this.punchStart = this.fovOffset;
+    this.punchT = 0;
+    this.punchActive = true;
   }
 
   snapTo(target: Vector3): void {

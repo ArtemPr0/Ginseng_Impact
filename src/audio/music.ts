@@ -1,11 +1,13 @@
 /**
- * Music slots: a song is a file in src/assets/music/ named after its slot, in any common format
- * (`title-intro.mp3`, `kingdom.m4a`, ...), and only a track licensed for use in the game. A slot with no file stays
- * silent (the kingdom falls back to its synthesised beat). The files are git-ignored: see src/assets/music/README.md.
+ * Licensed music slots: a song is a file in src/assets/music/licensed/ named after its slot, in any common format
+ * (`title-intro.mp3`, `kingdom.m4a`, ...), and only a track licensed for use in the game, listed in that folder's
+ * LICENSES.md (scripts/music-audit.mjs fails the build otherwise). Files directly in src/assets/music/ are not
+ * bundled. A slot with no file stays silent (the kingdom falls back to the Score's own song). The files are
+ * git-ignored: see src/assets/music/README.md.
  */
 export type MusicSlot = 'title-intro' | 'title-loop' | 'kingdom';
 
-const FILES = import.meta.glob('../assets/music/*.{mp3,m4a,aac,ogg,opus,wav,flac,webm}', { query: '?url', import: 'default', eager: true }) as Record<string, string>;
+const FILES = import.meta.glob('../assets/music/licensed/*.{mp3,m4a,aac,ogg,opus,wav,flac,webm}', { query: '?url', import: 'default', eager: true }) as Record<string, string>;
 
 /** The URL of the slot's file, or null when there is none. */
 export function musicUrl(slot: MusicSlot): string | null {

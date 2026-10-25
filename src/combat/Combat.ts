@@ -61,7 +61,8 @@ export class Cooldown {
 /**
  * Normal-attack combo sequencing. A press starts hit 0; a press during the back part of a swing
  * buffers the next hit; the combo resets after `resetAfter` seconds idle. `update` returns the
- * hit index exactly once, at `hitFraction` of the swing.
+ * hit index exactly once, at that hit's fraction of its swing (`hitFractions[i]`: the moment the clip's
+ * blow lands, see heroClips.ts).
  */
 export class ComboTracker {
   currentHit = 0;
@@ -72,10 +73,15 @@ export class ComboTracker {
   private fired = false;
   private idle = Infinity;
 
-  constructor(readonly durations: readonly number[], readonly hitFraction: number, readonly resetAfter = 1.0, readonly bufferWindow = 0.45) {}
+  constructor(readonly durations: readonly number[], readonly hitFractions: readonly number[], readonly resetAfter = 1.0, readonly bufferWindow = 0.45) {}
 
   get duration(): number {
     return this.durations[this.currentHit];
+  }
+
+  /** Where in the current swing its damage lands, 0..1. */
+  get hitFraction(): number {
+    return this.hitFractions[this.currentHit] ?? this.hitFractions[this.hitFractions.length - 1] ?? 0.4;
   }
 
   /** 0..1 progress of the current swing (for the rig). */

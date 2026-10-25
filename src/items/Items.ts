@@ -85,7 +85,69 @@ export const ITEMS: Record<string, ItemDef> = {
   'lunar-charm': { id: 'lunar-charm', name: 'Lunar Charm', kind: 'charm', desc: 'All damage +15% while carried.', value: 90, rarity: 2, dmgMult: 1.15 },
   'third-eye': { id: 'third-eye', name: 'Third Eye of the Frog God', kind: 'charm', desc: 'It still blinks when nobody is looking. +25% damage while carried in the charm slot.', value: 900, rarity: 4, dmgMult: 1.25, color: 0xff5ad6 },
   'star-chart': { id: 'star-chart', name: 'Star Chart', kind: 'key', desc: 'Pim\'s drawing of where the great ones sleep. Marks bosses on the minimap.', value: 100, rarity: 2, reveals: true },
+  // The story's keys (data/quests.ts): two of the five voices, and the book the dragon's reader wants.
+  'drowned-bell': { id: 'drowned-bell', name: 'The Drowned Bell', kind: 'key', desc: 'The sunken city\'s voice, out of the anglers\' lane. It rings under water; up here it hums.', value: 0, rarity: 4 },
+  'grave-crown': { id: 'grave-crown', name: 'The Grave Crown', kind: 'key', desc: 'The Skeleton King\'s first crown, off the Grave Cyclops. He let you keep it: two on one skull looks desperate.', value: 0, rarity: 4 },
+  'old-ledger': { id: 'old-ledger', name: 'An Old Ledger', kind: 'key', desc: 'A century of the Vale\'s debts, Rattlebones on page forty. A book for a dragon to sleep on.', value: 0, rarity: 2 },
 };
 
 export const RARITY_COLOR: Record<1 | 2 | 3 | 4, number> = { 1: 0xdfe6ff, 2: 0x4f7cff, 3: 0x8b3dff, 4: 0xff2a2a };
 export const RARITY_NAME: Record<1 | 2 | 3 | 4, string> = { 1: 'Common', 2: 'Fine', 3: 'Rare', 4: 'Mythic' };
+
+/**
+ * The item `itemId` names, or undefined. Only ITEMS' own keys count: ITEMS['constructor'], ITEMS['__proto__'] and
+ * ITEMS['toString'] are truthy too (every object inherits them), and a hand-edited save naming one would otherwise
+ * carry a phantom item with no kind.
+ */
+export function itemDef(itemId: string): ItemDef | undefined {
+  return Object.hasOwn(ITEMS, itemId) ? ITEMS[itemId] : undefined;
+}
+
+// ----- Affixes: the bonus lines a dropped weapon rolls by its rarity ("Fang Cleaver of the Moon") -----
+
+export interface Affix {
+  atk?: number;
+  hp?: number;
+  /** Extra crit chance, 0..1. */
+  crit?: number;
+  /** Mythic lines carry an element (the name's token). */
+  element?: Element;
+  /** "of the Moon" and the like. */
+  name: string;
+}
+
+/** The token each element lends an affix name: "of the Moon", "of the Blood", ... */
+export const AFFIX_TOKENS: Record<Element, string> = { lunar: 'Moon', blood: 'Blood', fog: 'Fog', tide: 'Tide', rot: 'Rot', stone: 'Stone', astral: 'Astral' };
+const AFFIX_ELEMENTS = Object.keys(AFFIX_TOKENS) as Element[];
+/** How far the attack line grows with rarity. */
+const AFFIX_SCALE: Record<number, number> = { 2: 1, 3: 1.5, 4: 2 };
+
+/**
+ * Rolls the bonus lines for an item of `rarity` from `rnd` (0..1; seedable, so a given sequence always rolls the same
+ * affix): common none; fine one line; rare two; mythic two and an element. Lines are attack +4..+12 (scaled by rarity),
+ * HP +40..+160 and crit +3%..+8%, never the same line twice. Null for a common item.
+ */
+export function rollAffix(rarity: number, rnd: () => number): Affix | null {
+  if (rarity < 2) return null;
+  const pick = (n: number) => Math.min(n - 1, Math.max(0, Math.floor(rnd() * n)));
+  const range = (lo: number, hi: number) => lo + rnd() * (hi - lo);
+  const element = AFFIX_ELEMENTS[pick(AFFIX_ELEMENTS.length)];
+  const affix: Affix = { name: `of the ${AFFIX_TOKENS[element]}` };
+  if (rarity >= 4) affix.element = element;
+  const scale = AFFIX_SCALE[Math.min(4, rarity)];
+  const kinds: Array<'atk' | 'hp' | 'crit'> = ['atk', 'hp', 'crit'];
+  const lines = rarity >= 3 ? 2 : 1;
+  for (let i = 0; i < lines; i++) {
+    const kind = kinds.splice(pick(kinds.length), 1)[0];
+    if (kind === 'atk') affix.atk = Math.round(range(4, 12) * scale);
+    else if (kind === 'hp') affix.hp = Math.round(range(40, 160) / 10) * 10;
+    else affix.crit = Math.round(range(0.03, 0.08) * 1000) / 1000;
+  }
+  return affix;
+}
+
+/** The item's name with its affix: "Fang Cleaver of the Moon". */
+export function entryName(itemId: string, affix?: Affix | null): string {
+  const name = itemDef(itemId)?.name ?? itemId;
+  return affix ? `${name} ${affix.name}` : name;
+}

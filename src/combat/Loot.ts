@@ -1,5 +1,5 @@
 import { BoxGeometry, Color, Group, Mesh, MeshBasicMaterial, OctahedronGeometry, Scene, type Sprite, Vector3 } from 'three';
-import { ITEMS, RARITY_COLOR } from '../items/Items';
+import { ITEMS, RARITY_COLOR, rollAffix, type Affix } from '../items/Items';
 import { PALETTE } from '../render/palette';
 import { surface } from '../render/Materials';
 import { glowSprite } from '../render/Glow';
@@ -13,14 +13,23 @@ import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 let gemModel: GLTF | null = null;
 void loadModel('gem').then((g) => { gemModel = g; });
 
-export type Drop = { kind: 'item'; itemId: string; count: number } | { kind: 'shards'; amount: number };
+/** An item on the ground; a dropped weapon carries the affix it rolled (the pickup hands it to `inventory.add`). */
+export type ItemDrop = { kind: 'item'; itemId: string; count: number; affix?: Affix };
+export type Drop = ItemDrop | { kind: 'shards'; amount: number };
 
-/** Rolls a drop table. Pure. */
+/** Rolls a drop table; weapons roll an affix by their rarity. Pure and seedable through `rnd`. */
 export function rollDrops(table: DropEntry[] | undefined, shards: [number, number], rnd: () => number = Math.random): Drop[] {
   const out: Drop[] = [];
   const amount = Math.round(shards[0] + rnd() * (shards[1] - shards[0]));
   if (amount > 0) out.push({ kind: 'shards', amount });
-  for (const d of table ?? []) if (rnd() < d.chance) out.push({ kind: 'item', itemId: d.itemId, count: 1 });
+  for (const d of table ?? []) {
+    if (!(rnd() < d.chance)) continue;
+    const drop: ItemDrop = { kind: 'item', itemId: d.itemId, count: 1 };
+    const def = ITEMS[d.itemId];
+    const affix = def?.kind === 'weapon' ? rollAffix(def.rarity, rnd) : null;
+    if (affix) drop.affix = affix;
+    out.push(drop);
+  }
   return out;
 }
 

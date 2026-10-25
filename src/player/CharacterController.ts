@@ -31,6 +31,10 @@ export interface ControllerState {
   flung: number;
   /** Multiplier on every travel speed (a puddle of lean slows you to 0.6). */
   speedScale: number;
+  /** Seconds left of a dodge roll: on the ground the hero is carried at dashSpeed along dashDir, drag and jump off. */
+  dashLeft: number;
+  /** Unit horizontal direction of the roll. */
+  dashDir: { x: number; z: number };
 }
 
 export interface ControllerInput {
@@ -95,6 +99,9 @@ export const CONTROLLER = {
   sprintSpeed: 8,
   groundAccel: 40,
   groundDecel: 50,
+  /** The dodge: a roll carried at this speed for this long (about four metres), ending in a walk, not a slide. */
+  dashSpeed: 18,
+  dashTime: 0.22,
   airAccel: 16,
   turnRate: 14,
   gravity: 26,
@@ -169,7 +176,16 @@ export function createControllerState(pos: Vec3): ControllerState {
     drainScale: 1,
     flung: 0,
     speedScale: 1,
+    dashLeft: 0,
+    dashDir: { x: 1, z: 0 },
   };
+}
+
+/** Starts a dodge roll along `dir` (horizontal, normalised here), or a backstep when `dir` has no length. */
+export function startDash(s: ControllerState, dir: { x: number; z: number }): void {
+  const len = Math.hypot(dir.x, dir.z);
+  s.dashDir = len > 1e-6 ? { x: dir.x / len, z: dir.z / len } : { x: -Math.cos(s.yaw), z: -Math.sin(s.yaw) };
+  s.dashLeft = CONTROLLER.dashTime;
 }
 
 function setMode(s: ControllerState, mode: Mode): void {
@@ -249,6 +265,10 @@ export function stepController(s: ControllerState, input: ControllerInput, world
 
   if (s.mode !== 'ground') s.airborneFor += dt; else s.airborneFor = 0;
   if (input.jump) s.jumpBuffer = CONTROLLER.jumpBufferTime; else s.jumpBuffer = Math.max(0, s.jumpBuffer - dt);
+  // A dodge roll: for dashTime the ground branch holds the hero at dashSpeed along dashDir (no drag, no jump; gravity
+  // and the ground snap as usual). An impulse alone was eaten by groundDecel within a metre.
+  const dashing = s.dashLeft > 0;
+  if (dashing) s.dashLeft = Math.max(0, s.dashLeft - dt);
 
   switch (s.mode) {
     case 'ground': {
@@ -265,15 +285,20 @@ export function stepController(s: ControllerState, input: ControllerInput, world
         tx = mx * speed;
         tz = mz * speed;
       }
-      const accel = wantsMove ? CONTROLLER.groundAccel : CONTROLLER.groundDecel;
-      s.vel.x = approach(s.vel.x, tx, accel * dt);
-      s.vel.z = approach(s.vel.z, tz, accel * dt);
+      if (dashing) {
+        s.vel.x = s.dashDir.x * CONTROLLER.dashSpeed * s.speedScale;
+        s.vel.z = s.dashDir.z * CONTROLLER.dashSpeed * s.speedScale;
+      } else {
+        const accel = wantsMove ? CONTROLLER.groundAccel : CONTROLLER.groundDecel;
+        s.vel.x = approach(s.vel.x, tx, accel * dt);
+        s.vel.z = approach(s.vel.z, tz, accel * dt);
+      }
       if (wantsMove) s.yaw = turnToward(s.yaw, Math.atan2(mz, mx), CONTROLLER.turnRate * dt);
       if (canSprint) {
         spendStamina(s, CONTROLLER.sprintDrain * dt);
         spent = true;
       }
-      if (input.jump || s.jumpBuffer > 0) {
+      if (!dashing && (input.jump || s.jumpBuffer > 0)) {
         s.jumpBuffer = 0;
         s.vel.y = CONTROLLER.jumpSpeed;
         setMode(s, 'air');
@@ -531,6 +556,12 @@ export function stepController(s: ControllerState, input: ControllerInput, world
     }
   }
 
+  // The roll ends short, whatever it ran into: the speed drops to a walk (not a three-metre slide out of it, nor an
+  // 18 m/s flight off a ledge or glide into the water).
+  if (dashing && s.dashLeft === 0) {
+    const sp = Math.hypot(s.vel.x, s.vel.z);
+    if (sp > CONTROLLER.walkSpeed) { s.vel.x *= CONTROLLER.walkSpeed / sp; s.vel.z *= CONTROLLER.walkSpeed / sp; }
+  }
   if (!spent) {
     s.staminaIdle += dt;
     if (s.staminaIdle >= CONTROLLER.staminaRegenDelay) {

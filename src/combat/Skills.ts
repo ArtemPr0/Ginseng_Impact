@@ -33,12 +33,14 @@ export const BURST: Record<string, { kind: BurstKind; name: string; time: number
 /** The cyclone: the lean is poured over the blade first, then he spins (seconds). */
 export const CYCLONE = { pour: 0.75, spin: 4.6 };
 
+/**
+ * A skill's numbers. How long the cast takes and when it lands are not here: they are the hero's measured clip cut
+ * (skillTiming in heroClips.ts), so the damage falls on the clip's blow.
+ */
 export interface SkillDef {
   id: string;
   name: string;
   cooldown: number;
-  castTime: number;
-  hitFraction: number;
   attack: AttackDef;
   ground?: GroundEffectDef;
 }
@@ -46,11 +48,11 @@ export interface SkillDef {
 const deg = (d: number) => (d * Math.PI) / 180;
 const cone = (range: number, half: number): HitShape => ({ kind: 'cone', range, halfAngle: deg(half) });
 
-export interface ComboDef { durations: number[]; hitFraction: number; hits: AttackDef[] }
+/** What each hit of the light combo does; how long it takes and when it lands come from the hero's clips (heroClips.ts). */
+export interface ComboDef { hits: AttackDef[] }
 
 export const COMBO: Record<WeaponKind, ComboDef> = {
   sword: {
-    durations: [0.36, 0.36, 0.55], hitFraction: 0.45,
     hits: [
       { mult: 0.9, element: null, shape: cone(2.8, 70), knockback: 0.6, hitStop: 0.03 },
       { mult: 1.0, element: null, shape: cone(2.8, 70), knockback: 0.6, hitStop: 0.03 },
@@ -58,7 +60,6 @@ export const COMBO: Record<WeaponKind, ComboDef> = {
     ],
   },
   greatsword: {
-    durations: [0.55, 0.6, 0.85], hitFraction: 0.5,
     hits: [
       { mult: 1.2, element: null, shape: cone(3.3, 80), knockback: 1.2, hitStop: 0.05 },
       { mult: 1.3, element: null, shape: cone(3.3, 80), knockback: 1.2, hitStop: 0.05 },
@@ -66,7 +67,6 @@ export const COMBO: Record<WeaponKind, ComboDef> = {
     ],
   },
   bow: {
-    durations: [0.42, 0.42, 0.6], hitFraction: 0.55,
     hits: [
       { mult: 0.95, element: null, shape: { kind: 'bolt', range: 26, chains: 0, chainRange: 0 }, knockback: 0.5, hitStop: 0.02 },
       { mult: 0.95, element: null, shape: { kind: 'bolt', range: 26, chains: 0, chainRange: 0 }, knockback: 0.5, hitStop: 0.02 },
@@ -74,7 +74,6 @@ export const COMBO: Record<WeaponKind, ComboDef> = {
     ],
   },
   staff: {
-    durations: [0.4, 0.4, 0.5], hitFraction: 0.4,
     hits: [
       { mult: 0.85, element: 'own', shape: { kind: 'bolt', range: 15, chains: 0, chainRange: 0 }, knockback: 0.3, hitStop: 0.02 },
       { mult: 0.85, element: 'own', shape: { kind: 'bolt', range: 15, chains: 0, chainRange: 0 }, knockback: 0.3, hitStop: 0.02 },
@@ -85,16 +84,16 @@ export const COMBO: Record<WeaponKind, ComboDef> = {
 
 export const SKILLS: Record<string, SkillDef> = {
   knight: {
-    id: 'crimson-cleave', name: 'Crimson Cleave', cooldown: 8, castTime: 0.7, hitFraction: 0.55,
+    id: 'crimson-cleave', name: 'Crimson Cleave', cooldown: 8,
     attack: { mult: 3.0, element: 'own', shape: cone(5, 70), knockback: 4, hitStop: 0.1 },
     ground: { radius: 3.5, duration: 5, tickMult: 0.4, tickEvery: 1, element: 'blood' },
   },
   archer: {
-    id: 'moon-volley', name: 'Moon Volley', cooldown: 6, castTime: 0.5, hitFraction: 0.5,
+    id: 'moon-volley', name: 'Moon Volley', cooldown: 6,
     attack: { mult: 2.6, element: 'own', shape: { kind: 'bolt', range: 30, chains: 2, chainRange: 8 }, knockback: 1.5, hitStop: 0.06 },
   },
   wizard: {
-    id: 'starfall', name: 'Starfall', cooldown: 5, castTime: 0.45, hitFraction: 0.4,
+    id: 'starfall', name: 'Starfall', cooldown: 5,
     attack: { mult: 2.0, element: 'own', shape: { kind: 'bolt', range: 16, chains: 2, chainRange: 7 }, knockback: 1, hitStop: 0.05 },
   },
 };

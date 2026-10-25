@@ -13,7 +13,7 @@ import { kingdomNight } from './world/Kingdom';
 import { Inventory } from './items/Inventory';
 import { riverAt } from './world/Terrain';
 import { ITEMS } from './items/Items';
-import { CONTROLLER, createControllerState, stepController } from './player/CharacterController';
+import { CONTROLLER, createControllerState, startDash, stepController } from './player/CharacterController';
 import { Party } from './player/Party';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera';
 import { Atmosphere } from './render/Atmosphere';
@@ -32,9 +32,12 @@ import { Npc } from './world/NPCs';
 import { Terrain } from './world/Terrain';
 import { World } from './world/World';
 import { Adventures } from './game/Adventures';
+import { Events, type HeroId } from './game/Events';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const game = new Game();
+/** The game's event bus: what happens is announced here (for the NPC minds, the world state and the save). */
+const events = new Events();
 const renderer = new Renderer(canvas);
 const debugAt = new URLSearchParams(location.search).has('at');
 const input = new Input(canvas, debugAt);
@@ -127,6 +130,10 @@ let landedAt = -10;
 let tilt = 0;
 let wasInKingdom = false;
 let wasAirborne = false;
+/** What the body was doing last step (flight, a swim, a climb, a mushroom bounce, the carriage's reins): each is announced once, on entry. */
+let lastMode = controller.mode;
+let wasBouncing = false;
+let wasDriving = false;
 rigs[party.activeIndex].root.visible = rigs[party.activeIndex].trailObject.visible = true;
 const tpc = new ThirdPersonCamera(camera, world);
 const camParam = new URLSearchParams(location.search).get('cam')?.split(',').map(Number).filter((n) => Number.isFinite(n));
@@ -138,37 +145,45 @@ hud.setParty(ROSTER, party.activeIndex);
 const companions: Companion[] = [];
 let talking: Npc | null = null;
 
+/** Who lies at 0 HP: not switchable, and their portrait says so. */
+function fallen(): boolean[] {
+  return ROSTER.map((d) => (combat.hp.get(d.id) ?? d.maxHp) <= 0);
+}
+
 function switchTo(i: number): boolean {
-  const swap = party.switchTo(i);
-  if (!swap) return false;
+  const down = fallen();
+  const swap = party.switchTo(i, (j) => !down[j]);
+  if (!swap) {
+    if (down[i] && i !== party.activeIndex) hud.announce(`${ROSTER[i].name} is down`);
+    return false;
+  }
   rigs[swap.from].root.visible = rigs[swap.from].trailObject.visible = false;
   rigs[swap.to].root.visible = rigs[swap.to].trailObject.visible = true;
-  hud.setParty(ROSTER, swap.to);
+  hud.setParty(ROSTER, swap.to, down);
   combat.onSwitch();
   audio.click();
+  events.emit({ kind: 'hero', hero: ROSTER[swap.to].id as HeroId });
   return true;
 }
 
-Npc.sound = { voice: (url, gain) => audio.voice(url, gain), slurp: (gain) => audio.slurp(gain) };
-Rig.sound = { slurp: (gain) => audio.slurp(gain), rustle: () => audio.rustle(), munch: () => audio.munch() };
+Npc.sound = { voice: (url, gain, channel) => audio.voice(url, gain, channel), slurp: (gain) => audio.slurp(gain) };
+// (Rig.sound.slurp is Sir Aldric's own cup of lean: the hero's sip is a feat.)
+Rig.sound = { slurp: (gain) => { audio.slurp(gain); events.emit({ kind: 'feat', what: 'sip' }); }, rustle: () => audio.rustle(), munch: () => audio.munch() };
 const lightBudget = new LightBudget(scene, 6);
 lightBudget.collect(scene);
 
 const combat = new CombatSystem({
-  scene, world, sky, hud, camera, game, audio, inventory, controller, party, spawn: SPAWN,
+  scene, world, sky, hud, camera, game, audio, inventory, controller, party, spawn: SPAWN, events,
   onForceSwitch: (i) => { party.update(Party.cooldown); switchTo(i); },
   onShake: (a) => tpc.shake(a),
   onTrip: (strength, seconds) => renderer.trip(strength, seconds),
   onKill: (kind) => adventures.quests.kill(kind),
   muzzle: () => rigs[party.activeIndex].muzzle(new Vector3()),
   // A wipe also ends the frog's dream (otherwise its clock would run on, and block the portals, back on the island).
-  onWipe: () => { adventures.riding = null; wasLocked = false; if (adventures.dreamLeft > 0) adventures.wake(); },
-  onDodge: () => {
-    const axis = input.moveAxis();
-    const dir = axis.x === 0 && axis.z === 0 ? { x: -Math.cos(controller.yaw), z: -Math.sin(controller.yaw) } : tpc.moveToWorld(axis);
-    controller.vel.x += dir.x * 11;
-    controller.vel.z += dir.z * 11;
-  },
+  // (Everyone stands again after a wipe: the portraits lose their `down`.)
+  onWipe: () => { adventures.riding = null; wasLocked = false; if (adventures.dreamLeft > 0) adventures.wake(); hud.setParty(ROSTER, party.activeIndex, fallen()); },
+  // A roll along the stick, or a backstep: the controller carries it (an impulse alone was eaten by the ground drag).
+  onDodge: () => startDash(controller, tpc.moveToWorld(input.moveAxis())),
 });
 
 /** Moves the hero (portals, doors, the frog's dream): everything that was chasing stays behind. */
@@ -189,10 +204,11 @@ function teleport(x: number, y: number, z: number, yaw: number, name?: string): 
 }
 combat.loot.onAbsorbed = () => audio.absorb();
 const adventures = new Adventures({
-  controller, world: area, hud, audio, inventory, teleport, activeRig: () => rigs[party.activeIndex], debuffs: () => combat.debuffs,
+  controller, world: area, hud, audio, inventory, teleport, events, activeRig: () => rigs[party.activeIndex], debuffs: () => combat.debuffs,
   trip: (strength, seconds) => renderer.trip(strength, seconds),
   fight: { spawnBoss: (kind, x, z, yaw) => combat.spawnBoss(kind, x, z, yaw), despawn: (e) => combat.despawn(e) },
 });
+area.hooks.events = events;
 area.hooks.soundWanted = () => adventures.quests.stage('sound') === 'active';
 area.hooks.foundSound = () => adventures.foundSound();
 area.hooks.teleport = teleport;
@@ -204,6 +220,7 @@ area.hooks.mire = (seconds) => combat.mire(seconds);
 combat.targets.push(...area.shotTargets);
 area.hooks.reward = (what) => {
   if (what !== 'eyes') return;
+  events.emit({ kind: 'feat', what: 'skyeye' });
   combat.loot.spawn([{ kind: 'shards', amount: 60 }, { kind: 'item', itemId: 'moon-dew', count: 2 }], new Vector3(controller.pos.x, controller.pos.y + 1, controller.pos.z));
   hud.announce('The sky blinks first · 60 shards');
   audio.loot(4);
@@ -211,7 +228,7 @@ area.hooks.reward = (what) => {
 area.hooks.board = (boat) => { adventures.riding = boat; audio.footstep(); hud.announce('Aboard · F talk · SPACE jump off'); };
 adventures.openRowers = () => {
   const node = adventures.talk('rowers');
-  if (node) openPanel(() => hud.dialogue({ name: 'The Rowers', title: 'Two Knights and a Boat' }, node, adventures.onLine));
+  if (node) { events.emit({ kind: 'talk', npc: 'rowers' }); openPanel(() => hud.dialogue({ name: 'The Rowers', title: 'Two Knights and a Boat' }, node, adventures.onLine)); }
 };
 
 // --- panels ---
@@ -232,29 +249,34 @@ hud.bind({
   onBuy: (itemId, price) => {
     if (!inventory.spend(price)) return false;
     inventory.add(itemId);
+    events.emit({ kind: 'trade', what: 'buy', item: itemId });
     audio.coins(3);
     hud.announce(`${ITEMS[itemId].name} acquired`);
     return true;
   },
-  onSell: (uid, count) => { const gain = inventory.sell(uid, count); if (gain > 0) audio.coins(2); },
+  onSell: (uid, count) => { const item = inventory.entries.find((x) => x.uid === uid)?.itemId; const gain = inventory.sell(uid, count); if (gain > 0) audio.coins(2); if (gain > 0 && item) events.emit({ kind: 'trade', what: 'sell', item }); },
   onHire: (npc) => {
     if (!npc.hire || companions.length >= 3 || companions.some((c) => c.def.id === npc.id)) return 'full';
     if (!inventory.spend(npc.hire.cost)) return 'poor';
     // The one who follows you leaves their post (no twin standing where they used to be).
     const post = area.npcs.find((n) => n.def.id === npc.id);
     if (post) post.hidden = true;
-    const c = new Companion(npc, new Vector3(controller.pos.x, controller.pos.y, controller.pos.z), (x, z, y) => world.heightAt(x, z, y), companions.length);
+    // The first free place at your heels (one sent home leaves a gap).
+    let slot = 0;
+    while (companions.some((c) => c.slot === slot)) slot++;
+    const c = new Companion(npc, new Vector3(controller.pos.x, controller.pos.y, controller.pos.z), (x, z, y) => world.heightAt(x, z, y), slot);
     companions.push(c);
     scene.add(c.rig.root, c.rig.trailObject);
     hud.setCompanions(companions.map((x) => x.def.name));
     audio.fanfare();
     hud.announce(`${npc.name} joins you`);
+    events.emit({ kind: 'trade', what: 'hire', item: npc.id });
     return 'ok';
   },
   onEquip: (uid) => {
     const me = party.active;
     const ok = inventory.equip(uid, me.id, me.weapon);
-    if (ok) { audio.click(); const e = inventory.entries.find((x) => x.uid === uid)!; hud.announce(`${me.name} wields ${ITEMS[e.itemId].name}`); }
+    if (ok) { audio.click(); const e = inventory.entries.find((x) => x.uid === uid)!; hud.announce(`${me.name} wields ${ITEMS[e.itemId].name}`); events.emit({ kind: 'trade', what: 'equip', item: e.itemId }); }
     return ok;
   },
   onUse: (uid) => {
@@ -302,6 +324,16 @@ if (titleMusic) {
 const HEAD_EYES = new Vector3(LAYOUT.head.x, terrain.heightAt(LAYOUT.head.x, LAYOUT.head.z) - 3 + LAYOUT.head.height * 0.69, LAYOUT.head.z);
 let cinematicT = 0;
 let wasLocked = false;
+/** The realm pause: a slow circle of the hero (radians per second), and the camera rig's pitch and distance for it. */
+const ORBIT = { rate: 0.12, pitch: 0.22, distance: 6 };
+/** The gameplay camera's pitch and distance while the orbit borrows the rig; put back on relock (its yaw stays where the orbit left it: no pop). */
+let orbitFrom: { pitch: number; distance: number } | null = null;
+function endOrbit(): void {
+  if (!orbitFrom) return;
+  tpc.pitch = orbitFrom.pitch;
+  tpc.distance = orbitFrom.distance;
+  orbitFrom = null;
+}
 
 window.addEventListener('resize', () => {
   renderer.resize(window.innerWidth, window.innerHeight);
@@ -309,13 +341,13 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
 });
 
-/** What F would do right now: loot first, then talk. */
-function interactTarget(): { kind: 'loot'; take: () => void; label: string } | { kind: 'use'; act: () => void; label: string } | { kind: 'talk'; npc: Npc; label: string } | null {
+/** What F would do right now: loot first, then talk; last, a companion you walked up to goes home. */
+function interactTarget(): { kind: 'loot'; take: () => void; label: string } | { kind: 'use'; act: () => void; label: string } | { kind: 'talk'; npc: Npc; label: string } | { kind: 'dismiss'; companion: Companion; label: string } | null {
   const p = interactAt.set(controller.pos.x, controller.pos.y, controller.pos.z);
   const pickup = combat.loot.nearest(p, 2.8);
   if (pickup && pickup.drop.kind === 'item') {
     const def = ITEMS[pickup.drop.itemId];
-    return { kind: 'loot', label: `Take ${def.name}`, take: () => { combat.loot.take(pickup); inventory.add(def.id, 1); audio.loot(def.rarity); hud.announce(`${def.name}`); } };
+    return { kind: 'loot', label: `Take ${def.name}`, take: () => { combat.loot.take(pickup); inventory.add(def.id, 1); audio.loot(def.rarity); hud.announce(`${def.name}`); events.emit({ kind: 'loot', item: def.id, rarity: def.rarity }); } };
   }
   const zone = REALMS.find((r) => Math.hypot(p.x - r.x, p.z - r.z) < r.radius)?.id ?? null;
   const use = adventures.interact(zone);
@@ -328,10 +360,31 @@ function interactTarget(): { kind: 'loot'; take: () => void; label: string } | {
     if (d < n.talkRange && d < bd && Math.abs(n.pos.y - p.y) < 6) { bd = d; best = n; }
   }
   if (best) return { kind: 'talk', npc: best, label: `Talk to ${best.def.name}` };
+  // A companion waiting at your side (you stood still by it, walked up to it and face it; no enemy on its mind): send it home.
+  let comp: Companion | null = null;
+  let cd = Infinity;
+  for (const c of companions) {
+    const d = Math.hypot(c.pos.x - p.x, c.pos.z - p.z);
+    if (d < cd && c.beside) { cd = d; comp = c; }
+  }
+  if (comp) return { kind: 'dismiss', companion: comp, label: `Send ${comp.def.name} home` };
   return null;
 }
 
-/** F: take the loot, use the door or boat (or put the sack down), or talk to whoever is near. */
+/** Sends a companion home: off the scene, back at their post (the hire hid it), hireable again. */
+function dismiss(c: Companion): void {
+  companions.splice(companions.indexOf(c), 1);
+  scene.remove(c.rig.root, c.rig.trailObject);
+  const post = area.npcs.find((n) => n.def.id === c.def.id);
+  if (post) post.hidden = false;
+  hud.setCompanions(companions.map((x) => x.def.name));
+  hud.unhire(c.def.id);
+  audio.click();
+  hud.announce(`${c.def.name} goes home`);
+  events.emit({ kind: 'trade', what: 'dismiss', item: c.def.id });
+}
+
+/** F: take the loot, use the door or boat (or put the sack down), talk to whoever is near, or send a companion home. */
 function pressF(): void {
   const t = interactTarget();
   if (t?.kind === 'loot') t.take();
@@ -339,11 +392,12 @@ function pressF(): void {
   else if (t?.kind === 'talk') {
     talking = t.npc;
     audio.talk();
+    events.emit({ kind: 'talk', npc: t.npc.def.id });
     // A conversation with choices (quests) when the NPC has one; otherwise its ordinary lines.
     const node = adventures.talk(t.npc.def.id);
     if (node) openPanel(() => hud.dialogue(t.npc.def, node, adventures.onLine));
     else { t.npc.speak(); openPanel(() => hud.talk(t.npc.def)); }
-  }
+  } else if (t?.kind === 'dismiss') dismiss(t.companion);
 }
 
 const focus = new Vector3();
@@ -391,6 +445,10 @@ game
         stopFly: input.locked && input.justPressed('KeyX'),
         hold: combat.busy || combat.charging > 0,
       }, world, dt);
+      // Feats of movement, once per entry: a take-off, a swim, a climb, a mushroom bounce, taking the carriage's reins.
+      if (controller.mode !== lastMode) { if (controller.mode === 'fly' || controller.mode === 'swim' || controller.mode === 'climb') events.emit({ kind: 'feat', what: controller.mode }); lastMode = controller.mode; }
+      if (!!controller.bouncing !== wasBouncing) { if (controller.bouncing) events.emit({ kind: 'feat', what: 'bounce' }); wasBouncing = !!controller.bouncing; }
+      if (CARRIAGE.driving !== wasDriving) { if (CARRIAGE.driving) events.emit({ kind: 'feat', what: 'carriage' }); wasDriving = CARRIAGE.driving; }
       // Portals: step into one to cross between the island and the realms.
       portalCooldown -= dt;
       if (portalCooldown <= 0) {
@@ -435,6 +493,8 @@ game
       const airborne = controller.mode === 'air' || controller.mode === 'fly';
       if (wasAirborne && !airborne) landedAt = performance.now() / 1000;
       wasAirborne = airborne;
+      // Hit-stop freezes the bodies on the blow (the hero's and the enemies'); the world's effects keep real time.
+      const animDt = game.hitStop > 0 ? 0 : dt;
       rig.animate({
         mode: controller.mode,
         speed: Math.hypot(controller.vel.x, controller.vel.z),
@@ -445,20 +505,46 @@ game
         landed: performance.now() / 1000 - landedAt,
         burst: combat.burstState,
         climbRate: controller.mode === 'climb' && dt > 0 ? (controller.pos.y - lastClimbY) / dt + Math.hypot(controller.vel.x, controller.vel.z) * 0.5 * Math.sign(controller.pos.y - lastClimbY || 1) : 0,
-      }, dt);
+        hurt: combat.hurtState,
+        dodge: combat.dodgeState,
+        dead: combat.dead,
+      }, animDt);
       lastClimbY = controller.pos.y;
-      // Benched party members are hidden: no need to animate them.
-      combat.render(dt);
+      // Benched party members are hidden: no need to animate them (companions animate in the fixed step, which hit-stop pauses).
+      combat.render(animDt);
       lightBudget.update(playerPos);
       focus.set(drawPos.x, drawPos.y + 1.4, drawPos.z);
       if (!input.locked && hud.panel === 'none') {
-        cinematicT += dt;
-        const u = (Math.sin(cinematicT * 0.045) + 1) / 2;
-        camera.position.set(Math.sin(cinematicT * 0.1) * 2.5, 8.5 + u * 6, 150 - u * 95);
-        camera.lookAt(HEAD_EYES.x, HEAD_EYES.y * 0.55, HEAD_EYES.z);
+        if (REALMS.some((r) => Math.hypot(drawPos.x - r.x, drawPos.z - r.z) < r.radius)) {
+          // Inside a realm the island (and the causeway the dolly rides) is hidden: circle the hero slowly instead, on
+          // the camera's own spring arm, so a room's walls pull it in rather than let it through them (the indoor
+          // realms are smaller than the circle). It takes over from where the camera was and eases out to 6 m.
+          if (!orbitFrom) orbitFrom = { pitch: tpc.pitch, distance: tpc.distance };
+          const ease = Math.min(1, dt * 2);
+          tpc.pitch += (ORBIT.pitch - tpc.pitch) * ease;
+          tpc.yaw += ORBIT.rate * dt;
+          // The arm's own look-ahead samples its length at half-metre steps, so as it eases out a thin solid (a cell of
+          // the tavern's hearth wall) can slip between two of them and the floor clamp pops the camera onto it: march
+          // the orbit line finely first and let the rig out only as far as it is clear (in at once, out eased).
+          const cp = Math.cos(tpc.pitch), sp = Math.sin(tpc.pitch);
+          const ox = Math.sin(tpc.yaw) * cp, oz = Math.cos(tpc.yaw) * cp;
+          let clear = ORBIT.distance;
+          for (let r = 0.3; r <= ORBIT.distance; r += 0.1) {
+            const y = focus.y + sp * r;
+            if (y < world.heightAt(focus.x + ox * r, focus.z + oz * r, y) + 0.5) { clear = Math.max(0.6, r - 0.4); break; }
+          }
+          tpc.distance = Math.min(clear, tpc.distance + (ORBIT.distance - tpc.distance) * ease);
+          tpc.update(focus, dt);
+        } else {
+          endOrbit();
+          cinematicT += dt;
+          const u = (Math.sin(cinematicT * 0.045) + 1) / 2;
+          camera.position.set(Math.sin(cinematicT * 0.1) * 2.5, 8.5 + u * 6, 150 - u * 95);
+          camera.lookAt(HEAD_EYES.x, HEAD_EYES.y * 0.55, HEAD_EYES.z);
+        }
         wasLocked = false;
       } else {
-        if (!wasLocked) { tpc.snapTo(focus); wasLocked = true; }
+        if (!wasLocked) { endOrbit(); tpc.snapTo(focus); wasLocked = true; }
         tpc.update(focus, dt);
         // `?cam=x,y,z` (debug) pins the camera at a world position looking at the `face` point.
         if (camParam) { camera.position.set(camParam[0], camParam[1], camParam[2]); const fx = faceParam ? faceParam[0] : SPAWN.x; const fz = faceParam ? faceParam[1] : SPAWN.z; camera.lookAt(fx, world.heightAt(fx, fz) + 1.2, fz); }
@@ -543,7 +629,9 @@ declare global {
       adventures: Adventures; pressF: () => void; interactTarget: typeof interactTarget;
       /** The party's bodies (bones, held props), in roster order. */
       rigs: typeof rigs;
+      /** The event bus: what happened (kills, hurts, zones, talks, loot, trades, quests, feats). */
+      events: Events;
     };
   }
 }
-window.__ginseng = { scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs };
+window.__ginseng = { scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs, events };
