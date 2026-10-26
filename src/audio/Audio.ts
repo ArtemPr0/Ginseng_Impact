@@ -37,6 +37,8 @@ export class Audio {
   private readonly songs = new Map<MusicSlot, Promise<Song | null>>();
   private titleSong: Playing | null = null;
   private kingdomSong: Playing | null = null;
+  /** Web Audio listener (ctx.listener), set in unlock(). */
+  private listener: AudioListener | null = null;
   volume = 0.6;
   musicVolume = 0.5;
 
@@ -46,6 +48,7 @@ export class Audio {
     const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!Ctx) return;
     this.ctx = new Ctx();
+    this.listener = this.ctx.listener;
     this.master = this.ctx.createGain();
     this.master.gain.value = this.volume;
     const comp = this.ctx.createDynamicsCompressor();
@@ -450,15 +453,51 @@ export class Audio {
     this.noise(0.05, 'lowpass', 500, 120, 0.8, 0.12);
   }
 
+  /** Updates the HRTF listener (call each frame from the camera or hero). */
+  setListener(x: number, y: number, z: number, yaw = 0): void {
+    if (!this.listener) return;
+    this.listener.positionX.value = x;
+    this.listener.positionY.value = y;
+    this.listener.positionZ.value = z;
+    this.listener.forwardX.value = -Math.sin(yaw);
+    this.listener.forwardY.value = 0;
+    this.listener.forwardZ.value = -Math.cos(yaw);
+    this.listener.upX.value = 0;
+    this.listener.upY.value = 1;
+    this.listener.upZ.value = 0;
+  }
+
+  /**
+   * Spatial effect at a world point: `make` builds nodes into a panner (HRTF) wired to the effects master.
+   */
+  playAt(x: number, y: number, z: number, make: (ctx: AudioContext, dest: AudioNode) => void): void {
+    if (!this.ctx || !this.master) return;
+    const panner = this.ctx.createPanner();
+    panner.panningModel = 'HRTF';
+    panner.distanceModel = 'inverse';
+    panner.refDistance = 4;
+    panner.maxDistance = 40;
+    panner.rolloffFactor = 1;
+    panner.positionX.value = x;
+    panner.positionY.value = y;
+    panner.positionZ.value = z;
+    panner.connect(this.master);
+    make(this.ctx, panner);
+  }
+
   /** A short wet slurp through a straw (the cup gnome's sip), `gain` 0..1 for distance. */
-  slurp(gain = 1): void {
+  slurp(gain = 1, pos?: { x: number; y: number; z: number }): void {
     if (!this.ctx || gain <= 0.01) return;
-    for (let i = 0; i < 3; i++) {
-      const at = i * 0.11 + Math.random() * 0.03;
-      this.noise(0.09, 'bandpass', 900 + Math.random() * 300, 2200, 6, 0.22 * gain, at, 0.01);
-      this.tone('sine', 260 + i * 40, 520 + i * 60, 0.07, 0.05 * gain, at + 0.02);
-    }
-    this.tone('sine', 180, 120, 0.12, 0.06 * gain, 0.38);
+    const synth = (out: AudioNode, base: number) => {
+      for (let i = 0; i < 3; i++) {
+        const at = i * 0.11 + Math.random() * 0.03;
+        this.noiseAt(out, base + at, 0.09, 'bandpass', 900 + Math.random() * 300, 2200, 6, 0.22 * gain, 0.01);
+        this.toneAt(out, base + at + 0.02, 'sine', 260 + i * 40, 520 + i * 60, 0.07, 0.05 * gain);
+      }
+      this.toneAt(out, base + 0.38, 'sine', 180, 120, 0.12, 0.06 * gain);
+    };
+    if (pos) this.playAt(pos.x, pos.y, pos.z, (ctx, dest) => synth(dest, ctx.currentTime));
+    else synth(this.master!, this.now);
   }
 
   /** A hand rummaging in a leather pouch. */
@@ -516,4 +555,10 @@ export class Audio {
     line.gain.gain.linearRampToValueAtTime(0, t + VOICE_FADE);
     line.src.stop(t + VOICE_FADE);
   }
+
+  /**
+   * Where effects synthesised outside this class plug in (CombatSfx, through toneAt / noiseAt): the effects' master
+   * gain, so they share the effects' volume, the muffle and the compressor. Null until unlock().
+   */
+  get sfxInput(): AudioNode | null { return this.master; }
 }

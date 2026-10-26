@@ -44,12 +44,12 @@ const COOK: NpcDialogue = {
     { id: 'cook.react.ale', slot: 'react', text: "The rowers' beer. They brew it in the boat. I brew under the sky, and I am the one people cross the road for.", when: { flag: 'ale' } },
 
     {
-      id: 'cook.topic.pot', slot: 'topic', text: "What is in the pot? The sea. A castle's worth of guests, once. Whatever you sell me. Stir it widdershins or it stirs you.",
+      id: 'cook.topic.pot', slot: 'topic', ask: "What's in the pot?", text: "What is in the pot? The sea. A castle's worth of guests, once. Whatever you sell me. Stir it widdershins or it stirs you.",
       choices: [{ label: 'What do you buy?', to: 'cook.topic.buy' }, { label: 'Leave it.', action: 'close' }],
     },
-    { id: 'cook.topic.buy', slot: 'topic', text: 'Anything the fog drops. The pot is not fussy. I am. We argue; it wins by volume.' },
-    { id: 'cook.topic.castle', slot: 'topic', text: 'A castle stood on a rock out there. I cooked for them once; they did not come back for seconds. You cannot see it from here. Take my word; it is all I give.' },
-    { id: 'cook.topic.salve', slot: 'topic', text: 'Rot salve. Nine hundred of blood back for thirty shards. It smells like the pot. It works like the pot. Those are the same sentence.' },
+    { id: 'cook.topic.buy', slot: 'topic', ask: 'What do you buy?', text: 'Anything the fog drops. The pot is not fussy. I am. We argue; it wins by volume.' },
+    { id: 'cook.topic.castle', slot: 'topic', ask: 'About the castle out there', text: 'A castle stood on a rock out there. I cooked for them once; they did not come back for seconds. You cannot see it from here. Take my word; it is all I give.' },
+    { id: 'cook.topic.salve', slot: 'topic', ask: 'About your rot salve', text: 'Rot salve. Nine hundred of blood back for thirty shards. It smells like the pot. It works like the pot. Those are the same sentence.' },
 
     { id: 'cook.bye.sand', slot: 'bye', text: 'Mind the sand. It is mostly bones.' },
     { id: 'cook.bye.busy', slot: 'bye', text: 'Go. The pot and I were in the middle of something.' },
@@ -95,10 +95,10 @@ const ALDOUS: NpcDialogue = {
     { id: 'aldous.react.bucket', slot: 'react', text: 'They say a bucket in the kingdom bit you before you kicked it over. A bucket. Even the ale looked embarrassed for you.', when: { event: 'kill', enemy: 'bucket' } },
     { id: 'aldous.react.hired', slot: 'react', text: 'You hired someone. Not me. I note it; I do not mind it; I remember it.', when: { flag: 'hired' } },
 
-    { id: 'aldous.topic.rate', slot: 'topic', text: 'A hundred and twenty buys a sword that does not care, fourteen hundred of blood spent on your behalf, and quiet. The fog takes the careless. I am paid.' },
-    { id: 'aldous.topic.roads', slot: 'topic', text: 'I have guarded worse roads than yours for less. The road to the head, the road to the frog, the road under the lake. That last one I guard from the chair.' },
-    { id: 'aldous.topic.vigil', slot: 'topic', text: 'The Vigil kneels next door and never drinks. I sit here and never kneel. The tavern needs both of us, and only one of us gets paid.' },
-    { id: 'aldous.topic.cup', slot: 'topic', text: 'Your cup. Purple. Mine is ale, honest and cold. We can still work together; I am very open-minded for a fee.', when: { hero: 'knight' } },
+    { id: 'aldous.topic.rate', slot: 'topic', ask: "What's your hire rate?", text: 'A hundred and twenty buys a sword that does not care, fourteen hundred of blood spent on your behalf, and quiet. The fog takes the careless. I am paid.' },
+    { id: 'aldous.topic.roads', slot: 'topic', ask: 'Which roads have you guarded?', text: 'I have guarded worse roads than yours for less. The road to the head, the road to the frog, the road under the lake. That last one I guard from the chair.' },
+    { id: 'aldous.topic.vigil', slot: 'topic', ask: 'About the Vigil next door', text: 'The Vigil kneels next door and never drinks. I sit here and never kneel. The tavern needs both of us, and only one of us gets paid.' },
+    { id: 'aldous.topic.cup', slot: 'topic', ask: 'About my purple cup', text: 'Your cup. Purple. Mine is ale, honest and cold. We can still work together; I am very open-minded for a fee.', when: { hero: 'knight' } },
 
     { id: 'aldous.bye.road', slot: 'bye', text: 'Go on. The road is still there; I checked.' },
     { id: 'aldous.bye.cup', slot: 'bye', text: 'Leave the cup. A joke. Bring the cup.' },
@@ -143,10 +143,10 @@ const MIRREN: NpcDialogue = {
     { id: 'mirren.react.prism', slot: 'react', text: "The Prism Wizard, dead in a frog's dream. I did not know you could die in there. Now I must re-price the charts.", when: { event: 'kill', enemy: 'trip-wizard' } },
     { id: 'mirren.react.licked', slot: 'react', text: 'You licked the frog. Your pupils are the size of the moon. Do not buy anything from me tonight. I have ethics, mostly.', when: { flag: 'licked' } },
 
-    { id: 'mirren.topic.wares', slot: 'topic', text: 'Dew for the blood, charms for the blade, charts for the road. The sword is for people who bought the other three and did not listen.' },
-    { id: 'mirren.topic.stars', slot: 'topic', text: 'The stars are not above us. They are behind the fog, the fog is behind the ruins, the ruins are behind the next kingdom. A chart knows the order.' },
-    { id: 'mirren.topic.ruin', slot: 'topic', text: 'Every ruin here was a kingdom. The arches, the nave, the castle on the plateau. The tavern is not a ruin yet. I sit here to watch the yet.' },
-    { id: 'mirren.topic.chart', slot: 'topic', text: 'Pim draws the charts at his telescope; I sell them. He gets the sky, I get the shards, you get where the great ones sleep. A fair deal, which is rare.' },
+    { id: 'mirren.topic.wares', slot: 'topic', ask: 'What are you selling?', text: 'Dew for the blood, charms for the blade, charts for the road. The sword is for people who bought the other three and did not listen.' },
+    { id: 'mirren.topic.stars', slot: 'topic', ask: 'Where are the stars?', text: 'The stars are not above us. They are behind the fog, the fog is behind the ruins, the ruins are behind the next kingdom. A chart knows the order.' },
+    { id: 'mirren.topic.ruin', slot: 'topic', ask: 'About the ruins here', text: 'Every ruin here was a kingdom. The arches, the nave, the castle on the plateau. The tavern is not a ruin yet. I sit here to watch the yet.' },
+    { id: 'mirren.topic.chart', slot: 'topic', ask: 'Who draws your charts?', text: 'Pim draws the charts at his telescope; I sell them. He gets the sky, I get the shards, you get where the great ones sleep. A fair deal, which is rare.' },
 
     { id: 'mirren.bye.night', slot: 'bye', text: 'Go. The night is long; it is in my title.' },
     { id: 'mirren.bye.back', slot: 'bye', text: 'Buy on the way back. There is always a way back, until there is not.' },
@@ -191,9 +191,9 @@ const SNIK: NpcDialogue = {
     { id: 'gob-a.react.mailknight', slot: 'react', text: "Cousin past the portal says you beat a mail knight on the bucket street! Mail is Snik's. All mail. Even the knight kind.", when: { event: 'kill', enemy: 'mail-knight' } },
     { id: 'gob-a.react.bucket', slot: 'react', text: 'Cousin past the portal says you kicked a bucket with teeth! Snik had a bucket. No teeth. Yours has teeth? Trade.', when: { event: 'kill', enemy: 'bucket' } },
 
-    { id: 'gob-a.topic.arrangement', slot: 'topic', text: 'Knight pays, goblin drinks. You pay? No? Welcome, goblin. Chair is still mine.' },
-    { id: 'gob-a.topic.vrak', slot: 'topic', text: "Vrak? Vrak hiccups. Three winters. Snik tried fright, Snik tried water, Snik tried upside down. Vrak is Snik's. The hiccups are not." },
-    { id: 'gob-a.topic.mine', slot: 'topic', text: 'What is mine? Cup, chair, table, yard, moon, the big fish in the pond, the sad king past the portal. Not the pot. Pot is hers. Snik is not stupid.' },
+    { id: 'gob-a.topic.arrangement', slot: 'topic', ask: 'How does this arrangement work?', text: 'Knight pays, goblin drinks. You pay? No? Welcome, goblin. Chair is still mine.' },
+    { id: 'gob-a.topic.vrak', slot: 'topic', ask: "What's wrong with Vrak?", text: "Vrak? Vrak hiccups. Three winters. Snik tried fright, Snik tried water, Snik tried upside down. Vrak is Snik's. The hiccups are not." },
+    { id: 'gob-a.topic.mine', slot: 'topic', ask: "What's yours around here?", text: 'What is mine? Cup, chair, table, yard, moon, the big fish in the pond, the sad king past the portal. Not the pot. Pot is hers. Snik is not stupid.' },
 
     { id: 'gob-a.bye.cup', slot: 'bye', text: 'Go! Leave the cup. Just the cup. And the chair.' },
     { id: 'gob-a.bye.next', slot: 'bye', text: "Bye bye. Whatever you kill next is Snik's." },
@@ -239,11 +239,11 @@ const VRAK: NpcDialogue = {
     { id: 'gob-b.react.licked', slot: 'react', text: '...hic... ...hic...', when: { flag: 'licked' } },
 
     {
-      id: 'gob-b.topic.cure', slot: 'topic', text: '...hic.',
+      id: 'gob-b.topic.cure', slot: 'topic', ask: 'How do we cure the hiccups?', text: '...hic.',
       choices: [{ label: 'Hold your breath.', to: 'gob-b.topic.held' }, { label: 'Boo.', to: 'gob-b.topic.boo' }, { label: 'Leave him to it.', action: 'close' }],
     },
-    { id: 'gob-b.topic.held', slot: 'topic', text: '... ... ... ...hic.' },
-    { id: 'gob-b.topic.boo', slot: 'topic', text: 'hic.' },
+    { id: 'gob-b.topic.held', slot: 'topic', ask: 'I held my breath', text: '... ... ... ...hic.' },
+    { id: 'gob-b.topic.boo', slot: 'topic', ask: 'I tried booing you', text: 'hic.' },
 
     { id: 'gob-b.bye.one', slot: 'bye', text: '...hic.' },
     { id: 'gob-b.bye.two', slot: 'bye', text: 'hic. ...hic.' },
@@ -287,10 +287,10 @@ const GOLDGRIN: NpcDialogue = {
     { id: 'cup-gnome.react.crit', slot: 'react', text: 'Good hit. He would have written a song about it. A short one. All of his are short, I am told. I have not heard them.', when: { event: 'feat', feat: 'crit' } },
     { id: 'cup-gnome.react.licked', slot: 'react', text: 'Your eyes. You licked the frog. Did you see him in there? People see things in there. Did you see a coat?', when: { flag: 'licked' } },
 
-    { id: 'cup-gnome.topic.cups', slot: 'topic', text: 'Two cups. One for me, one for when he shows up. His has been full three winters. It does not go off. I checked. I check a lot.' },
-    { id: 'cup-gnome.topic.brother', slot: 'topic', text: 'My brother Glintgrin lives in the tree house with the round door. He got the diamonds; I got the cup. He wants a signed cup. I want the man. Fair split.' },
-    { id: 'cup-gnome.topic.who', slot: 'topic', text: 'Tall. Sad songs. Big coat. Sits on a throne past the portal that is white and cracks. That is all I know, and I have known it three winters.' },
-    { id: 'cup-gnome.topic.signed', slot: 'topic', text: 'That cup. His name is on it. In purple. He touched that cup. Hold it up. Higher. Thank you. You can go now.', when: { item: 'signed-cup' }, weight: 4 },
+    { id: 'cup-gnome.topic.cups', slot: 'topic', ask: 'About your two cups', text: 'Two cups. One for me, one for when he shows up. His has been full three winters. It does not go off. I checked. I check a lot.' },
+    { id: 'cup-gnome.topic.brother', slot: 'topic', ask: 'About your brother Glintgrin', text: 'My brother Glintgrin lives in the tree house with the round door. He got the diamonds; I got the cup. He wants a signed cup. I want the man. Fair split.' },
+    { id: 'cup-gnome.topic.who', slot: 'topic', ask: 'Who is Young Lean?', text: 'Tall. Sad songs. Big coat. Sits on a throne past the portal that is white and cracks. That is all I know, and I have known it three winters.' },
+    { id: 'cup-gnome.topic.signed', slot: 'topic', ask: 'About this signed cup', text: 'That cup. His name is on it. In purple. He touched that cup. Hold it up. Higher. Thank you. You can go now.', when: { item: 'signed-cup' }, weight: 4 },
 
     { id: 'cup-gnome.bye.say', slot: 'bye', text: 'If you see him, say Goldgrin. He will not know it. Say it anyway.' },
     { id: 'cup-gnome.bye.here', slot: 'bye', text: 'Go on. I will be here. I am very good at being here.' },
@@ -335,10 +335,10 @@ const GRUMBLE: NpcDialogue = {
     { id: 'grumble.react.froggod', slot: 'react', text: 'The Frog God, dead in the dream. Word came up through the hollow. The frog is very calm about it. Too calm.', when: { event: 'kill', enemy: 'dmt-entity' } },
     { id: 'grumble.react.fishguard', slot: 'react', text: 'Down the whirlpool, I hear, you cut up fish in armour. Everything down there is wet. Do not bring it to my table.', when: { event: 'kill', enemy: 'fish-guard' } },
 
-    { id: 'grumble.topic.table', slot: 'topic', text: 'I was here before the table. Then they built the table around where I stood. Now it is my table. That is how property works, whatever the King says.' },
-    { id: 'grumble.topic.lamps', slot: 'topic', text: 'The lamps are mushrooms. The mushrooms are lamps. Nobody asks which came first. The one time someone did, I bit him, so we may never know.' },
-    { id: 'grumble.topic.tea', slot: 'topic', text: 'Lotus tea steadies the blade hand. Moon dew puts the blood back. Buy, drink, leave. In that order, and not on the table.' },
-    { id: 'grumble.topic.bite', slot: 'topic', text: 'Lift me again and I bite. It is not a threat. It is a schedule.' },
+    { id: 'grumble.topic.table', slot: 'topic', ask: 'Why is the table yours?', text: 'I was here before the table. Then they built the table around where I stood. Now it is my table. That is how property works, whatever the King says.' },
+    { id: 'grumble.topic.lamps', slot: 'topic', ask: 'About the mushroom lamps', text: 'The lamps are mushrooms. The mushrooms are lamps. Nobody asks which came first. The one time someone did, I bit him, so we may never know.' },
+    { id: 'grumble.topic.tea', slot: 'topic', ask: 'What lotus tea do you sell?', text: 'Lotus tea steadies the blade hand. Moon dew puts the blood back. Buy, drink, leave. In that order, and not on the table.' },
+    { id: 'grumble.topic.bite', slot: 'topic', ask: 'You really bite people?', text: 'Lift me again and I bite. It is not a threat. It is a schedule.' },
 
     { id: 'grumble.bye.hands', slot: 'bye', text: 'Go. Watch your hands.' },
     { id: 'grumble.bye.lamps', slot: 'bye', text: 'Out. The lamps do not like you either.' },
@@ -383,10 +383,10 @@ const GRUB: NpcDialogue = {
     { id: 'grub.react.level', slot: 'react', text: 'Small one bigger now. Still small. But bigger. Soon carry one log. Small log.', when: { event: 'feat', feat: 'levelup' } },
     { id: 'grub.react.ale', slot: 'react', text: "You drink the rowers' beer. Beer is soup that forgot the vegetables.", when: { flag: 'ale' } },
 
-    { id: 'grub.topic.soup', slot: 'topic', text: 'Village pays Grub in soup. Good soup. Onion, bone, sometimes the bone is a friend. Grub does not ask.' },
-    { id: 'grub.topic.logs', slot: 'topic', text: 'Logs come from west woods, go to village, go back? No. New logs. Grub carry forever. Is a job. Jobs are logs with soup at the end.' },
-    { id: 'grub.topic.lantern', slot: 'topic', text: 'Lantern man walks same street. Says castle burns across the water. Grub looked. Grub saw water. Lantern man says that is the point. Grub has no points.' },
-    { id: 'grub.topic.church', slot: 'topic', text: 'Church at end of street has horns. Door glows. Grub does not go in. Things with horns, Grub leaves. Logs do not have horns. Mostly.' },
+    { id: 'grub.topic.soup', slot: 'topic', ask: 'About the village soup', text: 'Village pays Grub in soup. Good soup. Onion, bone, sometimes the bone is a friend. Grub does not ask.' },
+    { id: 'grub.topic.logs', slot: 'topic', ask: 'Where do the logs go?', text: 'Logs come from west woods, go to village, go back? No. New logs. Grub carry forever. Is a job. Jobs are logs with soup at the end.' },
+    { id: 'grub.topic.lantern', slot: 'topic', ask: 'About the lantern man', text: 'Lantern man walks same street. Says castle burns across the water. Grub looked. Grub saw water. Lantern man says that is the point. Grub has no points.' },
+    { id: 'grub.topic.church', slot: 'topic', ask: 'About the horned church', text: 'Church at end of street has horns. Door glows. Grub does not go in. Things with horns, Grub leaves. Logs do not have horns. Mostly.' },
 
     { id: 'grub.bye.carry', slot: 'bye', text: 'Grub carry now. Bye, small one.' },
     { id: 'grub.bye.soup', slot: 'bye', text: 'Go find soup.' },
@@ -432,11 +432,11 @@ const MOSS: NpcDialogue = {
     { id: 'moss.react.chest', slot: 'react', text: 'Box on the bank. Opened. Three winters next to it. Never opened. Not worth standing up.', when: { event: 'feat', feat: 'chest' } },
     { id: 'moss.react.ale', slot: 'react', text: "Rowers' beer. Had one, winter two. Rowed nowhere all night. Good beer.", when: { flag: 'ale' } },
 
-    { id: 'moss.topic.fish', slot: 'topic', text: 'Fish glow here. Everything glows here. Tastes the same. Four caught in three winters. Ate two. Named two; threw those back. Names make it hard.' },
-    { id: 'moss.topic.rock', slot: 'topic', text: 'This rock. Troll shape in it now. When I go, the rock keeps the shape. A grave, a slow one. Slow is good.' },
-    { id: 'moss.topic.cousin', slot: 'topic', text: 'Troll in the gorge, under the stone bridge. Cousin. Red eyes. Throws rocks. I sit on rocks. Family is complicated.', when: { bossAlive: 'troll' } },
-    { id: 'moss.topic.shade', slot: 'topic', text: 'The thing in the river. Rises at night, arms out, like it wants a hug. Nobody hugs it. Goes back down. I relate.', when: { bossAlive: 'rivershade' } },
-    { id: 'moss.topic.upriver', slot: 'topic', text: 'River comes from the tree-house way, past me, under the lake. Everything goes under the lake eventually. Me too. Sitting.' },
+    { id: 'moss.topic.fish', slot: 'topic', ask: 'Do you catch anything?', text: 'Fish glow here. Everything glows here. Tastes the same. Four caught in three winters. Ate two. Named two; threw those back. Names make it hard.' },
+    { id: 'moss.topic.rock', slot: 'topic', ask: 'About your fishing rock', text: 'This rock. Troll shape in it now. When I go, the rock keeps the shape. A grave, a slow one. Slow is good.' },
+    { id: 'moss.topic.cousin', slot: 'topic', ask: 'Your cousin under the bridge', text: 'Troll in the gorge, under the stone bridge. Cousin. Red eyes. Throws rocks. I sit on rocks. Family is complicated.', when: { bossAlive: 'troll' } },
+    { id: 'moss.topic.shade', slot: 'topic', ask: 'About the river shade', text: 'The thing in the river. Rises at night, arms out, like it wants a hug. Nobody hugs it. Goes back down. I relate.', when: { bossAlive: 'rivershade' } },
+    { id: 'moss.topic.upriver', slot: 'topic', ask: 'Where does the river go?', text: 'River comes from the tree-house way, past me, under the lake. Everything goes under the lake eventually. Me too. Sitting.' },
 
     { id: 'moss.bye.quiet', slot: 'bye', text: 'Go. Quietly. Fish.' },
     { id: 'moss.bye.plan', slot: 'bye', text: 'I will be here. Always here. It is the whole plan.' },
@@ -483,14 +483,14 @@ const CORVIN: NpcDialogue = {
     { id: 'rose-knight.react.chest', slot: 'react', text: 'A chest, opened. Something in it. Nothing in a chest has ever been a yes.', when: { event: 'feat', feat: 'chest' } },
 
     {
-      id: 'rose-knight.topic.ask', slot: 'topic', text: 'She waits for a sign the world is worth the trouble. You kill the great things in it. Tell her. Quietly.',
+      id: 'rose-knight.topic.ask', slot: 'topic', ask: 'Will you speak to her for me?', text: 'She waits for a sign the world is worth the trouble. You kill the great things in it. Tell her. Quietly.',
       when: { quest: ['rose', 'none'] },
       choices: [{ label: "I'll speak for you.", action: 'quest:rose:asked', to: 'rose-knight.topic.wait' }, { label: 'Not my business.', action: 'close' }],
     },
-    { id: 'rose-knight.topic.wait', slot: 'topic', text: 'Thank you. Do not say I asked; do not mention the arm. Say what you have killed, and how large. She counts the great ones.', when: { quest: ['rose', 'asked'] } },
-    { id: 'rose-knight.topic.worthy', slot: 'topic', text: 'She looked at you differently just now. Go. Tell her the count. I will be here. I am always here.', when: { quest: ['rose', 'worthy'] }, weight: 3 },
-    { id: 'rose-knight.topic.rose', slot: 'topic', text: 'A rose from the Last Garden. Red ones are rare here. You cannot see the garden from anywhere I know; believe me, it is all I ask of anyone.' },
-    { id: 'rose-knight.topic.done', slot: 'topic', text: 'She said yes. I am going to lower the arm now. Slowly. If it comes off, say nothing.', when: { quest: ['rose', 'answered'] } },
+    { id: 'rose-knight.topic.wait', slot: 'topic', ask: 'What should I tell her?', text: 'Thank you. Do not say I asked; do not mention the arm. Say what you have killed, and how large. She counts the great ones.', when: { quest: ['rose', 'asked'] } },
+    { id: 'rose-knight.topic.worthy', slot: 'topic', ask: 'She looked at me differently', text: 'She looked at you differently just now. Go. Tell her the count. I will be here. I am always here.', when: { quest: ['rose', 'worthy'] }, weight: 3 },
+    { id: 'rose-knight.topic.rose', slot: 'topic', ask: 'About the rose you hold', text: 'A rose from the Last Garden. Red ones are rare here. You cannot see the garden from anywhere I know; believe me, it is all I ask of anyone.' },
+    { id: 'rose-knight.topic.done', slot: 'topic', ask: 'She accepted the rose?', text: 'She said yes. I am going to lower the arm now. Slowly. If it comes off, say nothing.', when: { quest: ['rose', 'answered'] } },
 
     { id: 'rose-knight.bye.quiet', slot: 'bye', text: 'Quietly, as you go.' },
     { id: 'rose-knight.bye.well', slot: 'bye', text: 'If she asks about me, I am well. The arm is well. Everything is well.' },
@@ -536,7 +536,7 @@ const ELOWEN: NpcDialogue = {
     { id: 'maiden.react.licked', slot: 'react', text: 'You licked the Frog King. Your eyes are red. Red means now. I will not hold you to it.', when: { flag: 'licked' } },
 
     {
-      id: 'maiden.topic.deeds', slot: 'topic', text: 'He sent you. Of course he did. Tell me, then: what have you killed that was great? Three, and the red ones mean now.',
+      id: 'maiden.topic.deeds', slot: 'topic', ask: 'About the three great ones', text: 'He sent you. Of course he did. Tell me, then: what have you killed that was great? Three, and the red ones mean now.',
       when: { quest: ['rose', ['asked', 'worthy']] }, weight: 3,
       choices: [
         { label: 'Three of the great ones, at least.', when: { quest: ['rose', 'worthy'] }, action: 'quest:rose:answered', to: 'maiden.topic.yes' },
@@ -544,10 +544,10 @@ const ELOWEN: NpcDialogue = {
         { label: 'Leave her to decide.', action: 'close' },
       ],
     },
-    { id: 'maiden.topic.yes', slot: 'topic', text: 'Yes. There. The red ones mean now. Tell him. He cannot hear from two paces; he has been listening to his arm.', when: { quest: ['rose', 'answered'] } },
-    { id: 'maiden.topic.notyet', slot: 'topic', text: 'Then the blue ones. Waiting. Come back when the fog has fewer great things in it.', when: { quest: ['rose', 'asked'] } },
-    { id: 'maiden.topic.flowers', slot: 'topic', text: "The blue ones mean waiting. The red ones mean now. Nobody has planted a colour for 'ask me again next winter'." },
-    { id: 'maiden.topic.him', slot: 'topic', text: 'He walked through the fog for this. The fog has things in it. He walked through them. That is the point for him. The arm is the point against.' },
+    { id: 'maiden.topic.yes', slot: 'topic', ask: 'I told her about the great ones', text: 'Yes. There. The red ones mean now. Tell him. He cannot hear from two paces; he has been listening to his arm.', when: { quest: ['rose', 'answered'] } },
+    { id: 'maiden.topic.notyet', slot: 'topic', ask: 'Not three great ones yet', text: 'Then the blue ones. Waiting. Come back when the fog has fewer great things in it.', when: { quest: ['rose', 'asked'] } },
+    { id: 'maiden.topic.flowers', slot: 'topic', ask: 'What do the blue flowers mean?', text: "The blue ones mean waiting. The red ones mean now. Nobody has planted a colour for 'ask me again next winter'." },
+    { id: 'maiden.topic.him', slot: 'topic', ask: 'About the knight with the rose', text: 'He walked through the fog for this. The fog has things in it. He walked through them. That is the point for him. The arm is the point against.' },
 
     { id: 'maiden.bye.great', slot: 'bye', text: 'Go. Something great. I will know; the blue ones gossip.' },
     { id: 'maiden.bye.blue', slot: 'bye', text: 'The blue ones, still. Go.' },

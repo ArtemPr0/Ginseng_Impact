@@ -150,14 +150,7 @@ export function buildHeart(api: HeartApi): { eye: ReturnType<typeof eyePool>; bo
   spill(t3, t2.water, t2);
   spill(t2, t1.water, t1);
   spill(t1, RIVER_LEVEL, { x: -12, z: EYE.z + EYE.b });
-  const tierKoi = { x: t2.x, z: t2.z };
-  for (let i = 0; i < 5; i++) {
-    const phase = (i / 5) * Math.PI * 2;
-    const r = 4 + (i % 3) * 2.5;
-    const hgt = t2.water + 2.5 + (i % 2) * 1.4;
-    const speed = 0.3 + (i % 3) * 0.05;
-    api.place(modelLandmark('koi', tierKoi.x, tierKoi.z, hgt, { clip: 'idle', collider: 'none', update: (dt, root) => { void dt; const tt = performance.now() * 0.001; const a = tt * speed + phase; root.position.set(tierKoi.x + Math.cos(a) * r, hgt + Math.sin(tt * 0.9 + phase * 3) * 0.7, tierKoi.z + Math.sin(a) * r); root.rotation.y = -a; root.rotation.z = Math.cos(tt * 0.9 + phase * 3) * 0.3; } }));
-  }
+  // Flying koi over the middle tier are combat enemies now (ENEMY_SPAWNS 'koi').
   api.vfx(fireflies(t2.x, t2.water, t2.z, 10, 3, 50));
 
   // --- the forest gorge ---

@@ -16,7 +16,8 @@
 import { Color, Group, type MeshStandardMaterial, type Mesh, Vector3 } from 'three';
 import { GALAXY, LEAN_QUARTER } from '../data/world';
 import { MODELS } from '../data/models';
-import { quarterFloor, rockTop } from '../render/Floors';
+import { CHAPEL_Y, snowY } from '../data/sculpts';
+import { rockTop } from '../render/Floors';
 import { CHAPEL_DOOR } from './Interiors';
 import { fountain } from '../render/Fountain';
 import { landableIsland } from './Islands';
@@ -82,13 +83,10 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
 
   // ===== Floors and walls =====
   const rect = (r: readonly [number, number, number, number]) => ({ x: (r[0] + r[1]) / 2, z: (r[2] + r[3]) / 2, w: r[1] - r[0], d: r[3] - r[2] });
-  const solid = (r: readonly [number, number, number, number], top: number): Footprint => { const c = rect(r); return { kind: 'box', x: c.x, z: c.z, hw: c.w / 2, hd: c.d / 2, top }; };
   const wall = (x: number, z: number, hw: number, hd: number): Footprint => ({ kind: 'box', x, z, hw, hd, top: gy + 6 });
   const court = rect(Q.court), moat = rect(Q.moat), snow = rect(Q.snow);
-  // One ground for all the quarters, blending where they meet and fraying onto the plaza (render/Floors quarterFloor).
-  api.group.add(quarterFloor({ court: Q.court, street: Q.street, yard: Q.castleYard, snow: Q.snow, plaza: [940, 1060, -85, 75], moat: Q.moat }, gy));
+  // The quarters stand on the kingdom sculpt (RealmGround). The walls still keep the void out.
   api.place({ object: new Group(), footprints: [
-    solid(Q.court, gy), solid(Q.street, gy), solid(Q.castleYard, gy), solid(Q.snow, gy), solid(Q.moat, gy - 2.2),
     // Unseen walls round the quarters (the plaza's east edge stays open onto the lean waves).
     wall(1000, -185.5, 60.5, 0.5), wall(1060.5, -135, 0.5, 50), wall(939.5, -112.5, 0.5, 72.5),
     wall(860, -40.5, 80.5, 0.5), wall(779.5, 17.5, 0.5, 58), wall(820, 75.5, 40, 0.5),
@@ -236,13 +234,19 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   }
 
   // ===== The snow chapel, south-west (DeldocTvFiB) =====
-  api.group.add(mistLayers(snow.x, snow.z, snow.w, snow.d, gy, 0xc8d6ff, 0.16, 2));
+  // Snow climbs from plaza level (gy) to CHAPEL_Y; place every prop on h()/snowY, not flat gy.
+  api.group.add(mistLayers(snow.x, snow.z, snow.w, snow.d, CHAPEL_Y, 0xc8d6ff, 0.16, 2));
   const CH = Q.chapel;
   const gate = { x: 950, z: 86 };
-  api.place(modelLandmark('snow-chapel', CH.x, CH.z, gy, { yaw: face(Math.atan2(gate.z - CH.z, gate.x - CH.x)) }));
+  const chapelY = CHAPEL_Y;
+  const gateY = snowY(gate.z);
+  api.place(modelLandmark('snow-chapel', CH.x, CH.z, chapelY, { yaw: face(Math.atan2(gate.z - CH.z, gate.x - CH.x)) }));
   // The gate the path comes in by: snow-capped pillars and a broken wooden gate hanging open.
-  for (const dx of [-3.5, 3.5]) api.place(modelLandmark('snow-pillar', gate.x + dx, gate.z, gy, { footprints: [{ kind: 'box', x: gate.x + dx, z: gate.z, hw: 0.55, hd: 0.55, top: gy + 2.6 }] }));
-  api.place(modelLandmark('broken-gate', gate.x + 5.6, gate.z + 1.8, gy, { yaw: face(Math.PI / 2 + 0.5), collider: 'none' }));
+  for (const dx of [-3.5, 3.5]) {
+    const py = snowY(gate.z);
+    api.place(modelLandmark('snow-pillar', gate.x + dx, gate.z, py, { footprints: [{ kind: 'box', x: gate.x + dx, z: gate.z, hw: 0.55, hd: 0.55, top: py + 2.6 }] }));
+  }
+  api.place(modelLandmark('broken-gate', gate.x + 5.6, gate.z + 1.8, gateY, { yaw: face(Math.PI / 2 + 0.5), collider: 'none' }));
   // The path from the gate to the chapel door, lined with pillars and torches.
   const path: Array<[number, number]> = [];
   for (let k = 0; k <= 10; k++) {
@@ -256,19 +260,21 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
     const n = Math.hypot(sx, sz);
     for (const side of [-1, 1]) {
       const px = x + (sx / n) * 3.4 * side, pz = z + (sz / n) * 3.4 * side;
+      const py = snowY(pz);
       if (k % 4 === 2) {
-        api.place(modelLandmark('torch-post', px, pz, gy, { footprints: [{ kind: 'cyl', x: px, z: pz, r: 0.25, top: gy + 2.4 }] }));
-        api.vfx(fire(px, gy + 2.3, pz, 0.35, side > 0 ? 6 : 0));
-      } else api.place(modelLandmark('snow-pillar', px, pz, gy, { scale: 0.8, footprints: [{ kind: 'box', x: px, z: pz, hw: 0.45, hd: 0.45, top: gy + 2.1 }] }));
+        api.place(modelLandmark('torch-post', px, pz, py, { footprints: [{ kind: 'cyl', x: px, z: pz, r: 0.25, top: py + 2.4 }] }));
+        api.vfx(fire(px, py + 2.3, pz, 0.35, side > 0 ? 6 : 0));
+      } else api.place(modelLandmark('snow-pillar', px, pz, py, { scale: 0.8, footprints: [{ kind: 'box', x: px, z: pz, hw: 0.45, hd: 0.45, top: py + 2.1 }] }));
     }
   }
   // Snowed-in cottages along the graveyard's edges, their windows lit (the quarter stood bare but for the chapel).
   const cottages: Array<[number, number, number]> = [[865.5, 100, 0], [865.5, 120, 0], [954.5, 150, Math.PI], [954.5, 168, Math.PI]];
   for (const [hx, hz, yaw] of cottages) {
-    api.place(modelLandmark('village-house', hx, hz, gy, { yaw: face(yaw), footprints: [{ kind: 'box', x: hx, z: hz, hw: 3.3, hd: 3.3, top: gy + 6 }],
+    const foot = api.h(hx, hz);
+    api.place(modelLandmark('village-house', hx, hz, foot, { yaw: face(yaw), footprints: [{ kind: 'box', x: hx, z: hz, hw: 3.3, hd: 3.3, top: foot + 6 }],
       onLoad: (m) => restyle(m, (mat) => { mat.color.lerp(new Color(0xdfe8ff), 0.35); patchLitWindows(mat, 2.2); }) }));
     // (On its front wall, 2.85 m out: it hung 0.75 m in front of it.)
-    glow(0xffa040, 2, hx + Math.cos(yaw) * 2.95, gy + 2.4, hz, 0.5);
+    glow(0xffa040, 2, hx + Math.cos(yaw) * 2.95, foot + 2.4, hz, 0.5);
   }
   const clearOfCottages = (x: number, z: number) => cottages.every(([hx, hz]) => Math.hypot(hx - x, hz - z) > 6);
   // Graves in the snow either side of the path, bare black trees round the edges.
@@ -278,7 +284,7 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
     const x = 866 + api.rnd() * 88, z = 92 + api.rnd() * 78;
     if (!clearOfPath(x, z) || !clearOfCottages(x, z) || Math.hypot(x - CH.x, z - CH.z) < 10 || Math.hypot(x - 931, z - 124) < 7) continue;
     const kind = (['grave', 'rune-grave', 'grave-cross'] as const)[i % 3];
-    graveSets[kind].push({ x, y: gy - 0.05, z, yaw: face(Math.atan2(gate.z - z, gate.x - x)) + (api.rnd() - 0.5) * 0.4, scale: 0.8 + api.rnd() * 0.4 });
+    graveSets[kind].push({ x, y: api.h(x, z) - 0.05, z, yaw: face(Math.atan2(gate.z - z, gate.x - x)) + (api.rnd() - 0.5) * 0.4, scale: 0.8 + api.rnd() * 0.4 });
   }
   for (const [id, ps] of Object.entries(graveSets)) api.flora(id, ps);
   const trees: Placement[] = [];
@@ -287,14 +293,17 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
     const x = edge === 0 ? 863 + api.rnd() * 5 : edge === 1 ? 952 + api.rnd() * 5 : 866 + api.rnd() * 86;
     const z = edge === 2 ? 170 + api.rnd() * 3 : 95 + api.rnd() * 75;
     if (!clearOfPath(x, z) || !clearOfCottages(x, z) || Math.hypot(x - CH.x, z - CH.z) < 9) continue;
-    trees.push({ x, y: gy - 0.1, z, yaw: api.rnd() * 6, scale: 0.8 + api.rnd() * 0.5 });
+    trees.push({ x, y: api.h(x, z) - 0.1, z, yaw: api.rnd() * 6, scale: 0.8 + api.rnd() * 0.5 });
   }
   api.flora('dead-forest-tree', trees);
-  for (const t of trees) api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: t.x, z: t.z, r: 0.35 * t.scale, top: gy + 6 }] });
+  for (const t of trees) api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: t.x, z: t.z, r: 0.35 * t.scale, top: (t.y ?? snowY(t.z)) + 6 }] });
   // The crypt bar is below, through the chapel's door (Interiors.ts): candlelight from the stair.
-  glow(0xffa040, 3.2, CHAPEL_DOOR.x, gy + 1.4, CHAPEL_DOOR.z, 0.35);
+  glow(0xffa040, 3.2, CHAPEL_DOOR.x, chapelY + 1.4, CHAPEL_DOOR.z, 0.35);
   // The plague doctor on his treasure chest among the trees (one model with the chest, NPCs.ts): the chest is solid.
-  api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: 931, z: 124.6, r: 1.15, top: gy + 1.3 }] });
+  {
+    const pdY = snowY(124.6);
+    api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: 931, z: 124.6, r: 1.15, top: pdY + 1.3 }] });
+  }
 
   // ===== The sky dock, east (Den1ausBXai, DeYtKbMh76x) =====
   const D = Q.dock;

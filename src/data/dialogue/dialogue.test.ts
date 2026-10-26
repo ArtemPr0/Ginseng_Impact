@@ -208,4 +208,21 @@ describe('dialogue books', () => {
     }
     expect(problems, problems.join('\n')).toEqual([]);
   });
+
+  it('give every topic a player-voiced ask that is not a snippet of its own text', () => {
+    const problems: string[] = [];
+    for (const [id, line] of allLines()) {
+      if (line.slot !== 'topic') continue;
+      const ask = line.ask?.trim() ?? '';
+      if (!ask) {
+        problems.push(`${id}/${line.id}: topic has no ask`);
+        continue;
+      }
+      const prefix = line.text.replace(/\s+/g, ' ').trim().slice(0, Math.min(24, ask.length));
+      if (prefix && ask.toLowerCase().startsWith(prefix.toLowerCase())) {
+        problems.push(`${id}/${line.id}: ask echoes NPC text ("${ask}")`);
+      }
+    }
+    expect(problems, problems.join('\n')).toEqual([]);
+  });
 });

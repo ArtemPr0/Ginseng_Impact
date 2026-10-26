@@ -1,4 +1,5 @@
-import { Color, DirectionalLight, FogExp2, HemisphereLight, PerspectiveCamera, Scene, Vector3 } from 'three';
+import { Color, DirectionalLight, FogExp2, Group, HemisphereLight, PointLight, type Object3D, PerspectiveCamera, Scene, Vector3 } from 'three';
+import { PRESENT_MODELS } from './data/colliderGrids';
 import { Bubbles } from './world/Portal';
 import { LightBudget } from './render/LightBudget';
 import { yawToRotation } from './models/ModelRig';
@@ -8,8 +9,8 @@ import { ROSTER } from './characters/roster';
 import { CombatSystem } from './combat/CombatSystem';
 import { Game } from './core/Game';
 import { Input } from './core/Input';
-import { DISTRICT_AIR, LAYOUT, leanDistrict, REALMS, VALE, ZONE_LIGHT } from './data/world';
-import { kingdomNight } from './world/Kingdom';
+import { CLOUD_LEVEL, DISTRICT_AIR, LAYOUT, leanDistrict, REALM_SKY, REALMS, VALE, ZONE_LIGHT } from './data/world';
+import { kingdomNight, kingdomSkyColors } from './world/Kingdom';
 import { Inventory } from './items/Inventory';
 import { riverAt } from './world/Terrain';
 import { ITEMS } from './items/Items';
@@ -17,6 +18,8 @@ import { CONTROLLER, createControllerState, startDash, stepController } from './
 import { Party } from './player/Party';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera';
 import { Atmosphere } from './render/Atmosphere';
+import { CombatFx } from './render/CombatFx';
+import { GROUND_UNIFORMS } from './render/GroundMaterial';
 import { PALETTE } from './render/palette';
 import { LOOKS, Renderer } from './render/Renderer';
 import { CARRIAGE } from './world/Carriage';
@@ -31,7 +34,18 @@ import { Npc } from './world/NPCs';
 import { Terrain } from './world/Terrain';
 import { World } from './world/World';
 import { Adventures } from './game/Adventures';
-import { Events, type HeroId } from './game/Events';
+import { Ending } from './game/Ending';
+import { Events, type HeroId, type Zone } from './game/Events';
+import { Progress, xpForKill } from './game/Progress';
+import { Save, type SaveV1 } from './game/Save';
+import { Story } from './game/Story';
+import { WorldState } from './game/WorldState';
+import { Glints } from './render/LeanFx';
+import { CHESTS, CHEST_RESPAWN, type ChestDef } from './data/chests';
+import { ENEMY_DEFS } from './data/enemies';
+import { rollDrops } from './combat/Loot';
+import { modelLandmark } from './world/ModelLandmark';
+import { type NpcDef } from './world/NPCs';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const game = new Game();
@@ -52,6 +66,10 @@ const fog = new FogExp2(PALETTE.fog, islandFog.density);
 scene.fog = fog;
 const bubbles = new Bubbles();
 scene.add(bubbles.group);
+/** The fight's pooled effects (blade ribbons, swing crescents, sparks, flashes, shocks, dust, telegraphs, the cast rune). */
+// (Twelve ground warnings: a snowstorm lays four, a cup volley three, and two mobs and a boss may wind up at once.)
+const combatFx = new CombatFx({ telegraphs: 12 });
+scene.add(combatFx.group);
 const fogTarget = new Color();
 let portalCooldown = 0;
 
@@ -93,9 +111,11 @@ function pinToCarriage(): void {
 }
 /** The hero's height last frame, for the climb clip's pace. */
 let lastClimbY = 0;
+let slopePitch = 0;
+let slopeRoll = 0;
 
 const terrain = new Terrain();
-scene.add(terrain.mesh);
+scene.add(terrain.group);
 const minimap = new Minimap(document.getElementById('hud')!, terrain);
 const area = new World(terrain);
 scene.add(area.group);
@@ -127,7 +147,6 @@ for (const r of rigs) {
 let landedAt = -10;
 /** Camera roll while slowed by a puddle of lean. */
 let tilt = 0;
-let wasInKingdom = false;
 let wasAirborne = false;
 /** What the body was doing last step (flight, a swim, a climb, a mushroom bounce, the carriage's reins): each is announced once, on entry. */
 let lastMode = controller.mode;
@@ -158,7 +177,7 @@ function switchTo(i: number): boolean {
   }
   rigs[swap.from].root.visible = rigs[swap.from].trailObject.visible = false;
   rigs[swap.to].root.visible = rigs[swap.to].trailObject.visible = true;
-  hud.setParty(ROSTER, swap.to, down);
+  hud.setParty(ROSTER, swap.to, down, progress.level);
   combat.onSwitch();
   audio.click();
   events.emit({ kind: 'hero', hero: ROSTER[swap.to].id as HeroId });
@@ -171,16 +190,43 @@ Rig.sound = { slurp: (gain) => { audio.slurp(gain); events.emit({ kind: 'feat', 
 const lightBudget = new LightBudget(scene, 6);
 lightBudget.collect(scene);
 
+const progress = new Progress();
+const save = new Save(localStorage);
+const bosses: Record<string, { slainAt: number }> = {};
+/** How many of each shop listing are left. A key is `npc:item`. Empty means a full shelf of five. */
+const shopLeft = new Map<string, number>();
+let shopClock = 0;
+/** Play time, for chest respawn. */
+let playTime = 0;
+const openedAt = new Map<string, number>();
+let freshStart = false;
 const combat = new CombatSystem({
-  scene, world, sky, hud, camera, game, audio, inventory, controller, party, spawn: SPAWN, events,
+  scene, world, sky, hud, camera, game, audio, inventory, controller, party, spawn: SPAWN, events, fx: combatFx,
   onForceSwitch: (i) => { party.update(Party.cooldown); switchTo(i); },
   onShake: (a) => tpc.shake(a),
+  onKick: (dir, amount) => tpc.kick(dir, amount),
+  onPunch: (delta, seconds) => tpc.punchFov(delta, seconds),
+  onPulse: (strength) => renderer.pulse(strength),
+  weaponTips: (guard, tip) => rigs[party.activeIndex].weaponTips(guard, tip),
   onTrip: (strength, seconds) => renderer.trip(strength, seconds),
-  onKill: (kind) => adventures.quests.kill(kind),
+  onKill: (kind) => {
+    adventures.quests.kill(kind);
+    const foe = ENEMY_DEFS[kind as keyof typeof ENEMY_DEFS];
+    if (foe?.boss) bosses[kind] = { slainAt: Date.now() };
+    if (foe && progress.add(xpForKill(foe)) > 0) {
+      combat.level = progress.level;
+      hud.setParty(ROSTER, party.activeIndex, fallen(), progress.level);
+      hud.announce(`Level ${progress.level}`);
+      events.emit({ kind: 'feat', what: 'levelup' });
+    }
+    save.markDirty();
+  },
   muzzle: () => rigs[party.activeIndex].muzzle(new Vector3()),
+  // The companions are fought too: the mobs go for the nearest of them and the hero, every blow lands on whoever is in it.
+  allies: () => companions,
   // A wipe also ends the frog's dream (otherwise its clock would run on, and block the portals, back on the island).
   // (Everyone stands again after a wipe: the portraits lose their `down`.)
-  onWipe: () => { adventures.riding = null; wasLocked = false; if (adventures.dreamLeft > 0) adventures.wake(); hud.setParty(ROSTER, party.activeIndex, fallen()); },
+  onWipe: () => { adventures.riding = null; wasLocked = false; if (adventures.dreamLeft > 0) adventures.wake(); hud.setParty(ROSTER, party.activeIndex, fallen(), progress.level); },
   // A roll along the stick, or a backstep: the controller carries it (an impulse alone was eaten by the ground drag).
   onDodge: () => startDash(controller, tpc.moveToWorld(input.moveAxis())),
 });
@@ -246,7 +292,12 @@ function closePanel(): void {
 }
 hud.bind({
   onBuy: (itemId, price) => {
+    const who = talking?.def.id ?? 'shop';
+    const key = `${who}:${itemId}`;
+    const left = shopLeft.get(key) ?? 5;
+    if (left <= 0) { hud.announce('Sold out'); return false; }
     if (!inventory.spend(price)) return false;
+    shopLeft.set(key, left - 1);
     inventory.add(itemId);
     events.emit({ kind: 'trade', what: 'buy', item: itemId });
     audio.coins(3);
@@ -254,24 +305,7 @@ hud.bind({
     return true;
   },
   onSell: (uid, count) => { const item = inventory.entries.find((x) => x.uid === uid)?.itemId; const gain = inventory.sell(uid, count); if (gain > 0) audio.coins(2); if (gain > 0 && item) events.emit({ kind: 'trade', what: 'sell', item }); },
-  onHire: (npc) => {
-    if (!npc.hire || companions.length >= 3 || companions.some((c) => c.def.id === npc.id)) return 'full';
-    if (!inventory.spend(npc.hire.cost)) return 'poor';
-    // The one who follows you leaves their post (no twin standing where they used to be).
-    const post = area.npcs.find((n) => n.def.id === npc.id);
-    if (post) post.hidden = true;
-    // The first free place at your heels (one sent home leaves a gap).
-    let slot = 0;
-    while (companions.some((c) => c.slot === slot)) slot++;
-    const c = new Companion(npc, new Vector3(controller.pos.x, controller.pos.y, controller.pos.z), (x, z, y) => world.heightAt(x, z, y), slot);
-    companions.push(c);
-    scene.add(c.rig.root, c.rig.trailObject);
-    hud.setCompanions(companions.map((x) => x.def.name));
-    audio.fanfare();
-    hud.announce(`${npc.name} joins you`);
-    events.emit({ kind: 'trade', what: 'hire', item: npc.id });
-    return 'ok';
-  },
+  onHire: (npc) => { const r = hireNpc(npc); return r === 'none' ? 'poor' : r; },
   onEquip: (uid) => {
     const me = party.active;
     const ok = inventory.equip(uid, me.id, me.weapon);
@@ -296,11 +330,237 @@ hud.bind({
   },
   onClose: () => closePanel(),
 }, inventory);
+
+function hireNpc(def: NpcDef, free = false): 'ok' | 'full' | 'poor' | 'none' {
+  if (!def.hire) return 'none';
+  if (companions.length >= 3 || companions.some((c) => c.def.id === def.id)) return 'full';
+  if (!free && !inventory.spend(def.hire.cost)) return 'poor';
+  const post = area.npcs.find((n) => n.def.id === def.id);
+  if (post) post.hidden = true;
+  let slot = 0;
+  while (companions.some((c) => c.slot === slot)) slot++;
+  const c = new Companion(def, new Vector3(controller.pos.x, controller.pos.y, controller.pos.z), (x, z, y) => world.heightAt(x, z, y), slot);
+  companions.push(c);
+  scene.add(c.rig.root, c.rig.trailObject);
+  hud.setCompanions(companions.map((x) => x.def.name));
+  if (!free) { audio.fanfare(); hud.announce(`${def.name} joins you`); events.emit({ kind: 'trade', what: 'hire', item: def.id }); }
+  return 'ok';
+}
+
+const worldState = new WorldState(events);
+const story = new Story({
+  quests: adventures.quests,
+  state: worldState,
+  events,
+  wallet: adventures.wallet,
+  dw: adventures.dw,
+  trade: () => {},
+  hire: (id) => { const npc = area.npcs.find((n) => n.def.id === id); return npc ? hireNpc(npc.def) : 'none'; },
+  dismiss: (id) => { const c = companions.find((x) => x.def.id === id); if (!c) return false; dismiss(c); return true; },
+  isHireable: (id) => !!area.npcs.find((n) => n.def.id === id)?.def.hire,
+  isFollowing: (id) => companions.some((c) => c.def.id === id),
+  hasShop: (id) => !!area.npcs.find((n) => n.def.id === id)?.def.shop,
+  follow: () => {},
+  npcsNear: (x, z, r) => area.npcs
+    .filter((n) => !n.hidden && Math.hypot(n.pos.x - x, n.pos.z - z) < r)
+    .map((n) => ({ id: n.def.id, bubble: (text: string) => n.bubble(text) })),
+  playerAt: () => ({ x: controller.pos.x, z: controller.pos.z }),
+  hireCost: (id) => area.npcs.find((n) => n.def.id === id)?.def.hire?.cost,
+  companions: () => companions.length,
+});
+adventures.story = story;
+function placeZone(): Zone {
+  const hit = REALMS.find((r) => Math.hypot(controller.pos.x - r.x, controller.pos.z - r.z) < r.radius);
+  return (hit?.id ?? 'island') as Zone;
+}
+const openedChests = new Set<string>();
+const chestProps = new Map<string, Object3D>();
+function snapshot(): SaveV1 {
+  const hp: Record<string, number> = {};
+  for (const [id, n] of combat.hp) hp[id] = n;
+  return {
+    v: 1, t: Date.now(), zone: placeZone(),
+    pos: { x: controller.pos.x, y: controller.pos.y, z: controller.pos.z }, yaw: controller.yaw,
+    hero: party.active.id, hp, inventory: inventory.snapshot(),
+    quests: adventures.quests.snapshot(), slain: adventures.quests.slain(),
+    flags: worldState.snapshot().flags, state: worldState.snapshot(), progress: { xp: progress.xp, level: progress.level },
+    bosses: { ...bosses }, chests: [...openedChests], companions: companions.map((c) => c.def.id), newGamePlus,
+  };
+}
+let newGamePlus = false;
+function applySave(s: SaveV1): void {
+  inventory.restore(s.inventory);
+  adventures.quests.restore(s.quests);
+  adventures.quests.restoreSlain(s.slain);
+  if (s.state && typeof s.state === 'object') worldState.restore(s.state as Parameters<WorldState['restore']>[0]);
+  progress.xp = s.progress.xp;
+  progress.level = s.progress.level;
+  openedChests.clear();
+  for (const id of s.chests) openedChests.add(id);
+  for (const [id, n] of Object.entries(s.hp)) combat.hp.set(id, n);
+  newGamePlus = s.newGamePlus;
+  combat.level = progress.level;
+  if (newGamePlus) combat.beginPlus();
+  for (const k of Object.keys(bosses)) delete bosses[k];
+  Object.assign(bosses, s.bosses);
+  for (const e of combat.enemies) {
+    const rec = bosses[e.def.kind];
+    if (!rec) continue;
+    const elapsed = (Date.now() - rec.slainAt) / 1000;
+    if (elapsed < e.def.respawn) { e.hp = 0; e.brain.kill(); e.deadFor = elapsed; }
+  }
+  for (const [id, obj] of chestProps) obj.visible = !openedChests.has(id);
+  for (const id of s.companions) { const npc = area.npcs.find((n) => n.def.id === id); if (npc) hireNpc(npc.def, true); }
+  teleport(s.pos.x, s.pos.y, s.pos.z, s.yaw);
+}
+let resumed = false;
+
+function chestReady(id: string): boolean {
+  const at = openedAt.get(id);
+  if (at === undefined) return true;
+  if (playTime - at < CHEST_RESPAWN) return false;
+  openedAt.delete(id);
+  openedChests.delete(id);
+  const prop = chestProps.get(id);
+  if (prop) prop.visible = true;
+  return true;
+}
+function openChest(c: ChestDef): void {
+  if (!chestReady(c.id)) return;
+  openedChests.add(c.id);
+  openedAt.set(c.id, playTime);
+  const y = world.heightAt(c.x, c.z);
+  if (c.kind === 'mimic') {
+    combat.wake('bucket', c.x, c.z);
+    hud.announce('The hoard stands up');
+  } else {
+    combat.loot.spawn(rollDrops(c.table.map((d) => ({ itemId: d.itemId, chance: d.chance })), c.shards), new Vector3(c.x, y + 0.6, c.z));
+    hud.announce(c.kind === 'cache' ? 'A cache' : 'A hoard');
+  }
+  chestProps.get(c.id)!.visible = false;
+  events.emit({ kind: 'feat', what: 'chest' });
+  save.write(snapshot());
+}
+for (const c of CHESTS) {
+  const y = world.heightAt(c.x, c.z);
+  const id = c.kind === 'cache' ? 'barrel' : 'coin-block';
+  const placed = modelLandmark(id, c.x, c.z, y, { yaw: 0.4 });
+  area.adopt(c.zone === 'island' ? null : c.zone, placed.object);
+  chestProps.set(c.id, placed.object);
+  area.heights.add(...placed.footprints);
+  area.interactables.push({
+    pos: placed.root.position, range: 2.6, zone: c.zone === 'island' ? null : c.zone,
+    label: () => chestReady(c.id) ? (c.kind === 'cache' ? 'Open the cache' : 'Open the hoard') : null,
+    act: () => openChest(c),
+  });
+}
+const hoardGlints = new Glints(16, 8);
+scene.add(hoardGlints.group);
+for (const c of CHESTS) if (c.kind === 'hoard') hoardGlints.add(chestProps.get(c.id)!.position, new Vector3(0, 0.8, 0), 0.45);
+
+const PLAZA = { x: 1000, crowdZ: -50, heroZ: -60 };
+const concertLook = new Vector3();
+const concertCam = new Vector3();
+let concertLive = false;
+let concertWhale: Group | null = null;
+let concertWhaleCued = false;
+const concertBursts: Array<{ light: PointLight; left: number }> = [];
+function findConcertWhale(): Group | null {
+  let found: Group | null = null;
+  scene.traverse((o) => { if (o.name === 'lm:whale') found = o as Group; });
+  return found;
+}
+function spawnConcertBurst(): void {
+  const cols = [PALETTE.rune, PALETTE.dusk, PALETTE.moon, PALETTE.electric];
+  const light = new PointLight(cols[(Math.random() * cols.length) | 0], 2.4, 28, 2);
+  light.position.set(
+    PLAZA.x + (Math.random() - 0.5) * 36,
+    world.heightAt(PLAZA.x, PLAZA.crowdZ) + 8 + Math.random() * 18,
+    PLAZA.crowdZ + (Math.random() - 0.5) * 28,
+  );
+  scene.add(light);
+  concertBursts.push({ light, left: 0.35 + Math.random() * 0.25 });
+  if (concertBursts.length > 8) {
+    const drop = concertBursts.shift()!;
+    scene.remove(drop.light);
+    drop.light.dispose();
+  }
+}
+
+const ending = new Ending({
+  events,
+  play: (id) => audio.score.play(id as 'ending'),
+  concert: () => {
+    concertLive = true;
+    concertWhaleCued = false;
+    concertWhale ??= findConcertWhale();
+    teleport(PLAZA.x, world.heightAt(PLAZA.x, PLAZA.heroZ), PLAZA.heroZ, 0);
+    area.npcs.find((n) => n.def.id === 'cup-gnome')?.bubble('There he is.');
+    for (const n of area.npcs) {
+      if (n.hidden) continue;
+      const d = Math.hypot(n.pos.x - PLAZA.x, n.pos.z - PLAZA.crowdZ);
+      if (d > 140) continue;
+      n.pos.x += (PLAZA.x - n.pos.x) * 0.4;
+      n.pos.z += (PLAZA.crowdZ - n.pos.z) * 0.4;
+      n.pos.y = world.heightAt(n.pos.x, n.pos.z);
+      n.object.position.copy(n.pos);
+    }
+  },
+  concertTick: (t, dt) => {
+    if (!concertLive) return;
+    const gy = world.heightAt(PLAZA.x, PLAZA.crowdZ);
+    concertLook.set(PLAZA.x, gy + 4, PLAZA.crowdZ);
+    const u = t * t * (3 - 2 * t);
+    const hero = controller.pos;
+    const startA = Math.atan2(hero.x - concertLook.x, hero.z - concertLook.z);
+    const endA = Math.PI * 0.15;
+    const a = startA + (endA - startA) * u;
+    const dist = 11 + u * 7;
+    const h = 3.5 + u * 5;
+    concertCam.set(concertLook.x + Math.sin(a) * dist, concertLook.y + h, concertLook.z + Math.cos(a) * dist);
+    camera.position.copy(concertCam);
+    camera.lookAt(concertLook);
+    if (Math.random() < dt * 2.2) spawnConcertBurst();
+    for (let i = concertBursts.length - 1; i >= 0; i--) {
+      concertBursts[i].left -= dt;
+      if (concertBursts[i].left <= 0) {
+        scene.remove(concertBursts[i].light);
+        concertBursts[i].light.dispose();
+        concertBursts.splice(i, 1);
+      }
+    }
+    if (!concertWhaleCued && t > 0.88 && PRESENT_MODELS.has('whale')) {
+      concertWhaleCued = true;
+      concertWhale ??= findConcertWhale();
+      if (concertWhale) concertWhale.visible = true;
+    }
+  },
+  credits: (lines, onContinue) => {
+    concertLive = false;
+    for (const b of concertBursts) { scene.remove(b.light); b.light.dispose(); }
+    concertBursts.length = 0;
+    hud.credits(lines, onContinue);
+  },
+  onPlus: () => { newGamePlus = true; combat.beginPlus(); hud.announce('New Game+'); save.write(snapshot()); },
+});
+function startNewGame(): void {
+  save.clear();
+  freshStart = true;
+  hud.setPress('CLICK TO ENTER THE FOG');
+  hud.setSavePresent(false);
+}
+hud.setOnNewGame(startNewGame);
+hud.setSavePresent(save.has());
+events.on('zone', () => save.write(snapshot()));
+events.on('quest', () => save.write(snapshot()));
+
 window.addEventListener('keydown', (e) => {
   // (Held keys repeat: a held digit would pick choice after choice, a held I would flicker the bag.)
   if (e.repeat) return;
+  if (e.code === 'KeyN' && !input.locked) { startNewGame(); return; }
   const digit = /^Digit([1-9])$/.exec(e.code);
   if (digit && hud.pickChoice(Number(digit[1]))) return;
+  if (e.code === 'KeyJ' && hud.panel === 'none') { openPanel(() => hud.journal(adventures.quests.journal())); return; }
   if (e.code === 'KeyI') {
     if (hud.panel === 'inventory') closePanel();
     else if (hud.panel === 'none') openPanel(() => hud.inventoryPanel());
@@ -370,8 +630,8 @@ function interactTarget(): { kind: 'loot'; take: () => void; label: string } | {
   return null;
 }
 
-/** Sends a companion home: off the scene, back at their post (the hire hid it), hireable again. */
-function dismiss(c: Companion): void {
+/** Sends a companion home: off the scene, back at their post (the hire hid it), hireable again. `fell`: beaten to 0 HP. */
+function dismiss(c: Companion, fell = false): void {
   companions.splice(companions.indexOf(c), 1);
   scene.remove(c.rig.root, c.rig.trailObject);
   const post = area.npcs.find((n) => n.def.id === c.def.id);
@@ -379,7 +639,7 @@ function dismiss(c: Companion): void {
   hud.setCompanions(companions.map((x) => x.def.name));
   hud.unhire(c.def.id);
   audio.click();
-  hud.announce(`${c.def.name} goes home`);
+  hud.announce(fell ? `${c.def.name} went home` : `${c.def.name} goes home`);
   events.emit({ kind: 'trade', what: 'dismiss', item: c.def.id });
 }
 
@@ -400,6 +660,9 @@ function pressF(): void {
 }
 
 const focus = new Vector3();
+/** Where the camera looks on the ground (Tab's "in front"), and the locked-on target's middle. */
+const lookAhead = new Vector3();
+const lockAt = new Vector3();
 game
   .add({
     update(dt) {
@@ -411,6 +674,8 @@ game
         if (input.locked && input.justPressed(`Digit${i + 1}`)) switchTo(i);
       }
       if (input.locked && input.justPressed('KeyF')) pressF();
+      // Tab: lock on to the nearest enemy in front of the camera, or let go.
+      if (input.locked && input.justPressed('Tab')) combat.toggleLock(tpc.forward(lookAhead));
       combat.update(dt, {
         attack: input.locked && input.mouseJustPressed(0),
         heavyHeld: input.locked && input.mouseDown(2),
@@ -422,12 +687,22 @@ game
       const move = input.locked && !combat.busy && combat.charging === 0 ? tpc.moveToWorld(input.moveAxis()) : { x: 0, z: 0 };
       const space = input.locked && input.justPressed('Space');
       adventures.update(dt);
+      worldState.setShards(inventory.shards);
+      worldState.setLevel(progress.level);
+      worldState.setCompanions(companions.length);
+      story.update(dt);
+      playTime += dt;
+      shopClock += dt;
+      if (shopClock >= 600) { shopClock = 0; shopLeft.clear(); }
+      hoardGlints.update(dt);
+      save.tick(dt, snapshot);
+      if (input.locked) audio.score.zone(placeZone());
       controller.speedScale = combat.webbed > 0 ? 0 : combat.slowed > 0 ? 0.6 : combat.mired > 0 ? 0.55 : 1;
       if (adventures.riding) { if (space) adventures.leaveBoat(); }
       // Driving the carriage: W/S and A/D take the reins, Space climbs down.
       else if (CARRIAGE.driving) {
         if (space) { CARRIAGE.driving = false; CARRIAGE.speed = 0; controller.vel.y = 5; controller.mode = 'air'; }
-        else CARRIAGE.drive(input.locked ? (input.isDown('KeyW') ? 1 : 0) - (input.isDown('KeyS') ? 1 : 0) : 0, input.locked ? (input.isDown('KeyA') ? 1 : 0) - (input.isDown('KeyD') ? 1 : 0) : 0, dt);
+        else CARRIAGE.drive(input.locked ? (input.isDown('KeyW') ? 1 : 0) - (input.isDown('KeyS') ? 1 : 0) : 0, input.locked ? (input.isDown('KeyD') ? 1 : 0) - (input.isDown('KeyA') ? 1 : 0) : 0, dt);
         if (CARRIAGE.driving) pinToCarriage();
       }
       // In a giant's fist: no moving until thrown.
@@ -473,6 +748,8 @@ game
         const strike = c.update(dt, playerPos, controller.yaw, targets);
         if (strike !== null) { combat.companionStrike(strike, c.def.hire!.atk); audio.swing(false); }
       }
+      // Beaten down to 0 HP by the mobs, a companion leaves the fight and goes home.
+      for (let i = companions.length - 1; i >= 0; i--) if (companions[i].down) dismiss(companions[i], true);
       hud.setStamina(controller.stamina, CONTROLLER.maxStamina);
       // The F prompt, ten times a second (pressing F looks again at once).
       interactIn -= dt;
@@ -489,6 +766,22 @@ game
       if (!adventures.riding && !CARRIAGE.driving && !game.paused && drawPos.distanceToSquared(prevPos) < 16) drawPos.lerpVectors(prevPos, drawPos, Math.min(1, alpha));
       rig.root.position.copy(drawPos);
       rig.root.rotation.y = yawToRotation(controller.yaw);
+      if (controller.mode === 'ground') {
+        const e = 0.8;
+        const gx = world.heightAt(drawPos.x + e, drawPos.z) - world.heightAt(drawPos.x - e, drawPos.z);
+        const gz = world.heightAt(drawPos.x, drawPos.z + e) - world.heightAt(drawPos.x, drawPos.z - e);
+        const along = (gx * Math.cos(controller.yaw) + gz * Math.sin(controller.yaw)) / (2 * e);
+        const side = (gx * Math.sin(controller.yaw) - gz * Math.cos(controller.yaw)) / (2 * e);
+        const k = Math.min(1, dt * 8);
+        slopePitch += (Math.max(-0.17, Math.min(0.17, -along)) - slopePitch) * k;
+        slopeRoll += (Math.max(-0.1, Math.min(0.1, side * 0.5)) - slopeRoll) * k;
+      } else {
+        const k = Math.min(1, dt * 8);
+        slopePitch += (0 - slopePitch) * k;
+        slopeRoll += (0 - slopeRoll) * k;
+      }
+      rig.root.rotation.x = slopePitch;
+      rig.root.rotation.z = slopeRoll;
       const airborne = controller.mode === 'air' || controller.mode === 'fly';
       if (wasAirborne && !airborne) landedAt = performance.now() / 1000;
       wasAirborne = airborne;
@@ -544,7 +837,8 @@ game
         wasLocked = false;
       } else {
         if (!wasLocked) { endOrbit(); tpc.snapTo(focus); wasLocked = true; }
-        tpc.update(focus, dt);
+        // Locked on: the camera eases round to keep the hero and the target in frame (not during the plaza concert).
+        if (ending.phase !== 'concert') tpc.update(focus, dt, combat.lockPoint(lockAt));
         // `?cam=x,y,z` (debug) pins the camera at a world position looking at the `face` point.
         if (camParam) { camera.position.set(camParam[0], camParam[1], camParam[2]); const fx = faceParam ? faceParam[0] : SPAWN.x; const fz = faceParam ? faceParam[1] : SPAWN.z; camera.lookAt(fx, world.heightAt(fx, fz) + 1.2, fz); }
         // Sizzlin' Slowness: the world leans a little and sways while the lean has hold of you.
@@ -552,6 +846,11 @@ game
         if (Math.abs(tilt) > 1e-4) camera.rotateZ(tilt);
       }
       playerPos.set(controller.pos.x, controller.pos.y, controller.pos.z);
+      // The ground's level of detail follows the camera; its splat shader's clock runs with the frame.
+      terrain.update(camera.position);
+      GROUND_UNIFORMS.uTime.value += dt;
+      audio.setListener(camera.position.x, camera.position.y, camera.position.z, tpc.yaw);
+      ending.update(dt);
       sky.update(dt, camera.position);
       moonFace.update(dt);
       // (Strong over the church; full over the Dragon's Vale, where the reel's aurora hangs.)
@@ -576,12 +875,21 @@ game
       atmosphere.group.visible = !realm?.indoors;
       // Each world has its own grade (bloom, saturation, lift); the renderer blends toward it.
       renderer.setLook(LOOKS[air?.look ?? realm?.id ?? 'island'] ?? LOOKS.island);
+      // (Right after a teleport the new sky is there at once: Sky.setPreset.)
       sky.setPreset(SKIES[realm?.id ?? 'island'] ?? SKIES.island);
-      // A realm with a sky of its own (the kingdom, the frog's dream) hides the island's moon, stars and aurora.
-      sky.group.visible = skyEvents.group.visible = !realm?.ownSky;
-      // Yung Lean's kingdom has its own music (an underwater arrival, a hum, a slow beat).
-      const inKingdom = realm?.id === 'galaxy';
-      if (inKingdom !== wasInKingdom) { audio.kingdom(inKingdom); wasInKingdom = inKingdom; }
+      // A realm with a sky of its own (the kingdom, the frog's dream) hides the island's moon, stars and aurora; under
+      // the lake the island dome shows only the lake's murk (SKIES.sunken) and none of the sky's apparitions show.
+      sky.group.visible = !realm?.ownSky;
+      skyEvents.group.visible = !realm?.ownSky && !realm?.underwater;
+      // Its water and polished floors reflect the place's own sky (the kingdom's darkens with its night; the island's
+      // is its dome's), the cloud sea lies at the place's own level in the place's own air (none under the lake or
+      // indoors), and the map shows the place.
+      const zone = (realm?.id ?? 'island') as Zone;
+      const realmSky = zone === 'galaxy' ? kingdomSkyColors(kingdomNight.value) : REALM_SKY[zone] ?? null;
+      sky.setReflection(realmSky);
+      area.clouds.setLevel(CLOUD_LEVEL[zone]);
+      area.clouds.setAir(realmSky?.horizon ?? null);
+      minimap.setZone(realm ?? null, world);
       bubbles.update(dt, camera.position);
       if (weather.update(dt, playerPos, world.ceilingAt(playerPos.x, playerPos.z, playerPos.y) < playerPos.y + 40) > 0) sky.flash = 1;
       const zl = ZONE_LIGHT[district ? 'lean' : realm?.id ?? 'island'] ?? ZONE_LIGHT.island;
@@ -606,10 +914,21 @@ game
       fill.position.lerpVectors(fillFixed, fillCam, light.cameraFill);
       fill.target.position.copy(playerPos);
       hud.setLocked(input.locked);
-      if (input.hold && !audio.suspended) { input.hold = false; hud.setPress('CLICK TO ENTER THE FOG'); }
+      if (input.hold && !audio.suspended) {
+        input.hold = false;
+        const hasSave = save.has() && !freshStart;
+        hud.setPress(hasSave ? 'CLICK TO CONTINUE · N NEW GAME' : 'CLICK TO ENTER THE FOG');
+        hud.setSavePresent(hasSave);
+      }
       if (titleMusic && input.locked) { audio.title(false); titleMusic = false; }
+      if (input.locked && !resumed && !debugAt) {
+        resumed = true;
+        if (!freshStart) { const stored = save.load(); if (stored) applySave(stored); }
+      }
       game.paused = !input.locked;
       minimap.draw(controller.pos.x, controller.pos.z, tpc.yaw, combat.enemies.map((e) => ({ x: e.pos.x, z: e.pos.z, alive: e.alive, aggro: e.aggro, boss: !!e.def.boss })), inventory.reveals(), area.npcs.map((n) => ({ x: n.pos.x, z: n.pos.z })));
+      // The fight's effects run on real time (they keep moving through a hit-stop), after the camera has moved.
+      combatFx.update(dt, camera);
       renderer.render(scene, camera);
     },
   });
@@ -620,6 +939,8 @@ declare global {
     __ginseng: {
       scene: Scene; camera: PerspectiveCamera; terrain: Terrain; world: World['heights']; area: World; sky: Sky; controller: typeof controller;
       party: Party<(typeof ROSTER)[number]>; tpc: ThirdPersonCamera; input: Input; game: Game; renderer: Renderer; combat: CombatSystem;
+      /** The fight's pooled effects (live counts: `fx.live`). */
+      fx: CombatFx;
       inventory: Inventory; hud: Hud; companions: Companion[]; audio: Audio;
       /** Quests and side adventures; F and its current target (headless checks press F without pointer lock). */
       adventures: Adventures; pressF: () => void; interactTarget: typeof interactTarget;
@@ -627,7 +948,8 @@ declare global {
       rigs: typeof rigs;
       /** The event bus: what happened (kills, hurts, zones, talks, loot, trades, quests, feats). */
       events: Events;
+      ending: Ending; save: Save; progress: Progress;
     };
   }
 }
-window.__ginseng = { scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs, events };
+window.__ginseng = { scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, fx: combatFx, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs, events, ending, save, progress };

@@ -11,7 +11,10 @@ export interface Follower {
   yaw: number;
   /** Waiting where it stands: settled at its place while you stood still. It keeps that place while you stand or walk straight up to it. */
   held: boolean;
-  /** At your side: waiting, with you standing within sideRange and facing it — close enough to send home. */
+  /**
+   * At your side: waiting where it settled at its slot, with you standing within sideRange (and nearer than its slot
+   * would stand it: you came up to it), facing it — close enough to send home.
+   */
   beside: boolean;
   /** Let go as you walked on: back to its place at a run. */
   hurry: boolean;
@@ -25,7 +28,12 @@ export const SIDE_RANGE = 2.5;
 /** Standing: slower than this. */
 const STILL = 0.5;
 /** At its place: within this of its slot (the follow's deadband). */
-const SETTLED = 0.5;
+export const SETTLED = 0.5;
+/**
+ * You must stand this much nearer to a waiting companion than its own place could ever put it (its slot's distance less
+ * the deadband) for it to be "at your side": you walked up to it, it did not just come to rest near you.
+ */
+const BESIDE_MARGIN = 0.15;
 /** A hold lets go beyond this (slot 2 stands 4.2 m out). */
 const HOLD_RANGE = 5.5;
 /** Walking at it: your heading within 30 degrees of it from afar (slot 1 stands 42 degrees off, so a plain start lets it go), 75 once close. */
@@ -62,7 +70,10 @@ export function followStep(f: Follower, dt: number, hero: FollowedHero, slot: { 
   // Never one still travelling to its slot: the hold is taken up only once it stands there and you stand too.
   f.held = was ? d < HOLD_RANGE && (still || toward) : still && gd <= SETTLED;
   if (was && !f.held && !still) f.hurry = true;
-  f.beside = f.held && still && d < SIDE_RANGE && dx * c + dz * s > COS_FACED * d;
+  // (Slot 1 stands 2.97 m ahead of you on the left, inside your facing, and may settle up to the deadband short of it:
+  // resting there, it is not at your side until you step up to it.)
+  const reach = Math.min(SIDE_RANGE, Math.hypot(slot.x, slot.z) - SETTLED - BESIDE_MARGIN);
+  f.beside = f.held && still && d < reach && dx * c + dz * s > COS_FACED * d;
   // Stood by and faced, it turns to you.
   if (f.beside) f.yaw = Math.atan2(-dz, -dx);
   if (gd <= SETTLED) f.hurry = false;
@@ -75,7 +86,15 @@ export function followStep(f: Follower, dt: number, hero: FollowedHero, slot: { 
   return { moving: true, speed };
 }
 
-/** A hired NPC that follows the player and fights nearby enemies. */
+/** After a blow, a companion is covered this long (one volley of orbs does not empty it at once). */
+const GUARD = 0.35;
+/** A blow of this share of its max HP or more throws the whole body (the rig's full reaction); less is a flinch. */
+const BIG_HIT = 0.15;
+/** Out of a fight this long, it gets its breath back: this share of its max HP a second. */
+const REST_AFTER = 4;
+const REST_RATE = 0.03;
+
+/** A hired NPC that follows the player, fights nearby enemies, and is fought in return (CombatSystem's allies). */
 export class Companion {
   readonly rig: Rig;
   readonly pos = new Vector3();
@@ -96,6 +115,11 @@ export class Companion {
   private swing = 0;
   private swingTime = 0;
   private attacking = false;
+  /** Seconds of cover left after a blow, since the last blow (and whether it was big), and since it last had a foe in mind. */
+  private guard = 0;
+  private hurtT = Infinity;
+  private bigHurt = false;
+  private calm = 0;
   /** Where you stood last step, for your speed and heading. */
   private lastPlayer: { x: number; z: number } | null = null;
   private readonly follow: { x: number; z: number };
@@ -107,8 +131,29 @@ export class Companion {
     this.follow = followSlot(slot);
   }
 
+  /**
+   * An enemy's blow (CombatSystem): its HP falls by `amount` (never below 0) and its body is told (RigPose.hurt). At 0
+   * it is done fighting: main sends it home. False when the blow found it covered (GUARD) or already down.
+   */
+  hurt(amount: number): boolean {
+    if (this.hp <= 0 || this.guard > 0 || !(amount > 0)) return false;
+    this.hp = Math.max(0, this.hp - amount);
+    this.guard = GUARD;
+    this.hurtT = 0;
+    this.bigHurt = amount >= this.def.hire!.maxHp * BIG_HIT;
+    this.calm = 0;
+    return true;
+  }
+
+  /** Down at 0 HP: it leaves the fight (main sends it home). */
+  get down(): boolean {
+    return this.hp <= 0;
+  }
+
   /** Returns the enemy id to strike this step, or null. */
   update(dt: number, player: Vector3, playerYaw: number, enemies: CompanionTarget[]): number | null {
+    this.guard = Math.max(0, this.guard - dt);
+    this.hurtT += dt;
     let target: CompanionTarget | null = null;
     let bd = 14;
     for (const e of enemies) {
@@ -119,6 +164,10 @@ export class Companion {
     const hero: FollowedHero = { x: player.x, z: player.z, yaw: playerYaw, vx: 0, vz: 0 };
     if (this.lastPlayer && dt > 0) { hero.vx = (player.x - this.lastPlayer.x) / dt; hero.vz = (player.z - this.lastPlayer.z) / dt; }
     this.lastPlayer = { x: player.x, z: player.z };
+    // Out of the fight a while, it gets its breath back.
+    const max = this.def.hire!.maxHp;
+    if (target) this.calm = 0;
+    else if ((this.calm += dt) > REST_AFTER && this.hp > 0) this.hp = Math.min(max, this.hp + max * REST_RATE * dt);
     let moving = false;
     let speed = 5.2;
     const ranged = this.def.hire!.ranged;
@@ -159,7 +208,10 @@ export class Companion {
     }
     this.rig.root.position.copy(this.pos);
     this.rig.root.rotation.y = yawToRotation(this.yaw);
-    this.rig.animate({ mode: 'ground', speed: moving ? speed : 0, attack: this.attacking ? Math.min(1, this.swingTime / 0.5) : undefined, attackKind: 0 }, dt);
+    this.rig.animate({
+      mode: 'ground', speed: moving ? speed : 0, attack: this.attacking ? Math.min(1, this.swingTime / 0.5) : undefined, attackKind: 0,
+      hurt: this.hurtT < 1.2 ? { t: this.hurtT, big: this.bigHurt } : undefined,
+    }, dt);
     return strike;
   }
 }

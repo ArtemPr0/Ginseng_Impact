@@ -51,6 +51,31 @@ export function hasGrid(id: string): boolean {
 }
 
 /**
+ * Zeroes grid cells within `radius` metres of world (wx, wz) so a doorway stays walkable through an otherwise
+ * solid baked shell (the Moon Wyrm tower's cave mouth).
+ */
+export function carveGridOpening(f: GridFootprint, wx: number, wz: number, radius: number): GridFootprint {
+  const data = new Uint8Array(f.data);
+  const r2 = radius * radius;
+  for (let k = 0; k < f.nz; k++) {
+    for (let i = 0; i < f.nx; i++) {
+      const lx = f.minX + (i + 0.5) * f.cell;
+      const lz = f.minZ + (k + 0.5) * f.cell;
+      const c = Math.cos(f.rotY), s = Math.sin(f.rotY);
+      const gx = f.x + lx * c + lz * s;
+      const gz = f.z - lx * s + lz * c;
+      const dx = gx - wx, dz = gz - wz;
+      if (dx * dx + dz * dz > r2) continue;
+      const o = (k * f.nx + i) * 3;
+      data[o] = 0;
+      data[o + 1] = 255;
+      data[o + 2] = 0;
+    }
+  }
+  return { ...f, data };
+}
+
+/**
  * The baked collider of model `id` placed with its feet at (x, base, z), turned by `rotY` and scaled by `scale`
  * on top of the registry height. Null when the model has no grid (missing file, character).
  */

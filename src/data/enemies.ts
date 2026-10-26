@@ -1,7 +1,7 @@
 import type { BrainParams } from '../combat/EnemyBrain';
 import type { Element } from '../combat/Elements';
 
-export type EnemyKind = 'beast' | 'bucket' | 'crystalgolem' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity' | 'cyclops' | 'cyclops-lord' | 'blood-eye' | 'trip-wizard' | 'galaxy-knight' | 'mail-knight' | 'diamond-wizard' | 'fish-guard' | 'angler' | 'grave-skeleton';
+export type EnemyKind = 'beast' | 'bucket' | 'crystalgolem' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity' | 'cyclops' | 'cyclops-lord' | 'blood-eye' | 'trip-wizard' | 'galaxy-knight' | 'mail-knight' | 'diamond-wizard' | 'fish-guard' | 'angler' | 'grave-skeleton' | 'koi' | 'jellyfish';
 
 export type BossAttackKind = 'slam' | 'boulder' | 'roar' | 'volley' | 'summon' | 'blink' | 'roots' | 'sweep' | 'breath' | 'charge' | 'bite' | 'logthrow' | 'punch' | 'grab' | 'cupmortar' | 'cupvolley' | 'snowstorm' | 'web' | 'webdrop' | 'hop' | 'kaleido' | 'eyebeam' | 'mirror' | 'glare' | 'thorns' | 'rainbow' | 'diamond';
 
@@ -41,6 +41,8 @@ export interface EnemyDef {
   collapse?: boolean;
   /** Ignores the player until hit (then fights until it loses them). */
   neutral?: boolean;
+  /** Never fights back; still dies when hit (decorative flyers you can shoot). */
+  passive?: boolean;
   /** Wings that beat (a clip-less flyer): the root bone of each wing, how far (radians) and how often (Hz). */
   wings?: { right: string; left: string; amp: number; rate: number };
   /** Flying: never lower than this height above the ground under it (or above the hero, if higher), metres. */
@@ -128,7 +130,8 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
       { kind: 'hop', range: 22, windup: 0.9, recover: 1.3, weight: 2 },
       { kind: 'mirror', range: 30, windup: 1.2, recover: 1.4, weight: 1 },
     ],
-    drops: [{ itemId: 'third-eye', chance: 1 }, { itemId: 'moon-dew', chance: 1 }],
+    // (No Third Eye here: the quest graph hands it over once, on the first kill, data/quests.ts trip 'god'.)
+    drops: [{ itemId: 'moon-dew', chance: 1 }],
   },
   // The chapel on spider legs (DdmvaMvMvS4): it walks the sky over the west cliffs above the treetops, and when you
   // come near it spits webs that pin you where you stand and drops nets over where you are.
@@ -299,7 +302,28 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     kind: 'croc', name: 'Mire Crocodile', maxHp: 900, def: 45, atk: 95, speed: 4.2, element: 'tide', hover: 0, bodyRadius: 1.2, height: 0.7, leash: 16,
     brain: { aggroRange: 10, attackRange: 3.6, windup: 0.5, recover: 1.0, attackCooldown: 0.6 }, respawn: 60, shards: [8, 14], drops: [{ itemId: 'croc-hide', chance: 0.6 }],
   },
+  // Decorative flyers you can shoot: they circle their pools and never fight back.
+  koi: {
+    kind: 'koi', name: 'Flying Koi', maxHp: 80, def: 5, atk: 0, speed: 3.2, element: 'tide', hover: 0, bodyRadius: 0.55, height: 0.6,
+    flying: true, flyAbove: 3.5, passive: true, neutral: true, leash: 40,
+    brain: { aggroRange: 0, attackRange: 0, windup: 0.5, recover: 0.5, attackCooldown: 1 }, respawn: 45, shards: [2, 5],
+  },
+  jellyfish: {
+    kind: 'jellyfish', name: 'Dream Jelly', maxHp: 60, def: 0, atk: 0, speed: 1.4, element: 'astral', hover: 0, bodyRadius: 0.7, height: 1.2,
+    flying: true, flyAbove: 8, passive: true, neutral: true, leash: 80, scale: 3,
+    brain: { aggroRange: 0, attackRange: 0, windup: 0.5, recover: 0.5, attackCooldown: 1 }, respawn: 50, shards: [2, 4],
+  },
 };
+
+/** A closed circle of waypoints for a flyer that drifts around a pool. */
+function ring(cx: number, cz: number, r: number, n = 8): Array<readonly [number, number]> {
+  const out: Array<readonly [number, number]> = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    out.push([cx + Math.cos(a) * r, cz + Math.sin(a) * r]);
+  }
+  return out;
+}
 
 /**
  * Where every enemy lives. Rules of the layout: nothing hostile within ~45 m of the spawn and the village; bosses
@@ -377,4 +401,9 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   // the courtyard's walls.
   { kind: 'fish-guard', x: -1006, z: -60.5, exact: true, yaw: Math.PI / 2 }, { kind: 'fish-guard', x: -994, z: -60.5, exact: true, yaw: Math.PI / 2 },
   { kind: 'angler', x: -1000, z: -80, exact: true, yaw: Math.PI / 2 }, { kind: 'angler', x: -1000, z: -88, exact: true, yaw: Math.PI / 2 },
+  // Flying koi over the lily pond and the heart's middle tier; dream koi and jellies over the Frog King's dream.
+  ...[5, 7, 9, 11, 5, 7, 9].map((r, i) => ({ kind: 'koi' as const, x: -18 + Math.cos(i) * r, z: -18 + Math.sin(i) * r, exact: true, patrol: ring(-18, -18, r) })),
+  ...[4, 6.5, 9, 4, 7].map((r, i) => ({ kind: 'koi' as const, x: -22 + Math.cos(i * 1.3) * r, z: 35 + Math.sin(i * 1.3) * r, exact: true, patrol: ring(-22, 35, r) })),
+  ...[20, 35, 50, 28, 42, 18, 55, 30, 45, 22].map((r, i) => ({ kind: 'koi' as const, x: Math.cos(i * 0.7) * r, z: 2600 + Math.sin(i * 0.7) * r, exact: true, patrol: ring(0, 2600, r) })),
+  ...[25, 40, 55, 30, 48, 35, 60, 22, 50, 38].map((r, i) => ({ kind: 'jellyfish' as const, x: Math.cos(i * 0.9 + 1) * r, z: 2600 + Math.sin(i * 0.9 + 1) * r, exact: true, patrol: ring(0, 2600, r, 6) })),
 ];

@@ -88,6 +88,22 @@ for (let a = 0; a < grids.length; a++) {
     if (area >= 2) out.overlaps.push(`${A.id} @(${r1(A.f.x)},${r1(A.f.z)}) x ${B.id} @(${r1(B.f.x)},${r1(B.f.z)}): ${r1(area)} m2`);
   }
 }
+// Building footing tilt: sample ground at the four corners of each baked grid (own collider removed).
+out.buildingFoot = [];
+for (const { id, f } of grids) {
+  if (SKY_OK.test(id)) continue;
+  const c = Math.cos(f.rotY), s = Math.sin(f.rotY);
+  const x0 = f.minX, z0 = f.minZ, x1 = f.minX + f.nx * f.cell, z1 = f.minZ + f.nz * f.cell;
+  const corners = [[x0, z0], [x1, z0], [x0, z1], [x1, z1], [(x0 + x1) / 2, (z0 + z1) / 2]].map(([lx, lz]) => [
+    f.x + lx * c + lz * s, f.z - lx * s + lz * c,
+  ]);
+  const own = local(f.x, f.z, f.r + 0.5);
+  const gaps = without([...own, f], () => corners.map(([x, z]) => f.base - hw.heightAt(x, z, f.base + 0.6)));
+  const hi = Math.max(...gaps), lo = Math.min(...gaps);
+  if (hi - lo > 0.35 || Math.abs(hi) > 0.2 || Math.abs(lo) > 0.2) {
+    out.buildingFoot.push(`${id} @(${r1(f.x)},${r1(f.z)}) tilt ${r1(hi - lo)} gap ${r1(lo)}..${r1(hi)}`);
+  }
+}
 // Flora inside buildings, flora floating/buried.
 const floraGroups = []; G.scene.traverse((o) => { if (o.name?.startsWith('flora:')) floraGroups.push(o); });
 const floraFloat = {};

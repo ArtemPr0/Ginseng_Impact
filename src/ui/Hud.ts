@@ -41,14 +41,26 @@ const BANNER_MIN = 0.5;
  */
 export class BannerQueue {
   private readonly waiting: Array<{ text: string; seconds: number; priority: number }> = [];
-  /** The banner on screen: whether it has had its BANNER_MIN, and the cancel of the timer that will take it down. */
-  private current: { priority: number; settled: boolean; cancel: () => void } | null = null;
+  /** The banner on screen: its text, whether it has had its BANNER_MIN, and the cancel of the timer that will take it down. */
+  private current: { text: string; priority: number; settled: boolean; cancel: () => void } | null = null;
   /** In the breath between two banners. */
   private resting = false;
 
   constructor(private readonly io: { show(text: string): void; hide(): void; after(seconds: number, fn: () => void): () => void }) {}
 
   push(text: string, { seconds = 2.2, priority = 0 }: BannerOpts = {}): void {
+    // The same line again right behind itself (three webs in one volley, a warning repeated) shows once: a repeat of
+    // the last one waiting merges into it (keeping the higher priority), a repeat of the one on screen with nothing
+    // behind it is already being read.
+    const tail = this.waiting[this.waiting.length - 1];
+    if (tail?.text === text) {
+      if (priority <= tail.priority) return;
+      this.waiting.pop();
+      seconds = Math.max(seconds, tail.seconds);
+    } else if (!tail && this.current?.text === text) {
+      this.current.priority = Math.max(this.current.priority, priority);
+      return;
+    }
     // Behind everything waiting with the same or a higher priority, ahead of the lower ones.
     let i = this.waiting.length;
     while (i > 0 && this.waiting[i - 1].priority < priority) i--;
@@ -67,7 +79,7 @@ export class BannerQueue {
   private next(): void {
     const item = this.waiting.shift();
     if (!item) return;
-    const cur = { priority: item.priority, settled: false, cancel: () => {} };
+    const cur = { text: item.text, priority: item.priority, settled: false, cancel: () => {} };
     this.current = cur;
     this.io.show(item.text);
     const head = Math.min(BANNER_MIN, item.seconds);
@@ -90,6 +102,73 @@ export class BannerQueue {
   }
 }
 
+/** Seconds within which another hit on the same target joins its number ("312 ×2"). */
+export const NUMBER_MERGE = 0.25;
+/** The most numbers one target shows at once: the oldest gives way. */
+export const NUMBERS_PER_TARGET = 3;
+/** How a number is drawn: a plain hit, a word or a big number (reactions), a crit (bigger, moon-white, one pop). */
+export type NumberStyle = 'hit' | 'big' | 'crit';
+/** Seconds a number stays up (the CSS animations run as long). */
+const NUMBER_LIFE: Record<NumberStyle, number> = { hit: 0.65, big: 0.9, crit: 0.9 };
+
+export interface NumberIo<T> {
+  /** Puts a number up at (x, y) on screen. */
+  show(text: string, color: number, style: NumberStyle, x: number, y: number): T;
+  /** Another hit joined it: its new text, and its pop played again. */
+  bump(el: T, text: string): void;
+  remove(el: T): void;
+  after(seconds: number, fn: () => void): () => void;
+  /** The clock, in seconds. */
+  now(): number;
+}
+
+/**
+ * The damage numbers over the targets. Hits on one target that land within NUMBER_MERGE seconds of the last one join a
+ * single number that sums them ("312 ×2") and pops again, its life starting over; crits only join crits, words never
+ * join. A target shows at most NUMBERS_PER_TARGET numbers (the oldest goes); numbers without a target never merge.
+ * Pure: the HUD lends it the DOM and a timer.
+ */
+export class DamageNumbers<T> {
+  private readonly byTarget = new Map<number, Array<{ el: T; style: NumberStyle; sum: number | null; hits: number; at: number; cancel: () => void }>>();
+
+  constructor(private readonly io: NumberIo<T>) {}
+
+  push(value: number | string, color: number, x: number, y: number, { big = false, crit = false, target = null }: { big?: boolean; crit?: boolean; target?: number | null } = {}): void {
+    const style: NumberStyle = crit ? 'crit' : big ? 'big' : 'hit';
+    const now = this.io.now();
+    const list = target === null ? null : this.byTarget.get(target) ?? [];
+    const last = list?.[list.length - 1];
+    if (last && typeof value === 'number' && last.sum !== null && last.style === style && now - last.at <= NUMBER_MERGE) {
+      last.sum += value;
+      last.hits++;
+      last.at = now;
+      this.io.bump(last.el, `${last.sum} ×${last.hits}`);
+      last.cancel();
+      last.cancel = this.io.after(NUMBER_LIFE[style], () => this.drop(target, last));
+      return;
+    }
+    const live = { el: this.io.show(String(value), color, style, x, y), style, sum: typeof value === 'number' ? value : null, hits: 1, at: now, cancel: () => {} };
+    live.cancel = this.io.after(NUMBER_LIFE[style], () => this.drop(target, live));
+    if (!list || target === null) return;
+    list.push(live);
+    this.byTarget.set(target, list);
+    while (list.length > NUMBERS_PER_TARGET) { const old = list.shift()!; old.cancel(); this.io.remove(old.el); }
+  }
+
+  private drop(target: number | null, live: { el: T }): void {
+    this.io.remove(live.el);
+    if (target === null) return;
+    const list = this.byTarget.get(target);
+    if (!list) return;
+    const i = list.indexOf(live as (typeof list)[number]);
+    if (i >= 0) list.splice(i, 1);
+    if (!list.length) this.byTarget.delete(target);
+  }
+}
+
+/** The lock-on marker: a ring with four ticks and a dotted inner ring, in the rune colour (the CSS turns it in steps). */
+const LOCK_SVG = `<svg viewBox="0 0 36 36" width="36" height="36" aria-hidden="true"><circle cx="18" cy="18" r="11" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="18" cy="18" r="6.5" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="2 3"/><path d="M18 1.5v6M18 28.5v6M1.5 18h6M28.5 18h6" stroke="currentColor" stroke-width="1.5"/></svg>`;
+
 /** DOM HUD: Genshin layout, dark-fantasy skin. Panels (talk, shop, inventory) take the pointer. */
 export class Hud {
   private readonly root: HTMLElement;
@@ -100,8 +179,27 @@ export class Hud {
     hide: () => this.q('#hud-banner').classList.remove('show'),
     after: (seconds, fn) => { const id = window.setTimeout(fn, Math.round(seconds * 1000)); return () => window.clearTimeout(id); },
   });
+  private readonly numbers = new DamageNumbers<HTMLElement>({
+    show: (text, color, style, x, y) => {
+      const el = document.createElement('div');
+      el.className = style === 'hit' ? 'hud-num' : `hud-num ${style}`;
+      el.textContent = text;
+      el.style.color = hex(color);
+      el.style.left = `${Math.round(x + (Math.random() - 0.5) * 24)}px`;
+      el.style.top = `${Math.round(y)}px`;
+      this.q('#hud-numbers').appendChild(el);
+      return el;
+    },
+    // The pop again: the animation restarts from its first step.
+    bump: (el, text) => { el.textContent = text; el.style.animation = 'none'; void el.offsetWidth; el.style.animation = ''; },
+    remove: (el) => el.remove(),
+    after: (seconds, fn) => { const id = window.setTimeout(fn, Math.round(seconds * 1000)); return () => window.clearTimeout(id); },
+    now: () => performance.now() / 1000,
+  });
   /** What the HUD last drew (it only touches the DOM when something changed). */
   private interactText: string | null = null;
+  /** The lock-on ring (moved every frame while locked, so kept rather than looked up). */
+  private lockEl: HTMLElement | null = null;
   private interactShown = false;
   private timerShown = -2;
   private timerLabel = '';
@@ -116,12 +214,13 @@ export class Hud {
   private inventory: Inventory | null = null;
   private activeChar: CharacterDef | null = null;
   private companions: string[] = [];
+  private onNewGame: (() => void) | null = null;
 
   constructor(container: HTMLElement) {
     this.root = container;
     container.innerHTML = `
-      <div class="hud-prompt" id="hud-prompt"><div class="hud-subtitle">A SILENT KINGDOM BEYOND THE FOG</div><div class="hud-wordmark">GINSENG IMPACT</div><div class="hud-press" id="hud-press">CLICK TO ENTER THE FOG</div>
-        <div class="hud-controls">WASD move · SHIFT sprint · SPACE jump, again to fly (hold to rise) · C dive · X land · LMB attack · hold RMB heavy · E skill · Q burst · R dodge · F talk / loot · I inventory · 1 2 3 switch · ESC pause</div></div>
+      <div class="hud-prompt" id="hud-prompt"><div class="hud-subtitle">A SILENT KINGDOM BEYOND THE FOG</div><div class="hud-wordmark">GINSENG IMPACT</div><div class="hud-press" id="hud-press">CLICK TO ENTER THE FOG</div><button type="button" class="hud-new-game" id="hud-new-game" style="display:none">NEW GAME</button>
+        <div class="hud-controls">WASD move · SHIFT sprint · SPACE jump, again to fly (hold to rise) · C dive · X land · LMB attack · hold RMB heavy · E skill · Q burst · R dodge · TAB lock on · F talk / loot · I inventory · 1 2 3 switch · ESC pause</div></div>
       <div class="hud-boss panel" id="hud-boss"><div class="hud-boss-name" id="hud-boss-name"></div><div class="hud-boss-title" id="hud-boss-title"></div><div class="hud-boss-bar"><div class="hud-boss-fill" id="hud-boss-fill"></div></div></div>
       <div class="hud-shards panel" id="hud-shards"><span class="hud-shard-glyph">◆</span><span id="hud-shards-n">0</span><span class="hud-shards-pop" id="hud-shards-pop"></span></div>
       <div class="hud-active panel"><div class="hud-name" id="hud-name"></div><div class="hud-title" id="hud-title"></div>
@@ -135,12 +234,26 @@ export class Hud {
       <div class="hud-charge" id="hud-charge"><div class="hud-charge-fill" id="hud-charge-fill"></div></div>
       <div class="hud-interact" id="hud-interact"></div>
       <div class="hud-numbers" id="hud-numbers"></div>
+      <div class="hud-crosshair" id="hud-crosshair"></div>
+      <div class="hud-lock" id="hud-lock">${LOCK_SVG}</div>
+      <div class="hud-combo" id="hud-combo"></div>
       <div class="hud-banner" id="hud-banner"></div>
       <div class="hud-curtain" id="hud-curtain"></div>
-      <div class="hud-hint">LMB attack · RMB heavy · E skill · Q burst · R dodge · F interact · I bag</div>
+      <div class="hud-hint">LMB attack · RMB heavy · E skill · Q burst · R dodge · TAB lock · F interact · I bag</div>
       <div class="hud-quests" id="hud-quests"></div>
       <div class="hud-timer panel" id="hud-timer"><div class="hud-timer-label" id="hud-timer-label"></div><div class="hud-timer-time" id="hud-timer-time"></div></div>
       <div class="hud-panel panel" id="hud-dialog"></div>`;
+    this.q('#hud-new-game')?.addEventListener?.('click', (e) => { e.stopPropagation(); this.onNewGame?.(); });
+  }
+
+  /** Same handler as KeyN on the title screen. */
+  setOnNewGame(fn: () => void): void {
+    this.onNewGame = fn;
+  }
+
+  /** Shows the NEW GAME button when a save exists on the title screen. */
+  setSavePresent(has: boolean): void {
+    this.q('#hud-new-game').style.display = has ? 'block' : 'none';
   }
 
   // ---------- quests, buffs, the countdown ----------
@@ -278,15 +391,39 @@ export class Hud {
     if (el) { el.remove(); this.bars.delete(id); }
   }
 
-  damageNumber(x: number, y: number, text: string, color: number, big: boolean): void {
-    const el = document.createElement('div');
-    el.className = big ? 'hud-num big' : 'hud-num';
-    el.textContent = text;
-    el.style.color = hex(color);
-    el.style.left = `${Math.round(x + (Math.random() - 0.5) * 24)}px`;
-    el.style.top = `${Math.round(y)}px`;
-    this.q('#hud-numbers').appendChild(el);
-    window.setTimeout(() => el.remove(), big ? 900 : 650);
+  /**
+   * A number (or a word) over a hit at (x, y) on screen. Hits on the same `targetId` within 0.25 s join one number
+   * ("312 ×2"); a `crit` is bigger, moon-white, and pops once (see DamageNumbers).
+   */
+  damageNumber(x: number, y: number, value: number | string, color: number, big: boolean, targetId: number | null = null, crit = false): void {
+    this.numbers.push(value, color, x, y, { big, crit, target: targetId });
+  }
+
+  /** The combo counter over the hero card ("×3"), shown from the second hit in a row; each new count pops it. */
+  setCombo(count: number): void {
+    if (!this.changed('combo', String(count))) return;
+    const el = this.q('#hud-combo');
+    el.classList.toggle('show', count >= 2);
+    if (count < 2) return;
+    el.textContent = `×${count}`;
+    el.classList.remove('bump');
+    void el.offsetWidth;
+    el.classList.add('bump');
+  }
+
+  /** The 2 px moon dot in the middle of the screen, only while attacking or aiming. */
+  setCrosshair(on: boolean): void {
+    if (!this.changed('crosshair', on ? '1' : '0')) return;
+    this.q('#hud-crosshair').classList.toggle('show', on);
+  }
+
+  /** The lock-on rune ring over the locked target, at (x, y) on screen (projected like the enemy bars; every frame). */
+  lockMarker(x: number, y: number, visible: boolean): void {
+    const shown = this.changed('lock', visible ? '1' : '0');
+    if (!visible && !shown) return;
+    const el = (this.lockEl ??= this.q('#hud-lock'));
+    if (shown) el.style.display = visible ? 'block' : 'none';
+    if (visible) el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
   }
 
   /** A moment of black that fades away (a door or a portal: the jump to the other side happens behind it). */
@@ -310,16 +447,25 @@ export class Hud {
   }
 
   /** The portraits (1 2 3). `down` marks the fallen (0 HP): dimmed, a blood-red name, not switchable. */
-  setParty(defs: readonly CharacterDef[], activeIndex: number, down: readonly boolean[] = []): void {
+  setParty(defs: readonly CharacterDef[], activeIndex: number, down: readonly boolean[] = [], level = 1): void {
     this.q('#hud-party').innerHTML = defs
       .map((d, i) => `<div class="hud-portrait panel${i === activeIndex ? ' active' : ''}${down[i] ? ' down' : ''}" style="--el:${hex(ELEMENT_COLOR[d.element])}">
-        <div class="hud-portrait-key">${i + 1}</div><div class="hud-portrait-glyph">${glyph(d.element, hex(ELEMENT_COLOR[d.element]), 22)}</div><div class="hud-portrait-name">${d.name}</div></div>`)
+        <div class="hud-portrait-key">${i + 1}</div><div class="hud-portrait-glyph">${glyph(d.element, hex(ELEMENT_COLOR[d.element]), 22)}</div><div class="hud-portrait-name">${d.name}</div><div class="hud-portrait-lv">Lv ${level}</div></div>`)
       .join('');
     const d = defs[activeIndex];
     this.activeChar = d;
     this.q('#hud-name').innerHTML = `${glyph(d.element, hex(ELEMENT_COLOR[d.element]), 18)} ${d.name}`;
     this.q('#hud-name').style.color = hex(ELEMENT_COLOR[d.element]);
     this.q('#hud-title').textContent = d.title;
+  }
+
+  /** The journal (J): every quest, finished ones dimmed. */
+  journal(entries: Array<{ title: string; objective: string; done: boolean }>): void {
+    this.open('talk');
+    const rows = entries.map((e) => `<div class="hud-quest${e.done ? ' done' : ''}"><div class="hud-quest-title">${e.title}</div><div class="hud-quest-obj">${e.objective}</div></div>`).join('') || '<div class="empty">No quests yet.</div>';
+    const el = this.q('#hud-dialog');
+    el.innerHTML = `<div class="dlg-head"><div class="dlg-name">Journal</div><div class="dlg-title">The Silent Kingdom</div></div><div class="dlg-line">${rows}</div><div class="dlg-buttons"><button data-act="close">Close</button></div>`;
+    this.wire(el, () => this.actions!.onClose());
   }
 
   /** A companion sent home: their Hire button comes back. */
@@ -417,9 +563,16 @@ export class Hud {
     onLine?.(node);
     this.lastNode = { head, node };
     const el = this.q('#hud-dialog');
+    const lineNorm = node.line.replace(/\s+/g, ' ').trim().toLowerCase();
+    const choices = node.choices.map((c) => {
+      const label = c.label.replace(/\s+/g, ' ').trim();
+      // Never show a hub button that repeats the NPC's own line.
+      if (label && lineNorm.startsWith(label.toLowerCase())) return { ...c, label: '…' };
+      return c;
+    });
     el.innerHTML = `<div class="dlg-head"><div class="dlg-name">${head.name}</div><div class="dlg-title">${head.title}</div></div>
       <div class="dlg-line">“${node.line}”</div>
-      <div class="dlg-choices">${node.choices.map((c, i) => `<button data-act="c${i}"><span class="dlg-choice-n">${i + 1}</span>${c.label}</button>`).join('')}</div>`;
+      <div class="dlg-choices">${choices.map((c, i) => `<button data-act="c${i}"><span class="dlg-choice-n">${i + 1}</span>${c.label}</button>`).join('')}</div>`;
     this.wire(el, (act) => {
       const choice = node.choices[Number(act.slice(1))];
       const step = choice?.run ? choice.run() : 'close';
@@ -494,6 +647,16 @@ export class Hud {
       else if (act === 'drop') { this.actions!.onDrop(Number(b.dataset.uid)); this.renderInventory(); }
       else this.actions!.onClose();
     });
+  }
+
+  /** The ending: a stepped scroll of lines, then Continue. */
+  credits(lines: string[], onContinue: () => void): void {
+    this.root.querySelector('#hud-credits')?.remove();
+    const el = document.createElement('div');
+    el.id = 'hud-credits';
+    el.innerHTML = lines.map((l) => `<p>${l}</p>`).join('') + '<button type="button">Continue</button>';
+    el.querySelector('button')!.addEventListener('click', () => { el.remove(); onContinue(); });
+    this.root.append(el);
   }
 
   private wire(el: HTMLElement, handler: (act: string, button: HTMLButtonElement) => void): void {

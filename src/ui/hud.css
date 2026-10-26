@@ -30,6 +30,12 @@ body { font-family: var(--font-body); color: var(--moon); }
   text-shadow: 0 0 1px var(--electric), 0 0 2px var(--electric);
 }
 .hud-press { font-family: var(--font-title); font-size: 16px; letter-spacing: 0.2em; color: var(--electric); animation: blink 1s steps(2, end) infinite; }
+.hud-new-game {
+  font-family: var(--font-title); font-size: 14px; letter-spacing: 0.18em; color: var(--electric);
+  background: transparent; border: 1px solid var(--panel-border); border-radius: 2px; padding: 8px 18px;
+  cursor: pointer; pointer-events: auto; animation: none;
+}
+.hud-new-game:hover { box-shadow: inset 0 0 10px rgba(79, 124, 255, 0.35); }
 .hud-controls { font-size: 12px; letter-spacing: 0.08em; color: var(--cloth); opacity: 0.8; }
 @keyframes blink { 50% { opacity: 0.2; } }
 .hud-active { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); min-width: 260px; padding: 8px 16px 10px; text-align: center; }
@@ -45,6 +51,8 @@ body { font-family: var(--font-body); color: var(--moon); }
 .hud-portrait.down .hud-portrait-name { color: var(--blood); }
 .hud-portrait-key { position: absolute; top: 4px; left: 6px; font-family: var(--font-title); font-size: 11px; color: var(--cloth); }
 .hud-portrait-name { font-family: var(--font-title); font-size: 11px; letter-spacing: 0.08em; padding-bottom: 6px; color: var(--moon); text-transform: uppercase; }
+.hud-portrait-lv { position: absolute; bottom: 18px; font-size: 9px; letter-spacing: 0.12em; color: var(--rune); }
+.hud-quest.done { opacity: 0.45; }
 #hud:not(.locked) .hud-active, #hud:not(.locked) .hud-party { opacity: 0.35; }
 
 .hud-hp-wrap { position: relative; height: 10px; margin-top: 8px; background: var(--abyss); border: 1px solid rgba(223,230,255,0.18); }
@@ -67,10 +75,26 @@ body { font-family: var(--font-body); color: var(--moon); }
 .hud-num { position: absolute; font-family: var(--font-title); font-weight: 700; font-size: 22px; letter-spacing: 0.04em; text-shadow: 0 0 2px var(--void), 1px 1px 0 var(--void); animation: numpop 650ms steps(6, end) forwards; transform: translate(-50%, -50%); }
 .hud-num.big { font-size: 28px; animation-duration: 900ms; text-transform: uppercase; letter-spacing: 0.12em; }
 @keyframes numpop { 0% { transform: translate(-50%, -50%) scale(1.3); opacity: 1; } 100% { transform: translate(-50%, calc(-50% - 28px)) scale(1); opacity: 0; } }
+/* A crit: bigger, moon-white whatever the element, one stepped pop (the first 100 ms), then the same drift. */
+.hud-num.crit { font-size: 32px; letter-spacing: 0.06em; color: var(--moon) !important; animation: critpop 900ms steps(9, end) forwards; }
+@keyframes critpop { 0% { transform: translate(-50%, -50%) scale(1.6); opacity: 1; } 11% { transform: translate(-50%, -50%) scale(1); opacity: 1; } 100% { transform: translate(-50%, calc(-50% - 30px)) scale(1); opacity: 0; } }
+/* The combo counter over the hero card (above the F prompt), popping a step on each new count. */
+.hud-combo { position: absolute; left: 50%; bottom: 172px; transform: translateX(-50%); font-family: var(--font-title); font-weight: 700; font-size: 26px; letter-spacing: 0.08em; color: var(--moon); text-shadow: 0 0 2px var(--void), 1px 1px 0 var(--void); opacity: 0; transition: opacity 120ms steps(3, end); }
+.hud-combo.show { opacity: 1; }
+.hud-combo.bump { animation: combobump 160ms steps(2, end); }
+@keyframes combobump { 0% { transform: translateX(-50%) scale(1.3); } 100% { transform: translateX(-50%) scale(1); } }
+/* The 2 px moon crosshair dot, only while attacking or aiming. */
+.hud-crosshair { position: absolute; left: 50%; top: 50%; width: 2px; height: 2px; margin: -1px 0 0 -1px; background: var(--moon); opacity: 0; transition: opacity 80ms steps(2, end); }
+.hud-crosshair.show { opacity: 1; }
+/* The lock-on rune ring over the target, turned in eight steps. */
+.hud-lock { position: absolute; left: 0; top: 0; width: 36px; height: 36px; margin: -18px 0 0 -18px; display: none; pointer-events: none; color: var(--rune); }
+.hud-lock svg { display: block; animation: lockturn 2.4s steps(8, end) infinite; }
+@keyframes lockturn { to { transform: rotate(360deg); } }
 #hud.hurt::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 0 6px rgba(255,42,42,0.55); pointer-events: none; }
 .hud-banner { position: absolute; left: 50%; top: 26%; transform: translateX(-50%); font-family: var(--font-title); font-size: 30px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--moon); opacity: 0; transition: opacity 120ms steps(3, end); width: max-content; max-width: 80vw; white-space: normal; text-align: center; }
 .hud-banner.show { opacity: 1; }
 #hud:not(.locked) .hud-skill, #hud:not(.locked) .hud-hint { opacity: 0.35; }
+#hud:not(.locked) .hud-crosshair, #hud:not(.locked) .hud-lock, #hud.panel-open .hud-lock, #hud.panel-open .hud-combo { visibility: hidden; }
 
 .hud-subtitle { font-family: var(--font-title); font-size: 12px; letter-spacing: 0.35em; color: var(--cloth); }
 .hud-minimap { position: absolute; left: 24px; top: 24px; width: 160px; height: 160px; image-rendering: pixelated; }
@@ -146,3 +170,11 @@ body { font-family: var(--font-body); color: var(--moon); }
 .hud-curtain { position: fixed; inset: 0; background: var(--void, #05060f); opacity: 0; pointer-events: none; z-index: 5; }
 .hud-curtain.down { opacity: 1; transition: none; }
 .hud-curtain.lift { opacity: 0; transition: opacity 600ms steps(6, end); }
+
+#hud-credits {
+  position: fixed; inset: 0; z-index: 8; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; background: rgba(5, 6, 15, 0.82); pointer-events: auto;
+  font-family: var(--font-title); letter-spacing: 0.14em; color: var(--moon); text-align: center;
+}
+#hud-credits p { margin: 0; font-size: 18px; }
+#hud-credits button { margin-top: 18px; }

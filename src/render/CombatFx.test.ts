@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  Color, type InstancedMesh, type Mesh, MeshStandardMaterial, PerspectiveCamera, type WebGLProgramParametersWithUniforms,
+  Color, type InstancedMesh, type Mesh, MeshStandardMaterial, PerspectiveCamera, type ShaderMaterial, type WebGLProgramParametersWithUniforms,
   type WebGLRenderer, Vector3,
 } from 'three';
-import { COMBATFX_CLOCK, CombatFx, patchDissolve } from './CombatFx';
+import { COMBATFX_CLOCK, CombatFx, patchDissolve, TELEGRAPH_KEEP } from './CombatFx';
 
 const cam = new PerspectiveCamera();
 const P = new Vector3(1, 2, 3);
@@ -152,6 +152,53 @@ describe('telegraphs and the rest', () => {
     expect(fx.live.telegraphs).toBe(1);
     expect(fx.telegraphSlot(8)).toBe(-1);
     fx.update(2, cam);
+    expect(fx.live.telegraphs).toBe(0);
+  });
+
+  it('a driven telegraph holds its fill against the clock and follows its owner', () => {
+    const fx = new CombatFx();
+    fx.telegraph(3, 'cone', P, 0, 4, 0.5, 0xff2a2a, 1);
+    const mesh = fx.group.children.filter((o) => o.name === 'telegraph')[fx.telegraphSlot(3)] as Mesh;
+    const fill = () => (mesh.material as ShaderMaterial).uniforms.uFill.value as number;
+    expect(fx.driveTelegraph(3, 0.25)).toBe(true);
+    // A hit-stop: the clock runs on, the owner's step does not; the warning stands (and outlives its 0.5 s).
+    for (let i = 0; i < 4; i++) { fx.update(0.1, cam); expect(fx.driveTelegraph(3, 0.25)).toBe(true); }
+    fx.update(0.1, cam);
+    expect(fill()).toBe(0.25);
+    expect(fx.live.telegraphs).toBe(1);
+    // Moved and turned with what it warns of.
+    expect(fx.driveTelegraph(3, 0.6, new Vector3(5, 0, 5), Math.PI / 2)).toBe(true);
+    fx.update(1 / 60, cam);
+    expect(fill()).toBe(0.6);
+    expect(mesh.position.x).toBe(5);
+    expect(mesh.rotation.z).toBeCloseTo(-Math.PI / 2);
+  });
+
+  it('driven to 1 it shows the full sweep for a frame, then goes dark', () => {
+    const fx = new CombatFx();
+    fx.telegraph(4, 'ring', P, 0, 3, 1, 0xff2a2a);
+    fx.driveTelegraph(4, 1);
+    fx.update(1 / 60, cam);
+    expect(fx.live.telegraphs).toBe(1);
+    fx.update(1 / 60, cam);
+    expect(fx.live.telegraphs).toBe(0);
+    expect(fx.driveTelegraph(4, 0.5)).toBe(false);
+  });
+
+  it('endTelegraph puts it out at once; one nobody drives goes dark after TELEGRAPH_KEEP', () => {
+    const fx = new CombatFx();
+    fx.telegraph(5, 'disc', P, 0, 2, 1, 0x8b3dff);
+    fx.endTelegraph(5);
+    expect(fx.live.telegraphs).toBe(0);
+    fx.telegraph(6, 'disc', P, 0, 2, 0.2, 0x8b3dff);
+    fx.driveTelegraph(6, 0.1);
+    fx.update(TELEGRAPH_KEEP * 0.8, cam);
+    expect(fx.live.telegraphs).toBe(1);
+    fx.update(TELEGRAPH_KEEP * 0.4, cam);
+    expect(fx.live.telegraphs).toBe(0);
+    // Issued again (the owner's next drive found it gone): back on the clock until driven.
+    fx.telegraph(6, 'disc', P, 0, 2, 0.2, 0x8b3dff);
+    fx.update(0.25, cam);
     expect(fx.live.telegraphs).toBe(0);
   });
 

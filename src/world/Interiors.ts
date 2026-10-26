@@ -192,8 +192,10 @@ export function buildCryptRoom(api: RealmApi, teleport: Teleport): Interactable[
   api.realm(null);
 
   const D = CHAPEL_DOOR;
+  // Chapel sits on CHAPEL_Y (27); door prompt and exit teleport must match the snow pad, not flat GALAXY.y.
+  const chapelFloor = 27;
   return [
-    { pos: new Vector3(D.x, GALAXY.y, D.z), range: 3, zone: GALAXY.id, label: () => 'Go down to the crypt bar', act: () => teleport(exitAt.x, y, z + 4.2, -Math.PI / 2, R.name) },
-    { pos: exitAt, range: 1.4, zone: R.id, label: () => 'Climb back up to the chapel', act: () => teleport(D.x + 2.2, GALAXY.y, D.z - 2.4, -0.92) },
+    { pos: new Vector3(D.x, chapelFloor, D.z), range: 3, zone: GALAXY.id, label: () => 'Go down to the crypt bar', act: () => teleport(exitAt.x, y, z + 4.2, -Math.PI / 2, R.name) },
+    { pos: exitAt, range: 1.4, zone: R.id, label: () => 'Climb back up to the chapel', act: () => teleport(D.x + 2.2, chapelFloor, D.z - 2.4, -0.92) },
   ];
 }

@@ -1,3 +1,5 @@
+import type { Zone } from '../game/Events';
+
 /** Placement of everything in the first area. Units are metres; the causeway runs north (−z) along x = 0. */
 export const LAYOUT = {
   spawn: { x: 0, z: 59 },
@@ -117,6 +119,9 @@ export const VILLAGE = {
  * absolute height (a balcony perch). Loop NPCs start at the first point of their path instead.
  */
 export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: number }> = {
+  // The Stone Head (bodiless, LAYOUT.head): where you stand before its face, on the rise 4 m short of its chin (the
+  // head's collider starts at z -140), so its bubble hangs just in front of the mouth and 30 m reach the causeway's end.
+  'stone-head': { x: 0, z: -136 },
   // Round the island tavern's yard table (World.ts, x 22.9..26.1, z 70.2..71.4), on barrel stools.
   aldous: { x: 23.6, z: 72.3, dy: 0.02 }, mirren: { x: 25.4, z: 72.3, dy: 0.02 },
   'gob-a': { x: 23.6, z: 69.3, dy: 0.02 }, 'gob-b': { x: 25.4, z: 69.3, dy: 0.02 },
@@ -150,8 +155,8 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   'skeleton-lord': { x: 1042.15, z: -160, y: 24.53 }, 'court-knight': { x: 1042.3, z: -158.3, dy: 0.02 },
   'potion-brewer': { x: 1026, z: -127 },
   bartender: { x: 1173.0, z: 10.1 }, 'dock-knight': { x: 1181, z: 7.5, dy: 0.02 },
-  // On the quarter's floor (24, GALAXY.y): his chest is one model with him, and its collider would lift them both.
-  'plague-doctor': { x: 931, z: 124.6, y: 24 },
+  // On the snow flat at snowY(124.6) ≈ 26.1 (SNOW_FLATS plague-doctor); GroundQuery sets y.
+  'plague-doctor': { x: 931, z: 124.6 },
   // Down in the crypt bar (Interiors.ts, CRYPT_ROOM): two along the west counter facing the way in, Knuckles on a
   // barrel against the east counter facing them; Sir Gilt before the back counter's skulls.
   'crypt-red': { x: -1001.9, z: 1299.6 }, 'crypt-witch': { x: -1001.9, z: 1301.3 }, 'crypt-bones': { x: -998.7, z: 1300.6, dy: 0.02 },
@@ -290,6 +295,35 @@ export const TAVERN_ROOM: RealmDef = { id: 'tavern-room', name: 'The Candle Tave
 export const CRYPT_ROOM: RealmDef = { id: 'crypt-room', name: 'The Crypt Bar', x: -1000, z: 1300, y: 0, radius: 30, fog: { color: 0x0b0a10, density: 0.04 }, ownSky: true, indoors: true };
 export const REALMS: readonly RealmDef[] = [GALAXY, SUNKEN, TREEHOUSE_ROOM, DREAM, GRAVEYARD, VALE, TAVERN_ROOM, CRYPT_ROOM];
 
+/**
+ * The cloud sea's top layer in each place (world y; CloudSea lays its other two layers 9 and 22 m under it), or null
+ * where there is none: under the lake (the Sunken City's floor is at -48) and in the rooms. main.ts eases the clouds
+ * toward the level of the place the hero is in.
+ */
+export const CLOUD_LEVEL: Record<Zone, number | null> = {
+  island: LAYOUT.cloudSea.y, galaxy: -16, vale: -30, graveyard: -30, dream: -40,
+  sunken: null, treehouse: null, 'tavern-room': null, 'crypt-room': null,
+};
+
+/** A sky as reflected in water and polished ground (SKY_SHARED's horizon, mid, zenith and cloud colours). */
+export interface RealmSky { horizon: number; mid: number; zenith: number; cloud: number }
+/**
+ * Each realm's own sky for its water and gloss to reflect: main.ts blends SKY_SHARED toward the realm's, and back to
+ * the island dome's own colours on the island. The vale, the alley and the drowned city show the island dome with
+ * their SKIES preset, so theirs are the preset's colours (the drowned city's: the lake's teal murk); the dream's is its
+ * tie-dye nebula's violet; the rooms' their own dark. The kingdom's darkens with its night: Kingdom.ts
+ * kingdomSkyColors() works it out from the dome's own colours, so it has no entry here.
+ */
+export const REALM_SKY: Partial<Record<Zone, RealmSky>> = {
+  vale: { horizon: 0x13405a, mid: 0x0a2048, zenith: 0x030818, cloud: 0x3a6a9a },
+  graveyard: { horizon: 0x3a1460, mid: 0x5a2a28, zenith: 0x1a0c06, cloud: 0xd88a2a },
+  dream: { horizon: 0x5a2a8a, mid: 0x34125e, zenith: 0x10051f, cloud: 0xc860f0 },
+  sunken: { horizon: 0x0a3a4e, mid: 0x0a3a4e, zenith: 0x02101a, cloud: 0x0a3a4e },
+  treehouse: { horizon: 0x1e1236, mid: 0x120a26, zenith: 0x06040e, cloud: 0x3a2a5a },
+  'tavern-room': { horizon: 0x2a1408, mid: 0x180a04, zenith: 0x0a0402, cloud: 0x6a3a1c },
+  'crypt-room': { horizon: 0x1c1824, mid: 0x100c14, zenith: 0x060508, cloud: 0x3a3048 },
+};
+
 /** Portal ends on the island. */
 export const ISLAND_PORTALS = {
   /** The swirling portal at the end of the stepping stones by the face tree (DeQ-NnpvqF6). */
@@ -319,3 +353,85 @@ export const PADS: ReadonlyArray<{ x: number; z: number; r: number; y: number; b
   { x: -56, z: 19, r: 2, y: 1.5, blend: 2.5 },     // Old Moss fishing from the bank (above the river's waterline)
   { x: -8, z: -5, r: 4, y: 2.8, blend: 3 },       // the hamlet's west house on the eye's bank
 ];
+
+/**
+ * The hamlet knoll (the reference frame's village terrace, world-look-28): the ground within `r` of (x, z) is raised
+ * `rise` metres, blending back over `blend`. The eye bridge lands at `landing` (its north end) on the old bank level;
+ * from there the terrace climbs over `face` metres with a `riser`-high step at each of the `risers` distances from the
+ * landing (each ramped over ±`riserRun`), so the road from the bridge climbs steps (Terrain.knollAt). The risers sit
+ * 1.8 m apart so a 1 m stride never takes both, and clear of the hamlet's houses and torches (Terrain.test.ts).
+ */
+export const KNOLL = {
+  x: 12, z: -10, r: 18, blend: 10, rise: 2.2,
+  landing: { x: 0, z: -3, r: 1.5, face: 8 },
+  risers: [3.6, 5.4] as readonly number[], riser: 0.45, riserRun: 0.3,
+} as const;
+
+/**
+ * Where the island's relief (Terrain.reliefAt) leaves the ground exactly as the bare sculpt makes it. The rolling hills
+ * (and the rim lip) are off on these footprints, on the pads out to their blends (PADS), round every NPC's spot, on the
+ * footpaths' trodden core and on the water and its banks, and come back past each over a short ramp; everywhere else
+ * the island rolls in full (the old mask also flattened every blend 12 m further and every path 9 m out, which left a
+ * fifth of the land rolling). Discs {x, z, r}; rects [x0, x1, z0, z1]. A building added to the island gets its
+ * footprint here (its collider grid's extent, Colliders.gridFootprint, turned by its yaw), or it stands on a slope.
+ */
+export interface FlatDisc { x: number; z: number; r: number }
+export type FlatRect = readonly [number, number, number, number];
+export const FLATS: {
+  ramp: number; bank: number; margin: number; path: number;
+  water: { river: number; eye: number; tier: number; pond: number; stream: number };
+  discs: readonly FlatDisc[]; rects: readonly FlatRect[]; npcs: readonly FlatDisc[];
+} = {
+  /**
+   * The hills come back past a level edge over at least `ramp` metres, and over as many more as their height needs for
+   * the bank they make to rise no steeper than `bank` (the hero walks up to 1.2; a pit round a house would read as one).
+   */
+  ramp: 3,
+  bank: 0.5,
+  /**
+   * Level ground kept round every footprint (discs and rects) before the ramp begins: doorsteps, porches and the props
+   * set by a door stand on the bare sculpt too.
+   */
+  margin: 3,
+  /** Half-width of a footpath's trodden core (its soil, pathAt), level along the path: every path keeps its 0.35. */
+  path: 2.1,
+  /**
+   * The water's level cores (metres): the river's channel (from its centre line), the eye's rim (from its outline),
+   * the koi pools' stone rims and the lily pond's shore (from their edges), the stream's ravine (from its centre line).
+   * The carves themselves keep every pool's water in its basin and lift the river's banks; hills beyond only roll them.
+   */
+  water: { river: 9.5, eye: 2, tier: 1, pond: 2, stream: 5 },
+  discs: [
+    { x: 20, z: 63, r: 6 }, // the island tavern (its grid: 8.2 x 7.7 m)
+    { x: -24, z: 52, r: 3.5 }, // the skeletons' campfire ring and their barrels
+    { x: -46, z: 48, r: 6 }, // Pim's observatory (7.9 x 7.8 m)
+    { x: -47, z: -2, r: 9 }, // the face tree (13 x 10.8 m)
+    { x: -56, z: -10, r: 4 }, // the galaxy portal
+    { x: -40, z: -26, r: 9 }, // the mushroom tavern's tables and lantern poles (7.5 m out)
+    { x: 0, z: -146, r: 8.5 }, // the stone head (10.3 x 12.4 m, sunk 3 m)
+    // The hamlet knoll's top and its houses (the farthest, at (26, -14), reaches 18.9 m out).
+    { x: KNOLL.x, z: KNOLL.z, r: KNOLL.r + 2 },
+    // Model slots waiting for their GLB (they render nothing yet): the ruined nave, the frozen arch gate, the colossus
+    // statue by the dead wood, and the ruins.
+    { x: 18, z: -136, r: 10 },
+    { x: 58, z: -90, r: 5 },
+    { x: 10, z: -96, r: 6 },
+    ...LAYOUT.ruins.map((r) => ({ x: r.x, z: r.z, r: 3.5 })),
+    // The bridges' ends: each deck is set from the higher of its two banks (Walkways), so both stay as they were.
+    { x: LAYOUT.chasmBridge.ax, z: LAYOUT.chasmBridge.az, r: 3 },
+    { x: LAYOUT.chasmBridge.bx, z: LAYOUT.chasmBridge.bz, r: 3 },
+    { x: -64 - 11.3, z: -124, r: 3 }, // the gorge's stone bridge (Heart.ts, WORLD.gorge.x ± 11.3)
+    { x: -64 + 11.3, z: -124, r: 3 },
+  ],
+  rects: [
+    [-58, -6, 60, 80], // the village: its two rows of houses (6.4 x 5.5 m each) and the street between them
+    [47.8, 88.2, -31.3, -4.7], // the cathedral at 0.7 (38.4 x 24.6 m, its long axis east-west), its feet at a fixed y
+    [-72.2, -59.8, 48.1, 65.9], // the demon church (16.8 x 11.3 m, turned to face east)
+    [72.3, 93.7, 16.9, 47.1], // the wizard's tower on its rock (20.4 x 29.2 m)
+    [-100.5, -79.5, 18.4, 41.6], // the tree house (22.2 x 20 m, turned)
+    [26.5, 37.5, 63.5, 68.5], // the cloister's arches, out to where its height is sampled (z 68)
+    [-80, -54, 6, 12], // the witches' bridge over the stream (its 23 m deck, both banks)
+  ],
+  // Every NPC's spot on the island, 2 m round (realm anchors lie far outside the island's square).
+  npcs: Object.values(ANCHORS).filter((a) => Math.abs(a.x) < 200 && Math.abs(a.z) < 200).map((a) => ({ x: a.x, z: a.z, r: 2 })),
+};

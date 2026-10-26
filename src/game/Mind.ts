@@ -273,6 +273,14 @@ export function firstWords(text: string, max = 5): string {
   return words.length > max ? `${head}…` : head;
 }
 
+/** Last-resort hub label from a topic id (`maiden.topic.flowers` → "About the flowers"). */
+export function askFromId(id: string): string {
+  const tail = id.split('.').pop() ?? id;
+  const words = tail.replace(/[-_]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().trim();
+  if (!words || words === 'ask') return 'Ask about that.';
+  return `About the ${words}`;
+}
+
 /** A silent line for an NPC with nothing to say (or none in the book). */
 const SILENT: LineDef = { id: '', slot: 'greet', text: '…' };
 
@@ -483,14 +491,18 @@ export class Mind {
     return out;
   }
 
-  /** A topic's label: a plain navigation choice elsewhere in the book that leads to it, else its first words. */
-  private labelFor(lines: LineDef[], topic: LineDef, npcId: string, met: number): string {
+  /**
+   * A topic's hub label: the authored player prompt (`ask`), else a plain navigation choice elsewhere that leads
+   * to it, else a generic prompt from the topic id — never a snippet of the NPC's own text.
+   */
+  private labelFor(lines: LineDef[], topic: LineDef, _npcId: string, _met: number): string {
+    if (topic.ask?.trim()) return topic.ask.trim();
     for (const l of lines) {
       for (const c of l.choices ?? []) {
         if (c.to === topic.id && !c.action && c.label.trim().split(/\s+/).length >= 2) return c.label;
       }
     }
-    return firstWords(expand(topic.text, npcId, this.ctx, met));
+    return askFromId(topic.id);
   }
 
   private choice(c: Choice): ResolvedChoice {

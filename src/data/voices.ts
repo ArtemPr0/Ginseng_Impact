@@ -66,4 +66,4 @@ export const VOICES: Record<string, VoiceLine> = {
 };
 
 /** URL of a rendered line. */
-export const voiceUrl = (id: string): string => `/audio/${id}.mp3`;
+export const voiceUrl = (id: string): string => `${import.meta.env.BASE_URL}audio/${id}.mp3`;

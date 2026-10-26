@@ -14,11 +14,12 @@ function fetchGlb(file: string): Promise<GLTF | null> {
   let p = files.get(file);
   if (!p) {
     // One request: a missing file comes back as 404 (or the dev server's HTML page), anything else is the GLB.
-    p = fetch(`/models/${file}`)
+    const root = `${import.meta.env.BASE_URL}models/`;
+    p = fetch(`${root}${file}`)
       .then(async (r) => {
         const ct = (r.headers.get('content-type') ?? '').toLowerCase();
         if (!r.ok || ct.includes('text/html')) return null;
-        return loader.parseAsync(await r.arrayBuffer(), '/models/');
+        return loader.parseAsync(await r.arrayBuffer(), root);
       })
       .catch(() => null);
     files.set(file, p);

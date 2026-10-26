@@ -1,8 +1,12 @@
 import { Group, Vector3 } from 'three';
 import { describe, expect, it, vi } from 'vitest';
+import { ENEMY_DEFS } from '../data/enemies';
+import { VOICES } from '../data/voices';
 import type { Npc } from '../world/NPCs';
 import { Adventures, type AdventureDeps } from './Adventures';
+import type { DialogueNode } from './Dialogue';
 import { Events } from './Events';
+import type { Story } from './Story';
 
 // No GLB fetches in node: the sack's model stays unloaded.
 vi.mock('../models/ModelRig', () => ({ loadModelOrWarn: () => Promise.resolve(null), ModelRig: class {} }));
@@ -11,6 +15,9 @@ vi.mock('../models/ModelRig', () => ({ loadModelOrWarn: () => Promise.resolve(nu
 function npc(id: string, x: number, z: number, talkRange = 4.2): Npc {
   return { def: { id, name: id }, pos: new Vector3(x, 0, z), yaw: 0, hidden: false, talkRange, object: new Group() } as unknown as Npc;
 }
+
+/** Yung Lean off his throne, as the fight hands him back: alive until the test says otherwise. */
+interface FakeBoss { alive: boolean; returning: boolean }
 
 /** The hero at the origin, among `npcs` and doors (`range` 3 m) in their zones. */
 function setup(npcs: Npc[], doors: Array<{ x: number; z: number; zone: string | null; label: string }> = [], events?: Events) {
@@ -23,25 +30,35 @@ function setup(npcs: Npc[], doors: Array<{ x: number; z: number; zone: string | 
     moveNpcToZone: vi.fn(),
   };
   const quiet = () => {};
+  const bag: string[] = [];
+  const inventory = {
+    shards: 0,
+    add: (id: string) => { bag.push(id); },
+    has: (id: string) => bag.includes(id),
+    remove: (id: string) => { const i = bag.indexOf(id); if (i >= 0) bag.splice(i, 1); return i >= 0; },
+    spend: (n: number) => { if (inventory.shards < n) return false; inventory.shards -= n; return true; },
+  };
+  const boss: FakeBoss = { alive: true, returning: false };
+  const fight = { spawnBoss: vi.fn(() => boss), despawn: vi.fn() };
   const deps = {
     controller: { pos: new Vector3(0, 0, 0), yaw: 0, vel: new Vector3(), mode: 'ground', drainScale: 1 },
     world,
     hud: { announce: quiet, setQuests: quiet, setTimer: quiet },
     audio: { coins: quiet, loot: quiet, voice: () => Promise.resolve(0), slurp: quiet, cast: quiet, footstep: quiet },
-    inventory: { shards: 0, add: quiet, has: () => false, remove: () => true },
+    inventory,
     teleport: quiet,
     activeRig: () => ({ root: new Group() }),
     debuffs: () => [],
-    fight: { spawnBoss: () => { throw new Error('no fight here'); }, despawn: quiet },
+    fight,
     events,
   } as unknown as AdventureDeps;
-  return { a: new Adventures(deps), world, seat };
+  return { a: new Adventures(deps), world, seat, inventory, bag, boss, fight };
 }
 
-/** Croak into the sack the way the player does it: through his own conversation. */
+/** Croak into the sack the way the books do it: Brother Croak's 'In you go.' runs the dialogue world's bag-croak. */
 function bag(a: Adventures): void {
-  a.quests.set('croak', 'active');
-  a.talk('croak')!.choices.find((c) => c.label === 'Put him in the bag')!.run!();
+  a.quests.step('croak', 'active', a.wallet);
+  a.dw.bagCroak();
   expect(a.quests.stage('croak')).toBe('bagged');
 }
 
@@ -86,6 +103,116 @@ describe('Croak out of the sack', () => {
     expect(seat.root.visible).toBe(true);
     expect(world.moveNpcToZone).toHaveBeenCalledWith(croak, 'galaxy');
   });
+
+  it('is home when the sack goes down by his father', () => {
+    const croak = npc('croak', 50, 50);
+    const { a } = setup([croak, npc('frogking', 6, 0)]);
+    bag(a);
+    a.interact(null)!.act();
+    expect(a.quests.stage('croak')).toBe('returned');
+  });
+
+  it('is out of the world with his boulder after loading a save that has him in the sack, and back after one that has not', () => {
+    const croak = npc('croak', 50, 50);
+    const { a, seat } = setup([croak, FAR_KING]);
+    a.quests.restore({ croak: 'bagged' });
+    a.restored();
+    expect(croak.hidden).toBe(true);
+    expect(croak.object.visible).toBe(false);
+    expect(seat.root.visible).toBe(false);
+    a.quests.restore({ croak: 'active' });
+    a.restored();
+    expect(croak.hidden).toBe(false);
+    expect(croak.object.visible).toBe(true);
+    expect(seat.root.visible).toBe(true);
+  });
+
+  it('bags nobody unless his father has asked (the graph\'s step from active only)', () => {
+    const croak = npc('croak', 50, 50);
+    const { a, seat } = setup([croak, FAR_KING]);
+    a.dw.bagCroak();
+    expect(a.quests.stage('croak')).toBe('none');
+    expect(croak.hidden).toBe(false);
+    expect(seat.root.visible).toBe(true);
+  });
+});
+
+describe('The quests the adventures move', () => {
+  it('wakes from the dream into trip done, and never takes the slain god back', () => {
+    const { a } = setup([]);
+    a.dw.lick();
+    expect(a.dreamLeft).toBeGreaterThan(0);
+    a.wake();
+    expect(a.quests.stage('trip')).toBe('done');
+    a.quests.kill('dmt-entity');
+    expect(a.quests.stage('trip')).toBe('god');
+    a.wake();
+    expect(a.quests.stage('trip')).toBe('god');
+  });
+
+  it('pays the Frog God\'s eye into the bag once (the graph gives it; he no longer drops it)', () => {
+    const { a, bag: items } = setup([]);
+    a.quests.kill('dmt-entity');
+    a.quests.kill('dmt-entity');
+    expect(items).toEqual(['third-eye']);
+    expect(ENEMY_DEFS['dmt-entity'].drops?.map((d) => d.itemId)).not.toContain('third-eye');
+  });
+
+  it('picks the lost sound up into the bag, moving the quest and telling the bus', () => {
+    const events = new Events();
+    const loot: string[] = [];
+    events.on('loot', (e) => loot.push(e.item));
+    const { a, bag: items } = setup([], [], events);
+    a.foundSound();
+    expect(items).toEqual([]); // not before Yung Lean asked
+    a.quests.step('sound', 'active', a.wallet);
+    a.foundSound();
+    expect(a.quests.stage('sound')).toBe('found');
+    expect(items).toEqual(['mist-blade', 'lost-sound']);
+    expect(loot).toEqual(['lost-sound']);
+  });
+
+  it("pays Yung Lean's purse once, whether his death or the fight's end comes first", () => {
+    const { a, inventory, boss, fight } = setup([npc('yunglean', 1000, -74)]);
+    a.dw.challengeKing();
+    expect(fight.spawnBoss).toHaveBeenCalledTimes(1);
+    boss.alive = false;
+    a.quests.kill('rift-king'); // his death: the graph's 'crown' trigger pays
+    expect(inventory.shards).toBe(600);
+    a.update(3); // the fight ends: the same step again, for nothing
+    expect(fight.despawn).toHaveBeenCalledTimes(1);
+    expect(a.quests.stage('crown')).toBe('done');
+    expect(inventory.shards).toBe(600);
+    // A second win pays nothing.
+    boss.alive = true;
+    a.dw.challengeKing();
+    boss.alive = false;
+    a.quests.kill('rift-king');
+    a.update(3);
+    expect(inventory.shards).toBe(600);
+  });
+
+  it('pays the purse at the fight\'s end when nobody told the quests of his death', () => {
+    const { a, inventory, boss } = setup([npc('yunglean', 1000, -74)]);
+    a.dw.challengeKing();
+    boss.alive = false;
+    a.update(3);
+    expect(a.quests.stage('crown')).toBe('done');
+    expect(inventory.shards).toBe(600);
+  });
+});
+
+describe('Talking', () => {
+  it('talks through the Story once one is attached, and only to the rowers without one', () => {
+    const { a } = setup([]);
+    expect(a.talk('king')).toBeNull();
+    expect(a.talk('rowers')?.line).toBe(VOICES['rower-offer'].text);
+    const node: DialogueNode = { line: 'Kneel or do not.', choices: [] };
+    const open = vi.fn((id: string) => (id === 'king' ? node : null));
+    a.story = { open } as unknown as Story;
+    expect(a.talk('king')).toBe(node);
+    expect(open).toHaveBeenCalledWith('king');
+  });
 });
 
 describe('What the adventures announce', () => {
@@ -96,20 +223,18 @@ describe('What the adventures announce', () => {
     events.on('feat', (e) => feats.push(e.what));
     events.on('quest', (e) => steps.push(`${e.id}:${e.stage}`));
     const { a } = setup([npc('frogking', 2, 0)], [], events);
-    a.quests.set('croak', 'done');
-    a.quests.set('trip', 'done');
-    a.talk('frogking')!.choices.find((c) => c.label === '*lick*')!.run!();
+    a.dw.lick();
+    a.wake();
     a.talk('rowers')!.choices.find((c) => c.label === 'Hell yeah!')!.run!();
     expect(feats).toEqual(['lick', 'ale']);
-    expect(steps).toEqual(['croak:done', 'trip:done']);
-    expect(a.dreamLeft).toBeGreaterThan(0);
+    expect(steps).toEqual(['trip:done']);
     expect(a.aleLeft).toBeGreaterThan(0);
   });
 
   it('stays quiet without a bus', () => {
     const { a } = setup([npc('frogking', 2, 0)]);
-    a.quests.set('croak', 'done');
     expect(() => a.talk('rowers')!.choices.find((c) => c.label === 'Hell yeah!')!.run!()).not.toThrow();
+    expect(() => { a.dw.lick(); a.wake(); }).not.toThrow();
     expect(a.aleLeft).toBeGreaterThan(0);
   });
 });

@@ -1,18 +1,20 @@
 import { loadModelOrWarn, ModelRig, yawToRotation } from '../models/ModelRig';
 import { MissingModelPlaceholder } from '../models/Placeholder';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { Box3, Color, Group, type Object3D, Quaternion, type Sprite, Vector3 } from 'three';
+import { Box3, Color, Group, type HSL, type Mesh, type MeshStandardMaterial, type Object3D, Quaternion, type Sprite, SRGBColorSpace, Vector3 } from 'three';
 import { MODELS, type ModelDef } from '../data/models';
 import { glowSprite } from '../render/Glow';
 import { LeanBubble } from '../render/LeanBubble';
 import { patchTrippy } from '../render/Materials';
+import { patchDissolve } from '../render/CombatFx';
 import { EyeIris } from '../render/EyeIris';
 import type { EnemyDef } from '../data/enemies';
 import { PALETTE } from '../render/palette';
 import type { WorldQuery } from '../player/CharacterController';
-import { EnemyBrain, type EnemyState } from './EnemyBrain';
+import { type AttackTokens, EnemyBrain, type EnemyState } from './EnemyBrain';
 import type { BossAttack, BossAttackKind } from '../data/enemies';
-import { ELEMENT_COLOR, tickAura, type Aura } from './Elements';
+import { ELEMENT_COLOR, tickAura, type Aura, type Element } from './Elements';
+import { KNOCK_DECAY, lungePush, lungeRoom } from './Warnings';
 
 export type EnemyAction = { kind: 'melee' } | { kind: 'boss'; attack: BossAttackKind } | null;
 
@@ -24,13 +26,102 @@ export interface Afflictions { stun: number; confuse: number; brawl: number; slo
 
 let nextId = 1;
 
-/** Seconds the body stays before it shrinks away, when the death clip gives no better answer. */
+/** Seconds the body lies before it burns away, when the death clip gives no better answer. */
 const DEATH_HOLD = 1.4;
 const DEATH_HOLD_MAX = 4;
 /** A heap of bones lies a while before it crumbles away. */
 const HEAP_HOLD = 6;
+/** Seconds a dead body takes to burn away (CombatFx.patchDissolve's uniform runs 0 → 1). */
+export const DISSOLVE = 0.9;
 /** Getting up off a seat. */
 const STAND_UP = 1.4;
+/** How fast a body turns to whom it fights (rad/s): a mob whips round, a boss comes about slowly (but always faces you). */
+export const TURN_RATE = { mob: 7, boss: 3 } as const;
+/** A melee mob without an attack token waits this far past its reach, circling at this share of its pace. */
+export const TOKEN_HOLD = 1.5;
+const STRAFE = 0.3;
+/** A companion must stand this much nearer than whom an enemy fights now to draw it off (no flicking between two). */
+export const MARK_MARGIN = 1;
+/** How fast two aggro bodies standing in each other part (m/s, between them). */
+export const SEPARATION = 2;
+
+/** Whom an enemy can fight: a body's place (the hero's, or a companion's following them). */
+export interface Mark { x: number; y: number; z: number }
+
+/**
+ * Which of `marks` an enemy at (x, z) goes for: marks[0] is the hero, the rest companions. A companion draws it only
+ * within `aggro` and nearer than whom it fights now (`current`) by MARK_MARGIN; the hero always counts. A boss keeps
+ * to the hero (bosses face the hero).
+ */
+export function pickMark(x: number, z: number, marks: ReadonlyArray<{ x: number; z: number }>, current: number, aggro: number, boss: boolean, margin = MARK_MARGIN): number {
+  if (boss || marks.length < 2) return 0;
+  const far = (i: number) => Math.hypot(marks[i].x - x, marks[i].z - z);
+  let best = current > 0 && current < marks.length ? current : 0;
+  let bd = far(best);
+  if (best > 0 && bd > aggro) { best = 0; bd = far(0); }
+  for (let i = 0; i < marks.length; i++) {
+    if (i === best) continue;
+    const d = far(i);
+    if ((i === 0 || d <= aggro) && d < bd - margin) { best = i; bd = d; }
+  }
+  return best;
+}
+
+/** `yaw` turned toward `want` by at most `step` radians, the short way round (wrapped to ±π). */
+export function turnToward(yaw: number, want: number, step: number): number {
+  const d = Math.atan2(Math.sin(want - yaw), Math.cos(want - yaw));
+  const y = yaw + (Math.abs(d) <= step ? d : Math.sign(d) * step);
+  return Math.atan2(Math.sin(y), Math.cos(y));
+}
+
+/** A body a pack parts (separate): where it stands, its footprint's radius, and a nudge aside. */
+export interface Separable { readonly pos: { x: number; z: number }; readonly radius: number; shove(dx: number, dz: number): void }
+
+/**
+ * Parts every pair of `bodies` standing nearer than their radii together: they move apart at SEPARATION m/s between
+ * them, never past touching, the smaller giving the more way (a mob makes room for a boss, not the boss for it).
+ * Pairwise: for the few bodies in a fight (CombatSystem passes the aggro ones), not the whole map.
+ */
+export function separate(bodies: ReadonlyArray<Separable>, dt: number): void {
+  for (let i = 0; i < bodies.length; i++) {
+    const a = bodies[i];
+    for (let j = i + 1; j < bodies.length; j++) {
+      const b = bodies[j];
+      const reach = a.radius + b.radius;
+      let dx = b.pos.x - a.pos.x;
+      let dz = b.pos.z - a.pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d >= reach || reach <= 0) continue;
+      if (d < 1e-4) {
+        // Stood exactly on each other: part along a line of their own.
+        const t = i * 2.4 + j * 0.9;
+        dx = Math.cos(t);
+        dz = Math.sin(t);
+      } else {
+        dx /= d;
+        dz /= d;
+      }
+      const step = Math.min(reach - d, SEPARATION * dt);
+      const share = b.radius / reach;
+      a.shove(-dx * step * share, -dz * step * share);
+      b.shove(dx * step * (1 - share), dz * step * (1 - share));
+    }
+  }
+}
+
+const _edge = new Color();
+const _hsl: HSL = { h: 0, s: 0, l: 0 };
+
+/**
+ * The colour a body burns away in (the dissolve's edge, and the shock and sparks as it starts): its element's, lifted
+ * to half lightness at least so the dark ones (the fog's navy) still glow.
+ */
+export function dissolveEdge(element: Element): number {
+  const c = _edge.set(ELEMENT_COLOR[element]);
+  c.getHSL(_hsl, SRGBColorSpace);
+  if (_hsl.l < 0.5) c.setHSL(_hsl.h, _hsl.s, 0.5, SRGBColorSpace);
+  return c.getHex();
+}
 
 /** Where an enemy lives: its spot (which moves along a patrol route), facing, and route. */
 export interface EnemyHome { x: number; z: number; yaw?: number; patrol?: ReadonlyArray<readonly [number, number]>; sitY?: number }
@@ -121,6 +212,26 @@ export class Enemy {
   private heap: { t: number; bones: Array<{ b: Object3D; from: Quaternion; to: Quaternion; delay: number }>; tipAxis: Vector3; drop: number } | null = null;
   /** Death without a death clip (see topplePose): seconds into the topple, or -1. */
   private toppleT = -1;
+  /** Whom it fights: a companion's place (the object it was handed in `marks`), or null for the hero (marks[0]). */
+  private markRef: Mark | null = null;
+  /**
+   * The pack's attack tokens (CombatSystem hands them to the melee mobs): it takes one to wind up (EnemyBrain's
+   * canAttack), and without one it waits its turn just out of reach (TOKEN_HOLD), circling one way, then the other.
+   */
+  tokens: AttackTokens<Enemy> | null = null;
+  private readonly claim = (): boolean => !this.tokens || this.tokens.take(this);
+  private strafe = Math.random() < 0.5 ? -1 : 1;
+  private strafeIn = 2 + Math.random() * 2;
+  /**
+   * Burning away once dead (burnAway): its materials' dissolve uniforms (CombatFx.patchDissolve), how far it has burnt
+   * (0..1), whether it has begun, and the meshes whose shadows it took away (given back as it respawns).
+   */
+  private dissolve: { amounts: Array<{ value: number }>; k: number; on: boolean; shadows: Object3D[] } | null = null;
+  /** Set by the combat system: the burst as the body starts to burn away (a shock and sparks in its element's colour). */
+  onDissolve?: () => void;
+
+  /** New Game+ scales this body (1 in a first journey). Respawn and healing use it. */
+  hpScale = 1;
 
   constructor(readonly def: EnemyDef, readonly spawn: EnemyHome, private readonly world: WorldQuery) {
     this.brain = new EnemyBrain({ ...def.brain });
@@ -162,7 +273,7 @@ export class Enemy {
     this.object.add(this.placeholder.group);
   }
 
-  /** When the corpse began to shrink (deadFor), or -1. */
+  /** When a marker standing in for a model began to shrink (deadFor), or -1 (a model burns away instead: burnAway). */
   private shrinkFrom = -1;
   /** A giant eye's tilt pivot and living iris (def.eye). */
   private eyePivot: Group | null = null;
@@ -317,9 +428,22 @@ export class Enemy {
     return !this.returning && (s === 'chase' || s === 'windup' || s === 'attack' || s === 'recover');
   }
 
-  /** 0..1 of a lunge's push that still fits before the body would run into the player (a lunge stops at the target). */
-  private lungeRoom(dist: number): number {
-    return Math.max(0, Math.min(1, (dist - (this.def.bodyRadius + 1)) / 2.6));
+  /** Its footprint's radius on the ground (bodyRadius × scale): what a pack parts by (separate). */
+  get radius(): number {
+    return this.def.bodyRadius * (this.def.scale ?? 1);
+  }
+
+  /**
+   * Whom it fights: the place of the companion it went for (the very object handed to update in `marks`), or null for
+   * the hero (and in a brawl).
+   */
+  get mark(): Mark | null {
+    return this.markRef;
+  }
+
+  /** 0..1 of the wind-up behind it (0 outside one): its warning's fill. */
+  get windupFill(): number {
+    return this.brain.windupFill;
   }
 
   /** Gives up the chase: back to its spot, healing on the way (portals, leaving its territory, the player dying). */
@@ -332,8 +456,14 @@ export class Enemy {
     this.currentAttack = null;
   }
 
-  /** Advance AI + movement. Returns an action the combat system must resolve this step. */
-  update(dt: number, player: { x: number; y: number; z: number }): EnemyAction {
+  /**
+   * Advance AI + movement. `marks` are whom it may fight: the hero first, then the companions still standing (a brawl
+   * passes just its foe). It goes for the nearest within its aggro (pickMark: a boss keeps to the hero), held fast
+   * through a wind-up and its blow, turns to them at its turn rate and closes in. Returns an action the combat system
+   * must resolve this step, against `mark`.
+   */
+  update(dt: number, marks: ReadonlyArray<Mark>): EnemyAction {
+    const player = this.chooseMark(marks);
     if (this.eyePivot && this.eyeIris) {
       const dist = Math.hypot(player.x - this.pos.x, player.z - this.pos.z);
       const dy = player.y + 1 - (this.pos.y + this.eyePivot.position.y);
@@ -440,9 +570,11 @@ export class Enemy {
         this.brain.p.recover = pick.recover;
       }
     }
-    // A neutral mob does not see the player until it has been hit.
+    // A neutral mob does not see the player until it has been hit; a passive one never sees them.
     const before = this.brain.state;
-    const state = this.brain.update(dt, this.def.neutral && !this.provoked && !this.brawling ? Infinity : dist);
+    // (A melee mob winds up only with one of the pack's attack tokens; a brawl with another mob needs none.)
+    const ignore = this.def.passive || (this.def.neutral && !this.provoked && !this.brawling);
+    const state = this.brain.update(dt, ignore ? Infinity : dist, this.brawling ? undefined : this.claim);
     // Lost the player (outran, out of sight): walk back to its spot and heal on the way, never idle where it stopped.
     if (before === 'chase' && state === 'idle' && Math.hypot(this.pos.x - this.spawn.x, this.pos.z - this.spawn.z) > 1.5) {
       this.provoked = false;
@@ -456,24 +588,24 @@ export class Enemy {
         action = { kind: 'boss', attack: this.currentAttack.kind };
         const k = this.currentAttack.kind;
         if (k === 'hop') this.leap(this.def.body ? 0.55 : 0.9, this.def.body ? 1.4 : 4);
-        if ((k === 'charge' || k === 'bite' || k === 'hop') && dist > 0.01) {
-          // (A leap carries it the whole way: it lands on you.)
-          const push = (k === 'charge' ? 18 : k === 'hop' ? dist * 2.2 : 8) * (k === 'hop' ? 1 : this.lungeRoom(dist));
+        // A charge, a bite or a leap throws the body at whom it fights (its warning is drawn along this run).
+        const push = lungePush(this.def, k, dist);
+        if (push > 0 && dist > 0.01) {
           this.knock.x += (dx / dist) * push;
           this.knock.z += (dz / dist) * push;
         }
       } else {
         action = { kind: 'melee' };
         if ((this.def.kind === 'beast' || this.def.kind === 'croc') && dist > 0.01) {
-          const push = 9 * this.lungeRoom(dist);
+          const push = 9 * lungeRoom(this.def, dist);
           this.knock.x += (dx / dist) * push;
           this.knock.z += (dz / dist) * push;
         }
       }
     }
 
-    // Facing and movement.
-    if (state === 'chase' || state === 'windup' || state === 'recover') this.yaw = Math.atan2(dz, dx);
+    // Facing and movement: it turns to whom it fights (a flyer along its circle) at its turn rate, never snapping round.
+    let want: number | null = state === 'chase' || state === 'windup' || state === 'recover' ? Math.atan2(dz, dx) : null;
     let mx = 0;
     let mz = 0;
     if (state === 'chase' && dist > 0.01) {
@@ -484,6 +616,14 @@ export class Enemy {
         if (dist > pref + 1.5) { mx = ux; mz = uz; }
         else if (dist < pref - 2) { mx = -ux; mz = -uz; }
         else { mx = -uz * 0.6; mz = ux * 0.6; } // strafe
+      } else if (this.tokens && !this.brawling && !this.tokens.free(this)) {
+        // No token (two of the pack are striking): it waits its turn just out of reach, circling slowly.
+        const hold = this.def.brain.attackRange + TOKEN_HOLD;
+        this.strafeIn -= dt;
+        if (this.strafeIn <= 0) { this.strafe = -this.strafe; this.strafeIn = 2 + Math.random() * 2; }
+        if (dist > hold + 0.5) { mx = ux; mz = uz; }
+        else if (dist < hold - 0.5) { mx = -ux * 0.6; mz = -uz * 0.6; }
+        else { mx = -uz * STRAFE * this.strafe; mz = ux * STRAFE * this.strafe; }
       } else if (dist > this.def.brain.attackRange * 0.8) {
         // Melee: close in to striking distance and hold there while the next blow cools down.
         mx = ux;
@@ -501,8 +641,9 @@ export class Enemy {
       const dd = Math.hypot(ddx, ddz) || 1;
       mx = ddx / dd;
       mz = ddz / dd;
-      this.yaw = Math.atan2(mz, mx);
+      want = Math.atan2(mz, mx);
     }
+    if (want !== null) this.yaw = turnToward(this.yaw, want, (this.def.boss ? TURN_RATE.boss : TURN_RATE.mob) * dt);
     let nx = this.pos.x + (mx * this.def.speed + this.knock.x) * dt;
     let nz = this.pos.z + (mz * this.def.speed + this.knock.z) * dt;
     {
@@ -515,20 +656,47 @@ export class Enemy {
     return action;
   }
 
+  /** Whom it goes for this step (pickMark), held fast through a wind-up and its blow (the blow goes where it was aimed). */
+  private chooseMark(marks: ReadonlyArray<Mark>): Mark {
+    let i = this.markRef ? marks.indexOf(this.markRef) : 0;
+    // (Its companion went home, or a brawl handed it only its foe: back to the first.)
+    if (i < 0) i = 0;
+    const s = this.brain.state;
+    if (s !== 'windup' && s !== 'attack') i = pickMark(this.pos.x, this.pos.z, marks, i, this.brain.p.aggroRange, !!this.def.boss);
+    this.markRef = i > 0 ? marks[i] : null;
+    return marks[i];
+  }
+
   /** Where a flyer holds itself: over the ground (or the void's floor) and the hero, by its `flyAbove` margin. */
   private flyHeight(playerY: number): number {
     const ground = Math.max(this.world.heightAt(this.pos.x, this.pos.z, this.pos.y), this.def.floatAt ?? -Infinity);
     return Math.max(ground, playerY) + (this.def.flyAbove ?? 0);
   }
 
+  /**
+   * True when a step from where its feet are (`feet`, on ground `from`) to (x, z) climbs no wall and drops off no ledge
+   * (ground walkers never climb onto roofs).
+   */
+  private walkable(x: number, z: number, feet = this.pos.y - this.def.hover, from = this.world.heightAt(this.pos.x, this.pos.z, feet)): boolean {
+    const rise = this.world.heightAt(x, z, feet) - from;
+    return rise < 1.2 && rise > -(2.5 + (this.def.boss ? 2 : 0));
+  }
+
+  /** Nudged aside by (dx, dz) as a pack parts (separate): never into a wall, off a drop, or out of its ground. */
+  shove(dx: number, dz: number): void {
+    const nx = this.pos.x + dx;
+    const nz = this.pos.z + dz;
+    if (Math.hypot(nx - this.spawn.x, nz - this.spawn.z) > this.territory) return;
+    if (!this.def.flying && !this.walkable(nx, nz)) return;
+    this.pos.x = nx;
+    this.pos.z = nz;
+  }
+
   /** Moves to (nx, nz) unless a wall or a drop is in the way (ground walkers never climb onto roofs), then settles. */
   private stepTo(nx: number, nz: number, dt: number, flyAt: number | null): void {
     const feet = this.pos.y - this.def.hover;
     const gNow = this.world.heightAt(this.pos.x, this.pos.z, feet);
-    const ok = (x: number, z: number) => {
-      const rise = this.world.heightAt(x, z, feet) - gNow;
-      return rise < 1.2 && rise > -(2.5 + (this.def.boss ? 2 : 0));
-    };
+    const ok = (x: number, z: number) => this.walkable(x, z, feet, gNow);
     if (this.def.flying || ok(nx, nz)) {
       this.pos.x = nx;
       this.pos.z = nz;
@@ -544,7 +712,7 @@ export class Enemy {
         if (ok(tx, tz)) { this.pos.x = tx; this.pos.z = tz; break; }
       }
     }
-    const decay = Math.exp(-7 * dt);
+    const decay = Math.exp(-KNOCK_DECAY * dt);
     this.knock.x *= decay;
     this.knock.z *= decay;
     // (A breath, not a flight: as much as a fifth of the hover, so the Frog God's belly never dips into the floor.)
@@ -559,11 +727,11 @@ export class Enemy {
     const hx = this.spawn.x - this.pos.x;
     const hz = this.spawn.z - this.pos.z;
     const d = Math.hypot(hx, hz);
-    this.hp = Math.min(this.def.maxHp, this.hp + this.def.maxHp * 0.25 * dt);
+    this.hp = Math.min(this.def.maxHp * this.hpScale, this.hp + this.def.maxHp * this.hpScale * 0.25 * dt);
     this.aura = null;
     if (d < 1.2 || this.def.speed <= 0) {
       this.returning = false;
-      this.hp = this.def.maxHp;
+      this.hp = this.def.maxHp * this.hpScale;
       this.brain.state = 'idle';
       return null;
     }
@@ -582,8 +750,8 @@ export class Enemy {
   takeDamage(amount: number, kb: { x: number; z: number }, strength: number): boolean {
     this.eyeIris?.hurt();
     if (!this.alive) return false;
-    // Hit: a neutral mob turns on you, a seated one jumps up at once.
-    if (this.def.neutral && !this.provoked) { this.provoked = true; if (this.brain.state === 'idle') { this.brain.state = 'chase'; this.brain.stateTime = 0; } }
+    // Hit: a neutral mob turns on you (passive flyers never fight back), a seated one jumps up at once.
+    if (this.def.neutral && !this.def.passive && !this.provoked) { this.provoked = true; if (this.brain.state === 'idle') { this.brain.state = 'chase'; this.brain.stateTime = 0; } }
     if (this.seatedNow) { this.seatedNow = false; this.rising = STAND_UP * 0.6; this.brain.state = 'chase'; this.brain.stateTime = 0; }
     this.hp -= amount;
     this.knock.x += kb.x * strength;
@@ -620,13 +788,21 @@ export class Enemy {
     if (this.model) { this.model.root.rotation.set(0, 0, 0); this.model.root.position.set(0, this.eyePivot ? -this.eyePivot.position.y : 0, 0); }
     this.bubble?.reset();
     this.hopT = -1;
-    this.hp = this.def.maxHp;
+    this.hp = this.def.maxHp * this.hpScale;
     this.aura = null;
     this.defDown = { amount: 0, left: 0 };
     this.pos.x = this.spawn.x;
     this.pos.z = this.spawn.z;
     this.knock.x = this.knock.z = 0;
     this.shrinkFrom = -1;
+    // Whole again: the dissolve back to 0 (the patch stays on its materials for the next death), its shadow back.
+    if (this.dissolve) {
+      for (const u of this.dissolve.amounts) u.value = 0;
+      for (const o of this.dissolve.shadows) o.castShadow = true;
+      this.dissolve = null;
+    }
+    if (this.eyeIris) this.eyeIris.group.visible = true;
+    this.markRef = null;
     this.brain.state = 'idle';
     this.brain.stateTime = 0;
     this.lastState = 'idle';
@@ -673,20 +849,32 @@ export class Enemy {
     if (!this.alive) {
       if (this.heap) this.fallApart(dt);
       else if (this.toppleT >= 0) this.toppleOver(dt);
-      // Hold the corpse while the death clip runs (or a short beat without one), then shrink it away.
+      // Hold the corpse while the death clip runs (or a short beat without one: the topple; a heap lies a while), then
+      // it burns away.
       const clipRunning = !!m && m.playing === 'death' && !m.finished && this.deadFor < DEATH_HOLD_MAX;
       const hold = clipRunning || this.deadFor < (this.heap ? HEAP_HOLD : DEATH_HOLD);
-      // The shrink starts when the hold ends (a long death clip ends after DEATH_HOLD: the body still lies a beat).
-      if (!hold && this.shrinkFrom < 0) this.shrinkFrom = this.deadFor;
-      const s = hold ? (m ? 1 : this.def.scale ?? 1) : Math.max(0, 1 - (this.deadFor - Math.max(DEATH_HOLD, this.shrinkFrom)) * 2.2);
-      this.object.scale.setScalar(m ? s : s * (this.def.scale ?? 1));
-      this.object.visible = s > 0;
+      if (m) this.burnAway(m, hold, dt);
+      else {
+        // A marker standing in for a model not made yet shrinks away instead, once the hold ends.
+        if (!hold && this.shrinkFrom < 0) this.shrinkFrom = this.deadFor;
+        const s = hold ? 1 : Math.max(0, 1 - (this.deadFor - Math.max(DEATH_HOLD, this.shrinkFrom)) * 2.2);
+        this.object.scale.setScalar(s * (this.def.scale ?? 1));
+        this.object.visible = s > 0;
+      }
       if (m && !m.hasClips) this.driveStatic(m, st, dt, yawRate);
       if (m) this.flapWings(m, dt);
       if (!far && !this.heap) m?.update(dt);
       return;
     }
     this.object.rotation.y = yawToRotation(this.yaw);
+    if (!this.def.flying) {
+      const s = 0.7;
+      const y0 = this.pos.y;
+      const gx = this.world.heightAt(this.pos.x + s, this.pos.z, y0) - this.world.heightAt(this.pos.x - s, this.pos.z, y0);
+      const gz = this.world.heightAt(this.pos.x, this.pos.z + s, y0) - this.world.heightAt(this.pos.x, this.pos.z - s, y0);
+      const along = (gx * Math.cos(this.yaw) + gz * Math.sin(this.yaw)) / (2 * s);
+      this.object.rotation.x = Math.max(-0.2, Math.min(0.2, -along));
+    }
     if (!m) { this.placeholder?.update(dt); return; }
     if (this.def.stomp && st === 'chase' && this.groundSpeed > 0.4) {
       const prev = this.stepPhase;
@@ -704,6 +892,49 @@ export class Enemy {
     this.lunge = Math.max(0, this.lunge - dt * 2.8);
     this.flinch = Math.max(0, this.flinch - dt * 4);
     this.animateHalo(m.height);
+  }
+
+  /**
+   * A dead body with a model: its materials take the dissolve (CombatFx.patchDissolve) the moment it dies, so the
+   * shader is built while it falls, not as it starts to burn; once `hold` is over it burns away over DISSOLVE seconds
+   * from a noise edge in its element's colour (dissolveEdge), its shadow gone with it, one shock and a spray of sparks
+   * as it starts (onDissolve); then it is hidden until it respawns.
+   */
+  private burnAway(m: ModelRig, hold: boolean, dt: number): void {
+    let d = this.dissolve;
+    if (!d) {
+      const edge = dissolveEdge(this.def.element);
+      const amounts: Array<{ value: number }> = [];
+      // (The whole body: the held weapon in its hand too.)
+      m.root.traverse((o) => {
+        const mesh = o as Mesh;
+        if (!mesh.isMesh) return;
+        for (const mat of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+          if (!(mat as MeshStandardMaterial).isMeshStandardMaterial) continue;
+          const u = patchDissolve(mat as MeshStandardMaterial, edge);
+          u.value = 0;
+          amounts.push(u);
+        }
+      });
+      d = this.dissolve = { amounts, k: 0, on: false, shadows: [] };
+    }
+    if (!d.on && !hold) {
+      d.on = true;
+      // (Its shadow would stay whole while the body burns: the depth pass knows nothing of the dissolve.)
+      const shadows = d.shadows;
+      m.root.traverse((o) => { if (o.castShadow) { o.castShadow = false; shadows.push(o); } });
+      if (this.eyeIris) this.eyeIris.group.visible = false;
+      this.onDissolve?.();
+    }
+    if (!d.on) return;
+    d.k = Math.min(1, d.k + dt / DISSOLVE);
+    for (const u of d.amounts) u.value = d.k;
+    this.object.visible = d.k < 1;
+  }
+
+  /** How far the body has burnt away (0..1; 0 while alive or still lying there). */
+  get dissolved(): number {
+    return this.dissolve?.on ? this.dissolve.k : 0;
   }
 
   /** A lean bubble: bobs in place, bounces along as it moves, stretches in a leap and squashes as it lands. */
@@ -1033,6 +1264,6 @@ export function attackClips(kind: BossAttackKind | undefined): string[] {
 type StaticMotion = 'gallop' | 'slither' | 'hover' | 'wade' | 'fly' | 'seated' | 'stride';
 /** How each clip-less body moves (see driveStatic). */
 const STATIC_MOTION: Partial<Record<string, StaticMotion>> = {
-  'dmt-entity': 'hover', spiderchapel: 'hover',
+  'dmt-entity': 'hover', spiderchapel: 'hover', koi: 'fly', jellyfish: 'hover',
   emberrider: 'gallop', croc: 'slither', rivershade: 'hover', lurker: 'wade', wyrm: 'fly', hollowking: 'seated', marshdemon: 'stride',
 };

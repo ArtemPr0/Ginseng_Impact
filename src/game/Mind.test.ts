@@ -22,16 +22,16 @@ const BOOK: DialogueBook = {
       { id: 'b.react.boss', slot: 'react', text: '{lastBoss} is dead. I heard it fall.', when: { event: 'kill', boss: true } },
       { id: 'b.react.hurt', slot: 'react', text: 'You bleed on my floor.', when: { event: 'hurt' } },
       { id: 'b.react.fly', slot: 'react', text: 'You flew past my chimney.', when: { event: 'feat', feat: 'fly' } },
-      { id: 'b.topic.warden', slot: 'topic', text: 'The Warden. It sulks in the east forest.', when: { quest: ['throne', 'none'] }, weight: 3, choices: [
+      { id: 'b.topic.warden', slot: 'topic', ask: 'About the Warden', text: 'The Warden. It sulks in the east forest.', when: { quest: ['throne', 'none'] }, weight: 3, choices: [
         { label: 'I will do it.', action: 'quest:throne:active', to: 'b.topic.go' },
         { label: 'What would I get?', to: 'b.topic.offer' },
         { label: 'Not now.', action: 'close' },
       ] },
-      { id: 'b.topic.offer', slot: 'topic', text: 'Shards. A great many of them, {hero}.', when: { quest: ['throne', 'none'] }, choices: [{ label: 'Leave', action: 'close' }] },
-      { id: 'b.topic.go', slot: 'topic', text: 'Then go. It is under the rain.', when: { quest: ['throne', 'active'] }, choices: [{ label: 'Leave', action: 'close' }] },
-      { id: 'b.topic.self', slot: 'topic', text: 'I was a king once. Then I was a smith. The smith pays better.' },
-      { id: 'b.topic.secret', slot: 'topic', text: 'A secret: the river is not a river.', once: true },
-      { id: 'b.topic.rich', slot: 'topic', text: 'You carry {shards} shards at level {level}. We have met {met} times.', when: { minShards: 100 } },
+      { id: 'b.topic.offer', slot: 'topic', ask: 'What would I get?', text: 'Shards. A great many of them, {hero}.', when: { quest: ['throne', 'none'] }, choices: [{ label: 'Leave', action: 'close' }] },
+      { id: 'b.topic.go', slot: 'topic', ask: 'About the Warden still', text: 'Then go. It is under the rain.', when: { quest: ['throne', 'active'] }, choices: [{ label: 'Leave', action: 'close' }] },
+      { id: 'b.topic.self', slot: 'topic', ask: 'Who were you before?', text: 'I was a king once. Then I was a smith. The smith pays better.' },
+      { id: 'b.topic.secret', slot: 'topic', ask: 'Any secrets?', text: 'A secret: the river is not a river.', once: true },
+      { id: 'b.topic.rich', slot: 'topic', ask: 'About my fortune', text: 'You carry {shards} shards at level {level}. We have met {met} times.', when: { minShards: 100 } },
       { id: 'b.bye.go', slot: 'bye', text: 'Go. Mind the step.' },
       { id: 'b.bye.rain', slot: 'bye', text: 'Rain is coming. Go before it does.' },
       { id: 'b.bark.kill', slot: 'bark', text: 'Nice.', when: { event: 'kill' }, weight: 2 },
@@ -45,7 +45,7 @@ const BOOK: DialogueBook = {
       { id: 't.greet', slot: 'greet', text: 'Drink?' },
       { id: 't.react.beast', slot: 'react', text: 'A beast died somewhere, I hear.', when: { event: 'kill', enemy: 'beast' } },
       { id: 't.react.boss', slot: 'react', text: 'They say {lastBoss} fell.', when: { event: 'kill', boss: true } },
-      { id: 't.topic.ale', slot: 'topic', text: 'The ale is from the island.' },
+      { id: 't.topic.ale', slot: 'topic', ask: 'About the ale', text: 'The ale is from the island.' },
     ],
   },
 };
@@ -377,10 +377,10 @@ describe('open', () => {
     expect(conv.first.text).toBe('What are you doing here?');
     expect(state.npc.brannoc.said).toEqual({ 'b.greet.first': { n: 1, at: 0 } });
     expect(conv.first.choices.map((c) => [c.label, c.to ?? null, c.action])).toEqual([
-      ['The Warden', 'b.topic.warden', null],
+      ['About the Warden', 'b.topic.warden', null],
       ['What would I get?', 'b.topic.offer', null],
-      ['I was a king once', 'b.topic.self', null],
-      [expect.stringMatching(/^A secret/), 'b.topic.secret', null],
+      ['Who were you before?', 'b.topic.self', null],
+      ['Any secrets?', 'b.topic.secret', null],
       [LEAVE_LABEL, 'b.bye.go', null],
     ]);
     expect(ids(conv.nodes)).toEqual(['b.greet.first', 'b.topic.warden', 'b.topic.offer', 'b.topic.self', 'b.topic.secret', 'b.bye.go']);
@@ -474,7 +474,7 @@ describe('open', () => {
     labels = mind.open('brannoc').first.choices.map((c) => c.label);
     expect(labels.slice(-3)).toEqual(['Trade', 'Hire', LEAVE_LABEL]);
     ctx.autoChoices = (npcId) => (npcId === 'bartender' ? [{ label: 'Ale', action: 'ale' }] : []);
-    expect(mind.open('bartender').first.choices.map((c) => c.label)).toEqual(['The ale is from the island', 'Ale', LEAVE_LABEL]);
+    expect(mind.open('bartender').first.choices.map((c) => c.label)).toEqual(['About the ale', 'Ale', LEAVE_LABEL]);
     expect(mind.open('brannoc').first.choices.map((c) => c.label)).not.toContain('Ale');
   });
 
@@ -497,10 +497,10 @@ describe('open', () => {
       quiet: { persona: { id: 'quiet', district: 'vale', knows: [], rumourDelay: 0, tone: 'sleepy', about: 'Quiet.' }, lines: [
         { id: 'q.greet', slot: 'greet', text: 'Mm.', choices: [{ label: 'Bye', action: 'close' }] },
         { id: 'q.react', slot: 'react', text: 'You hit it.', when: { event: 'kill' }, weight: 5 },
-        { id: 'q.topic', slot: 'topic', text: 'Sheep.' },
+        { id: 'q.topic', slot: 'topic', ask: 'About the sheep', text: 'Sheep.' },
       ] },
       mute: { persona: { id: 'mute', district: 'vale', knows: [], rumourDelay: 0, tone: 'sleepy', about: 'Mute.' }, lines: [
-        { id: 'm.topic', slot: 'topic', text: 'Wool.' },
+        { id: 'm.topic', slot: 'topic', ask: 'About the wool', text: 'Wool.' },
       ] },
     };
     const { state, mind } = mk({ book });
@@ -516,7 +516,7 @@ describe('open', () => {
     const silent = mind.open('mute');
     expect(silent.first.line.id).toBe('');
     expect(silent.first.text).toBe('…');
-    expect(silent.first.choices.map((c) => c.label)).toEqual(['Wool', LEAVE_LABEL]);
+    expect(silent.first.choices.map((c) => c.label)).toEqual(['About the wool', LEAVE_LABEL]);
     expect(ids(silent.nodes)).toEqual(['', 'm.topic']);
   });
 

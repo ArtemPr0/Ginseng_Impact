@@ -97,6 +97,11 @@ export interface LineDef {
    * Keep lines short: one or two sentences, under ~160 characters.
    */
   text: string;
+  /**
+   * Player-voiced hub prompt that opens this topic ("What do the blue flowers mean?"). Required on every `topic`
+   * line: the hub shows this, never a snippet of the NPC's own monologue.
+   */
+  ask?: string;
   when?: Cond;
   /** Base weight (default 1); salience of a matching recent event is added for 'react' lines. */
   weight?: number;

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { type BufferGeometry, type Mesh, MeshBasicMaterial, Vector3 } from 'three';
-import { ChunkedGround, GROUND_ALBEDO, Heightfield, LAYER, LAYER_COUNT, LAYER_TINT, OUTSIDE_HEIGHT, type Sculpt, TEXTURE_LAYERS } from './Ground';
+import { type BufferGeometry, Color, type Mesh, MeshBasicMaterial, Vector3 } from 'three';
+import {
+  ChunkedGround, GROUND_ALBEDO, Heightfield, LAYER, LAYER_COUNT, LAYER_TINT, OUTSIDE_HEIGHT, PATTERN_RATIO, type Sculpt, splatAlbedo,
+  TEXTURE_LAYERS, WET_DARKEN,
+} from './Ground';
 
 /** A tiny sculpt: 8 m square at (-3, 2), 1 m cells, a known polynomial with a 1.5 m step past x = 1.5 (between vertices). */
 function sculpt(extra: Partial<Sculpt> = {}): Sculpt {
@@ -229,5 +232,109 @@ describe('ChunkedGround', () => {
     ground.update(new Vector3(-500, 0, -500));
     const corner = ground.group.children.find((c) => c.name === 'ground:4,4') as Mesh;
     expect((corner.geometry as BufferGeometry).index!.count / 3).toBe(2 + 2 * 4);
+  });
+});
+
+describe('splatAlbedo (the splat shader colour mix, in JS)', () => {
+  /** Every texture layer in 70/30 pairs (no weight under the shader's 0.02 cut), wet over part of it. */
+  const painted = (extra: Partial<Sculpt> = {}) => sculpt({
+    size: 11,
+    layers: (x, z, _h, _s, out) => {
+      const a = (((Math.round(x) + 3) % TEXTURE_LAYERS) + TEXTURE_LAYERS) % TEXTURE_LAYERS;
+      const b = (((Math.round(z) * 3) % TEXTURE_LAYERS) + TEXTURE_LAYERS) % TEXTURE_LAYERS;
+      out[a] += 0.7;
+      out[b] += 0.3;
+      out[LAYER.wet] = x + z > 6 ? 0.6 : x + z > 3 ? 1 : 0;
+    },
+    ...extra,
+  });
+  /** What the shader reads at vertex i: the colour attribute and the twelve weights. */
+  const vertex = (f: Heightfield, i: number) => ({
+    tint: [f.tints[i * 3], f.tints[i * 3 + 1], f.tints[i * 3 + 2]],
+    weights: Array.from(f.layers.subarray(i * LAYER_COUNT, (i + 1) * LAYER_COUNT), (v) => v / 255),
+  });
+  /** Pattern colours: each layer's mean scaled per channel by factors across the patterns' measured span (0.11 .. 2.93). */
+  const patternsFrom = (rand: () => number) => LAYER_TINT.map((t) => t.map((v) => v * (0.11 + rand() * 2.82)));
+  const relErr = (a: number, b: number) => Math.abs(a - b) / Math.max(Math.abs(b), 1e-9);
+
+  it('is the identity for the default tint: the layers draw exactly their pattern at GROUND_ALBEDO, wet-darkened', () => {
+    const f = new Heightfield(painted());
+    f.bake();
+    const rand = rng(5);
+    let wetSeen = 0;
+    for (let i = 0; i < (f.n + 1) * (f.n + 1); i++) {
+      const { tint, weights } = vertex(f, i);
+      const patterns = patternsFrom(rand);
+      // The shader before this mix: the normalised weighted pattern, × GROUND_ALBEDO, darkened by wet.
+      let wsum = 0;
+      const want = [0, 0, 0];
+      for (let k = 0; k < TEXTURE_LAYERS; k++) {
+        if (!(weights[k] > 0.02)) continue;
+        wsum += weights[k];
+        for (let c = 0; c < 3; c++) want[c] += patterns[k][c] * weights[k];
+      }
+      const wet = weights[LAYER.wet];
+      if (wet > 0) wetSeen++;
+      const near = splatAlbedo(tint, weights, patterns);
+      for (let c = 0; c < 3; c++) expect(relErr(near[c], (want[c] / wsum) * GROUND_ALBEDO * (1 - WET_DARKEN * wet))).toBeLessThan(0.01);
+      // Past the detail distance it is the tint itself, and in between a straight blend.
+      const far = splatAlbedo(tint, weights, patterns, 0);
+      const mid = splatAlbedo(tint, weights, patterns, 0.5);
+      for (let c = 0; c < 3; c++) {
+        expect(far[c]).toBe(tint[c]);
+        expect(mid[c]).toBeCloseTo((tint[c] + near[c]) / 2, 9);
+      }
+    }
+    expect(wetSeen).toBeGreaterThan(20);
+  });
+
+  it("keeps a sculpt's own tint: its hue and its brightness, the layers lending only their pattern", () => {
+    // The island's navy ground (0x121d48) under grass and moss, whose own colours are green-teal.
+    const navy = new Color(0x121d48);
+    const f = new Heightfield(painted({
+      layers: (x, _z, _h, _s, out) => {
+        out[LAYER.grass] = 1;
+        out[LAYER.moss] = x > 1 ? 0.6 : 0;
+        out[LAYER.wet] = x > 3 ? 1 : 0;
+      },
+      tint: (_x, _z, _h, _s, out) => out.copy(navy),
+    }));
+    f.bake();
+    const rand = rng(11);
+    for (let i = 0; i < (f.n + 1) * (f.n + 1); i++) {
+      const { tint, weights } = vertex(f, i);
+      // The wet modifier darkens the sculpt's tint at bake, as it darkens the layers.
+      const dry = 1 - WET_DARKEN * weights[LAYER.wet];
+      expect(relErr(tint[0], navy.r * dry)).toBeLessThan(0.01);
+      expect(relErr(tint[2], navy.b * dry)).toBeLessThan(0.01);
+      // A pattern at its mean gives back the tint; a pattern at k × its mean gives k × the tint.
+      expect(splatAlbedo(tint, weights, LAYER_TINT).every((v, c) => relErr(v, tint[c]) < 1e-9)).toBe(true);
+      const k = 0.5 + rand();
+      const lit = splatAlbedo(tint, weights, LAYER_TINT.map((t) => t.map((v) => v * k)));
+      for (let c = 0; c < 3; c++) expect(relErr(lit[c], tint[c] * k)).toBeLessThan(1e-9);
+      // The grass and moss patterns are green-teal from their darkest tuft to their brightest (grassTex, mossTex), yet
+      // up close the ground stays cobalt: blue well above red and green, as the tint.
+      const mixRGB = (a: number[], b: number[], t: number) => a.map((v, c) => v + (b[c] - v) * t);
+      const patterns = LAYER_TINT.map((t) => [...t]);
+      patterns[LAYER.grass] = mixRGB([0.035, 0.084, 0.063], [0.148, 0.338, 0.243], rand());
+      patterns[LAYER.moss] = mixRGB([0.021, 0.053, 0.035], [0.105, 0.255, 0.135], rand());
+      expect(patterns[LAYER.grass][1]).toBeGreaterThan(patterns[LAYER.grass][2]);
+      const near = splatAlbedo(tint, weights, patterns);
+      expect(near[2]).toBeGreaterThan(3 * Math.max(near[0], near[1]));
+    }
+  });
+
+  it('clamps the pattern over its mean to PATTERN_RATIO, a range wider than any layer draws', () => {
+    const tint = [0.01, 0.02, 0.08];
+    const weights = new Array(LAYER_COUNT).fill(0);
+    weights[LAYER.cobble] = 1;
+    const at = (factor: number) => splatAlbedo(tint, weights, LAYER_TINT.map((t) => t.map((v) => v * factor)));
+    expect(at(10)[2]).toBeCloseTo(tint[2] * PATTERN_RATIO[1], 9);
+    expect(at(0)[2]).toBeCloseTo(tint[2] * PATTERN_RATIO[0], 9);
+    expect(at(0.11)[2]).toBeCloseTo(tint[2] * 0.11, 9);
+    expect(at(2.93)[2]).toBeCloseTo(tint[2] * 2.93, 9);
+    // Nothing painted: grass's pattern over grass's mean.
+    const bare = splatAlbedo(tint, new Array(LAYER_COUNT).fill(0), LAYER_TINT.map((t, k) => t.map((v) => v * (k === LAYER.grass ? 1.5 : 3))));
+    for (let c = 0; c < 3; c++) expect(bare[c]).toBeCloseTo(tint[c] * 1.5, 9);
   });
 });

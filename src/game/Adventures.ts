@@ -1,6 +1,7 @@
 /**
- * The side adventures around the quests: carrying Croak in a sack, the Frog King's two-minute dream, riding a river
- * boat with the rowers and their beer. Owns the quest state and what F does before the usual targets (loot, talk).
+ * The side adventures around the quests: carrying Croak in a sack, the Frog King's dream, riding a river boat with the
+ * rowers and their beer, Yung Lean's challenge. Owns the quest state, the wallet the quest graph pays through, and what
+ * F does before the usual targets (loot, talk). The conversations come from the Story once main.ts attaches one.
  */
 import { Group, Vector3 } from 'three';
 import { DREAM, GALAXY, LAYOUT } from '../data/world';
@@ -8,6 +9,7 @@ import type { EnemyKind } from '../data/enemies';
 import type { Enemy } from '../combat/Enemy';
 import { MODELS } from '../data/models';
 import { voiceUrl } from '../data/voices';
+import { itemDef } from '../items/Items';
 import { loadModelOrWarn, ModelRig } from '../models/ModelRig';
 import type { Audio } from '../audio/Audio';
 import type { Rig } from '../characters/Rig';
@@ -19,7 +21,8 @@ import type { Npc } from '../world/NPCs';
 import type { Boat, World } from '../world/World';
 import { dialogueFor, type DialogueNode, type DialogueWorld } from './Dialogue';
 import type { Events } from './Events';
-import { Quests } from './Quests';
+import { Quests, type QuestWallet } from './Quests';
+import type { Story } from './Story';
 
 /** Seconds in the frog's dream, and of the rowers' ale. */
 /** Four minutes: long enough to walk the whole dream (the stair path, the canal village, the corridor of eyes). */
@@ -60,11 +63,25 @@ export class Adventures {
   private readonly sack = new Group();
   private sackOn: Rig | null = null;
   private t = 0;
-  private readonly dw: DialogueWorld;
+  /** The purse and the bag the quest graph charges and pays through (the Story is handed this one too). */
+  readonly wallet: QuestWallet;
+  /** What a conversation does to the game here: the sack, the lick, the ale, the challenge, the banners. */
+  readonly dw: DialogueWorld;
+  /** Where the conversations come from once main.ts attaches it (null: only the rowers talk, from Dialogue.ts). */
+  story: Story | null = null;
 
   constructor(private readonly d: AdventureDeps) {
     this.quests.onChange = () => this.refreshHud();
     this.quests.events = d.events ?? null;
+    this.wallet = {
+      shards: () => d.inventory.shards,
+      spend: (n) => d.inventory.spend(n),
+      take: (id) => d.inventory.remove(id, 1),
+      give: (id) => { d.inventory.add(id, 1); d.audio.loot(itemDef(id)?.rarity ?? 4); d.hud.announce(itemDef(id)?.name ?? id); },
+      pay: (n) => { d.inventory.shards += n; d.audio.coins(6); d.hud.announce(`+${n} Moon Shards`); },
+    };
+    // A kill's reward (the Third Eye, the Grave Crown, Yung Lean's purse) is paid into the same purse.
+    this.quests.wallet = this.wallet;
     this.sack.visible = false;
     void loadModelOrWarn('croak-bag', MODELS['croak-bag']?.label).then((g) => {
       if (!g) return;
@@ -73,11 +90,7 @@ export class Adventures {
       this.sack.add(rig.root);
     });
     this.dw = {
-      quests: this.quests,
-      pay: (n) => { d.inventory.shards += n; d.audio.coins(6); d.hud.announce(`+${n} Moon Shards`); },
-      give: (id) => { d.inventory.add(id, 1); d.audio.loot(4); },
       has: (id) => d.inventory.has(id),
-      take: (id) => d.inventory.remove(id, 1),
       bagCroak: () => this.bagCroak(),
       lick: () => this.enterDream(),
       drinkAle: () => { this.aleLeft = ALE_SECONDS; d.audio.slurp(1); d.hud.announce("Rowers' Ale · stamina lasts longer"); d.events?.emit({ kind: 'feat', what: 'ale' }); },
@@ -86,9 +99,12 @@ export class Adventures {
     };
   }
 
-  /** The conversation to open with `npc`, or null for its ordinary lines. */
+  /**
+   * The conversation to open with `npcId`: the Story's when one is attached (every NPC with a dialogue book, and the
+   * rowers), else the rowers' from Dialogue.ts; null for the NPC's ordinary lines.
+   */
   talk(npcId: string): DialogueNode | null {
-    return dialogueFor(npcId, this.dw);
+    return this.story ? this.story.open(npcId) : dialogueFor(npcId, this.dw);
   }
 
   /** Plays a dialogue line's recorded voice as it opens. */
@@ -99,12 +115,27 @@ export class Adventures {
   }
 
   private bagCroak(): void {
-    const croak = this.npc('croak');
-    if (croak) { croak.hidden = true; croak.object.visible = false; }
-    this.showSeat(false);
-    this.quests.set('croak', 'bagged');
+    // Only from 'active' (the graph's step): 'In you go.' again from a line left open bags nobody.
+    if (!this.quests.step('croak', 'bagged', this.wallet)) return;
+    this.showCroak(false);
     void this.d.audio.voice(voiceUrl('croak-bagged'), 1);
     this.d.hud.announce('Croak is in the sack');
+  }
+
+  /**
+   * After a save is loaded (quests.restore announces nothing): Croak, in the sack when the game was saved, is out of
+   * the world with his boulder, as bagging him left them; out of the sack, both are in it. (The sack on the hero's
+   * back follows the stage by itself.)
+   */
+  restored(): void {
+    this.showCroak(this.quests.stage('croak') !== 'bagged');
+  }
+
+  /** Croak and his boulder in the world, or out of it while he rides in the sack. */
+  private showCroak(on: boolean): void {
+    const croak = this.npc('croak');
+    if (croak) { croak.hidden = !on; croak.object.visible = on; }
+    this.showSeat(on);
   }
 
   /** Croak's boulder: out of sight while he is in the sack (and left so when the island is shown again). */
@@ -135,7 +166,7 @@ export class Adventures {
       croak.pos.y = this.d.world.heights.heightAt(croak.pos.x, croak.pos.z, king.pos.y + 1);
       croak.yaw = Math.atan2(c.pos.z - croak.pos.z, c.pos.x - croak.pos.x);
     }
-    this.quests.set('croak', home ? 'returned' : 'active');
+    this.quests.step('croak', home ? 'returned' : 'active', this.wallet);
     // Out where the hero is (the island or a realm), sat on his boulder again: the world moves both into that zone.
     this.showSeat(true);
     if (croak) this.d.world.moveNpcToZone(croak, zone);
@@ -155,7 +186,8 @@ export class Adventures {
   /** Ends the dream: you wake beside the Frog King (also when the party falls in it). */
   wake(): void {
     this.dreamLeft = 0;
-    this.quests.set('trip', 'done');
+    // 'done' after the first trip (and again, for nothing, after every other); once the god is slain it stays 'god'.
+    this.quests.step('trip', 'done', this.wallet);
     this.d.trip?.(0.6, 3);
     const f = LAYOUT.frog;
     const x = f.x + 3.5;
@@ -163,11 +195,12 @@ export class Adventures {
     this.d.teleport(x, this.d.world.heights.heightAt(x, z), z, Math.PI, 'You wake beside the Frog King');
   }
 
-  /** Picks up the lost sound on the far cup (Yung Lean's quest). */
+  /** Picks up the lost sound on the far cup (Yung Lean's quest): into the bag, and on the bus as a pickup. */
   foundSound(): void {
     if (this.quests.stage('sound') !== 'active') return;
     this.d.inventory.add('lost-sound', 1);
-    this.quests.set('sound', 'found');
+    this.quests.step('sound', 'found', this.wallet);
+    this.d.events?.emit({ kind: 'loot', item: 'lost-sound', rarity: itemDef('lost-sound')?.rarity ?? 4 });
     this.d.audio.loot(4);
     this.d.hud.announce('The Lost Sound');
   }
@@ -199,8 +232,9 @@ export class Adventures {
     if (npc) { npc.hidden = false; npc.object.visible = true; }
     if (!f.e.alive) {
       void this.d.audio.voice(voiceUrl('lean-beaten'), 1);
-      // The purse is for the first win; after that the fight is its own reward (and his drops).
-      if (this.quests.stage('crown') !== 'done') { this.dw.pay(600); this.quests.set('crown', 'done'); }
+      // The purse is for the first win (the graph's 'crown', paid once: his death may have paid it already); after
+      // that the fight is its own reward (and his drops).
+      this.quests.step('crown', 'done', this.wallet);
       this.d.hud.announce('Yung Lean sits back down');
     }
     this.kingFight = null;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { followSlot, followStep, type Follower, type FollowedHero } from './Companion';
+import { followSlot, followStep, SETTLED, SIDE_RANGE, type Follower, type FollowedHero } from './Companion';
 
 const DT = 1 / 60;
 const WALK = 4.5;
@@ -146,6 +146,34 @@ describe('followStep — ordinary following is never held up', () => {
 });
 
 describe('followStep — walking up to a companion', () => {
+  it('a slot-1 companion at rest ahead of a hero standing still is never "at your side" (the prompt bug), even settled short of its slot', () => {
+    const h = hero();
+    // Exactly at its slot, 2.97 m ahead on the left, inside your facing.
+    const f = settled(1, h);
+    expect(run(f, 1, h, 120).beside).toBe(0);
+    // Come to rest anywhere in the deadband: up to SETTLED short of its slot, toward you (2.47 m: inside SIDE_RANGE).
+    const at = slotAt(1, h);
+    const l = Math.hypot(at.x - h.x, at.z - h.z);
+    for (const short of [0.1, 0.3, SETTLED - 0.01]) {
+      const g = follower(h.x + ((at.x - h.x) * (l - short)) / l, h.z + ((at.z - h.z) * (l - short)) / l);
+      if (short > 0.45) expect(dist(g.pos, h)).toBeLessThan(SIDE_RANGE);
+      const t = run(g, 1, h, 120);
+      expect(t.held).toBe(120);
+      expect(t.beside).toBe(0);
+    }
+  });
+
+  it('walking up to that slot-1 companion and stopping close, facing it, offers it home', () => {
+    const h = hero();
+    const f = settled(1, h);
+    aimAt(h, f);
+    let steps = 0;
+    while (dist(f.pos, h) > 1.6 && steps < 60) { run(f, 1, h, 1); steps++; }
+    h.vx = h.vz = 0;
+    run(f, 1, h, 6);
+    expect(f.beside).toBe(true);
+  });
+
   it('holds a settled companion where it stands while you walk at it; stopping there, facing it, it turns to you and may be sent home', () => {
     const h = hero();
     const f = settled(0, h);

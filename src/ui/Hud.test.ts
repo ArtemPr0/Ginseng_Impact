@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { BannerQueue, Hud, type HudActions } from './Hud';
+import { BannerQueue, DamageNumbers, Hud, type HudActions, type NumberStyle } from './Hud';
 import { Inventory } from '../items/Inventory';
 import { ROSTER } from '../characters/roster';
 
@@ -122,6 +122,135 @@ describe('BannerQueue', () => {
     expect(log.at(-1)).toBe('1.00 hide');
     advance(0.2);
     expect(log.at(-1)).toBe('1.20 show later');
+  });
+});
+
+describe('BannerQueue coalescing', () => {
+  it('shows the same line pushed again and again in a row once (three webs in one volley)', () => {
+    const { q, log, advance } = rig();
+    q.push('Webbed!', { priority: 1 });
+    q.push('Webbed!', { priority: 1 });
+    advance(0.3);
+    q.push('Webbed!', { priority: 1 });
+    advance(5);
+    expect(log).toEqual(['0.00 show Webbed!', '2.20 hide']);
+  });
+
+  it('merges a repeat into the same line still waiting, and keeps the higher priority of the two', () => {
+    const { q, log, advance } = rig();
+    q.push('Moonfall');
+    q.push('Grabbed!');
+    q.push('Grabbed!');
+    advance(5);
+    expect(log.filter((l) => l.includes(' show ')).map((l) => l.split(' show ')[1])).toEqual(['Moonfall', 'Grabbed!']);
+    const b = rig();
+    b.q.push('Moonfall');
+    b.q.push('The eye is gathering a glare · look away');
+    b.q.push('The eye is gathering a glare · look away', { priority: 1 });
+    expect(b.log.at(-1)).toBe('0.00 hide'); // the repeat's priority cut the burst name short
+    b.advance(0.2);
+    expect(b.log.at(-1)).toBe('0.20 show The eye is gathering a glare · look away');
+    b.advance(5);
+    expect(b.log.filter((l) => l.includes(' show '))).toHaveLength(2);
+  });
+
+  it('shows a line again once another came between, or once it has gone', () => {
+    const { q, log, advance } = rig();
+    q.push('Grabbed!');
+    q.push('Webbed!');
+    q.push('Grabbed!');
+    advance(3);
+    expect(log.filter((l) => l.includes(' show ')).map((l) => l.split(' show ')[1])).toEqual(['Grabbed!', 'Webbed!', 'Grabbed!']);
+    advance(5);
+    q.push('Grabbed!');
+    expect(log.at(-1)).toMatch(/show Grabbed!$/);
+  });
+});
+
+// ---------- damage numbers (pure) ----------
+
+/** A fake screen for DamageNumbers on the same kind of fake clock: what is up, with its text and style. */
+function numbers() {
+  let now = 0;
+  let seq = 0;
+  const due: Array<{ at: number; seq: number; fn: () => void }> = [];
+  const up: Array<{ text: string; style: NumberStyle; color: number; bumps: number }> = [];
+  const n = new DamageNumbers<{ text: string; style: NumberStyle; color: number; bumps: number }>({
+    show: (text, color, style) => { const el = { text, style, color, bumps: 0 }; up.push(el); return el; },
+    bump: (el, text) => { el.text = text; el.bumps++; },
+    remove: (el) => { const i = up.indexOf(el); if (i >= 0) up.splice(i, 1); },
+    after: (seconds, fn) => {
+      const timer = { at: now + Math.round(seconds * 1000), seq: seq++, fn };
+      due.push(timer);
+      return () => { const i = due.indexOf(timer); if (i >= 0) due.splice(i, 1); };
+    },
+    now: () => now / 1000,
+  });
+  const advance = (seconds: number) => {
+    const end = now + Math.round(seconds * 1000);
+    for (;;) {
+      due.sort((a, b) => a.at - b.at || a.seq - b.seq);
+      const next = due[0];
+      if (!next || next.at > end) break;
+      due.shift();
+      now = next.at;
+      next.fn();
+    }
+    now = end;
+  };
+  return { n, up, advance, texts: () => up.map((e) => e.text) };
+}
+
+describe('DamageNumbers', () => {
+  it('merges hits on one target within 0.25 s into one number that sums them ("312 ×2"), and pops it again', () => {
+    const { n, up, advance, texts } = numbers();
+    n.push(150, 0xff2a2a, 0, 0, { target: 7 });
+    advance(0.1);
+    n.push(162, 0xff2a2a, 0, 0, { target: 7 });
+    expect(texts()).toEqual(['312 ×2']);
+    expect(up[0].bumps).toBe(1);
+    advance(0.25); // within 0.25 s of the last hit: the run goes on
+    n.push(88, 0xff2a2a, 0, 0, { target: 7 });
+    expect(texts()).toEqual(['400 ×3']);
+    advance(0.26);
+    n.push(50, 0xff2a2a, 0, 0, { target: 7 });
+    expect(texts()).toEqual(['400 ×3', '50']);
+  });
+
+  it('keeps targets apart, never merges a crit with a plain hit, words or untargeted numbers', () => {
+    const { n, up, texts } = numbers();
+    n.push(10, 0, 0, 0, { target: 1 });
+    n.push(20, 0, 0, 0, { target: 2 });
+    n.push(30, 0xdfe6ff, 0, 0, { target: 1, crit: true });
+    n.push(40, 0xdfe6ff, 0, 0, { target: 1, crit: true });
+    n.push('Eclipse', 0xff2a2a, 0, 0, { target: 1, big: true });
+    n.push(5, 0, 0, 0);
+    n.push(5, 0, 0, 0);
+    expect(texts()).toEqual(['10', '20', '70 ×2', 'Eclipse', '5', '5']);
+    expect(up.map((e) => e.style)).toEqual(['hit', 'hit', 'crit', 'big', 'hit', 'hit']);
+  });
+
+  it('shows at most three numbers per target: the oldest gives way', () => {
+    const { n, advance, texts } = numbers();
+    for (const v of [1, 2, 3, 4]) { n.push(v, 0, 0, 0, { target: 9 }); advance(0.3); }
+    expect(texts()).toEqual(['3', '4']); // 1 and 2 timed out (at 0.65 s and 0.95 s)
+    const b = numbers();
+    for (const v of [1, 2, 3, 4]) { b.n.push(v, 0, 0, 0, { target: 9, crit: v % 2 === 0 }); }
+    expect(b.texts()).toEqual(['2', '3', '4']);
+  });
+
+  it('takes a number down after its life (0.65 s, 0.9 s for a crit or a word), a merged one counting from its last hit', () => {
+    const { n, advance, texts } = numbers();
+    n.push(12, 0, 0, 0, { target: 3 });
+    n.push(99, 0, 0, 0, { target: 4, crit: true });
+    advance(0.2);
+    n.push(12, 0, 0, 0, { target: 3 });
+    advance(0.64); // 0.84 s: the merged number's life began again at 0.2 s
+    expect(texts()).toEqual(['24 ×2', '99']);
+    advance(0.01);
+    expect(texts()).toEqual(['99']);
+    advance(0.05);
+    expect(texts()).toEqual([]);
   });
 });
 

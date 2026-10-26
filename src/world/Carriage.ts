@@ -37,7 +37,7 @@ export class Carriage {
     return out.set(this.pos.x + Math.cos(this.heading) * BENCH.ahead, this.pos.y + BENCH.up, this.pos.z + Math.sin(this.heading) * BENCH.ahead);
   }
 
-  /** One fixed step of driving: `fwd` -1..1 (S..W), `turn` -1..1 (D..A). */
+  /** One fixed step of driving: `fwd` -1..1 (S..W), `turn` -1..1 (A..D; positive turns right). */
   drive(fwd: number, turn: number, dt: number): void {
     const want = fwd > 0 ? MAX * fwd : fwd < 0 ? -BACK : 0;
     const accel = fwd === 0 ? 5 : Math.sign(want - this.speed) === Math.sign(this.speed) || this.speed === 0 ? 4 : 9;
@@ -55,7 +55,7 @@ export class Carriage {
     const fx = nx + Math.cos(this.heading) * lead, fz = nz + Math.sin(this.heading) * lead;
     const ahead = h(fx, fz, this.pos.y + 0.4);
     const here = h(nx, nz, this.pos.y + 0.4);
-    if (Math.abs(ahead - this.pos.y) > 0.6 || Math.abs(here - this.pos.y) > 0.6 || ahead < GALAXY.y - 0.5) { this.speed = 0; return; }
+    if (Math.abs(ahead - this.pos.y) > 0.6 || Math.abs(here - this.pos.y) > 0.6 || ahead < this.pos.y - 1.5) { this.speed = 0; return; }
     this.pos.x = nx;
     this.pos.z = nz;
     this.pos.y = here;

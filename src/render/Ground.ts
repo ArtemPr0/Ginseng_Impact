@@ -28,26 +28,82 @@ export const TEXTURE_LAYERS = 11;
 export const GROUND_ALBEDO = 0.8;
 
 /**
- * The average colour of each layer's pattern, in Floors space (before GROUND_ALBEDO): the default far tint of a
- * vertex is the weight-mixed average, so the ground beyond the detail distance matches what is drawn up close.
- * (wet has no colour of its own: it darkens the mix instead.)
+ * The average colour of each layer's pattern, in Floors space (before GROUND_ALBEDO), measured from the shader's own
+ * patterns (GroundMaterial.ts ported to JS, 490 000 samples over a 360 m square; the snow's sparkle averaged over
+ * camera positions). Two jobs, one table: the default far tint of a vertex is the weight-mixed average, so the ground
+ * beyond the detail distance matches what is drawn up close; and up close the shader divides the pattern by the same
+ * mix (splatAlbedo), so the layers lend the tint their pattern but never their hue. The shader's TINT_* constants are
+ * generated from it. (wet has no colour of its own: it darkens the mix instead.)
  */
 export const LAYER_TINT: ReadonlyArray<readonly [number, number, number]> = [
-  [0.08, 0.17, 0.13], // grass
-  [0.057, 0.137, 0.078], // moss
-  [0.055, 0.065, 0.085], // rock
-  [0.165, 0.15, 0.147], // soil
-  [0.1, 0.1, 0.21], // flagstone
-  [0.19, 0.24, 0.31], // cobble
-  [0.34, 0.4, 0.55], // snow
-  [0.54, 0.57, 0.68], // sand
-  [0.35, 0.12, 0.21], // dead leaves
-  [0.52, 0.52, 0.56], // marble
-  [0.032, 0.083, 0.1], // seabed
+  [0.074, 0.167, 0.121], // grass
+  [0.054, 0.132, 0.075], // moss
+  [0.067, 0.075, 0.105], // rock
+  [0.164, 0.15, 0.145], // soil
+  [0.101, 0.097, 0.198], // flagstone (its violet crack glow included)
+  [0.191, 0.246, 0.314], // cobble
+  [0.332, 0.392, 0.551], // snow (its sparkle included)
+  [0.504, 0.531, 0.635], // sand
+  [0.352, 0.123, 0.211], // dead leaves
+  [0.495, 0.495, 0.536], // marble
+  [0.032, 0.082, 0.101], // seabed
   [0, 0, 0], // wet (modifier)
 ];
-/** How much the wet modifier darkens the albedo (the shader applies the same factor up close). */
+/** How much the wet modifier darkens the albedo: baked into every far tint, so it darkens the ground near and far. */
 export const WET_DARKEN = 0.35;
+/**
+ * Up close the ground is its far tint times the layers' pattern over the pattern's mean (LAYER_TINT), per channel,
+ * clamped to this range (splatAlbedo). The eleven patterns span 0.11 (cobble gaps) to 2.9 (snow sparkle) of their
+ * means, so the clamp never cuts a pattern and the default tint stays the exact identity; it only bounds the division.
+ */
+export const PATTERN_RATIO: readonly [number, number] = [0.05, 4];
+
+/** The threshold under which the shader skips a layer (and leaves it out of the mix and its mean). */
+const SPLAT_MIN_WEIGHT = 0.02;
+
+/**
+ * The ground's albedo up close, in JS: what GroundMaterial's color_fragment computes, kept here for the tests (edit
+ * the two together). `tint` is the vertex colour (the baked far tint, the wet modifier already in it), `weights` the
+ * twelve layer weights as the shader reads them (0..1), `patterns` each texture layer's pattern colour at the point
+ * (Floors space) and `detail` 1 up close fading to 0 at uDetailFar. Hue from the tint, pattern from the layers: the
+ * tint times the weighted pattern over the weighted LAYER_TINT, so a sculpt that brings its own tint (the island's
+ * cobalt night) keeps its hue and average brightness and only gains the pattern, while the default tint (the weighted
+ * LAYER_TINT at GROUND_ALBEDO, wet-darkened) gives back the weighted pattern at GROUND_ALBEDO, wet-darkened.
+ */
+export function splatAlbedo(
+  tint: ArrayLike<number>,
+  weights: ArrayLike<number>,
+  patterns: ReadonlyArray<ArrayLike<number>>,
+  detail = 1,
+  out: number[] = [0, 0, 0],
+): number[] {
+  let wsum = 0;
+  const acc = [0, 0, 0];
+  const mean = [0, 0, 0];
+  for (let k = 0; k < TEXTURE_LAYERS; k++) {
+    const w = weights[k];
+    if (!(w > SPLAT_MIN_WEIGHT)) continue;
+    for (let c = 0; c < 3; c++) {
+      acc[c] += patterns[k][c] * w;
+      mean[c] += LAYER_TINT[k][c] * w;
+    }
+    wsum += w;
+  }
+  if (wsum < SPLAT_MIN_WEIGHT) {
+    // Nothing painted: grass.
+    for (let c = 0; c < 3; c++) {
+      acc[c] = patterns[LAYER.grass][c];
+      mean[c] = LAYER_TINT[LAYER.grass][c];
+    }
+    wsum = 1;
+  }
+  for (let c = 0; c < 3; c++) {
+    const ratio = acc[c] / wsum / Math.max(mean[c] / wsum, 1e-3);
+    const clamped = Math.min(PATTERN_RATIO[1], Math.max(PATTERN_RATIO[0], ratio));
+    out[c] = tint[c] * (1 + (clamped - 1) * detail);
+  }
+  return out;
+}
 
 /** A pure description of a square of ground: where it is, how fine its grid is, its height and its surface. */
 export interface Sculpt {
@@ -62,8 +118,17 @@ export interface Sculpt {
   height(x: number, z: number): number;
   /** Writes the 12 layer weights (LAYER order) into `out` (zeroed before the call); `slope` is 0 flat .. 1 vertical. */
   layers(x: number, z: number, h: number, slope: number, out: Float32Array): void;
-  /** Far-distance base colour (linear albedo). Without it the weight-mixed LAYER_TINT average is used. */
+  /**
+   * The ground's colour (linear albedo): its hue and average brightness near and far, the layers lending it only their
+   * pattern up close (splatAlbedo); the wet modifier darkens it at bake. Without it the weight-mixed LAYER_TINT
+   * average at GROUND_ALBEDO is used, and the layers' own colours show up close.
+   */
   tint?(x: number, z: number, h: number, slope: number, out: Color): void;
+  /**
+   * The lowest roughness its layers render at (groundMaterial's roughnessFloor). The island's is 0.85: under its low
+   * moon a glossier flagstone or cobble reads as a grey sheen. A realm leaves it out and keeps its marble glossy.
+   */
+  roughnessFloor?: number;
   /** Chunks whose every vertex is below this height are not built (a realm is mostly void around its land). */
   voidBelow?: number;
 }
@@ -158,9 +223,13 @@ export class Heightfield {
           this.layers[o + k] = Math.round(w[k] * 255);
         }
         this.layers[o + LAYER.wet] = Math.round(wet * 255);
+        // Wet ground is darker whoever coloured it: the shader keeps the tint's brightness up close, so the wet
+        // modifier lives here, in the tint, for the sculpt's own tint as for the default one.
+        const dry = 1 - WET_DARKEN * wet;
         if (hasTint) {
           c.setRGB(0, 0, 0);
           s.tint!(x, z, h, slope, c);
+          c.multiplyScalar(dry);
         } else {
           let r = 0, gg = 0, b = 0;
           for (let k = 0; k < TEXTURE_LAYERS; k++) {
@@ -169,7 +238,7 @@ export class Heightfield {
             gg += t[1] * w[k];
             b += t[2] * w[k];
           }
-          const k = GROUND_ALBEDO * (1 - WET_DARKEN * wet);
+          const k = GROUND_ALBEDO * dry;
           c.setRGB(r * k, gg * k, b * k);
         }
         this.tints[i * 3] = c.r;

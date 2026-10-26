@@ -14,7 +14,6 @@
 import { Color, Group, type Mesh, type MeshStandardMaterial, PointLight, Vector3 } from 'three';
 import { ISLAND_PORTALS, SUNKEN } from '../data/world';
 import { MODELS } from '../data/models';
-import { cobbleFloor, seabed } from '../render/Floors';
 import { glowSprite } from '../render/Glow';
 import { patchSwim, patchWind } from '../render/Materials';
 import { PALETTE } from '../render/palette';
@@ -26,8 +25,6 @@ import { modelLandmark } from './ModelLandmark';
 import { PRESENT_MODELS } from '../data/colliderGrids';
 import { portal, type PortalLink } from './Portal';
 import type { RealmApi } from './Realms';
-import { floorSlab } from './Walkways';
-
 /**
  * Where the ways home come out on the island: in the lily pond's shallows 5 m east of the whirlpool, facing it (the
  * shore point east of the pond put you by the causeway's stairs, nowhere near the water you went down through).
@@ -76,20 +73,11 @@ export function buildSunken(api: RealmApi, link: (at: Vector3, radius: number, h
   };
   const [fx0, fx1, fz0, fz1] = SUNKEN_FLOOR;
   const fw = fx1 - fx0, fd = fz1 - fz0, fcx = (fx0 + fx1) / 2, fcz = (fz0 + fz1) / 2;
-  api.place(floorSlab(fcx, fcz, sy, fw, fd));
-  // Unseen walls round the slab (beyond it the murk hides a long fall).
+  // The city stands on its sculpt. Unseen walls round the old slab (beyond it the murk hides a long fall).
   api.place({ object: new Group(), footprints: [
     { kind: 'box', x: fx0 - 0.5, z: fcz, hw: 0.5, hd: fd / 2 + 1, top: sy + 6 }, { kind: 'box', x: fx1 + 0.5, z: fcz, hw: 0.5, hd: fd / 2 + 1, top: sy + 6 },
     { kind: 'box', x: fcx, z: fz0 - 0.5, hw: fw / 2 + 1, hd: 0.5, top: sy + 6 }, { kind: 'box', x: fcx, z: fz1 + 0.5, hw: fw / 2 + 1, hd: 0.5, top: sy + 6 },
   ] });
-  // The sea bed all round (it hides the slab's edges in the murk), and the cobbled way from the kelp road through the
-  // street into the square.
-  api.group.add(seabed(fcx, fcz, 600, 600, sy));
-  // (Stacked a couple of centimetres apart where they overlap, or the planes fight for the same pixels.)
-  api.group.add(cobbleFloor(X, -40, 16, 130, sy + 0.02, 0, 0.45));
-  // (3 cm over the street's, which runs on under it: 1.5 cm flickered.)
-  api.group.add(cobbleFloor(X, -78, 46, 36, sy + 0.05, 0, 0.45));
-
   // ===== The water itself =====
   const fx = new Group();
   fx.add(causticFloor(fcx, fcz, fw, fd, sy));
@@ -112,13 +100,13 @@ export function buildSunken(api: RealmApi, link: (at: Vector3, radius: number, h
     const side = i % 2 ? 1 : -1;
     const x = X + side * (6 + api.rnd() * 30);
     const z = 20 + api.rnd() * 48;
-    kelp.push({ x, y: sy, z, yaw: api.rnd() * 6, scale: 0.7 + api.rnd() * 0.9 });
+    kelp.push({ x, y: api.h(x, z), z, yaw: api.rnd() * 6, scale: 0.7 + api.rnd() * 0.9 });
   }
   for (let i = 0; i < 14; i++) {
     const side = i % 2 ? 1 : -1;
     const x = X + side * (9 + api.rnd() * 24);
     const z = 22 + api.rnd() * 44;
-    kelpTrees.push({ x, y: sy - 0.1, z, yaw: api.rnd() * 6, scale: 0.7 + api.rnd() * 0.4 });
+    kelpTrees.push({ x, y: api.h(x, z) - 0.1, z, yaw: api.rnd() * 6, scale: 0.7 + api.rnd() * 0.4 });
   }
   api.flora('kelp', kelp, { shadows: false, patch: (mat) => patchWind(mat, 0.6) });
   api.flora('dead-forest-tree', kelpTrees, { patch: (mat) => { mat.color.lerp(new Color(0x1d4a52), 0.6); } });

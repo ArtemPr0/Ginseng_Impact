@@ -14,7 +14,6 @@
 import { Color, Group, type Mesh, type MeshStandardMaterial, Vector3 } from 'three';
 import { ISLAND_PORTALS, VALE } from '../data/world';
 import { MODELS } from '../data/models';
-import { cobbleFloor, grassGround, seabed } from '../render/Floors';
 import { glowSprite } from '../render/Glow';
 import { horizonMoon, skyVortex } from '../render/LeanFx';
 import { patchLitWindows, patchNeckTurn } from '../render/Materials';
@@ -76,21 +75,10 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
   const fx = new Group();
   const updates: Array<(dt: number) => void> = [];
   api.vfx({ group: fx, update: (dt) => { for (const u of updates) u(dt); } });
-  // Ground: night grass everywhere, a muddy cobbled street up the middle; unseen walls at the edges.
+  // The vale stands on its sculpt. Unseen walls at the edges; the river is water over the sculpted bed.
   const x0 = X - 110, x1 = X + 100, z0 = Z - 120, z1 = Z + 125;
   const riverX = X - 45;
-  // (The grass stops at the river's banks: one sheet over everything hid the water under it.)
-  api.group.add(grassGround((x0 + riverX - 5) / 2, (z0 + z1) / 2, riverX - 5 - x0, z1 - z0, vy));
-  api.group.add(grassGround((riverX + 5 + x1) / 2, (z0 + z1) / 2, x1 - riverX - 5, z1 - z0, vy));
-  // The river's silt bed, seen through the water.
-  api.group.add(seabed(riverX, (z0 + z1) / 2, 10, z1 - z0, vy - 2.2));
-  // (A couple of centimetres over the grass, or the two planes fight for the same pixels.)
-  api.group.add(cobbleFloor(X, Z + 50, 12, 130, vy + 0.02, 0, 0.7));
   api.place({ object: new Group(), footprints: [
-    { kind: 'box', x: (riverX + 5 + x1) / 2, z: (z0 + z1) / 2, hw: (x1 - riverX - 5) / 2, hd: (z1 - z0) / 2, top: vy },
-    { kind: 'box', x: (x0 + riverX - 5) / 2, z: (z0 + z1) / 2, hw: (riverX - 5 - x0) / 2, hd: (z1 - z0) / 2, top: vy },
-    // The river's bed, deep enough to swim (wading into a bed under a painted surface looked like sinking into the ground).
-    { kind: 'box', x: riverX, z: (z0 + z1) / 2, hw: 5, hd: (z1 - z0) / 2, top: vy - 2.2 },
     { kind: 'box', x: x0 - 0.5, z: (z0 + z1) / 2, hw: 0.5, hd: (z1 - z0) / 2 + 1, top: vy + 6 }, { kind: 'box', x: x1 + 0.5, z: (z0 + z1) / 2, hw: 0.5, hd: (z1 - z0) / 2 + 1, top: vy + 6 },
     { kind: 'box', x: (x0 + x1) / 2, z: z0 - 0.5, hw: (x1 - x0) / 2 + 1, hd: 0.5, top: vy + 6 }, { kind: 'box', x: (x0 + x1) / 2, z: z1 + 0.5, hw: (x1 - x0) / 2 + 1, hd: 0.5, top: vy + 6 },
   ] });
@@ -185,11 +173,12 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
   }
   // The crowned head, half again its registry size (it fills the reel's frame), at the end of a cobbled path from the
   // bridge with braziers burning where the path meets it.
-  api.place(modelLandmark('crowned-head', X - 85, Z + 20, vy, { yaw: face(0.25), scale: 1.5 }));
+  const headX = X - 85, headZ = Z + 20;
+  const headY = api.h(headX, headZ);
+  api.place(modelLandmark('crowned-head', headX, headZ, headY, { yaw: face(0.25), scale: 1.5 }));
   {
     // From the bridge's west end (949, 939) toward the head, along (0.894, 0.447).
     const ux = 0.894, uz = 0.447;
-    api.group.add(cobbleFloor(X - 62.5, Z + 33.2, 26, 3.5, vy + 0.02, -Math.atan2(uz, ux), 0.6));
     for (const side of [-1, 1]) {
       const x = X - 72 - uz * side * 2.8, z = Z + 28.5 + ux * side * 2.8;
       api.place(modelLandmark('brazier', x, z, vy, { footprints: [{ kind: 'cyl', x, z, r: 0.6, top: vy + 1.3 }] }));

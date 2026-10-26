@@ -105,7 +105,15 @@ interface TrailSlot {
 
 interface ArcSlot { mesh: Mesh; mat: ShaderMaterial; birth: number; radius: number }
 interface ShockSlot { mesh: Mesh; mat: MeshBasicMaterial; birth: number; seconds: number; radius: number }
-interface TelegraphSlot { mesh: Mesh; mat: ShaderMaterial; id: number; birth: number; seconds: number }
+/**
+ * A telegraph slot. On the clock by default (its fill is its age over `seconds`); `driven` once its owner drives it
+ * (driveTelegraph): then `fill` is the owner's, `keptAt` when the owner last drove it, and `full` that the sweep has
+ * been shown at the edge (it goes dark at the next update).
+ */
+interface TelegraphSlot { mesh: Mesh; mat: ShaderMaterial; id: number; birth: number; seconds: number; driven: boolean; fill: number; keptAt: number; full: boolean }
+
+/** A driven telegraph its owner stops driving goes dark this long after the last drive (seconds): it fell, or let go. */
+export const TELEGRAPH_KEEP = 0.5;
 
 const _a = new Vector3();
 const _b = new Vector3();
@@ -533,7 +541,7 @@ export class CombatFx {
       mesh.renderOrder = 4;
       mesh.name = 'telegraph';
       this.group.add(mesh);
-      this.telegraphs.push({ mesh, mat, id: -1, birth: 0, seconds: 1 });
+      this.telegraphs.push({ mesh, mat, id: -1, birth: 0, seconds: 1, driven: false, fill: 0, keptAt: 0, full: false });
     }
 
     // --- The cast rune: a tinted, turning ring texture under the hero.
@@ -802,7 +810,8 @@ export class CombatFx {
 
   /**
    * A ground warning at `at`: a `size`-metre ring, disc, or cone (apex at `at`, ±`halfAngle`, default 0.5 rad)
-   * facing `yaw`, whose fill sweeps out over `seconds` and then goes dark. The same id replaces its own shape.
+   * facing `yaw`, whose fill sweeps out over `seconds` and then goes dark. The same id replaces its own shape (and
+   * puts it back on the clock); driveTelegraph takes it off the clock.
    */
   telegraph(id: number, kind: 'ring' | 'cone' | 'disc', at: Vector3, yaw: number, size: number, seconds: number, color: ColorRepresentation, halfAngle = 0.5): void {
     const now = COMBATFX_CLOCK.value;
@@ -816,6 +825,8 @@ export class CombatFx {
     slot.id = id;
     slot.birth = now;
     slot.seconds = Math.max(0.05, seconds);
+    slot.driven = slot.full = false;
+    slot.fill = 0;
     slot.mesh.position.set(at.x, at.y + 0.08, at.z);
     slot.mesh.rotation.set(-Math.PI / 2, 0, -yaw);
     slot.mesh.scale.setScalar(Math.max(0.1, size));
@@ -827,6 +838,44 @@ export class CombatFx {
     u.uFill.value = 0;
     u.uAlpha.value = 0;
     slot.mesh.visible = true;
+  }
+
+  /** The live slot telegraph `id` owns, if any. */
+  private liveTelegraph(id: number): TelegraphSlot | undefined {
+    for (const s of this.telegraphs) if (s.mesh.visible && s.id === id) return s;
+    return undefined;
+  }
+
+  /**
+   * Drives telegraph `id` from its owner's step instead of the clock: its fill is `fill` (0..1) until the next drive,
+   * and it stands at `at` facing `yaw` when given (it follows what it warns of). A wind-up that a hit-stop holds, a
+   * slow stretches or a daze stops holds its warning with it, so the sweep reaches the edge exactly as the blow lands.
+   * Driven to 1 it shows the full sweep for one frame and goes dark; one its owner stops driving goes dark
+   * TELEGRAPH_KEEP seconds after the last drive. False when `id` has no live telegraph (issue it again).
+   */
+  driveTelegraph(id: number, fill: number, at?: Vector3, yaw?: number): boolean {
+    const s = this.liveTelegraph(id);
+    if (!s) return false;
+    s.driven = true;
+    s.fill = Math.max(0, Math.min(1, fill));
+    s.keptAt = COMBATFX_CLOCK.value;
+    if (at) s.mesh.position.set(at.x, at.y + 0.08, at.z);
+    if (yaw !== undefined) s.mesh.rotation.set(-Math.PI / 2, 0, -yaw);
+    s.mat.uniforms.uFill.value = s.fill;
+    return true;
+  }
+
+  /** Puts telegraph `id` out at once, unfilled (its blow will not come: the owner fell, was dazed off it, gave up). */
+  endTelegraph(id: number): void {
+    const s = this.liveTelegraph(id);
+    if (s) this.darkTelegraph(s);
+  }
+
+  private darkTelegraph(s: TelegraphSlot): void {
+    s.mesh.visible = false;
+    s.id = -1;
+    s.driven = s.full = false;
+    this.liveTelegraphs--;
   }
 
   // ---------------------------------------------------------------- rune
@@ -918,8 +967,14 @@ export class CombatFx {
       for (const s of this.telegraphs) {
         if (!s.mesh.visible) continue;
         const t = now - s.birth;
-        if (t >= s.seconds) { s.mesh.visible = false; s.id = -1; this.liveTelegraphs--; continue; }
-        s.mat.uniforms.uFill.value = t / s.seconds;
+        if (s.driven) {
+          // The owner's fill (set in driveTelegraph); the full sweep is shown for one frame, then it goes dark.
+          if (s.full || now - s.keptAt > TELEGRAPH_KEEP) { this.darkTelegraph(s); continue; }
+          if (s.fill >= 1) s.full = true;
+        } else {
+          if (t >= s.seconds) { this.darkTelegraph(s); continue; }
+          s.mat.uniforms.uFill.value = t / s.seconds;
+        }
         s.mat.uniforms.uAlpha.value = Math.min(1, t / 0.06);
       }
     }

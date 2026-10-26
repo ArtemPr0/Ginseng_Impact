@@ -1,4 +1,5 @@
 import { Color, Group, type Mesh, type MeshStandardMaterial, type Object3D, Vector3 } from 'three';
+import { REALM_SCULPTS } from '../data/sculpts';
 import { ANCHORS, CRYPT_ROOM, GALAXY, ISLAND_PORTALS, LAYOUT, REALMS, SUNKEN, TAVERN_ROOM, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
 import type { Events, Zone } from '../game/Events';
@@ -7,7 +8,9 @@ import { glowSprite } from '../render/Glow';
 import { patchGait, patchGlowCap, patchLitWindows, patchWhiteBloom } from '../render/Materials';
 import { PointLight } from 'three';
 import { CloudSea } from './CloudSea';
-import { footprintContains, HeightWorld, trunkFootprint, type Footprint } from './Colliders';
+import { GroundQuery } from './Ground';
+import { RealmGrounds } from './RealmGround';
+import { carveGridOpening, footprintContains, HeightWorld, trunkFootprint, type Footprint, type GridFootprint } from './Colliders';
 import { PRESENT_MODELS } from '../data/colliderGrids';
 import { MODELS } from '../data/models';
 import { waterfall } from './Falls';
@@ -303,11 +306,16 @@ export class World {
   private readonly zoneOf = new Map<object, string | null>();
   private here: string | null | undefined = undefined;
   private readonly extras: Array<{ update: (dt: number) => void }> = [];
-  private readonly clouds: CloudSea;
+  /** The cloud sea under every place (main.ts sets its level per zone): it lives in the scene root, beside `group`. */
+  readonly clouds: CloudSea;
+  /** Sculpted floors of the four realms. HeightWorld reads them; the mesh is baked on the first visit. */
+  readonly realmGround = new RealmGrounds();
+  /** Rim colliders added once per sculpted realm (first visit). */
+  private readonly realmRimAdded = new Set<string>();
   private readonly noise = new Noise2D(1337);
 
   constructor(readonly terrain: Terrain) {
-    this.heights = new HeightWorld(terrain);
+    this.heights = new HeightWorld(new GroundQuery(terrain, this.realmGround));
     // The great river is the swimmable water (the lily pond and the pools are only knee to waist deep), and the realms'
     // rivers and moats (RealmApi.water).
     this.heights.water = (x, z) => {
@@ -317,6 +325,8 @@ export class World {
     };
     // Out in a realm flight's ceiling counts from the realm's floor, not from the void beside it.
     this.heights.flyFloor = (x, z) => {
+      const land = this.realmGround.heightAt(x, z);
+      if (land !== null) return land;
       const realm = REALMS.find((r) => Math.abs(x - r.x) < r.radius + 120 && Math.abs(z - r.z) < r.radius + 120);
       return realm ? realm.y : 0;
     };
@@ -324,6 +334,8 @@ export class World {
     const rnd = rng(4242);
     const world0 = this;
     const h = (x: number, z: number) => terrain.heightAt(x, z);
+    /** Island terrain, or a realm's sculpt where one reaches (placements, seats, the realm builders' `h`). */
+    const gh = (x: number, z: number) => this.realmGround.heightAt(x, z) ?? h(x, z);
     // Ground-level height for things placed on the island (walkers, NPCs, grass): overhangs above the ground are skipped.
     const hw = (x: number, z: number, y?: number) => this.heights.heightAt(x, z, y ?? terrain.heightAt(x, z));
     const flora = (id: string, placements: Placement[], opts?: Parameters<typeof floraSet>[2] & { trunk?: number }) => {
@@ -427,21 +439,28 @@ export class World {
     this.auroraCentre.set(ch.x, 0, ch.z);
     const tw = LAYOUT.tower;
     const towerY = h(tw.x, tw.z) - 1.5;
-    this.place(modelLandmark('tower', tw.x, tw.z, towerY));
-    // The cave in the tower's rock base (east side, under the Moon Wyrm's circuit): a faint rune glow inside.
+    // Cave mouth on the east flank of the rock base (glow + walkable opening through the baked shell).
+    const caveX = tw.x + 7.7, caveZ = tw.z + 4.7;
     {
+      const tower = modelLandmark('tower', tw.x, tw.z, towerY);
+      const grid = tower.footprints.find((f): f is GridFootprint => f.kind === 'grid');
+      if (grid) tower.footprints = [carveGridOpening(grid, caveX, caveZ, 2.4)];
+      this.place(tower);
       const cave = glowSprite(PALETTE.rune, 5, 0.35, true);
-      cave.position.set(tw.x + 7.7, towerY + 2.2, tw.z + 4.7);
+      cave.position.set(caveX, towerY + 2.2, caveZ);
       this.group.add(cave);
       const caveLight = new PointLight(PALETTE.rune, 18, 12, 1.8);
       caveLight.position.copy(cave.position);
       this.group.add(caveLight);
     }
     if (PRESENT_MODELS.has('floating-rock')) for (let i = 0; i < 14; i++) {
-      const radius = 12 + ((i * 41) % 20);
+      const radius = 14 + ((i * 41) % 20);
       const height = towerY + 6 + ((i * 23) % 24);
       const speed = 0.03 + ((i * 13) % 5) * 0.012;
       let angle = (i / 14) * Math.PI * 2;
+      // Keep the orbit clear of the cave mouth so rocks never seal the doorway.
+      const caveAng = Math.atan2(caveZ - tw.z, caveX - tw.x);
+      if (Math.abs(Math.atan2(Math.sin(angle - caveAng), Math.cos(angle - caveAng))) < 0.55 && radius < 18) angle += 1.1;
       this.place(modelLandmark('floating-rock', tw.x + Math.cos(angle) * radius, tw.z + Math.sin(angle) * radius, height, {
         collider: 'none',
         update: (dt, root) => { angle += dt * speed; root.position.set(tw.x + Math.cos(angle) * radius, height + Math.sin(angle * 9 + i) * 1.2, tw.z + Math.sin(angle) * radius); root.rotation.y += dt * 0.08; },
@@ -523,14 +542,7 @@ export class World {
     };
     this.extras.push(lantern);
     this.place(rider);
-    for (let i = 0; i < 7; i++) {
-      const phase = (i / 7) * Math.PI * 2;
-      const r = 5 + (i % 4) * 2;
-      // Koi swim through the air a few metres over the lily pond (DeVj reel), not up in the clouds.
-      const hgt = h(WORLD.pond.x, WORLD.pond.z) + 3.5 + (i % 3) * 1.6;
-      const speed = 0.25 + (i % 3) * 0.06;
-      this.place(modelLandmark('koi', WORLD.pond.x, WORLD.pond.z, hgt, { clip: 'idle', collider: 'none', update: (dt, root) => { void dt; const t = performance.now() * 0.001; const a = t * speed + phase; root.position.set(WORLD.pond.x + Math.cos(a) * r, hgt + Math.sin(t * 0.9 + phase * 3) * 0.8, WORLD.pond.z + Math.sin(a) * r); root.rotation.y = -a; root.rotation.z = Math.cos(t * 0.9 + phase * 3) * 0.3; } }));
-    }
+    // Flying koi over the lily pond are combat enemies now (ENEMY_SPAWNS 'koi'): killable, never hostile.
     // (On the bank east of the lily pond, not in its water.)
     this.place(modelLandmark('snake', -4, -14, h(-4, -14) + 0.05, { clip: 'idle', collider: 'none' }));
 
@@ -735,7 +747,9 @@ export class World {
     }
     flora('grave', graves, { trunk: 0.3 });
     this.clouds = new CloudSea(LAYOUT.cloudSea.y);
-    this.group.add(this.clouds.group);
+    // Beside the world's group, not in it: showZone never hides the clouds (each place sets their level instead).
+    this.group.addEventListener('added', () => this.group.parent?.add(this.clouds.group));
+    this.group.addEventListener('removed', () => this.clouds.group.removeFromParent());
 
     // --- the fifth batch of reels: realms beyond the portals and the new island sites ---
     const rrnd = rng(5150);
@@ -743,7 +757,7 @@ export class World {
     const realmApi: RealmApi = {
       get group() { return world.target; },
       realm: (id) => this.enterZone(id),
-      place: (l) => this.place(l), flora, vfx, h, rnd: rrnd,
+      place: (l) => this.place(l), flora, vfx, h: gh, rnd: rrnd,
       water: (x0, x1, z0, z1, level) => { this.waterZones.push({ x0, x1, z0, z1, level }); },
       shoot: (from, s) => this.hooks.shoot?.(from, s),
     };
@@ -769,7 +783,7 @@ export class World {
     {
       const dx = LAYOUT.church.x + MODELS.church.height * 0.4 + 0.8;
       const yard = buildGraveyard({
-        get group() { return world.target; }, realm: (id) => this.enterZone(id), place: (l) => this.place(l), flora, vfx, h, rnd: rrnd,
+        get group() { return world.target; }, realm: (id) => this.enterZone(id), place: (l) => this.place(l), flora, vfx, h: gh, rnd: rrnd,
         heights: this.heights, teleport: () => this.hooks.teleport, door: { x: dx, z: LAYOUT.church.z, y: h(dx, LAYOUT.church.z) },
       });
       this.portals.push(...yard.links);
@@ -787,8 +801,7 @@ export class World {
       const bz = a.z - Math.sin(facing) * 0.28;
       // On the ground its sitter sits on: the island's, or out in a realm (the island's terrain is the void there) the
       // realm's floor under any roof (as the NPCs below).
-      const ground = h(bx, bz);
-      const by = ground < -20 ? this.heights.heightAt(bx, bz, ground) : ground;
+      const by = gh(bx, bz);
       // (In the sitter's realm's group: the island's group is hidden while the player is in a realm.)
       const realm = REALMS.find((r) => Math.hypot(bx - r.x, bz - r.z) < r.radius);
       this.enterZone(realm ? realm.id : null);
@@ -814,8 +827,7 @@ export class World {
       // Seated NPCs sit `dy` above the ground itself (not above the stool the tavern model already has).
       if (s.dy !== undefined) {
         // Out in a realm the island terrain is the void far below: sit on the realm's own floor instead.
-        const ground = terrain.heightAt(s.x, s.z);
-        npc.pos.y = (ground < -20 ? this.heights.heightAt(s.x, s.z, ground) : ground) + s.dy;
+        npc.pos.y = gh(s.x, s.z) + s.dy;
       }
       // A guard bars the doorway behind him (a box across it, 6 m wide) until he steps aside.
       if (def.behaviour.kind === 'guard') {
@@ -856,13 +868,23 @@ export class World {
   private showZone(id: string | null): void {
     this.hooks.events?.emit({ kind: 'zone', zone: (id ?? 'island') as Zone, from: (this.here ?? 'island') as Zone });
     this.here = id;
+    if (id) {
+      const g = this.realmGroups.get(id);
+      if (g) {
+        this.realmGround.ensure(id, g);
+        if (!this.realmRimAdded.has(id) && id in REALM_SCULPTS) {
+          this.realmRimAdded.add(id);
+          this.heights.add(...this.realmGround.rimFootprints(id));
+        }
+      }
+    }
     for (const child of this.group.children) {
       // Point lights belong to the light budget, which keeps them hidden and reads them as sources.
       if (child.userData.budgeted) continue;
       const realm = child.name.startsWith('realm:') ? child.name.slice(6) : null;
       // (Things that hid themselves, like a stand-in under its model or Croak in the sack, stay hidden.)
       if (realm !== null) child.visible = realm === id;
-      else if (child !== this.clouds.group) child.visible = id === null && !child.userData.hidden;
+      else child.visible = id === null && !child.userData.hidden;
     }
   }
 
@@ -871,6 +893,14 @@ export class World {
     this.heights.add(...l.footprints);
     this.landmarks.push(l);
     this.zoneOf.set(l, this.zone);
+  }
+
+  /** Puts a prop in a realm's group, or on the island when `zone` is null (chests). */
+  adopt(zone: string | null, object: Object3D): void {
+    const was = this.zone;
+    this.enterZone(zone);
+    this.target.add(object);
+    this.enterZone(was);
   }
 
   /** An NPC's seat (Croak's boulder): Adventures hides it while he is carried in the sack. */
@@ -911,7 +941,7 @@ export class World {
   }
 
   plantable(x: number, z: number): boolean {
-    const y = this.terrain.heightAt(x, z);
+    const y = this.realmGround.heightAt(x, z) ?? this.terrain.heightAt(x, z);
     if (y < -2) return false;
     // Cheapest tests first: this runs for every grass blade candidate around the player.
     // The causeway line, on to the stone head it leads to (its north stairs come down onto open ground before it).
@@ -992,12 +1022,14 @@ export class World {
     snailTarget = playerPos;
     const here = REALMS.find((r) => Math.hypot(playerPos.x - r.x, playerPos.z - r.z) < r.radius)?.id ?? null;
     if (here !== this.here) this.showZone(here);
+    this.realmGround.update(cameraPos);
     // Only the place you are in is updated; elsewhere nothing moves until you get there.
     for (const l of this.landmarks) if ((this.zoneOf.get(l) ?? null) === here) l.update?.(dt, playerPos);
     for (const e of this.extras) if ((this.zoneOf.get(e) ?? null) === here) e.update(dt);
     for (const w of this.watchers) if (w.zone === here) w.update(dt, cameraPos, playerPos);
     this.clouds.update(dt, cameraPos);
-    if (here === null) this.grass.update(playerPos.x, playerPos.z);
+    const sculpt = here ? REALM_SCULPTS[here as keyof typeof REALM_SCULPTS] : undefined;
+    if (here === null || sculpt?.grass) this.grass.update(playerPos.x, playerPos.z);
     for (const n of this.npcs) {
       if ((this.zoneOf.get(n) ?? null) !== here) continue;
       // Characters beyond 70 m keep their place but stop animating (they are fog-dimmed specks at that range).

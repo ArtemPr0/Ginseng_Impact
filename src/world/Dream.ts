@@ -179,7 +179,7 @@ export function buildDream(api: RealmApi): void {
   }
   api.place({ object: new Group(), footprints });
 
-  // Things drifting through the air: koi circling, jellyfish bobbing, crystals turning.
+  // Koi and jellyfish are combat enemies now (ENEMY_SPAWNS); crystals still drift as scenery.
   const drift = (id: string, n: number, rMin: number, rMax: number, yMin: number, yMax: number, scale: number, speed: number) => {
     for (let i = 0; i < n; i++) {
       const r = rMin + api.rnd() * (rMax - rMin);
@@ -196,15 +196,12 @@ export function buildDream(api: RealmApi): void {
           tt += dt;
           a += w * dt;
           root.position.set(R.x + Math.cos(a) * r, y0 + Math.sin(tt * 0.7 + phase) * 1.5, R.z + Math.sin(a) * r);
-          // Swimmers face along their circle; the rest tumble slowly.
-          if (id === 'koi') root.rotation.y = Math.PI / 2 - (a + Math.sign(w) * Math.PI / 2);
-          else { root.rotation.y += dt * 0.4; root.rotation.z = Math.sin(tt * 0.5 + phase) * 0.3; }
+          root.rotation.y += dt * 0.4;
+          root.rotation.z = Math.sin(tt * 0.5 + phase) * 0.3;
         },
       }));
     }
   };
-  drift('koi', 10, 12, 70, 3, 14, 3, 9);
-  drift('jellyfish', 10, 18, 90, 6, 30, 4, 3);
   drift('purple-crystal', 10, 25, 110, 4, 40, 3.5, 2);
 
   const C = { x: R.x, z: R.z };
