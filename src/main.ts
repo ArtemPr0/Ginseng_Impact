@@ -111,8 +111,6 @@ function pinToCarriage(): void {
 }
 /** The hero's height last frame, for the climb clip's pace. */
 let lastClimbY = 0;
-let slopePitch = 0;
-let slopeRoll = 0;
 
 const terrain = new Terrain();
 scene.add(terrain.group);
@@ -766,22 +764,16 @@ game
       if (!adventures.riding && !CARRIAGE.driving && !game.paused && drawPos.distanceToSquared(prevPos) < 16) drawPos.lerpVectors(prevPos, drawPos, Math.min(1, alpha));
       rig.root.position.copy(drawPos);
       rig.root.rotation.y = yawToRotation(controller.yaw);
-      if (controller.mode === 'ground') {
-        const e = 0.8;
-        const gx = world.heightAt(drawPos.x + e, drawPos.z) - world.heightAt(drawPos.x - e, drawPos.z);
-        const gz = world.heightAt(drawPos.x, drawPos.z + e) - world.heightAt(drawPos.x, drawPos.z - e);
-        const along = (gx * Math.cos(controller.yaw) + gz * Math.sin(controller.yaw)) / (2 * e);
-        const side = (gx * Math.sin(controller.yaw) - gz * Math.cos(controller.yaw)) / (2 * e);
-        const k = Math.min(1, dt * 8);
-        slopePitch += (Math.max(-0.17, Math.min(0.17, -along)) - slopePitch) * k;
-        slopeRoll += (Math.max(-0.1, Math.min(0.1, side * 0.5)) - slopeRoll) * k;
-      } else {
-        const k = Math.min(1, dt * 8);
-        slopePitch += (0 - slopePitch) * k;
-        slopeRoll += (0 - slopeRoll) * k;
-      }
-      rig.root.rotation.x = slopePitch;
-      rig.root.rotation.z = slopeRoll;
+      // On the ground the body tips with the slope and leans into turns (SlopeLean); flying, swimming, climbing, in a
+      // boat or on the carriage's bench it eases upright.
+      if (controller.mode === 'ground' && !adventures.riding && !CARRIAGE.driving) {
+        const e = 0.6, y = drawPos.y + 0.5;
+        const gx = (world.heightAt(drawPos.x + e, drawPos.z, y) - world.heightAt(drawPos.x - e, drawPos.z, y)) / (2 * e);
+        const gz = (world.heightAt(drawPos.x, drawPos.z + e, y) - world.heightAt(drawPos.x, drawPos.z - e, y)) / (2 * e);
+        // (A step or a wall edge under one sample is not a slope: past 45° it is ignored.)
+        if (Math.hypot(gx, gz) < 1) rig.slope(gx, gz, controller.yaw, Math.hypot(controller.vel.x, controller.vel.z), dt);
+        else rig.slope(0, 0, controller.yaw, Math.hypot(controller.vel.x, controller.vel.z), dt);
+      } else rig.slope(null, 0, controller.yaw, 0, dt);
       const airborne = controller.mode === 'air' || controller.mode === 'fly';
       if (wasAirborne && !airborne) landedAt = performance.now() / 1000;
       wasAirborne = airborne;
