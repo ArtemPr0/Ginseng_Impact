@@ -650,11 +650,11 @@ export class Hud {
   }
 
   /** The ending: a stepped scroll of lines, then Continue. */
-  credits(lines: string[], onContinue: () => void): void {
+  credits(lines: readonly string[], button: string, onContinue: () => void): void {
     this.root.querySelector('#hud-credits')?.remove();
     const el = document.createElement('div');
     el.id = 'hud-credits';
-    el.innerHTML = lines.map((l) => `<p>${l}</p>`).join('') + '<button type="button">Continue</button>';
+    el.innerHTML = lines.map((l) => `<p>${l}</p>`).join('') + `<button type="button">${button}</button>`;
     el.querySelector('button')!.addEventListener('click', () => { el.remove(); onContinue(); });
     this.root.append(el);
   }

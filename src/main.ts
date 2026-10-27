@@ -533,11 +533,11 @@ const ending = new Ending({
       if (concertWhale) concertWhale.visible = true;
     }
   },
-  credits: (lines, onContinue) => {
+  credits: (lines, button, onContinue) => {
     concertLive = false;
     for (const b of concertBursts) { scene.remove(b.light); b.light.dispose(); }
     concertBursts.length = 0;
-    hud.credits(lines, onContinue);
+    hud.credits(lines, button, onContinue);
   },
   onPlus: () => { newGamePlus = true; combat.beginPlus(); hud.announce('New Game+'); save.write(snapshot()); },
 });
