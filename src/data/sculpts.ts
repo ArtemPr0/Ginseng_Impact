@@ -88,6 +88,8 @@ export interface WaterRect { rect: Rect; level: number; bed: number; bank?: numb
 /** A dome of extra relief: `height` at its centre, easing to 0 at `disc.r`; `falloff` 0..1 is the share of the radius the ease takes (1 = a full smoothstep dome). */
 export interface ExtraHill { disc: Disc; height: number; falloff: number }
 
+export interface RimRidge { height: number; inner: number; wavelength: number; seed: number; mask?: (x: number, z: number) => number }
+
 /** A shape that counts as land without being a pad (the meadows a realm's mobs roam, a hill). */
 export interface LandShape extends Shape { margin?: number; wobble?: number; name?: string }
 
@@ -119,6 +121,15 @@ export interface RealmSculpt {
   cloudSea: number | null;
   sky: 'island' | 'kingdom' | 'dream';
   extraHills?: ExtraHill[];
+  /**
+   * Ridges and knolls that rise off the pads toward the land's rim, so the land ends in a broken crest over the cliff
+   * (the floating-island look) instead of a flat table: up to `height` metres, rising over the outer `inner` metres of
+   * the land (by the land's signed distance), its crest broken by fbm at `wavelength` into knolls and saddles that let
+   * the cloud sea show through. Off the pads only (× 1 − padMask); `mask` (0..1) fades it.
+   */
+  rim?: RimRidge;
+  /** The cliff face eaten back into crags (up to `amp` metres, fbm at `wavelength`) and stepped into ledges every `ledge` metres. Only ever lowers the face. */
+  crag?: { amp: number; wavelength: number; ledge: number };
   /** Floating things the land keeps clear of. */
   clear?: Floater[];
 }
@@ -143,8 +154,13 @@ export const FREEBOARD = 0.3;
 export const SEABED_FALL = 70;
 /** The wavelength of the fbm that warps every land border. */
 export const BORDER_WAVELENGTH = 70;
+/** The wavelength of the border's second, shorter warp (coves and spurs). */
+export const BORDER_COVE = 21;
 /** How far the far tint leans from the layers' own colours toward the island's palette (navy/moss/stone/snow/seabed). */
 export const TINT_PALETTE_MIX = 0.35;
+/** The rim's lowest share of its height (a saddle) and its highest (a knoll with its crag). */
+export const RIM_SADDLE = 0.15;
+export const RIM_KNOLL_MAX = 1.25;
 /** The abyss every cliff ends in (one source of truth with the island). */
 export const ABYSS_Y = WORLD.abyssY;
 
@@ -295,6 +311,48 @@ export const SNOW_FLATS: ReadonlyArray<Disc & { name: string; y: number }> = [
   { name: 'plague-doctor', x: 931, z: 124.6, r: 3, y: snowY(124.6) },
   { name: 'snow-gate', x: 951, z: 86.5, r: 6, y: GY },
 ];
+/** The path from the snow gate to before the chapel's door (LeanQuarter.ts builds it the same way): its pillars and torches stand 3.4 m off it. */
+export const SNOW_PATH: ReadonlyArray<readonly [number, number]> = (() => {
+  const gate = { x: 950, z: 86 }, CH = Q.chapel, out: Array<[number, number]> = [];
+  for (let k = 0; k <= 10; k++) {
+    const t = k / 10;
+    out.push([gate.x + (CH.x + 6 - gate.x) * t + Math.sin(t * Math.PI) * 6, gate.z + (CH.z - 10 - gate.z) * t]);
+  }
+  return out;
+})();
+/** The tallest snow drift, metres over the slope. */
+export const DRIFT_MAX = 1.3;
+/** One shared noise for the drifts (the pads' height functions take no noise of their own). */
+let driftNoise: Noise2D | null = null;
+/**
+ * Snow drifts over the quarter, 0..DRIFT_MAX metres on top of the slope: soft mounds in the open, banked up toward the
+ * quarter's edges where the dead trees stand; none on the path and its pillars and torches (5 m either side), on the
+ * level flats (the cottages, the plague doctor, the gate) or the chapel's pad, and none by the plaza (it eases in from
+ * z 80 to 95). The graves and trees are placed through h() and ride them.
+ */
+export function snowDrift(x: number, z: number): number {
+  const n = driftNoise;
+  if (!n) return 0;
+  let m = smoothstep(80, 95, z);
+  if (m <= 0) return 0;
+  let dp = Infinity;
+  for (let i = 0; i < SNOW_PATH.length - 1; i++) {
+    const [ax, az] = SNOW_PATH[i], [bx, bz] = SNOW_PATH[i + 1];
+    dp = Math.min(dp, sdSeg(x, z, { ax, az, bx, bz, r: 0 }));
+  }
+  // (The path runs on to the chapel's door: its last leg too.)
+  dp = Math.min(dp, sdSeg(x, z, { ax: SNOW_PATH[SNOW_PATH.length - 1][0], az: SNOW_PATH[SNOW_PATH.length - 1][1], bx: Q.chapel.x, bz: Q.chapel.z, r: 0 }));
+  m *= smoothstep(5, 10, dp);
+  for (const f of SNOW_FLATS) m *= smoothstep(f.r + 1, f.r + 6, sdDisc(x, z, f) + f.r);
+  m *= smoothstep(CHAPEL_PAD.r + 1, CHAPEL_PAD.r + 7, Math.hypot(x - CHAPEL_PAD.x, z - CHAPEL_PAD.z));
+  if (m <= 0) return 0;
+  const mound = smoothstep(-0.25, 0.55, n.fbm(x / 17 + 5.1, z / 17 - 8.3, 3));
+  const [x0, x1, , z1] = Q.snow;
+  const edge = Math.min(x - x0, x1 - x, z1 - z);
+  const bank = 1 - smoothstep(2, 14, edge);
+  return DRIFT_MAX * m * Math.min(1, 0.75 * mound + 0.6 * bank);
+}
+
 /** The cup islands (Kingdom.ts `cups`): 22 m lean cups floating east of the plaza, their lean at gy, their foot at gy − 0.96 H. */
 export const CUPS: ReadonlyArray<readonly [number, number]> = [[1082, 10], [1108, -12], [1136, 14]];
 const CUP_H = MODELS['lean-cup-island'].height;
@@ -334,7 +392,7 @@ const GALAXY_SCULPT: RealmSculpt = {
     { name: 'court', rect: Q.court, y: GY, blend: 8 },
     { name: 'street', rect: Q.street, y: GY, blend: 8 },
     { name: 'castle-yard', rect: Q.castleYard, y: GY, blend: 8 },
-    { name: 'snow', rect: Q.snow, y: (_x, z) => snowY(z), blend: 8 },
+    { name: 'snow', rect: Q.snow, y: (x, z) => snowY(z) + snowDrift(x, z), blend: 8 },
     { name: 'chapel', disc: CHAPEL_PAD, y: CHAPEL_Y, blend: 6 },
     ...SNOW_FLATS.map((d): Pad => ({ name: d.name, disc: { x: d.x, z: d.z, r: d.r }, y: d.y, blend: 4 })),
     // Last: the sunken channel, its walls one-cell linear rises on grid lines inside the sheet (the water leaves it be).
@@ -653,6 +711,17 @@ interface Compiled {
   fall: number;
   /** How far past the border the edge reaches the abyss. */
   reach: number;
+  /** The rim ridge (height 0: none). */
+  rimH: number;
+  rimInner: number;
+  rimInvL: number;
+  rimOx: number;
+  rimOz: number;
+  rimMask: ((x: number, z: number) => number) | null;
+  /** The cliff's crags and ledges (amp 0 / ledge 0: none). */
+  cragAmp: number;
+  cragInvL: number;
+  ledge: number;
 }
 
 const COMPILED = new WeakMap<RealmSculpt, Compiled>();
@@ -704,7 +773,7 @@ function compile(s: RealmSculpt): Compiled {
   const reach = !cliff ? fall : lowTop <= s.base - drop ? 2 * width : width / smoothstepInverse((lowTop - s.base + drop) / (lowTop - ABYSS_Y));
   // Each floater's gap: the least distance past the border at which even the highest rim has fallen 0.5 m below it.
   const clear: number[] = [];
-  const topHigh = high + s.hills.amp + lip + 0.5;
+  const topHigh = high + s.hills.amp + lip + 0.5 + rimMax(s.rim);
   for (const f of s.clear ?? []) {
     const under = (e: number) => (cliff ? cliffHeight(topHigh, e, s.base, drop, width) : lerp(topHigh, ABYSS_Y, smoothstep(0, fall, e))) <= f.below - 0.5;
     let lo = 0, hi = 4 * reach + 10;
@@ -719,9 +788,25 @@ function compile(s: RealmSculpt): Compiled {
     pads, layers, water: Float64Array.from(water), domes: Float64Array.from(domes), clear: Float64Array.from(clear),
     amp: H.amp, invL: 1 / H.wavelength, ox: H.seed * 7.31, oz: -H.seed * 3.17, mask: H.mask ?? null,
     cliff, drop, width, lip, fall, reach,
+    rimH: s.rim?.height ?? 0, rimInner: s.rim?.inner ?? 1, rimInvL: 1 / (s.rim?.wavelength ?? 1),
+    rimOx: (s.rim?.seed ?? 0) * 5.13 + 61.7, rimOz: -(s.rim?.seed ?? 0) * 2.91 - 13.3, rimMask: s.rim?.mask ?? null,
+    cragAmp: s.crag?.amp ?? 0, cragInvL: 1 / (s.crag?.wavelength ?? 1), ledge: s.crag?.ledge ?? 0,
   };
   COMPILED.set(s, c);
   return c;
+}
+
+/** The most a rim ridge can add anywhere (its crest's knolls included). */
+function rimMax(r: RimRidge | undefined): number {
+  return r ? r.height * RIM_KNOLL_MAX : 0;
+}
+
+/** A crest's knolls: the ridge's share at (x, z), RIM_SADDLE (a saddle the cloud sea shows through) to RIM_KNOLL_MAX (a knoll). */
+function rimShare(c: Compiled, x: number, z: number, noise: Noise2D): number {
+  const n = noise.fbm(x * c.rimInvL + c.rimOx, z * c.rimInvL + c.rimOz, 3);
+  // A ridged second octave breaks the knolls into crags.
+  const r = 1 - Math.abs(noise.fbm(x * c.rimInvL * 2.7 - c.rimOz, z * c.rimInvL * 2.7 + c.rimOx, 2));
+  return RIM_SADDLE + (1 - RIM_SADDLE) * smoothstep(-0.35, 0.45, n) + 0.25 * r * r;
 }
 
 /** Signed distance to a box by its centre and half extents (sdRect's arithmetic, allocation-free). */
@@ -790,7 +875,9 @@ export function padMask(s: RealmSculpt, x: number, z: number): { mask: number; y
 
 /** The land border's fbm warp at (x, z), about −1..1. */
 function borderWarp(x: number, z: number, noise: Noise2D): number {
-  return noise.fbm(x / BORDER_WAVELENGTH + 41.3, z / BORDER_WAVELENGTH - 17.9, 2);
+  // Two scales: the long bays and headlands, and the short coves that keep a coastline from reading as a curve.
+  return 0.7 * noise.fbm(x / BORDER_WAVELENGTH + 41.3, z / BORDER_WAVELENGTH - 17.9, 2)
+    + 0.3 * noise.fbm(x / BORDER_COVE + 7.7, z / BORDER_COVE + 29.1, 2);
 }
 
 /** The land's signed distance at (x, z) for a given border warp `w` (−1..1). */
@@ -865,11 +952,36 @@ export function realmHeight(s: RealmSculpt, x: number, z: number, noise: Noise2D
     const d = Math.sqrt(dx * dx + dz * dz);
     if (d < X[i + 2]) free += X[i + 4] * (1 - smoothstep(X[i + 3], X[i + 2], d));
   }
+  // The rim: ridges and knolls rising over the land's outer metres, off the pads.
+  if (c.rimH > 0 && pm.mask < 1) {
+    const t = smoothstep(-c.rimInner, -c.rimInner * 0.2, e);
+    if (t > 0) {
+      const m = c.rimMask ? c.rimMask(x, z) : 1;
+      if (m > 0) free += c.rimH * m * t * (1 - pm.mask) * rimShare(c, x, z, noise);
+    }
+  }
   let h = pm.mask > 0 ? lerp(free, pm.y, pm.mask) : free;
   if (c.water.length) h = applyWater(c, x, z, h);
   if (c.cliff) {
     h += c.lip * (1 - pm.mask) * smoothstep(-LIP_RISE, 0, e);
-    if (e > 0) h = cliffHeight(h, e, s.base, c.drop, c.width);
+    if (e > 0) {
+      const top = h;
+      // Crags: the face eaten back by fbm (the cliff only ever falls sooner, so nothing floating comes nearer to it).
+      let ce = e;
+      if (c.cragAmp > 0) ce += c.cragAmp * smoothstep(0, 5, e) * (0.5 + 0.5 * noise.fbm(x * c.cragInvL - 3.1, z * c.cragInvL + 9.4, 3));
+      h = cliffHeight(top, ce, s.base, c.drop, c.width);
+      // Ledges: the face holds level for a while every `ledge` metres down, then drops (only ever lower).
+      if (c.ledge > 0) {
+        const k = smoothstep(1, 5, e);
+        if (k > 0 && h > ABYSS_Y + 1) {
+          const q = (top - h) / c.ledge;
+          const f = q - Math.floor(q);
+          // (Measured down from the rim: a shelf where the depth is just past a whole step.)
+          const stepped = top - c.ledge * (Math.floor(q) + smoothstep(0, 0.5, f));
+          h = Math.min(h, lerp(h, stepped, k * 0.85));
+        }
+      }
+    }
   } else if (e > 0) h = lerp(h, ABYSS_Y, smoothstep(0, c.fall, e));
   return h;
 }
