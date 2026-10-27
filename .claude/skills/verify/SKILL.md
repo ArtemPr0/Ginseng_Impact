@@ -5,6 +5,14 @@ description: Use when verifying a Ginseng Impact change in the running game (mov
 
 # Verifying Ginseng Impact in the running game
 
+## Resource budget (this Mac: 14 cores, 36 GB): hard rules
+- ONE headless Chrome at a time, ONE page. No parallel lanes, and no subagents/worktrees that each launch Chrome.
+  A hook blocks launching a second one: reuse the running Chrome on port 9333.
+- `--window-size=960,540` unless judging visuals close up.
+- A play session lasts at most 20 minutes: then stop, report findings, and close Chrome.
+- When done (or on any error): `pkill -f "ms-playwright/chromium"`.
+- Before launching, check `sysctl vm.swapusage` and `uptime`: if swap used > 8 GB or load > 20, stop and tell the user.
+
 **Surface:** the built game in a browser. A hidden/occluded Chrome tab pauses requestAnimationFrame, so drive a
 headless Chrome over CDP instead of the user's tab.
 
@@ -14,7 +22,7 @@ npx vite preview --host 127.0.0.1 --port 4173 --strictPort &     # often already
 CH="$HOME/Library/Caches/ms-playwright/chromium-1228/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
 "$CH" --headless=new --no-first-run --user-data-dir=/tmp/gi-headless --use-angle=metal --enable-gpu \
   --ignore-gpu-blocklist --disable-gpu-vsync --disable-frame-rate-limit --autoplay-policy=no-user-gesture-required \
-  --window-size=1280,720 --remote-debugging-port=9333 about:blank &   # audio runs only with the autoplay flag
+  --window-size=960,540 --remote-debugging-port=9333 about:blank &   # audio runs only with the autoplay flag
 ```
 
 `?at=x,z` spawns there and keeps the game running without pointer lock; `window.__ginseng` exposes scene, camera,
