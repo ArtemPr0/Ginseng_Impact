@@ -11,6 +11,7 @@ import type { Mode } from '../player/CharacterController';
 import type { CharacterDef, WeaponKind } from './roster';
 import { CYCLONE, type BurstKind } from '../combat/Skills';
 import { cutSeconds, cutStrike, heroClipsOf, moveCut, type ClipCut, type HeroClips } from './heroClips';
+import { easeLean, slopeTarget, yawDelta, type Lean } from './SlopeLean';
 
 export interface RigPose {
   mode: Mode;
@@ -1511,6 +1512,26 @@ export class Rig {
   }
 
   /** Advance the animation. Call once per rendered frame. */
+  /**
+   * The body on a slope (SlopeLean): pitch toward the ground's normal, half the roll across it, a lean into turns.
+   * Only the outer root tips (yaw first: rotation order 'YXZ'); the model's own root, the bones and every procedural
+   * turn stay where animate puts them, so the cup, the flight poses and an NPC's pose ride on top unchanged.
+   * `gx`, `gz`: the ground's gradient under the feet, or null to ease upright (flying, swimming, climbing).
+   */
+  slope(gx: number | null, gz: number, yaw: number, speed: number, dt: number, scale = 1): void {
+    const r = this.root;
+    if (r.rotation.order !== 'YXZ') r.rotation.order = 'YXZ';
+    const rate = dt > 0 && this.slopeYaw !== null ? yawDelta(this.slopeYaw, yaw) / dt : 0;
+    this.slopeYaw = yaw;
+    easeLean(this.lean, gx === null ? null : slopeTarget(gx, gz, yaw, rate, speed, this.leanTarget, scale), dt);
+    r.rotation.x = this.lean.pitch;
+    r.rotation.z = this.lean.roll;
+  }
+
+  private readonly lean: Lean = { pitch: 0, roll: 0 };
+  private readonly leanTarget: Lean = { pitch: 0, roll: 0 };
+  private slopeYaw: number | null = null;
+
   animate(pose: RigPose, dt: number): void {
     for (const t of this.turned) t.bone.quaternion.copy(t.q);
     this.turned.length = 0;
