@@ -53,7 +53,7 @@ export const KINGDOM: DialogueBook = {
       { id: 'watcher-knight.topic.snow', slot: 'topic', ask: 'Why count the snow squares?', text: "I stand here so the snow stays out. It comes in anyway, in little squares. I count the squares. It's a job." },
       { id: 'watcher-knight.topic.king', slot: 'topic', ask: 'Why is the King sad?', text: "The King sits in there and is sad. That's a job too. He's better at his than I am at mine." },
       { id: 'watcher-knight.topic.silence', slot: 'topic', ask: 'About the swallowed voices', text: "The head on the island says our voices were swallowed, you tell me. I'd noticed the quiet. I thought it was the porcelain.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
-      { id: 'watcher-knight.topic.ended', slot: 'topic', ask: 'The silence ended?', text: "The hall is loud again. The King sang. Everyone cried, in the chill way. I preferred the quiet. Don't tell him.", when: { quest: ['silence', 'ended'] }, weight: 3 },
+      { id: 'watcher-knight.topic.ended', slot: 'topic', ask: 'The voices are back.', text: "The hall is loud again. The King sang. Everyone cried, in the chill way. I preferred the quiet. Don't tell him.", when: { quest: ['silence', 'ended'] }, weight: 3 },
 
       { id: 'watcher-knight.bye.porcelain', slot: 'bye', text: "The porcelain's new. Walk like it." },
       { id: 'watcher-knight.bye.here', slot: 'bye', text: "Go on. I'll be here. Being here is the arrangement." },
@@ -101,7 +101,7 @@ export const KINGDOM: DialogueBook = {
       { id: 'watcher-mage.topic.squares', slot: 'topic', ask: 'Snow falls in squares?', text: "The snow falls in little squares. The sky is porcelain, and it's cracking, and these are the chips. That's one theory. I have three." },
       { id: 'watcher-mage.topic.breathe', slot: 'topic', ask: 'Do the purple houses breathe?', text: "The purple houses breathe. In when a mimic passes, out when it's gone. You think I'm half asleep. I'm fully patient." },
       { id: 'watcher-mage.topic.silence', slot: 'topic', ask: 'About the kingdom going quiet', text: "The kingdom is quiet, the head says. The snow makes no sound either. I came to study it. I think it's studying us.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
-      { id: 'watcher-mage.topic.ended', slot: 'topic', ask: 'The snow makes noise now?', text: "The sound came back. The snow makes a noise now, landing. A tiny one. I've started again from the beginning.", when: { quest: ['silence', 'ended'] }, weight: 3 },
+      { id: 'watcher-mage.topic.ended', slot: 'topic', ask: 'The voices are back.', text: "The sound came back. The snow makes a noise now, landing. A tiny one. I've started again from the beginning.", when: { quest: ['silence', 'ended'] }, weight: 3 },
 
       { id: 'watcher-mage.bye.space', slot: 'bye', text: "Go. A flake has been waiting for your square." },
       { id: 'watcher-mage.bye.street', slot: 'bye', text: "Careful on the street. It's slippery and it has opinions." },
@@ -158,18 +158,18 @@ export const KINGDOM: DialogueBook = {
         { label: "On my way.", action: 'close' },
       ] },
       { id: 'skeleton-king.topic.grave-wait', slot: 'topic', ask: 'Still waiting on the crown?', text: "The crown is still on the wrong skull. Mine has the space for it; I've been keeping it clear.", when: { quest: ['grave', 'active'] }, weight: 6 },
-      { id: 'skeleton-king.topic.grave-claim', slot: 'topic', ask: 'Collect the grave reward', text: "He's dead and the crown is on you. Keep it; two crowns on one skull looks desperate. Nine hundred, as counted.", when: { quest: ['grave', 'slain'] }, weight: 10, choices: [
+      { id: 'skeleton-king.topic.grave-claim', slot: 'topic', ask: 'The cyclops is dead.', text: "He's dead and the crown is on you. Keep it; two crowns on one skull looks desperate. Nine hundred, as counted.", when: { quest: ['grave', 'slain'] }, weight: 10, choices: [
         { label: "Take the shards.", action: 'quest:grave:done', to: 'skeleton-king.topic.grave-paid' },
       ] },
-      { id: 'skeleton-king.topic.grave-paid', slot: 'topic', ask: 'Tell the antlered fool?', text: "Counted. Tell the antlered fool what I paid. Tell him slowly; he's a tree.", when: { quest: ['grave', 'done'] }, choices: [
+      { id: 'skeleton-king.topic.grave-paid', slot: 'topic', ask: 'Is the count right?', text: "Counted. Tell the antlered fool what I paid. Tell him slowly; he's a tree.", when: { quest: ['grave', 'done'] }, choices: [
         { label: "I'll tell him.", action: 'close' },
       ] },
-      { id: 'skeleton-king.topic.grave-after', slot: 'topic', ask: 'Two crowns on one skull?', text: "Two crowns on one skull. I said it looked desperate. It does. Wear it past the antlered fool; walk slowly.", when: { quest: ['grave', 'done'] }, weight: 2 },
+      { id: 'skeleton-king.topic.grave-after', slot: 'topic', ask: "Why won't you wear the crown?", text: "Two crowns on one skull. I said it looked desperate. It does. Wear it past the antlered fool; walk slowly.", when: { quest: ['grave', 'done'] }, weight: 2 },
       { id: 'skeleton-king.topic.coins', slot: 'topic', ask: 'About the portal coins', text: "Every coin on these stones was paid to cross the portal. Some paid twice. The second time is for the view." },
       { id: 'skeleton-king.topic.rival', slot: 'topic', ask: 'About the antlered king', text: "The antlered fool on the island pays in silence. I pay in shards. Silence is cheaper, and he knows it." },
       { id: 'skeleton-king.topic.trade', slot: 'topic', ask: 'What do you buy?', text: "I buy what the great ones drop. Twice what the antlered fool offers. He hasn't noticed. Don't tell him; I enjoy it." },
-      { id: 'skeleton-king.topic.silence', slot: 'topic', ask: 'Voices swallowed, not coins?', text: "The Hollow King swallowed our voices, the head says. He never swallowed my coins. We'll see who's richer at the end.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
-      { id: 'skeleton-king.topic.ended', slot: 'topic', ask: 'The coins ring again?', text: "Every coin rings now. I'd forgotten they rang. The court is loud and I'm counting again, by ear.", when: { quest: ['silence', 'ended'] }, weight: 3 },
+      { id: 'skeleton-king.topic.silence', slot: 'topic', ask: 'The Hollow King swallowed the voices.', text: "The Hollow King swallowed our voices, the head says. He never swallowed my coins. We'll see who's richer at the end.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
+      { id: 'skeleton-king.topic.ended', slot: 'topic', ask: 'Can you hear the coins now?', text: "Every coin rings now. I'd forgotten they rang. The court is loud and I'm counting again, by ear.", when: { quest: ['silence', 'ended'] }, weight: 3 },
 
       { id: 'skeleton-king.bye.spend', slot: 'bye', text: "Go. Spend. Come back." },
       { id: 'skeleton-king.bye.mist', slot: 'bye', text: "The mist on the floor is lean. It's mine. Walk through it; don't drink it." },
@@ -216,8 +216,8 @@ export const KINGDOM: DialogueBook = {
       { id: 'galaxy-wizard.topic.meteors', slot: 'topic', ask: 'About the falling meteors', text: "Meteors fall past my window every night. I stopped wishing years ago. One will land one day. I keep a bowl out." },
       { id: 'galaxy-wizard.topic.pink', slot: 'topic', ask: 'Why is pink important?', text: "Pink is the colour of a potion that has made up its mind. Most people never get that far. Most potions don't either." },
       { id: 'galaxy-wizard.topic.trade', slot: 'topic', ask: 'What are you selling?', text: "Lotus tea, thirty shards. It steadies the hand. It does nothing for the head. Nothing here does; that's the charm." },
-      { id: 'galaxy-wizard.topic.silence', slot: 'topic', ask: 'The kettle went blue?', text: "Swallowed, the head says. The kettle went blue that day and has been thinking ever since. A year is a long think, even for a kettle.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
-      { id: 'galaxy-wizard.topic.ended', slot: 'topic', ask: 'The kettle hums again?', text: "The kettle went pink when the sound came back. A year of thinking, and what it decided was to hum the plaza's song. Badly. It's a kettle.", when: { quest: ['silence', 'ended'] }, weight: 3 },
+      { id: 'galaxy-wizard.topic.silence', slot: 'topic', ask: 'Has the kingdom gone quiet for you?', text: "Swallowed, the head says. The kettle went blue that day and has been thinking ever since. A year is a long think, even for a kettle.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
+      { id: 'galaxy-wizard.topic.ended', slot: 'topic', ask: 'The voices are back.', text: "The kettle went pink when the sound came back. A year of thinking, and what it decided was to hum the plaza's song. Badly. It's a kettle.", when: { quest: ['silence', 'ended'] }, weight: 3 },
 
       { id: 'galaxy-wizard.bye.kettle', slot: 'bye', text: "Go on. Step round the kettle; it's at the thinking stage, and it kicks." },
       { id: 'galaxy-wizard.bye.sulk', slot: 'bye', text: "Go on. The potion will sulk, but it keeps." },
@@ -273,10 +273,10 @@ export const KINGDOM: DialogueBook = {
       ] },
       { id: 'yunglean.topic.sound-lost', slot: 'topic', ask: 'I lost the mist blade', text: "You lost the Bittersweet Blade. Bittersweet. There was a drawer with a second one; I sat on the drawer. Follow the hum without it. The mist hums alone.", when: { quest: ['sound', 'active'], notItem: 'mist-blade' }, weight: 9 },
       { id: 'yunglean.topic.sound-wait', slot: 'topic', ask: 'Where is the Lost Sound?', text: "The silence is still creeping. Over the cups, in the mist. The blade hums louder near it. Follow the hum.", when: { quest: ['sound', 'active'], item: 'mist-blade' }, weight: 6 },
-      { id: 'yunglean.topic.sound-found', slot: 'topic', ask: 'Sign the cup?', text: "You found it. Listen... the snow is singing again. Here. Sign it? Sure. I sign everything. It's all the same cup.", when: { quest: ['sound', 'found'] }, weight: 10, voice: 'lean-sound', choices: [
+      { id: 'yunglean.topic.sound-found', slot: 'topic', ask: 'I found the Lost Sound.', text: "You found it. Listen... the snow is singing again. Here. Sign it? Sure. I sign everything. It's all the same cup.", when: { quest: ['sound', 'found'] }, weight: 10, voice: 'lean-sound', choices: [
         { label: "Take the signed cup.", action: 'quest:sound:done', to: 'yunglean.topic.sound-keep' },
       ] },
-      { id: 'yunglean.topic.sound-keep', slot: 'topic', ask: 'About the signed cup', text: "Keep the sound. A sound kept is a sound shared. Eight hundred shards for the mist on your boots.", when: { quest: ['sound', 'done'] }, once: true, choices: [
+      { id: 'yunglean.topic.sound-keep', slot: 'topic', ask: 'Do I keep the sound?', text: "Keep the sound. A sound kept is a sound shared. Eight hundred shards for the mist on your boots.", when: { quest: ['sound', 'done'] }, once: true, choices: [
         { label: "Glintgrin will want this cup.", action: 'quest:lean:signed', to: 'yunglean.topic.lean-signed', when: { quest: ['lean', 'active'] } },
         { label: "Thank you.", to: 'yunglean.topic.sound-done' },
       ] },
@@ -287,7 +287,7 @@ export const KINGDOM: DialogueBook = {
         { label: "I'll tell him.", action: 'close' },
       ] },
       { id: 'yunglean.topic.sign-later', slot: 'topic', ask: 'Will you sign my cup?', text: "Sign a cup? Bring back the sound first. Then I sign anything.", when: { quest: ['lean', 'active'], notItem: 'signed-cup' }, weight: 3 },
-      { id: 'yunglean.topic.sign-done', slot: 'topic', ask: 'Take the cup to Glintgrin', text: "I signed it already. Look at the cup. That's me, in purple. Take it to the gnome; tell him it's all the same cup.", when: { quest: ['lean', 'active'], item: 'signed-cup' }, weight: 9, choices: [
+      { id: 'yunglean.topic.sign-done', slot: 'topic', ask: 'What do I tell Glintgrin?', text: "I signed it already. Look at the cup. That's me, in purple. Take it to the gnome; tell him it's all the same cup.", when: { quest: ['lean', 'active'], item: 'signed-cup' }, weight: 9, choices: [
         { label: "I'll take it to him.", action: 'quest:lean:signed' },
       ] },
       // The challenge: he gets up from the throne (the Mind runs 'challenge'); the game pays the first win ('crown').
@@ -354,8 +354,8 @@ export const KINGDOM: DialogueBook = {
       { id: 'void-monk.topic.ring-behind', slot: 'topic', ask: 'The ring behind me?', text: "The one behind you. Don't turn round; it's shy. Step backwards into it and think of the island.", when: { metMin: 3, metMax: 4 }, weight: 4 },
       { id: 'void-monk.topic.ring-none', slot: 'topic', ask: 'None of them lead home?', text: "None of them lead home. Home leads to them. Step into any swirl and you'll find you were already there.", when: { metMin: 5 }, weight: 4 },
       { id: 'void-monk.topic.face', slot: 'topic', ask: 'What happened to your face?', text: "My face? It was a face. Now it's a door. People look in and see stars. They used to look in and see me. Stars are more popular." },
-      { id: 'void-monk.topic.silence', slot: 'topic', ask: 'Voices through the rings?', text: "You've seen the head. It told you they were swallowed. I heard them go: through the rings, one by one. The rings don't give back.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
-      { id: 'void-monk.topic.ended', slot: 'topic', ask: 'The sound came back?', text: "It came back through the rings, the sound. I'd have said it couldn't. I say a lot of things about the rings.", when: { quest: ['silence', 'ended'] }, weight: 3 },
+      { id: 'void-monk.topic.silence', slot: 'topic', ask: 'Did you hear the voices go?', text: "You've seen the head. It told you they were swallowed. I heard them go: through the rings, one by one. The rings don't give back.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
+      { id: 'void-monk.topic.ended', slot: 'topic', ask: 'The voices are back.', text: "It came back through the rings, the sound. I'd have said it couldn't. I say a lot of things about the rings.", when: { quest: ['silence', 'ended'] }, weight: 3 },
 
       { id: 'void-monk.bye.pick', slot: 'bye', text: "Pick a ring. Or don't; the rings pick, in the end." },
       { id: 'void-monk.bye.swirl', slot: 'bye', text: "Go. The swirl is wet in a way that doesn't dry. Don't trail your cape in it." },
@@ -400,7 +400,7 @@ export const KINGDOM: DialogueBook = {
       { id: 'market-a.topic.waves', slot: 'topic', ask: 'About the lean waves', text: "The lean waves between the cups have opinions. Mostly about swimmers. I sell a salve for opinions." },
       { id: 'market-a.topic.tuesday', slot: 'topic', ask: 'The ball shows Tuesday?', text: "The ball shows next Tuesday because next Tuesday is when I restock. Buy now; Tuesday is expensive." },
       { id: 'market-a.topic.trade', slot: 'topic', ask: 'What are you selling?', text: "Moon Dew, thirty-two. Rot Salve, twenty-eight. Grizzle says I overcharge. Grizzle sells lanterns to people who glow." },
-      { id: 'market-a.topic.silence', slot: 'topic', ask: 'Business was quiet too?', text: "So the stone head blames a king for the quiet. Business was quiet too. I thought it was me. Good to know it was a king.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
+      { id: 'market-a.topic.silence', slot: 'topic', ask: 'Have you heard about the voices?', text: "So the stone head blames a king for the quiet. Business was quiet too. I thought it was me. Good to know it was a king.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
 
       { id: 'market-a.bye.tuesday', slot: 'bye', text: "Come back Tuesday." },
       { id: 'market-a.bye.mimics', slot: 'bye', text: "Watch the buckets. Some are mimics. The mimics are the ones watching back." },
@@ -442,7 +442,7 @@ export const KINGDOM: DialogueBook = {
 
       { id: 'market-b.topic.lanterns', slot: 'topic', ask: 'About these lanterns', text: "Each lantern remembers where you left it. It can't go back there. Neither can you. That's the sad part. Buy it!" },
       { id: 'market-b.topic.snaggle', slot: 'topic', ask: 'Snaggle overcharges?', text: "Snaggle overcharges. I overcharge less. He says that is still overcharging. He would know!" },
-      { id: 'market-b.topic.silence', slot: 'topic', ask: 'Your voice was not swallowed?', text: "The head says they were swallowed! Not mine! Loudest on the street! Ask Snaggle! He'll say yes! Quietly!", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
+      { id: 'market-b.topic.silence', slot: 'topic', ask: 'Have you lost your voice?', text: "The head says they were swallowed! Not mine! Loudest on the street! Ask Snaggle! He'll say yes! Quietly!", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
       { id: 'market-b.topic.ended', slot: 'topic', ask: 'They can hear you now?', text: "It's back! The sound! I was shouting the whole time! Nobody heard! Now they hear! They've asked me to stop!", when: { quest: ['silence', 'ended'] }, weight: 3 },
 
       { id: 'market-b.bye.friends', slot: 'bye', text: "Come back! Bring friends! Bring Snaggle's friends!" },
@@ -488,7 +488,7 @@ export const KINGDOM: DialogueBook = {
       { id: 'skeleton-lord.topic.diamonds', slot: 'topic', ask: 'Diamonds in your teeth?', text: "Every diamond in these teeth was a promise someone broke. This one swore he'd come back for his cloak. This one swore the smoke was harmless." },
       { id: 'skeleton-lord.topic.smoke', slot: 'topic', ask: 'Why is the smoke purple?', text: "The smoke is purple because of what's in it. The view is purple because of the smoke. It's a system." },
       { id: 'skeleton-lord.topic.castle', slot: 'topic', ask: 'Carriage guests to the castle?', text: "The carriage brings guests to the castle. The castle keeps them. I'm not a guest. I'm the reason there's a castle." },
-      { id: 'skeleton-lord.topic.silence', slot: 'topic', ask: 'A king swallowed voices?', text: "A king swallowed the voices, the head says. Not mine. I never used mine; I smoke. He'd have choked.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
+      { id: 'skeleton-lord.topic.silence', slot: 'topic', ask: 'The Hollow King swallowed the voices.', text: "A king swallowed the voices, the head says. Not mine. I never used mine; I smoke. He'd have choked.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
       { id: 'skeleton-lord.topic.ended', slot: 'topic', ask: 'Has the smoke changed?', text: "The smoke moves differently now; it has something to move to. Someone promised me that, years ago. I wear him on the left.", when: { quest: ['silence', 'ended'] }, weight: 3 },
 
       { id: 'skeleton-lord.bye.smoke', slot: 'bye', text: "The smoke will miss you. I'll manage." },
@@ -532,7 +532,7 @@ export const KINGDOM: DialogueBook = {
 
       { id: 'court-knight.topic.ice', slot: 'topic', ask: 'Your sword is ice?', text: "My sword is ice. It never melts in here: nothing does. If I took it outside I'd have a wet hand and a story." },
       { id: 'court-knight.topic.lord', slot: 'topic', ask: 'About the smoking lord', text: "He talks in smoke. I nod. It works. Somewhere about the ninth goblet I understood him once. I've been trying to get back there." },
-      { id: 'court-knight.topic.silence', slot: 'topic', ask: 'The smoke went quiet?', text: "You bring word from the island's head: the voices, swallowed. The lord's smoke went quiet too. I hadn't noticed smoke had a sound until it stopped.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
+      { id: 'court-knight.topic.silence', slot: 'topic', ask: 'The Stone Head says the voices were swallowed.', text: "You bring word from the island's head: the voices, swallowed. The lord's smoke went quiet too. I hadn't noticed smoke had a sound until it stopped.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
       { id: 'court-knight.topic.ended', slot: 'topic', ask: 'You heard the King sing?', text: "I heard the King sing from here. I raised the goblet. It was already up. I raised the other hand.", when: { quest: ['silence', 'ended'] }, weight: 3 },
 
       { id: 'court-knight.bye.follow', slot: 'bye', text: "One more goblet, then I'll follow you. I won't." },
@@ -578,8 +578,8 @@ export const KINGDOM: DialogueBook = {
       { id: 'potion-brewer.topic.fountains', slot: 'topic', ask: 'About the lean fountains', text: "The fountains pour lean. Sip from the basins if you're brave; it spins the world. Spin it twice and you're back where you started." },
       { id: 'potion-brewer.topic.stars', slot: 'topic', ask: 'Stars in the bottles?', text: "Shake a bottle and its stars rearrange. Shake it long enough and they spell something. Don't read it. Nothing good is spelt by stars." },
       { id: 'potion-brewer.topic.trade', slot: 'topic', ask: 'What do you pour?', text: "Lotus tea, thirty. The star chart, two hundred and ten: Pim's drawing of where the great ones sleep. I don't draw; I pour." },
-      { id: 'potion-brewer.topic.silence', slot: 'topic', ask: 'A voice in a bottle?', text: "Five voices, swallowed, the head says. I bottled one once, I think. A hum in the blue bottle. It went quiet. Or I drank it.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
-      { id: 'potion-brewer.topic.ended', slot: 'topic', ask: 'The blue bottle hums?', text: "The blue bottle is humming again. So it wasn't me who drank it. I'd been feeling guilty for a year.", when: { quest: ['silence', 'ended'] }, weight: 3 },
+      { id: 'potion-brewer.topic.silence', slot: 'topic', ask: 'Have you heard about the five voices?', text: "Five voices, swallowed, the head says. I bottled one once, I think. A hum in the blue bottle. It went quiet. Or I drank it.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
+      { id: 'potion-brewer.topic.ended', slot: 'topic', ask: 'The voices are back.', text: "The blue bottle is humming again. So it wasn't me who drank it. I'd been feeling guilty for a year.", when: { quest: ['silence', 'ended'] }, weight: 3 },
 
       { id: 'potion-brewer.bye.tables', slot: 'bye', text: "Don't lean on the tables. The bottles move when they're watched." },
       { id: 'potion-brewer.bye.rearrange', slot: 'bye', text: "Go on. The bottles will rearrange without you." },
@@ -624,8 +624,8 @@ export const KINGDOM: DialogueBook = {
       { id: 'bartender.topic.credit', slot: 'topic', ask: 'Grillmaw drinks on credit?', text: "The dragon drinks on credit. Eleven hundred cups. I keep the tab on his tail; he hasn't noticed it getting longer." },
       { id: 'bartender.topic.edge', slot: 'topic', ask: 'About the edge here', text: "The edge is closer than it looks. The last fellow who leaned too far is still falling. I send a cup down now and then. He's grateful." },
       { id: 'bartender.topic.style', slot: 'topic', ask: 'How do you serve drinks?', text: "Ice, straw, a slice of orange. The orange is for the dragon. He likes the colour. He eats the slice. He eats the straw." },
-      { id: 'bartender.topic.silence', slot: 'topic', ask: 'The bar has been quiet?', text: "A stone head told you the voices were swallowed. The bar has been quiet a year. I'd put it down to the altitude.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
-      { id: 'bartender.topic.ended', slot: 'topic', ask: 'Grillmaw roared along?', text: "Grillmaw roared along with the song. Off key. He's a dragon; nobody told him.", when: { quest: ['silence', 'ended'] }, weight: 3 },
+      { id: 'bartender.topic.silence', slot: 'topic', ask: 'Have you heard about the voices?', text: "A stone head told you the voices were swallowed. The bar has been quiet a year. I'd put it down to the altitude.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
+      { id: 'bartender.topic.ended', slot: 'topic', ask: 'Did Grillmaw hear the song?', text: "Grillmaw roared along with the song. Off key. He's a dragon; nobody told him.", when: { quest: ['silence', 'ended'] }, weight: 3 },
 
       { id: 'bartender.bye.edge', slot: 'bye', text: "Go on. The edge is where the dock stops being my problem." },
       { id: 'bartender.bye.finish', slot: 'bye', text: "Go on. Grillmaw will finish yours." },
@@ -669,8 +669,8 @@ export const KINGDOM: DialogueBook = {
       { id: 'dock-knight.topic.sunset', slot: 'topic', ask: 'The sun never quite sets?', text: "We watch the sun go down from here. It never quite does. I've a theory it's waiting for us to leave first." },
       { id: 'dock-knight.topic.flying', slot: 'topic', ask: 'One more cup and fly?', text: "One more cup and then we fly. Probably. He has the wings; I have the cup. The cup is winning." },
       { id: 'dock-knight.topic.grillmaw', slot: 'topic', ask: 'Who is Grillmaw?', text: "He's called Grillmaw. The grill is the diamonds in his teeth. The maw is the rest. Don't stand in the rest." },
-      { id: 'dock-knight.topic.silence', slot: 'topic', ask: 'Grillmaw lost his roar?', text: "Grillmaw has a roar he hasn't used in a year. I put it down to manners. The head says it was swallowed. He'll be relieved; he hates manners.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
-      { id: 'dock-knight.topic.ended', slot: 'topic', ask: 'The giant cup rang?', text: "When the sound came back the giant cup on the tower rang like a bell. Grillmaw hummed. He thinks it's roaring. We still haven't flown.", when: { quest: ['silence', 'ended'] }, weight: 3 },
+      { id: 'dock-knight.topic.silence', slot: 'topic', ask: 'Does Grillmaw ever roar?', text: "Grillmaw has a roar he hasn't used in a year. I put it down to manners. The head says it was swallowed. He'll be relieved; he hates manners.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
+      { id: 'dock-knight.topic.ended', slot: 'topic', ask: 'Did you hear the song?', text: "When the sound came back the giant cup on the tower rang like a bell. Grillmaw hummed. He thinks it's roaring. We still haven't flown.", when: { quest: ['silence', 'ended'] }, weight: 3 },
 
       { id: 'dock-knight.bye.fly', slot: 'bye', text: "One more cup. Then we fly. Probably." },
       { id: 'dock-knight.bye.drip', slot: 'bye', text: "Go on. He'll drip on your seat; it's a compliment." },
@@ -715,8 +715,8 @@ export const KINGDOM: DialogueBook = {
       { id: 'plague-doctor.topic.diagnosis', slot: 'topic', ask: 'What is your diagnosis?', text: "Symptoms? Slowness. Purple vision. My diagnosis: you need another cup. My second diagnosis: another doctor. I'm the only one." },
       { id: 'plague-doctor.topic.chest', slot: 'topic', ask: 'What is in the chest?', text: "The chest is full of medicine. And gold. Mostly gold. It's the colour of medicine from a distance, so it's medicine." },
       { id: 'plague-doctor.topic.calls', slot: 'topic', ask: 'You make house calls?', text: "I make house calls. The houses out here are all graves. The patients are patient. The snow does the rest." },
-      { id: 'plague-doctor.topic.silence', slot: 'topic', ask: 'Quiet is the symptom?', text: "Patient: the kingdom. Symptom: quiet. Cause, per the head: a swallowed voice, five times. I can't treat a voice. I can treat a king. With you.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
-      { id: 'plague-doctor.topic.ended', slot: 'topic', ask: 'Your patients sat up?', text: "Half my patients sat up to listen. They lay down again. Prognosis unchanged, but they enjoyed it.", when: { quest: ['silence', 'ended'] }, weight: 3 },
+      { id: 'plague-doctor.topic.silence', slot: 'topic', ask: 'What ails the kingdom?', text: "Patient: the kingdom. Symptom: quiet. Cause, per the head: a swallowed voice, five times. I can't treat a voice. I can treat a king. With you.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
+      { id: 'plague-doctor.topic.ended', slot: 'topic', ask: 'How are your patients?', text: "Half my patients sat up to listen. They lay down again. Prognosis unchanged, but they enjoyed it.", when: { quest: ['silence', 'ended'] }, weight: 3 },
 
       { id: 'plague-doctor.bye.cups', slot: 'bye', text: "Take two cups and see me never." },
       { id: 'plague-doctor.bye.graves', slot: 'bye', text: "Mind the graves. They're shallow, and so are the people in them." },
@@ -762,7 +762,7 @@ export const KINGDOM: DialogueBook = {
       { id: 'carriage-count.topic.road', slot: 'topic', ask: 'This road never arrives?', text: "The road goes round the castle twice and back. We never arrive. That's the point. Arriving is for people with horses." },
       { id: 'carriage-count.topic.horses', slot: 'topic', ask: 'Where are the horses?', text: "The horses left years ago. The carriage didn't notice. I didn't tell it. It's doing so well." },
       { id: 'carriage-count.topic.castle', slot: 'topic', ask: 'Guests to the castle?', text: "The carriage brings guests to the castle. The castle keeps them. I keep the carriage. Everyone is kept by something." },
-      { id: 'carriage-count.topic.silence', slot: 'topic', ask: 'Lit windows still talk?', text: "The castle still has its windows lit, swallowed voices or no. The head told you; the windows told me. Lit windows are a kind of talking. I listen.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
+      { id: 'carriage-count.topic.silence', slot: 'topic', ask: 'Have you heard about the voices?', text: "The castle still has its windows lit, swallowed voices or no. The head told you; the windows told me. Lit windows are a kind of talking. I listen.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
       { id: 'carriage-count.topic.ended', slot: 'topic', ask: 'Does the carriage keep time?', text: "The carriage creaks in time now. Round the castle twice, in time, and back. We still don't arrive.", when: { quest: ['silence', 'ended'] }, weight: 3 },
 
       { id: 'carriage-count.bye.step', slot: 'bye', text: "Round again? No? Then mind the step; it's further down than it looks." },

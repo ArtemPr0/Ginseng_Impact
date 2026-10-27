@@ -949,7 +949,9 @@ declare global {
       /** The event bus: what happened (kills, hurts, zones, talks, loot, trades, quests, feats). */
       events: Events;
       ending: Ending; save: Save; progress: Progress;
+      /** Headless play checks: the game's own move (portals, doors and the dream use it), the carriage, the world state, the story. */
+      teleport: typeof teleport; carriage: typeof CARRIAGE; worldState: WorldState; story: Story;
     };
   }
 }
-window.__ginseng = { scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, fx: combatFx, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs, events, ending, save, progress };
+window.__ginseng = { scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, fx: combatFx, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs, events, ending, save, progress, teleport, carriage: CARRIAGE, worldState, story };
