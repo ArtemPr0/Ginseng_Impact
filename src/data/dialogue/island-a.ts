@@ -83,19 +83,19 @@ export const ISLAND_A: DialogueBook = {
         { label: 'Which kings are left?', to: 'stone-head.topic.five' },
         { label: 'Leave', action: 'close' },
       ] },
-      { id: 'stone-head.topic.v-throne', slot: 'topic', ask: 'The Antlered King', text: 'Yes. I heard him laugh. It was not a good laugh, but it was a loud one, and loud is what I asked for.', when: { quest: ['throne', 'done'] }, choices: [{ label: 'Back', to: 'stone-head.topic.told' }] },
-      { id: 'stone-head.topic.v-croak', slot: 'topic', ask: 'The Frog King (lick)', text: 'The frog. I heard the sack open. Then I heard the rest. You did not have to lick him; nobody has to. They do.', when: { quest: ['croak', 'done'], flag: 'licked' }, choices: [{ label: 'Back', to: 'stone-head.topic.told' }] },
-      { id: 'stone-head.topic.v-croak-dry', slot: 'topic', ask: 'The Frog King', text: 'The frog. I heard the sack open. You did not lick him. Everyone else does. I watched you not do it; it was quieter.', when: { quest: ['croak', 'done'], notFlag: 'licked' }, choices: [{ label: 'Back', to: 'stone-head.topic.told' }] },
-      { id: 'stone-head.topic.v-sound', slot: 'topic', ask: 'Yung Lean\'s sound', text: 'The sad one. He gave you a blade and you gave him nothing back, and he called it even. A sound kept is a sound shared; he is wiser than his coat.', when: { quest: ['sound', 'done'] }, choices: [{ label: 'Back', to: 'stone-head.topic.told' }] },
-      { id: 'stone-head.topic.v-bell', slot: 'topic', ask: 'The drowned bell', text: 'The bell. I heard it ring under a lake. Stone hears through water the way you hear through a wall: late, and all of it.', when: { quest: ['bell', 'done'] }, choices: [{ label: 'Back', to: 'stone-head.topic.told' }] },
-      { id: 'stone-head.topic.v-grave', slot: 'topic', ask: 'The Grave Cyclops', text: 'The cyclops lost the crown and the counter of coins let you keep it. He counted you instead. That is his voice.', when: { quest: ['grave', 'done'] }, choices: [{ label: 'Back', to: 'stone-head.topic.told' }] },
-      { id: 'stone-head.topic.open', slot: 'topic', ask: 'Wake the Hollow King', text: 'Five. I hear them in you; you rattle like a bell tower. Now the shore: my left, your right, along the sand. The one with a castle in his ribs. Wake him.', when: { quest: ['silence', 'five'] }, weight: 4, choices: [
+      { id: 'stone-head.topic.v-throne', slot: 'topic', ask: 'Did you hear the Antlered King?', text: 'Yes. I heard him laugh. It was not a good laugh, but it was a loud one, and loud is what I asked for.', when: { quest: ['throne', 'done'] }, choices: [{ label: 'Back', to: 'stone-head.topic.told' }] },
+      { id: 'stone-head.topic.v-croak', slot: 'topic', ask: 'Did you hear the Frog King?', text: 'The frog. I heard the sack open. Then I heard the rest. You did not have to lick him; nobody has to. They do.', when: { quest: ['croak', 'done'], flag: 'licked' }, choices: [{ label: 'Back', to: 'stone-head.topic.told' }] },
+      { id: 'stone-head.topic.v-croak-dry', slot: 'topic', ask: 'Did you hear the Frog King?', text: 'The frog. I heard the sack open. You did not lick him. Everyone else does. I watched you not do it; it was quieter.', when: { quest: ['croak', 'done'], notFlag: 'licked' }, choices: [{ label: 'Back', to: 'stone-head.topic.told' }] },
+      { id: 'stone-head.topic.v-sound', slot: 'topic', ask: "Did you hear Yung Lean's sound?", text: 'The sad one. He gave you a blade and you gave him nothing back, and he called it even. A sound kept is a sound shared; he is wiser than his coat.', when: { quest: ['sound', 'done'] }, choices: [{ label: 'Back', to: 'stone-head.topic.told' }] },
+      { id: 'stone-head.topic.v-bell', slot: 'topic', ask: 'Did you hear the bell ring?', text: 'The bell. I heard it ring under a lake. Stone hears through water the way you hear through a wall: late, and all of it.', when: { quest: ['bell', 'done'] }, choices: [{ label: 'Back', to: 'stone-head.topic.told' }] },
+      { id: 'stone-head.topic.v-grave', slot: 'topic', ask: 'What of the Grave Crown?', text: 'The cyclops lost the crown and the counter of coins let you keep it. He counted you instead. That is his voice.', when: { quest: ['grave', 'done'] }, choices: [{ label: 'Back', to: 'stone-head.topic.told' }] },
+      { id: 'stone-head.topic.open', slot: 'topic', ask: 'I have all five voices.', text: 'Five. I hear them in you; you rattle like a bell tower. Now the shore: my left, your right, along the sand. The one with a castle in his ribs. Wake him.', when: { quest: ['silence', 'five'] }, weight: 4, choices: [
         { label: 'I will wake him.', action: 'quest:silence:open', to: 'stone-head.topic.go' },
         { label: 'Not yet.', action: 'close' },
       ] },
-      { id: 'stone-head.topic.go', slot: 'topic', ask: 'I\'ll wake him', text: 'Do not come back to tell me how it goes. If you win, I will hear. If you lose, I will hear that too; it is quieter.', when: { quest: ['silence', 'open'] }, choices: [{ label: 'Leave', action: 'close' }] },
-      { id: 'stone-head.topic.awake', slot: 'topic', ask: 'He\'s awake on the shore', text: 'He is awake, on the shore to my left. I can feel him breathing through the ground. You are wasting the breath.', when: { quest: ['silence', 'open'], metMin: 1 }, weight: 2, choices: [{ label: 'Leave', action: 'close' }] },
-      { id: 'stone-head.topic.after', slot: 'topic', ask: 'After the sound returned', text: 'The gnome found his singer. The plaza is loud. I can hear it from here, and I am a long way from caring, and I care.', when: { quest: ['silence', 'ended'] }, weight: 2, choices: [{ label: 'Leave', action: 'close' }] },
+      { id: 'stone-head.topic.go', slot: 'topic', ask: 'Wish me luck.', text: 'Do not come back to tell me how it goes. If you win, I will hear. If you lose, I will hear that too; it is quieter.', when: { quest: ['silence', 'open'] }, choices: [{ label: 'Leave', action: 'close' }] },
+      { id: 'stone-head.topic.awake', slot: 'topic', ask: 'Where is he?', text: 'He is awake, on the shore to my left. I can feel him breathing through the ground. You are wasting the breath.', when: { quest: ['silence', 'open'], metMin: 1 }, weight: 2, choices: [{ label: 'Leave', action: 'close' }] },
+      { id: 'stone-head.topic.after', slot: 'topic', ask: 'Can you hear the kingdom now?', text: 'The gnome found his singer. The plaza is loud. I can hear it from here, and I am a long way from caring, and I care.', when: { quest: ['silence', 'ended'] }, weight: 2, choices: [{ label: 'Leave', action: 'close' }] },
       { id: 'stone-head.topic.self', slot: 'topic', ask: 'About you', text: 'I was a king\'s voice before I was stone. The voice is still in here. It is the stone that is new; it arrived an age ago and never left.', choices: [{ label: 'Leave', action: 'close' }] },
 
       { id: 'stone-head.bye.view', slot: 'bye', text: 'Go. The view is better without you in it.' },
@@ -152,18 +152,18 @@ export const ISLAND_A: DialogueBook = {
         { label: "I'll do it.", action: 'quest:throne:active', to: 'king.topic.go' },
         { label: 'Not now.', action: 'close' },
       ] },
-      { id: 'king.topic.go', slot: 'topic', ask: 'I\'ll do it', text: 'Then go. It sulks in the east forest, under the rain.', when: { quest: ['throne', 'active'] }, choices: [{ label: 'Leave', action: 'close' }] },
-      { id: 'king.topic.wait', slot: 'topic', ask: 'Still the Warden?', text: 'The Warden still breathes. I can hear it chewing my furniture.', voice: 'king-wait', when: { quest: ['throne', 'active'], metMin: 1 }, weight: 2, choices: [{ label: 'Leave', action: 'close' }] },
+      { id: 'king.topic.go', slot: 'topic', ask: 'Where is the Warden?', text: 'Then go. It sulks in the east forest, under the rain.', when: { quest: ['throne', 'active'] }, choices: [{ label: 'Leave', action: 'close' }] },
+      { id: 'king.topic.wait', slot: 'topic', ask: "I haven't found the Warden yet.", text: 'The Warden still breathes. I can hear it chewing my furniture.', voice: 'king-wait', when: { quest: ['throne', 'active'], metMin: 1 }, weight: 2, choices: [{ label: 'Leave', action: 'close' }] },
       { id: 'king.topic.thanks', slot: 'topic', ask: 'The Warden is dead', text: 'It is dead? Then the castle is mine again. Take it, all of it. I said generously, and I meant it.', voice: 'king-thanks', when: { quest: ['throne', 'slain'] }, weight: 4, choices: [
         { label: 'Take the reward', action: 'quest:throne:done', to: 'king.topic.purse' },
       ] },
-      { id: 'king.topic.purse', slot: 'topic', ask: 'Take the shards', text: 'Fifteen hundred Moon Shards. Count them if you like; I did, twice, and it hurt both times.', when: { quest: ['throne', 'done'] }, once: true, choices: [
+      { id: 'king.topic.purse', slot: 'topic', ask: 'Is the reward all here?', text: 'Fifteen hundred Moon Shards. Count them if you like; I did, twice, and it hurt both times.', when: { quest: ['throne', 'done'] }, once: true, choices: [
         { label: 'Take the shards', to: 'king.topic.signet' },
       ] },
       { id: 'king.topic.signet', slot: 'topic', ask: 'About the signet', text: 'The signet. My own seal. Any blade that carries it bites deeper. Wear it, sell it; I am past caring, which is what generosity is.', when: { quest: ['throne', 'done'] }, once: true, choices: [
         { label: 'Take the signet', to: 'king.topic.sealed' },
       ] },
-      { id: 'king.topic.sealed', slot: 'topic', ask: 'Thanks', text: 'Now go and tell the skeleton beyond the portal what I paid. Slowly. He counts slowly.', when: { quest: ['throne', 'done'] }, choices: [{ label: 'Leave', action: 'close' }] },
+      { id: 'king.topic.sealed', slot: 'topic', ask: 'What now?', text: 'Now go and tell the skeleton beyond the portal what I paid. Slowly. He counts slowly.', when: { quest: ['throne', 'done'] }, choices: [{ label: 'Leave', action: 'close' }] },
       { id: 'king.topic.crown', slot: 'topic', ask: 'About your crown', text: 'My crown was antlers before it was gold. Everything here was something else first. The Warden was my gardener.', choices: [{ label: 'Leave', action: 'close' }] },
       { id: 'king.topic.buys', slot: 'topic', ask: 'What do you buy?', text: 'I buy what the great ones drop. Fangs, horns, scales, ribs. Bring them to the throne; I do not get up.', choices: [{ label: 'Leave', action: 'close' }] },
       { id: 'king.topic.rival', slot: 'topic', ask: 'The Skeleton King', text: 'The skeleton beyond the portal says he pays better. He pays in coins he took from people crossing his bridge. I pay in shards I took from nobody.', when: { metMin: 2 }, choices: [{ label: 'Leave', action: 'close' }] },
@@ -323,18 +323,18 @@ export const ISLAND_A: DialogueBook = {
         { label: 'Not my problem.', action: 'close' },
       ] },
       { id: 'frogking.topic.where', slot: 'topic', ask: 'Where is Croak?', text: 'He likes shade; the king\'s castle casts a long one. Use the sack. He has never walked anywhere he was asked to. He got that from me, and I want it back.', when: { quest: ['croak', 'active'] }, choices: [{ label: 'Leave', action: 'close' }] },
-      { id: 'frogking.topic.wait', slot: 'topic', ask: 'Still looking for Croak', text: 'Croak is still out there. Try the shady places. He likes the shady places.', voice: 'frog-wait', when: { quest: ['croak', ['active', 'bagged']], metMin: 1 }, weight: 2, choices: [{ label: 'Leave', action: 'close' }] },
+      { id: 'frogking.topic.wait', slot: 'topic', ask: "I haven't found Croak yet.", text: 'Croak is still out there. Try the shady places. He likes the shady places.', voice: 'frog-wait', when: { quest: ['croak', ['active', 'bagged']], metMin: 1 }, weight: 2, choices: [{ label: 'Leave', action: 'close' }] },
       { id: 'frogking.topic.reward', slot: 'topic', ask: 'Croak is home', text: 'My boy, home in a sack! You have my thanks, stranger. As a sign of respect... you may lick me.', voice: 'frog-reward', when: { quest: ['croak', 'returned'] }, weight: 4, choices: [
         { label: 'No, you must be sick or something', action: 'quest:croak:done', to: 'frogking.topic.declined' },
         { label: 'Uhh... sure', to: 'frogking.topic.licked' },
       ] },
-      { id: 'frogking.topic.declined', slot: 'topic', ask: 'Take the shards', text: 'Suit yourself. Here, take some shards instead.', voice: 'frog-declined', when: { quest: ['croak', 'done'], notFlag: 'licked' }, once: true, weight: 3, choices: [
+      { id: 'frogking.topic.declined', slot: 'topic', ask: "I'd rather not lick you.", text: 'Suit yourself. Here, take some shards instead.', voice: 'frog-declined', when: { quest: ['croak', 'done'], notFlag: 'licked' }, once: true, weight: 3, choices: [
         { label: 'Take the shards', action: 'close' },
       ] },
       { id: 'frogking.topic.licked', slot: 'topic', ask: 'May I lick you?', text: 'Hold still. This will only take about two minutes.', voice: 'frog-licked', when: { quest: ['croak', 'returned'] }, choices: [
         { label: '*lick*', action: 'lick' },
       ] },
-      { id: 'frogking.topic.changed', slot: 'topic', ask: 'Changed my mind', text: 'Changed your mind? The offer stands. It has stood for an age; it is used to standing.', when: { quest: ['croak', 'done'], notFlag: 'licked', metMin: 1 }, weight: 2, choices: [
+      { id: 'frogking.topic.changed', slot: 'topic', ask: 'About that lick...', text: 'Changed your mind? The offer stands. It has stood for an age; it is used to standing.', when: { quest: ['croak', 'done'], notFlag: 'licked', metMin: 1 }, weight: 2, choices: [
         { label: '*lick*', action: 'lick' },
         { label: 'Still no.', action: 'close' },
       ] },
@@ -584,7 +584,7 @@ export const ISLAND_A: DialogueBook = {
         { label: 'Why does it burn?', to: 'wanderer.topic.why' },
         { label: 'Leave', action: 'close' },
       ] },
-      { id: 'wanderer.topic.point', slot: 'topic', ask: 'Where is it?', text: "No. That's the point.", choices: [{ label: 'Leave', action: 'close' }] },
+      { id: 'wanderer.topic.point', slot: 'topic', ask: 'Can it be seen from here?', text: "No. That's the point.", choices: [{ label: 'Leave', action: 'close' }] },
       { id: 'wanderer.topic.why', slot: 'topic', ask: 'Why does it burn?', text: 'I stopped asking. You will too. It takes about a year.', choices: [{ label: 'Leave', action: 'close' }] },
       { id: 'wanderer.topic.lantern', slot: 'topic', ask: 'Follow your lantern', text: 'Follow the lantern if you like. It only ever leads back down this street. Everything does, eventually; the street is honest about it.', choices: [{ label: 'Leave', action: 'close' }] },
       { id: 'wanderer.topic.village', slot: 'topic', ask: 'This village', text: 'The village pays the ogre in soup and me in nothing. I did not ask. Asking is how you end up with soup.', when: { metMin: 1 }, choices: [{ label: 'Leave', action: 'close' }] },
@@ -634,12 +634,12 @@ export const ISLAND_A: DialogueBook = {
       { id: 'bride.topic.sand', slot: 'topic', ask: 'The sand never ends', text: 'The sand does not end. I have walked it to the cliff and back. The cliff is not the end; it is the sand standing up.', choices: [{ label: 'Leave', action: 'close' }] },
       { id: 'bride.topic.him', slot: 'topic', ask: 'Who are you waiting for?', text: 'He said he would meet me where the sand ends. He did not say which end. I have tried both.', choices: [{ label: 'Leave', action: 'close' }] },
       { id: 'bride.topic.nobells', slot: 'topic', ask: 'Do you hear bells?', text: '...do you hear the bells? No. Nor do I. I keep asking in case it changes.', when: { quest: ['bell', ['none', 'active', 'found']] }, choices: [{ label: 'Leave', action: 'close' }] },
-      { id: 'bride.topic.bells', slot: 'topic', ask: 'Walk with me', text: 'The bells. From the shore. Walk with me; the sand ends where the bells are. He said.', when: { quest: ['bell', 'done'] }, weight: 4, choices: [
+      { id: 'bride.topic.bells', slot: 'topic', ask: 'Do you hear the bells now?', text: 'The bells. From the shore. Walk with me; the sand ends where the bells are. He said.', when: { quest: ['bell', 'done'] }, weight: 4, choices: [
         { label: 'Walk with me.', action: 'follow', when: { quest: ['bride', 'none'] } },
         { label: 'Not yet.', action: 'close', when: { quest: ['bride', 'none'] } },
         { label: 'Leave', action: 'close', when: { quest: ['bride', ['walking', 'done']] } },
       ] },
-      { id: 'bride.topic.walking', slot: 'topic', ask: 'Keep walking', text: 'Do not stop. The bells stop when I stop; I have tested it twice, and twice was plenty.', when: { quest: ['bride', 'walking'] }, weight: 6, choices: [{ label: 'Leave', action: 'close' }] },
+      { id: 'bride.topic.walking', slot: 'topic', ask: 'Are we close?', text: 'Do not stop. The bells stop when I stop; I have tested it twice, and twice was plenty.', when: { quest: ['bride', 'walking'] }, weight: 6, choices: [{ label: 'Leave', action: 'close' }] },
       { id: 'bride.topic.ended', slot: 'topic', ask: 'We reached the shore', text: 'The sand ended. He was not there. The bells were. I will take the bells; they, at least, kept the appointment.', when: { quest: ['bride', 'done'] }, weight: 8, choices: [{ label: 'Leave', action: 'close' }] },
 
       { id: 'bride.bye.walking', slot: 'bye', text: 'I keep walking.' },
@@ -686,7 +686,7 @@ export const ISLAND_A: DialogueBook = {
 
       { id: 'pim.topic.turns', slot: 'topic', ask: 'About the galaxy turns', text: 'Three turns of the galaxy. The first I slept through. The second I counted. The third I am watching, in case it does something.', choices: [{ label: 'Leave', action: 'close' }] },
       { id: 'pim.topic.chart', slot: 'topic', ask: 'Star charts', text: 'A star chart marks where the great hunters of this land sleep. Mirren sells them; I draw them. I draw, he sells, the hunters hunt. It is a system.', when: { notItem: 'star-chart' }, choices: [{ label: 'Leave', action: 'close' }] },
-      { id: 'pim.topic.charted', slot: 'topic', ask: 'My star chart', text: 'You carry one of my charts. The hunters on it are where I drew them, unless they have died, in which case blame the hunters.', when: { item: 'star-chart' }, choices: [{ label: 'Leave', action: 'close' }] },
+      { id: 'pim.topic.charted', slot: 'topic', ask: 'I have one of your charts.', text: 'You carry one of my charts. The hunters on it are where I drew them, unless they have died, in which case blame the hunters.', when: { item: 'star-chart' }, choices: [{ label: 'Leave', action: 'close' }] },
       { id: 'pim.topic.moon', slot: 'topic', ask: 'The smiling moon', text: 'Do not look at the moon when it smiles. It smiles when something dies. Tonight it has been smiling at you quite a lot.', when: { metMin: 1 }, choices: [{ label: 'Leave', action: 'close' }] },
       { id: 'pim.topic.eyes', slot: 'topic', ask: 'Eyes in the sky', text: 'The sky over the north shore is full of eyes tonight. He is awake. I have put the telescope away; some things you do not need magnified.', when: { quest: ['silence', 'open'] }, weight: 3, choices: [{ label: 'Leave', action: 'close' }] },
 

@@ -243,7 +243,7 @@ const VRAK: NpcDialogue = {
       choices: [{ label: 'Hold your breath.', to: 'gob-b.topic.held' }, { label: 'Boo.', to: 'gob-b.topic.boo' }, { label: 'Leave him to it.', action: 'close' }],
     },
     { id: 'gob-b.topic.held', slot: 'topic', ask: 'I held my breath', text: '... ... ... ...hic.' },
-    { id: 'gob-b.topic.boo', slot: 'topic', ask: 'I tried booing you', text: 'hic.' },
+    { id: 'gob-b.topic.boo', slot: 'topic', ask: 'Boo!', text: 'hic.' },
 
     { id: 'gob-b.bye.one', slot: 'bye', text: '...hic.' },
     { id: 'gob-b.bye.two', slot: 'bye', text: 'hic. ...hic.' },
@@ -488,9 +488,9 @@ const CORVIN: NpcDialogue = {
       choices: [{ label: "I'll speak for you.", action: 'quest:rose:asked', to: 'rose-knight.topic.wait' }, { label: 'Not my business.', action: 'close' }],
     },
     { id: 'rose-knight.topic.wait', slot: 'topic', ask: 'What should I tell her?', text: 'Thank you. Do not say I asked; do not mention the arm. Say what you have killed, and how large. She counts the great ones.', when: { quest: ['rose', 'asked'] } },
-    { id: 'rose-knight.topic.worthy', slot: 'topic', ask: 'She looked at me differently', text: 'She looked at you differently just now. Go. Tell her the count. I will be here. I am always here.', when: { quest: ['rose', 'worthy'] }, weight: 3 },
+    { id: 'rose-knight.topic.worthy', slot: 'topic', ask: "I've slain three great ones.", text: 'She looked at you differently just now. Go. Tell her the count. I will be here. I am always here.', when: { quest: ['rose', 'worthy'] }, weight: 3 },
     { id: 'rose-knight.topic.rose', slot: 'topic', ask: 'About the rose you hold', text: 'A rose from the Last Garden. Red ones are rare here. You cannot see the garden from anywhere I know; believe me, it is all I ask of anyone.' },
-    { id: 'rose-knight.topic.done', slot: 'topic', ask: 'She accepted the rose?', text: 'She said yes. I am going to lower the arm now. Slowly. If it comes off, say nothing.', when: { quest: ['rose', 'answered'] } },
+    { id: 'rose-knight.topic.done', slot: 'topic', ask: 'She said yes.', text: 'She said yes. I am going to lower the arm now. Slowly. If it comes off, say nothing.', when: { quest: ['rose', 'answered'] } },
 
     { id: 'rose-knight.bye.quiet', slot: 'bye', text: 'Quietly, as you go.' },
     { id: 'rose-knight.bye.well', slot: 'bye', text: 'If she asks about me, I am well. The arm is well. Everything is well.' },
@@ -544,8 +544,8 @@ const ELOWEN: NpcDialogue = {
         { label: 'Leave her to decide.', action: 'close' },
       ],
     },
-    { id: 'maiden.topic.yes', slot: 'topic', ask: 'I told her about the great ones', text: 'Yes. There. The red ones mean now. Tell him. He cannot hear from two paces; he has been listening to his arm.', when: { quest: ['rose', 'answered'] } },
-    { id: 'maiden.topic.notyet', slot: 'topic', ask: 'Not three great ones yet', text: 'Then the blue ones. Waiting. Come back when the fog has fewer great things in it.', when: { quest: ['rose', 'asked'] } },
+    { id: 'maiden.topic.yes', slot: 'topic', ask: "So it's a yes?", text: 'Yes. There. The red ones mean now. Tell him. He cannot hear from two paces; he has been listening to his arm.', when: { quest: ['rose', 'answered'] } },
+    { id: 'maiden.topic.notyet', slot: 'topic', ask: "I haven't slain three yet.", text: 'Then the blue ones. Waiting. Come back when the fog has fewer great things in it.', when: { quest: ['rose', 'asked'] } },
     { id: 'maiden.topic.flowers', slot: 'topic', ask: 'What do the blue flowers mean?', text: "The blue ones mean waiting. The red ones mean now. Nobody has planted a colour for 'ask me again next winter'." },
     { id: 'maiden.topic.him', slot: 'topic', ask: 'About the knight with the rose', text: 'He walked through the fog for this. The fog has things in it. He walked through them. That is the point for him. The arm is the point against.' },
 

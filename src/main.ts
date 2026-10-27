@@ -943,7 +943,9 @@ declare global {
       ending: Ending; save: Save; progress: Progress;
       /** The realms (id, centre, radius): the audits measure only what stands in the zone the hero is in. */
       realms: typeof REALMS;
+      /** Headless play checks: the game's own move (portals, doors and the dream use it), the carriage, the world state, the story. */
+      teleport: typeof teleport; carriage: typeof CARRIAGE; worldState: WorldState; story: Story;
     };
   }
 }
-window.__ginseng = { scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, fx: combatFx, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs, events, ending, save, progress, realms: REALMS };
+window.__ginseng = { scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, fx: combatFx, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs, events, ending, save, progress, realms: REALMS, teleport, carriage: CARRIAGE, worldState, story };
