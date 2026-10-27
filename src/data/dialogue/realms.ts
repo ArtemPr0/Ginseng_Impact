@@ -270,7 +270,7 @@ const GOLD_KNIGHT: LineDef[] = [
   { id: 'gold-knight.react.wizard', slot: 'react', text: 'Orlan floats above the stool. To the stool. It has held knights; it can wait for a wizard.', when: { hero: 'wizard' }, weight: 0.5 },
   // topic
   { id: 'gold-knight.topic.dead', slot: 'topic', ask: 'A toast to the dead', text: 'To the dead. They are excellent company and never leave early.',
-    choices: [{ label: 'Who were they?', to: 'gold-knight.topic.who' }, { label: 'To the dead.', action: 'close' }] },
+    choices: [{ label: 'Who were they?', to: 'gold-knight.topic.who' }, { label: 'I drink to that.', action: 'close' }] },
   { id: 'gold-knight.topic.who', slot: 'topic', ask: 'Who were those knights?', text: 'The skulls behind me were knights. The one with the chip said no to a king. The king is on the next row.',
     choices: [{ label: 'To them.', action: 'close' }] },
   { id: 'gold-knight.topic.medallion', slot: 'topic', ask: 'About your medallion', text: 'The medallion? A skull, gold. It was my captain. He asked to be kept close. He did not say how close.',

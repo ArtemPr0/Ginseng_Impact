@@ -54,8 +54,7 @@ for (let x = 934; x > 842; x -= 7) for (const z of [11, 25]) if (!STALLS.some((s
 
 /**
  * The buildings the chests sit by, placed as the world places them (World.ts, LeanQuarter.ts, Sunken.ts, Vale.ts), by
- * their baked collider grids. The ruins have none (World.ts places them with no collider at all), so theirs come back
- * null: a test below pins exactly that, so a renamed id cannot quietly blank the check.
+ * their baked collider grids (ruins dress onto cloister / snow-pillar and resolve too).
  */
 const face = (yaw: number) => Math.PI / 2 - yaw;
 const GY = 24;
@@ -79,8 +78,8 @@ const GRIDS: Array<[string, Footprint | null]> = [
   ['sea-castle', gridFootprint('sea-castle', -1000, -48, -80, 0)],
   ['crowned-head', gridFootprint('crowned-head', 1000 - 85, 0, 900 + 20, face(0.25), 1.5)],
 ];
-/** How many of GRIDS resolve: every building but the eight ruins. */
-const GRIDS_RESOLVED = GRIDS.length - LAYOUT.ruins.length;
+/** How many of GRIDS resolve: every named building, including the dressed ruins. */
+const GRIDS_RESOLVED = GRIDS.length;
 const BUILDINGS: Footprint[] = [
   ...GRIDS.map(([, f]) => f).filter((f): f is Footprint => f !== null),
   ...[924, 906, 888, 870, 852].flatMap((x) => [4, 32].map((z): Footprint => ({ kind: 'box', x, z, hw: 3.4, hd: 3.4, top: GY + 9 }))),
@@ -145,14 +144,14 @@ describe('CHESTS', () => {
   });
 
   it('stands outside the buildings and the creatures\' pads', () => {
-    // Every building named resolves to its baked grid, except the ruins, which have none and are kept off by distance.
-    expect(GRIDS.filter(([, f]) => f === null).map(([id]) => id)).toEqual(LAYOUT.ruins.map(ruinKind));
+    // Every building named resolves to its baked grid (ruins included once dressed).
+    expect(GRIDS.filter(([, f]) => f === null).map(([id]) => id)).toEqual([]);
     expect(GRIDS.filter(([, f]) => f !== null)).toHaveLength(GRIDS_RESOLVED);
-    expect(GRIDS_RESOLVED).toBe(15);
+    expect(GRIDS_RESOLVED).toBe(GRIDS.length);
     expect(BUILDINGS.length).toBeGreaterThan(GRIDS_RESOLVED + 20);
     for (const c of CHESTS) {
       for (const f of BUILDINGS) for (const p of ring(c)) expect(footprintContains(f, p.x, p.z), `${c.id} inside ${f.kind === 'grid' ? f.id : `${f.kind} at ${f.x},${f.z}`}`).toBe(false);
-      // The ruins (an arch 6.6 m tall, a column 4.5 m) have no collider: the chest keeps 4 m from each one's centre.
+      // Still keep 4 m from each ruin's centre so a chest never sits under an arch or column.
       if (c.zone === 'island') for (const r of LAYOUT.ruins) expect(dist(c, r), `${c.id} on the ${ruinKind(r)} at ${r.x},${r.z}`).toBeGreaterThanOrEqual(4);
       // The small pads level the ground under one creature or NPC each; the big ones (the castle's rock, the world tree) are ground.
       if (c.zone === 'island') for (const p of PADS) if (p.r < 10) expect(dist(c, p), `${c.id} on the pad at ${p.x},${p.z}`).toBeGreaterThan(p.r);

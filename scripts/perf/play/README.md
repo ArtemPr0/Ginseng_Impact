@@ -43,3 +43,13 @@ makes `vite preview --strictPort` fail and the run measures someone else's build
 ```bash
 node scripts/perf/run.mjs "http://127.0.0.1:4173/?at=0,59" 40 scripts/perf/play/fight.js
 ```
+
+## Full verification
+
+With preview on `4173` and headless Chrome on CDP `9333` (see `.claude/skills/verify`):
+
+```bash
+node scripts/perf/play/verify-all.mjs
+```
+
+Runs: every NPC dialogue hub (`sweep-dialogue.js`), main + side quests (`sweep-quests.js`), every enemy kill (`sweep-enemies.js`), every interactable label/act (`sweep-interact.js`), Hollow King aggro, layout/glows/characters audits, and the ending shortcut (`playthrough.mjs`). Exit 0 only when every hard check passes. Audits still print by-design flags (bridges over void, lean bubbles, realm footings) without failing the run.

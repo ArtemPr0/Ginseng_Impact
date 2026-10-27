@@ -47,7 +47,8 @@ describe('HeightWorld — moving footprints', () => {
 describe('baked model colliders', () => {
   it('only exist for models whose file is present', () => {
     for (const id of Object.keys(COLLIDER_GRIDS)) expect(PRESENT_MODELS.has(id)).toBe(true);
-    expect(gridFootprint('palmisland', 0, 0, 0)).toBeNull();
+    // A registry id with no baked grid (and no dressed stand-in) stays null.
+    expect(gridFootprint('__no-such-model__', 0, 0, 0)).toBeNull();
   });
 
   it('keep the cloister arches open and its columns solid', () => {
