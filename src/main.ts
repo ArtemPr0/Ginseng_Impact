@@ -941,7 +941,9 @@ declare global {
       /** The event bus: what happened (kills, hurts, zones, talks, loot, trades, quests, feats). */
       events: Events;
       ending: Ending; save: Save; progress: Progress;
+      /** The realms (id, centre, radius): the audits measure only what stands in the zone the hero is in. */
+      realms: typeof REALMS;
     };
   }
 }
-window.__ginseng = { scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, fx: combatFx, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs, events, ending, save, progress };
+window.__ginseng = { scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, fx: combatFx, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs, events, ending, save, progress, realms: REALMS };
