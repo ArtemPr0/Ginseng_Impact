@@ -86,6 +86,40 @@ async function info(path) {
   console.log(`  textures: ${root.listTextures().map((t) => `${t.getName() || '?'} ${t.getMimeType()} ${(t.getImage()?.byteLength / 1048576).toFixed(2)} MB`).join(', ') || 'none'}`);
 }
 
+/**
+ * A Meshy export whose skeleton is in centimetres under a 0.01-scale Armature (the agent's rig): bakes that scale into
+ * the joints, their inverse binds and every translation track, so the file is in metres with no scaled parent.
+ */
+async function flattenArmature(inPath, outPath) {
+  const doc = await io.read(inPath);
+  const root = doc.getRoot();
+  const arm = root.listNodes().find((n) => Math.abs(n.getScale()[0] - 1) > 1e-6 && n.listChildren().length > 0);
+  if (!arm) { console.log('no scaled armature'); await io.write(outPath, doc); return; }
+  const k = arm.getScale()[0];
+  arm.setScale([1, 1, 1]);
+  const skin = root.listSkins()[0];
+  const joints = new Set(skin.listJoints());
+  for (const j of joints) j.setTranslation(j.getTranslation().map((v) => v * k));
+  const ibm = skin.getInverseBindMatrices();
+  const e = [];
+  for (let i = 0; i < ibm.getCount(); i++) {
+    ibm.getElement(i, e);
+    for (const c of [0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14]) e[c] *= k;
+    ibm.setElement(i, e);
+  }
+  const seen = new Set();
+  for (const anim of root.listAnimations()) for (const ch of anim.listChannels()) {
+    if (ch.getTargetPath() !== 'translation' || !joints.has(ch.getTargetNode())) continue;
+    const out = ch.getSampler().getOutput();
+    if (seen.has(out)) continue;
+    seen.add(out);
+    const v = [];
+    for (let i = 0; i < out.getCount(); i++) { out.getElement(i, v); out.setElement(i, v.map((x) => x * k)); }
+  }
+  await io.write(outPath, doc);
+  console.log(`flatten-armature: scale ${k} baked into ${joints.size} joints`);
+}
+
 async function optimize(inPath, outPath, maxSize = 1024, targetTris = 0) {
   const doc = await io.read(inPath);
   const tris = doc.getRoot().listMeshes().reduce((n, m) => n + m.listPrimitives().reduce((k, p) => k + (p.getIndices()?.getCount() ?? p.getAttribute('POSITION').getCount()) / 3, 0), 0);
@@ -698,6 +732,7 @@ async function clip(inPath, outPath, nameRe, rotOnly = false) {
 
 async function main() {
   if (cmd === 'info') return info(a);
+  if (cmd === 'flatten-armature') return flattenArmature(a, b);
   if (cmd === 'optimize') return optimize(a, b, c ? Number(c) : 1024, d ? Number(d) : 0);
   if (cmd === 'strip-floaters') return stripFloaters(a, b, c ? Number(c) : 0.45);
   if (cmd === 'strip-skin') return stripSkin(a, b);

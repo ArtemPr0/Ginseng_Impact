@@ -111,8 +111,8 @@ export const MODELS: Record<string, ModelDef> = {
   marshdemon: { file: 'marsh-demon.glb', height: 5, faceForward: 0.25, clips: BOSS_CLIPS },
   hollowking: { file: 'hollow-king.glb', height: 25, clips: BOSS_CLIPS },
   rivershade: { file: 'river-shade.glb', height: 3, faceForward: 0.3, label: 'hooded river shade with glowing eyes (DeUydbMvKqC, DeWZT3jvPCG)' },
-  passbeast: { file: 'fog-beast.glb', height: 2.4, faceForward: 0.2, label: 'red-eyed black beast of the mountain pass (DeXeZ7rhGVi)', clips: { idle: 'combat_stance|idle_02|idle', walk: 'monster_walk|crawl|walking', run: 'running|run', attack: 'attack', roar: 'zombie_scream|scream', hit: 'hit_reaction|hit', death: 'dying|death' } },
-  beast: { file: 'fog-beast.glb', height: 1.5, faceForward: 0.2, label: 'red-eyed black beast (DeXeZ7rhGVi)', clips: { idle: 'combat_stance|idle_02|idle', walk: 'monster_walk|crawl|walking', run: 'running|run', attack: 'attack', roar: 'zombie_scream|scream', hit: 'hit_reaction|hit', death: 'dying|death' } },
+  passbeast: { file: 'fog-wolf.glb', height: 2.4, faceForward: 0.2, label: 'black wolf-headed beast of the mountain pass, red-eyed', clips: { idle: 'idle_10|idle', walk: 'walking|walk', run: 'running|run', attack: 'right_hand_sword_slash|slash', heavy: 'right_hand_sword_slash|slash', hit: 'hit_reaction|hit', death: 'dead|dying|death' } },
+  beast: { file: 'fog-wolf.glb', height: 1.85, faceForward: 0.2, label: 'black wolf-headed beast, red-eyed', clips: { idle: 'idle_10|idle', walk: 'walking|walk', run: 'running|run', attack: 'right_hand_sword_slash|slash', heavy: 'right_hand_sword_slash|slash', hit: 'hit_reaction|hit', death: 'dead|dying|death' } },
   croc: { file: 'crocodile.glb', height: 0.7, label: 'crocodile in the flooded ruins (DeJj8CDhL2f)' },
   // NPCs and creatures
   frogking: { file: 'frog-king.glb', height: 2.4, clips: { idle: 'idle|breath' } },

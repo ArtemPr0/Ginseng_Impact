@@ -231,7 +231,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     drops: [{ itemId: 'beast-fang', chance: 1 }, { itemId: 'moon-dew', chance: 1 }],
   },
   beast: {
-    kind: 'beast', name: 'Fog Beast', maxHp: 650, def: 30, atk: 85, speed: 3.6, element: 'rot', hover: 0, bodyRadius: 0.7, height: 1.5,
+    kind: 'beast', name: 'Fog Beast', maxHp: 650, def: 30, atk: 85, speed: 3.6, element: 'rot', hover: 0, bodyRadius: 0.5, height: 1.85,
     brain: { aggroRange: 12, attackRange: 2.6, windup: 0.45, recover: 1.1, attackCooldown: 0.7 }, respawn: 35, leash: 22, shards: [8, 16], drops: [{ itemId: 'beast-fang', chance: 0.5 }, { itemId: 'moon-dew', chance: 0.3 }],
   },
   passbeast: {
