@@ -177,4 +177,8 @@ body { font-family: var(--font-body); color: var(--moon); }
   font-family: var(--font-title); letter-spacing: 0.14em; color: var(--moon); text-align: center;
 }
 #hud-credits p { margin: 0; font-size: 18px; }
-#hud-credits button { margin-top: 18px; }
+#hud-credits button {
+  margin-top: 18px; padding: 10px 20px; cursor: pointer; font-family: var(--font-title); font-size: 13px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--moon); background: var(--panel); border: 1px solid var(--panel-border); border-radius: 2px;
+}
+#hud-credits button:hover { border-color: var(--rune); }

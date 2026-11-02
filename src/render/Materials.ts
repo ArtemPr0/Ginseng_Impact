@@ -317,16 +317,21 @@ export function patchWhiteBloom(mat: MeshStandardMaterial): void {
  * Lit windows: the warm bright texels of a house's texture (its painted windows) glow as if candles burn inside, in
  * `glow` (warm candlelight by default; the Lean Quarter's castle burns purple).
  */
+/** All lit windows' strength (the ending flares them, then they stay a little brighter). */
+export const WINDOWS = { value: 1 };
+
 export function patchLitWindows(mat: MeshStandardMaterial, strength = 2.2, glow = new Color(1.0, 0.55, 0.18)): void {
   const prev = mat.onBeforeCompile;
   mat.onBeforeCompile = (shader, renderer) => {
     prev?.call(mat, shader, renderer);
+    shader.uniforms.uWindows = WINDOWS;
+    shader.fragmentShader = 'uniform float uWindows;\n' + shader.fragmentShader;
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         {
           vec3 c = diffuseColor.rgb;
           float warm = smoothstep(0.08, 0.3, c.r - c.b) * smoothstep(0.25, 0.6, max(c.r, c.g));
-          totalEmissiveRadiance += vec3(${glow.r.toFixed(3)}, ${glow.g.toFixed(3)}, ${glow.b.toFixed(3)}) * warm * ${strength.toFixed(2)};
+          totalEmissiveRadiance += vec3(${glow.r.toFixed(3)}, ${glow.g.toFixed(3)}, ${glow.b.toFixed(3)}) * warm * uWindows * ${strength.toFixed(2)};
         }`);
   };
   const prevKey = mat.customProgramCacheKey.bind(mat);

@@ -297,6 +297,7 @@ export class Hud {
 
   // ---------- combat readouts ----------
   setHp(value: number, max: number): void {
+    max = Math.round(max);
     if (!this.changed('hp', `${Math.round(value)}/${max}`)) return;
     const f = Math.max(0, value / max);
     this.q('#hud-hp').style.width = `${Math.round(f * 100)}%`;

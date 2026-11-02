@@ -1,5 +1,4 @@
-import { Color, DirectionalLight, FogExp2, Group, HemisphereLight, PointLight, type Object3D, PerspectiveCamera, Scene, Vector3 } from 'three';
-import { PRESENT_MODELS } from './data/colliderGrids';
+import { Color, DirectionalLight, FogExp2, HemisphereLight, type Object3D, PerspectiveCamera, Scene, Vector3 } from 'three';
 import { Bubbles } from './world/Portal';
 import { LightBudget } from './render/LightBudget';
 import { yawToRotation } from './models/ModelRig';
@@ -9,7 +8,7 @@ import { ROSTER } from './characters/roster';
 import { CombatSystem } from './combat/CombatSystem';
 import { Game } from './core/Game';
 import { Input } from './core/Input';
-import { CLOUD_LEVEL, DISTRICT_AIR, LAYOUT, leanDistrict, REALM_SKY, REALMS, VALE, ZONE_LIGHT } from './data/world';
+import { CLOUD_LEVEL, DISTRICT_AIR, GALAXY, LAYOUT, leanDistrict, REALM_SKY, REALMS, VALE, ZONE_LIGHT } from './data/world';
 import { kingdomNight, kingdomSkyColors } from './world/Kingdom';
 import { Inventory } from './items/Inventory';
 import { riverAt } from './world/Terrain';
@@ -42,6 +41,9 @@ import { Story } from './game/Story';
 import { WorldState } from './game/WorldState';
 import { glowSprite } from './render/Glow';
 import { Glints } from './render/LeanFx';
+import { WINDOWS } from './render/Materials';
+import { Concert } from './world/Concert';
+import { HEAD_LIT } from './world/StoneHead';
 import { CHESTS, CHEST_RESPAWN, type ChestDef } from './data/chests';
 import { ENEMY_DEFS } from './data/enemies';
 import { rollDrops } from './combat/Loot';
@@ -490,89 +492,38 @@ function storyProps(): void {
   if (bride && Math.hypot(bride.pos.x - BRIDE_SHORE.x, bride.pos.z - BRIDE_SHORE.z) < 1.5) adventures.quests.step('bride', 'done', adventures.wallet);
 }
 
-const PLAZA = { x: 1000, crowdZ: -50, heroZ: -60 };
-const concertLook = new Vector3();
-const concertCam = new Vector3();
-let concertLive = false;
-let concertWhale: Group | null = null;
-let concertWhaleCued = false;
-const concertBursts: Array<{ light: PointLight; left: number }> = [];
-function findConcertWhale(): Group | null {
-  let found: Group | null = null;
-  scene.traverse((o) => { if (o.name === 'lm:whale') found = o as Group; });
-  return found;
-}
-function spawnConcertBurst(): void {
-  const cols = [PALETTE.rune, PALETTE.dusk, PALETTE.moon, PALETTE.electric];
-  const light = new PointLight(cols[(Math.random() * cols.length) | 0], 2.4, 28, 2);
-  light.position.set(
-    PLAZA.x + (Math.random() - 0.5) * 36,
-    world.heightAt(PLAZA.x, PLAZA.crowdZ) + 8 + Math.random() * 18,
-    PLAZA.crowdZ + (Math.random() - 0.5) * 28,
-  );
-  scene.add(light);
-  concertBursts.push({ light, left: 0.35 + Math.random() * 0.25 });
-  if (concertBursts.length > 8) {
-    const drop = concertBursts.shift()!;
-    scene.remove(drop.light);
-    drop.light.dispose();
-  }
-}
+const concert = new Concert({
+  area, camera, fx: combatFx,
+  enemies: () => combat.enemies as unknown as ReadonlyArray<{ object: { visible: boolean }; brain: { p: { aggroRange: number } }; pos: { x: number; z: number } }>,
+  place: (x, y, z) => teleport(x, y, z, -Math.PI / 2),
+  heightAt: (x, z, y) => world.heightAt(x, z, y),
+});
+const awakenFrom = new Vector3();
+/** Where the camera ends its ride: before the Stone Head's face. */
+const AWAKEN_CAM = new Vector3(LAYOUT.head.x, 16, LAYOUT.head.z + 34);
+let awakenStarted = false;
+/** While the ending lights the sky: 0..1 aurora on top of the place's own. */
+let endingAurora = 0;
 
 const ending = new Ending({
   events,
   play: (id) => audio.score.play(id as 'ending'),
-  concert: () => {
-    concertLive = true;
-    concertWhaleCued = false;
-    concertWhale ??= findConcertWhale();
-    teleport(PLAZA.x, world.heightAt(PLAZA.x, PLAZA.heroZ), PLAZA.heroZ, 0);
-    area.npcs.find((n) => n.def.id === 'cup-gnome')?.bubble('There he is.');
-    for (const n of area.npcs) {
-      if (n.hidden) continue;
-      const d = Math.hypot(n.pos.x - PLAZA.x, n.pos.z - PLAZA.crowdZ);
-      if (d > 140) continue;
-      n.pos.x += (PLAZA.x - n.pos.x) * 0.4;
-      n.pos.z += (PLAZA.crowdZ - n.pos.z) * 0.4;
-      n.pos.y = world.heightAt(n.pos.x, n.pos.z);
-      n.object.position.copy(n.pos);
-    }
+  awaken: (_t, look) => {
+    if (!awakenStarted) { awakenStarted = true; awakenFrom.copy(camera.position); }
+    camera.position.lerpVectors(awakenFrom, AWAKEN_CAM, look.dolly);
+    camera.lookAt(HEAD_EYES.x, HEAD_EYES.y, HEAD_EYES.z);
+    HEAD_LIT.value = look.eyes;
+    WINDOWS.value = look.windows;
+    moonFace.setCrescent(look.crescent, look.warm);
+    endingAurora = look.aurora;
   },
-  concertTick: (t, dt) => {
-    if (!concertLive) return;
-    const gy = world.heightAt(PLAZA.x, PLAZA.crowdZ);
-    concertLook.set(PLAZA.x, gy + 4, PLAZA.crowdZ);
-    const u = t * t * (3 - 2 * t);
-    const hero = controller.pos;
-    const startA = Math.atan2(hero.x - concertLook.x, hero.z - concertLook.z);
-    const endA = Math.PI * 0.15;
-    const a = startA + (endA - startA) * u;
-    const dist = 11 + u * 7;
-    const h = 3.5 + u * 5;
-    concertCam.set(concertLook.x + Math.sin(a) * dist, concertLook.y + h, concertLook.z + Math.cos(a) * dist);
-    camera.position.copy(concertCam);
-    camera.lookAt(concertLook);
-    if (Math.random() < dt * 2.2) spawnConcertBurst();
-    for (let i = concertBursts.length - 1; i >= 0; i--) {
-      concertBursts[i].left -= dt;
-      if (concertBursts[i].left <= 0) {
-        scene.remove(concertBursts[i].light);
-        concertBursts[i].light.dispose();
-        concertBursts.splice(i, 1);
-      }
-    }
-    if (!concertWhaleCued && t > 0.88 && PRESENT_MODELS.has('whale')) {
-      concertWhaleCued = true;
-      concertWhale ??= findConcertWhale();
-      if (concertWhale) concertWhale.visible = true;
-    }
-  },
-  credits: (lines, button, onContinue) => {
-    concertLive = false;
-    for (const b of concertBursts) { scene.remove(b.light); b.light.dispose(); }
-    concertBursts.length = 0;
-    hud.credits(lines, button, onContinue);
-  },
+  concert: () => concert.start(),
+  concertTick: (t, dt) => concert.tick(t, dt),
+  bubble: (text) => area.npcs.find((n) => n.def.id === 'cup-gnome')?.bubble(text),
+  titleCard: (artist, title, seconds) => hud.announce(`${artist} · ${title}`, { seconds, priority: 1 }),
+  credits: (lines, button, onContinue) => hud.credits(lines, button, onContinue),
+  leftParty: () => Math.hypot(controller.pos.x - GALAXY.x, controller.pos.z - GALAXY.z) > GALAXY.radius,
+  disperse: () => concert.disperse(),
   onPlus: () => { newGamePlus = true; combat.beginPlus(); hud.announce('New Game+'); save.write(snapshot()); },
 });
 function startNewGame(): void {
@@ -865,7 +816,7 @@ game
       } else {
         if (!wasLocked) { endOrbit(); tpc.snapTo(focus); wasLocked = true; }
         // Locked on: the camera eases round to keep the hero and the target in frame (not during the plaza concert).
-        if (ending.phase !== 'concert') tpc.update(focus, dt, combat.lockPoint(lockAt));
+        if (ending.phase !== 'concert' && ending.phase !== 'awaken') tpc.update(focus, dt, combat.lockPoint(lockAt));
         // `?cam=x,y,z` (debug) pins the camera at a world position looking at the `face` point.
         if (camParam) { camera.position.set(camParam[0], camParam[1], camParam[2]); const fx = faceParam ? faceParam[0] : SPAWN.x; const fz = faceParam ? faceParam[1] : SPAWN.z; camera.lookAt(fx, world.heightAt(fx, fz) + 1.2, fz); }
         // Sizzlin' Slowness: the world leans a little and sways while the lean has hold of you.
@@ -884,7 +835,7 @@ game
       const inVale = Math.hypot(playerPos.x - VALE.x, playerPos.z - VALE.z) < VALE.radius;
       const auroraNear = inVale ? 1 : Math.max(0, 1 - Math.hypot(playerPos.x - area.auroraCentre.x, playerPos.z - area.auroraCentre.z) / 90);
       const kingNear = Math.max(0, Math.min(1, 1 - (Math.hypot(playerPos.x - 57, playerPos.z + 129) - 50) / 70));
-      skyEvents.update(dt, camera.position, auroraNear, kingNear);
+      skyEvents.update(dt, camera.position, Math.max(auroraNear, endingAurora), kingNear);
       area.update(dt, camera.position, playerPos, talking);
       atmosphere.update(dt, playerPos, camera.position);
       // Realm fog and the sunken city's bubbles.
