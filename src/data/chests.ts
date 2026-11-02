@@ -51,7 +51,7 @@ export const CHESTS: ChestDef[] = [
   // The broken column on the Frost March's edge, west of the yeti's grove.
   { id: 'ruin-east', zone: 'island', x: 76, z: -88, kind: 'cache', respawn: CHEST_RESPAWN, shards: [15, 40],
     table: [{ itemId: 'beast-fang', chance: 0.5 }, { itemId: 'rune-shard', chance: 0.6 }, { itemId: 'lotus-tea', chance: 0.4 }, { itemId: 'hunters-bow', chance: 0.08 }] },
-  // A hoard half-buried in the dunes south of the desert's crystal golems: the bucket under the gold.
+  // A hoard half-buried in the dunes south of the desert's crystal sentries: the bucket under the gold.
   { id: 'desert-mimic', zone: 'island', x: 56, z: 48, kind: 'mimic', respawn: CHEST_RESPAWN, shards: [40, 100],
     table: [{ itemId: 'sentinel-core', chance: 0.35 }, { itemId: 'croc-hide', chance: 0.5 }, { itemId: 'rot-salve', chance: 0.3 }, { itemId: 'witch-staff', chance: 0.06 }] },
   // ----- Yung Lean's kingdom -----

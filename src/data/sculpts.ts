@@ -525,7 +525,7 @@ const VALE_SCULPT: RealmSculpt = {
   land: {
     kind: 'pads', margin: 35, wobble: 5,
     // Beyond the pads' 35 m: the hill, the river to both its ends, and the meadows the mobs roam (the fog beasts by the
-    // tavern, east toward the castle and over the river; the golems on the hill). The cliff falls east of x ≈ 1085, so the
+    // tavern, east toward the castle and over the river; the sentries on the hill). The cliff falls east of x ≈ 1085, so the
     // floating castle (x 1115..1145) and its chained platforms (x 1103+) stay over the void.
     extra: [
       { name: 'hill', disc: VALE_DOME.disc },

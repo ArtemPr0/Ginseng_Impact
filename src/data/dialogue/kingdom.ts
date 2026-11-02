@@ -130,7 +130,7 @@ export const KINGDOM: DialogueBook = {
 
       { id: 'skeleton-king.react.galaxy-knight', slot: 'react', text: "You killed a galaxy knight in my treasury. He was guarding it from you. Noted. Nothing is missing; I checked twice.", when: { event: 'kill', enemy: 'galaxy-knight' } },
       { id: 'skeleton-king.react.ghoul', slot: 'react', text: "A ghoul down on the plaza. It owed the court a cup. You've inherited the debt. Congratulations.", when: { event: 'kill', enemy: 'styro-ghoul' } },
-      { id: 'skeleton-king.react.golem', slot: 'react', text: "A crystal golem, broken. The shards are mine. The shards are always mine; look at the floor.", when: { event: 'kill', enemy: 'crystalgolem' } },
+      { id: 'skeleton-king.react.golem', slot: 'react', text: "A crystal sentry, broken. The shards are mine. The shards are always mine; look at the floor.", when: { event: 'kill', enemy: 'crystalsentry' } },
       { id: 'skeleton-king.react.chucker', slot: 'react', text: "The chucker in the dome is dead. It threw my cups. Its estate owes me. It has no estate. You're nearest; the ledger isn't fussy.", when: { event: 'kill', enemy: 'lean-chucker' } },
       { id: 'skeleton-king.react.hurt', slot: 'react', text: "Red on the stones. It goes in the ledger under 'wear'. I charge the stones for it, not you. Yet.", when: { event: 'hurt' } },
       { id: 'skeleton-king.react.down', slot: 'react', text: "You went down on my floor. I counted the coins while you lay there. All present. You weren't, for a bit.", when: { event: 'down' } },
@@ -332,7 +332,7 @@ export const KINGDOM: DialogueBook = {
       { id: 'void-monk.greet.regular', slot: 'greet', text: "Again. You and I are the only two things on this plaza that don't swirl.", when: { metMin: 3 } },
       { id: 'void-monk.greet.wizard', slot: 'greet', text: "A wizard who floats. Careful near the rings: they pull on things that aren't held down.", when: { hero: 'wizard', metMin: 1 } },
 
-      { id: 'void-monk.react.golem', slot: 'react', text: "A crystal golem broke near the rings. Its shards fell in. Somewhere, it's raining glass on someone's home.", when: { event: 'kill', enemy: 'crystalgolem' } },
+      { id: 'void-monk.react.golem', slot: 'react', text: "A crystal sentry broke near the rings. Its shards fell in. Somewhere, it's raining glass on someone's home.", when: { event: 'kill', enemy: 'crystalsentry' } },
       { id: 'void-monk.react.ghoul', slot: 'react', text: "A ghoul died near my rings. Its cup went in. Something will drink it, somewhere else. Something always does.", when: { event: 'kill', enemy: 'styro-ghoul' } },
       { id: 'void-monk.react.galaxy-knight', slot: 'react', text: "You killed a galaxy knight. His armour had a sky on it. I have one on my face. We never spoke; two skies rarely do.", when: { event: 'kill', enemy: 'galaxy-knight' } },
       { id: 'void-monk.react.hurt', slot: 'react', text: "Don't bleed near the rings. The worlds on the other side argue about whose it is. They've gone to war over less.", when: { event: 'hurt' } },
@@ -471,7 +471,7 @@ export const KINGDOM: DialogueBook = {
 
       { id: 'skeleton-lord.react.galaxy-knight', slot: 'react', text: "You killed a galaxy knight at the treasury. One more diamond for my teeth: he promised he'd hold it.", when: { event: 'kill', enemy: 'galaxy-knight' } },
       { id: 'skeleton-lord.react.ghoul', slot: 'react', text: "A ghoul down on the plaza. I heard the cup land. They always land upright. That's the saddest part.", when: { event: 'kill', enemy: 'styro-ghoul' } },
-      { id: 'skeleton-lord.react.golem', slot: 'react', text: "A crystal golem broke. I'll have the shards set in my teeth. There's room. There's always room.", when: { event: 'kill', enemy: 'crystalgolem' } },
+      { id: 'skeleton-lord.react.golem', slot: 'react', text: "A crystal sentry broke. I'll have the shards set in my teeth. There's room. There's always room.", when: { event: 'kill', enemy: 'crystalsentry' } },
       { id: 'skeleton-lord.react.chucker', slot: 'react', text: "The chucker is gone. The dome is quiet. I'll smoke to it; it was good at its one thing.", when: { event: 'kill', enemy: 'lean-chucker' } },
       { id: 'skeleton-lord.react.hurt', slot: 'react', text: "You're bleeding on my settee. Fur drinks blood. The settee has drunk worse.", when: { event: 'hurt' } },
       { id: 'skeleton-lord.react.down', slot: 'react', text: "You went down in the court. I watched through the smoke. The smoke made it beautiful. I'm sorry about that.", when: { event: 'down' } },
@@ -518,7 +518,7 @@ export const KINGDOM: DialogueBook = {
       { id: 'court-knight.react.galaxy-knight', slot: 'react', text: "You killed a galaxy knight at the treasury. Good men, galaxy knights. Bad at staying alive, apparently.", when: { event: 'kill', enemy: 'galaxy-knight' } },
       { id: 'court-knight.react.ghoul', slot: 'react', text: "A ghoul fewer on the plaza. I'd have helped, but my sword is ice and the plaza is warm.", when: { event: 'kill', enemy: 'styro-ghoul' } },
       { id: 'court-knight.react.chucker', slot: 'react', text: "The chucker in the dome. I was going to fight him. After this goblet. Then the next. You've saved me the goblets.", when: { event: 'kill', enemy: 'lean-chucker' } },
-      { id: 'court-knight.react.golem', slot: 'react', text: "A crystal golem broke somewhere near. My sword heard. It's ice; it wants to meet the shards.", when: { event: 'kill', enemy: 'crystalgolem' } },
+      { id: 'court-knight.react.golem', slot: 'react', text: "A crystal sentry broke somewhere near. My sword heard. It's ice; it wants to meet the shards.", when: { event: 'kill', enemy: 'crystalsentry' } },
       { id: 'court-knight.react.hurt', slot: 'react', text: "You're hurt. I'd offer the goblet, but it's purple and it doesn't heal, it just stops you minding.", when: { event: 'hurt' } },
       { id: 'court-knight.react.down', slot: 'react', text: "You went down in the court. I stood up. First time in a week. Sat down again; you'd got up.", when: { event: 'down' } },
       { id: 'court-knight.react.fountain', slot: 'react', text: "You sipped the fountains and the court spun. I watched you walk in a circle. You looked content.", when: { event: 'feat', feat: 'fountain' } },
@@ -560,7 +560,7 @@ export const KINGDOM: DialogueBook = {
 
       { id: 'potion-brewer.react.galaxy-knight', slot: 'react', text: "You killed a galaxy knight by the treasury. His armour had a sky on it. I could have bottled it.", when: { event: 'kill', enemy: 'galaxy-knight' } },
       { id: 'potion-brewer.react.ghoul', slot: 'react', text: "A ghoul died on the plaza. Its cup was a bad vintage. I'd have poured it out anyway.", when: { event: 'kill', enemy: 'styro-ghoul' } },
-      { id: 'potion-brewer.react.golem', slot: 'react', text: "A crystal golem shattered nearby. Shards in my bottles. The skies are sharper tonight.", when: { event: 'kill', enemy: 'crystalgolem' } },
+      { id: 'potion-brewer.react.golem', slot: 'react', text: "A crystal sentry shattered nearby. Shards in my bottles. The skies are sharper tonight.", when: { event: 'kill', enemy: 'crystalsentry' } },
       { id: 'potion-brewer.react.chucker', slot: 'react', text: "The chucker in the dome is dead. Cups, thrown, for years, and not one of them a bottle. No sense of occasion.", when: { event: 'kill', enemy: 'lean-chucker' } },
       { id: 'potion-brewer.react.hurt', slot: 'react', text: "There's a bottle for that wound. It's the planet one. Don't.", when: { event: 'hurt' } },
       { id: 'potion-brewer.react.down', slot: 'react', text: "You went down in the court. The fountains kept pouring. They don't stop for anyone. I've asked.", when: { event: 'down' } },

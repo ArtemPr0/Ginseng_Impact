@@ -48,7 +48,7 @@ export const ITEMS: Record<string, ItemDef> = {
   // Materials
   'wisp-ember': { id: 'wisp-ember', name: 'Wisp Ember', kind: 'material', desc: 'A cold blue coal that never goes out.', value: 6, rarity: 1 },
   'rune-shard': { id: 'rune-shard', name: 'Rune Shard', kind: 'material', desc: 'A flake of carved stone, still humming.', value: 9, rarity: 1 },
-  'sentinel-core': { id: 'sentinel-core', name: 'Sentinel Core', kind: 'material', desc: 'The heart-stone of a golem. Warm.', value: 40, rarity: 2 },
+  'sentinel-core': { id: 'sentinel-core', name: 'Sentinel Core', kind: 'material', desc: 'The heart-stone of a sentry. Warm.', value: 40, rarity: 2 },
   'beast-fang': { id: 'beast-fang', name: 'Beast Fang', kind: 'material', desc: 'Curved, black, still wet.', value: 14, rarity: 1 },
   'croc-hide': { id: 'croc-hide', name: 'Mire Hide', kind: 'material', desc: 'Armoured hide from the river crocodiles.', value: 16, rarity: 1 },
   'yeti-pelt': { id: 'yeti-pelt', name: 'Yeti Pelt', kind: 'material', desc: 'White fur that stays cold in your hands.', value: 180, rarity: 3 },

@@ -265,7 +265,7 @@ export const MODELS: Record<string, ModelDef> = {
   'grave-cross': { ...stat('grave-cross.glb', 1.8, 'celtic cross gravestone (shot-011654)'), tint: 0x5f6472 },
   'robed-priest': { file: 'robed-priest.glb', height: 1.9, label: 'robed figure raising its arms to the world tree (Ddn0A49tnW7)', clips: NPC_CLIPS('idle') },
   'spire-city': stat('spire-city.glb', 90, 'city of spires and aqueduct bridges beyond the cliffs (DdwXCyeSsXn)'),
-  crystalgolem: { file: 'crystal-golem.glb', height: 2.6, faceForward: 0.3, label: 'golem of blue crystal shards (Dd0wR9Jh2lH)', clips: BOSS_CLIPS },
+  crystalsentry: { file: 'mail-knight.glb', height: 1.95, faceForward: 0.3, label: 'crystal sentry: knight in faceted blue chain mail and a gold chain with a crystal spear (DeaqHWJBBPw)', held: { model: 'staff', tint: 0x9fd4ff, glow: 0.35 }, clips: BOSS_CLIPS },
   emberrider: { file: 'ember-rider.glb', height: 2.7, label: 'red-eyed rider on a black horse with a burning mane (Ddn0A49tnW7)', clips: BOSS_CLIPS },
   // Round 5 (2026-10-16): the user's reference images (docs/reference/frames/shot-*.jpg, world-look-28.png).
   cyclops: { file: 'cyclops.glb', height: 9, faceForward: 0.25, armDamp: 0.7, label: 'huge blue one-eyed horned cyclops with claws (shot-011654, world-look-28)', clips: BOSS_CLIPS },

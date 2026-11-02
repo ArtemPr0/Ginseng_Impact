@@ -17,7 +17,7 @@ function fakeAudio(unlocked = true) {
 describe('hitMaterial', () => {
   it('maps the bony, stony and ghostly kinds and calls the rest flesh', () => {
     for (const k of ['skeleton', 'grave-skeleton', 'diamond-wizard']) expect(hitMaterial(k)).toBe('bone');
-    for (const k of ['crystalgolem', 'troll', 'warden', 'cyclops']) expect(hitMaterial(k)).toBe('stone');
+    for (const k of ['crystalsentry', 'troll', 'warden', 'cyclops']) expect(hitMaterial(k)).toBe('stone');
     for (const k of ['shade', 'rivershade', 'blood-eye', 'dmt-entity', 'trip-wizard']) expect(hitMaterial(k)).toBe('ghost');
     for (const k of ['beast', 'yeti', 'croc', 'loggiant']) expect(hitMaterial(k)).toBe('flesh');
     // Never a prototype key.

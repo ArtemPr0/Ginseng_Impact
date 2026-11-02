@@ -297,7 +297,7 @@ const WAXWICK: LineDef[] = [
   { id: 'waxwick.greet.archer', slot: 'greet', text: 'Wren. The hood. Do not lean in. You would go up like a prayer.', when: { metMin: 1, hero: 'archer' }, weight: 2 },
   // react
   { id: 'waxwick.react.beast', slot: 'react', text: 'A fog beast in the east meadow. Heard the howl stop from here. The wax went still.', when: { event: 'kill', enemy: 'beast' } },
-  { id: 'waxwick.react.golem', slot: 'react', text: 'A crystal golem by the crowned head. The dwarves heard it shatter and cheered. It got warm in here.', when: { event: 'kill', enemy: 'crystalgolem' } },
+  { id: 'waxwick.react.golem', slot: 'react', text: 'A crystal sentry by the crowned head. The dwarves heard it shatter and cheered. It got warm in here.', when: { event: 'kill', enemy: 'crystalsentry' } },
   { id: 'waxwick.react.beast3', slot: 'react', text: 'Three beasts from the fields. Brannoc raised a cup each time. I am an inch shorter.', when: { event: 'kill', enemy: 'beast', kills: ['beast', 3] }, weight: 2 },
   { id: 'waxwick.react.boss', slot: 'react', text: '{lastBoss}, dead, the lanterns say. The lanterns gossip. They are candles with ideas.', when: { event: 'kill', boss: true } },
   { id: 'waxwick.react.hurt', slot: 'react', text: 'You are bleeding. I would offer a cloth. Everything I hand over is on fire.', when: { event: 'hurt' } },
@@ -342,7 +342,7 @@ const BRANNOC: LineDef[] = [
   { id: 'brannoc.greet.wizard', slot: 'greet', text: 'A floating wizard! Finally someone who can raise it higher than the ceiling!', when: { hero: 'wizard' }, weight: 2 },
   // react
   { id: 'brannoc.react.beast', slot: 'react', text: 'A fog beast in the meadow! Dead! Was it taller than you? Then it fell further! That counts!', when: { event: 'kill', enemy: 'beast' } },
-  { id: 'brannoc.react.golem', slot: 'react', text: 'A crystal golem under the head! Did it chime when it went? They chime! Raise it!', when: { event: 'kill', enemy: 'crystalgolem' } },
+  { id: 'brannoc.react.golem', slot: 'react', text: 'A crystal sentry under the head! Did it chime when it went? They chime! Raise it!', when: { event: 'kill', enemy: 'crystalsentry' } },
   { id: 'brannoc.react.beast3', slot: 'react', text: 'Three beasts! My arm went up three times! Waxwick lost a wick each time! Worth it!', when: { event: 'kill', enemy: 'beast', kills: ['beast', 3] }, weight: 2 },
   { id: 'brannoc.react.boss', slot: 'react', text: '{lastBoss}! The lanterns say! I believe lanterns! They hang high!', when: { event: 'kill', boss: true } },
   { id: 'brannoc.react.hurt', slot: 'react', text: 'You are bleeding! Into the cup! Do not waste it! Raise it!', when: { event: 'hurt' } },
@@ -385,7 +385,7 @@ const HILDE: LineDef[] = [
   { id: 'hilde.greet.archer', slot: 'greet', text: 'Wren. The hood. Three braids for three wars; you look like you have a few braids in you.', when: { metMin: 1, hero: 'archer' }, weight: 2 },
   // react
   { id: 'hilde.react.beast', slot: 'react', text: 'A fog beast in the meadow. Good. They howl at the head. The head does not wake. I still check.', when: { event: 'kill', enemy: 'beast' } },
-  { id: 'hilde.react.golem', slot: 'react', text: 'A crystal golem under the crowned head. Right under it. If that woke it, I was leaving. It did not.', when: { event: 'kill', enemy: 'crystalgolem' } },
+  { id: 'hilde.react.golem', slot: 'react', text: 'A crystal sentry under the crowned head. Right under it. If that woke it, I was leaving. It did not.', when: { event: 'kill', enemy: 'crystalsentry' } },
   { id: 'hilde.react.beast3', slot: 'react', text: 'Three beasts. The fourth braid is in your honour. It is the ale one. Highest honour here.', when: { event: 'kill', enemy: 'beast', kills: ['beast', 3] }, weight: 2 },
   { id: 'hilde.react.boss', slot: 'react', text: '{lastBoss}. Heard. Bigger than the head? No. Then I am staying.', when: { event: 'kill', boss: true } },
   { id: 'hilde.react.hurt', slot: 'react', text: 'You are bleeding on the table. Brannoc will want it higher. Sit on the blood side; it is his.', when: { event: 'hurt' } },
@@ -414,7 +414,7 @@ const HILDE: LineDef[] = [
   { id: 'hilde.bye.lanterns', slot: 'bye', text: 'Go on. Follow the lanterns, Rowan says. Rowan says it every night, from the same corner.' },
   // bark
   { id: 'hilde.bark.braids', slot: 'bark', text: 'Not the braids.', when: { event: 'hurt' } },
-  { id: 'hilde.bark.shut', slot: 'bark', text: 'Still shut.', when: { event: 'kill', enemy: 'crystalgolem' } },
+  { id: 'hilde.bark.shut', slot: 'bark', text: 'Still shut.', when: { event: 'kill', enemy: 'crystalsentry' } },
   { id: 'hilde.bark.good', slot: 'bark', text: 'Good.', when: { event: 'kill' } },
   { id: 'hilde.bark.up', slot: 'bark', text: 'Up you get.', when: { event: 'down' } },
 ];
@@ -428,7 +428,7 @@ const VALE_DRAGON: LineDef[] = [
   { id: 'vale-dragon.greet.wizard', slot: 'greet', text: 'The one who floats. Good. Floating is quiet. I was going to eat you; then I thought, effort.', when: { hero: 'wizard' }, weight: 2 },
   // react
   { id: 'vale-dragon.react.beast', slot: 'react', text: 'A fog beast, in my meadow. The howling stops. Thank you. I will dream of something else now.', when: { event: 'kill', enemy: 'beast' } },
-  { id: 'vale-dragon.react.golem', slot: 'react', text: 'A golem, in the stones under the king. He chimed, going. I felt it in the tail.', when: { event: 'kill', enemy: 'crystalgolem' } },
+  { id: 'vale-dragon.react.golem', slot: 'react', text: 'A sentry, in the stones under the king. He chimed, going. I felt it in the tail.', when: { event: 'kill', enemy: 'crystalsentry' } },
   { id: 'vale-dragon.react.beast4', slot: 'react', text: 'Four of the beasts. The meadow is quiet. The reader will think the book did it. Let him.', when: { event: 'kill', enemy: 'beast', kills: ['beast', 4] }, weight: 2 },
   { id: 'vale-dragon.react.boss', slot: 'react', text: '{lastBoss}, dead. Someone dreamed it to me. Bigger than me? No. Go on.', when: { event: 'kill', boss: true } },
   { id: 'vale-dragon.react.hurt', slot: 'react', text: 'You are hurt. I can smell it. It smells like interest. I do not act on it.', when: { event: 'hurt' } },
@@ -489,7 +489,7 @@ const DRAGON_READER: LineDef[] = [
   { id: 'dragon-reader.greet.wizard', slot: 'greet', text: 'A wizard. Floating. Do you read? Say yes. I need a second voice for the merchant in chapter nine.', when: { metMin: 1, hero: 'wizard' }, weight: 2 },
   // react
   { id: 'dragon-reader.react.beast', slot: 'react', text: 'A fog beast in the meadow. He twitched. Good twitch. The castle held.', when: { event: 'kill', enemy: 'beast' } },
-  { id: 'dragon-reader.react.golem', slot: 'react', text: 'A golem under the crowned head. He did not stir. He dreams of golems. They crunch, in the dream.', when: { event: 'kill', enemy: 'crystalgolem' } },
+  { id: 'dragon-reader.react.golem', slot: 'react', text: 'A sentry under the crowned head. He did not stir. He dreams of sentries. They crunch, in the dream.', when: { event: 'kill', enemy: 'crystalsentry' } },
   { id: 'dragon-reader.react.beast3', slot: 'react', text: 'Three of the beasts, quiet now. I read chapter nine without the howling. It was worse.', when: { event: 'kill', enemy: 'beast', kills: ['beast', 3] }, weight: 2 },
   { id: 'dragon-reader.react.boss', slot: 'react', text: '{lastBoss}, they say. I read him that part. He smiled. In his sleep, dragons smile wide.', when: { event: 'kill', boss: true } },
   { id: 'dragon-reader.react.hurt', slot: 'react', text: 'Do not bleed on the claw. He dreams what he smells, and the castle does not need that dream. Here; my sleeve.', when: { event: 'hurt' } },
@@ -554,7 +554,7 @@ const VALE_KNIGHT: LineDef[] = [
   { id: 'vale-knight.greet.wizard', slot: 'greet', text: 'Orlan. Floating is not walking. The lanterns cannot guide what does not touch the ground. Walk, once.', when: { metMin: 1, hero: 'wizard' }, weight: 2 },
   // react
   { id: 'vale-knight.react.beast', slot: 'react', text: 'A fog beast in the east meadow. That is one I do not walk past tonight. Thank you, plainly.', when: { event: 'kill', enemy: 'beast' } },
-  { id: 'vale-knight.react.golem', slot: 'react', text: 'A crystal golem under the crowned head. They grow back in the stones. Slowly. You bought the vale a month.', when: { event: 'kill', enemy: 'crystalgolem' } },
+  { id: 'vale-knight.react.golem', slot: 'react', text: 'A crystal sentry under the crowned head. They grow back in the stones. Slowly. You bought the vale a month.', when: { event: 'kill', enemy: 'crystalsentry' } },
   { id: 'vale-knight.react.beast3', slot: 'react', text: 'Three beasts in the fields. The street can hear itself think. It does not think much, but it is a start.', when: { event: 'kill', enemy: 'beast', kills: ['beast', 3] }, weight: 2 },
   { id: 'vale-knight.react.boss', slot: 'react', text: '{lastBoss}. The news came down on the castle\'s chains, with the lantern. The castle wants to know who you are.', when: { event: 'kill', boss: true } },
   { id: 'vale-knight.react.hurt', slot: 'react', text: 'Walk under the lanterns till the bleeding stops. They lean toward anything warm; tonight that is you.', when: { event: 'hurt' } },
@@ -597,7 +597,7 @@ const VALE_BEGGAR: LineDef[] = [
   { id: 'vale-beggar.greet.knight', slot: 'greet', text: 'A knight with a full cup and a full purse. One of those is coming my way.', when: { hero: 'knight' }, weight: 2 },
   // react
   { id: 'vale-beggar.react.beast', slot: 'react', text: 'You killed a fog beast in the meadow. It used to sniff my bowl. Nothing in it. It knew.', when: { event: 'kill', enemy: 'beast' } },
-  { id: 'vale-beggar.react.golem', slot: 'react', text: 'A crystal golem, under the king. Did it drop shards? Of course it did. Twenty of them have my name.', when: { event: 'kill', enemy: 'crystalgolem' } },
+  { id: 'vale-beggar.react.golem', slot: 'react', text: 'A crystal sentry, under the king. Did it drop shards? Of course it did. Twenty of them have my name.', when: { event: 'kill', enemy: 'crystalsentry' } },
   { id: 'vale-beggar.react.beast3', slot: 'react', text: 'Three beasts. The meadow is quieter. My bowl is not fuller. Draw your own conclusions, and then pay.', when: { event: 'kill', enemy: 'beast', kills: ['beast', 3] }, weight: 2 },
   { id: 'vale-beggar.react.boss', slot: 'react', text: '{lastBoss}, dead. There is always a purse on a big one. Twenty of it is spoken for. By me. Now.', when: { event: 'kill', boss: true } },
   { id: 'vale-beggar.react.hurt', slot: 'react', text: 'You are bleeding. I would give you a cloth. I would sell you a cloth. Ten.', when: { event: 'hurt' } },
@@ -664,7 +664,7 @@ const VALE_MERCHANT: LineDef[] = [
   { id: 'vale-merchant.greet.archer', slot: 'greet', text: 'Bowstrings! Genuine gut! Mostly rope! Mostly things that look like rope!', when: { hero: 'archer' }, weight: 2 },
   // react
   { id: 'vale-merchant.react.beast', slot: 'react', text: 'A fog beast in the meadow! Fangs! Genuine! Bring them, I will say they are dragon!', when: { event: 'kill', enemy: 'beast' } },
-  { id: 'vale-merchant.react.golem', slot: 'react', text: 'A crystal golem under the head! Cores! Warm ones! I buy them! I sell them back warmer!', when: { event: 'kill', enemy: 'crystalgolem' } },
+  { id: 'vale-merchant.react.golem', slot: 'react', text: 'A crystal sentry under the head! Cores! Warm ones! I buy them! I sell them back warmer!', when: { event: 'kill', enemy: 'crystalsentry' } },
   { id: 'vale-merchant.react.beast3', slot: 'react', text: 'Three beasts! Three fangs! One necklace! Genuine! Shed this morning!', when: { event: 'kill', enemy: 'beast', kills: ['beast', 3] }, weight: 2 },
   { id: 'vale-merchant.react.boss', slot: 'react', text: '{lastBoss}! Dead! Whatever it dropped, I will buy it! Whatever I buy, I will sell as dragon!', when: { event: 'kill', boss: true } },
   { id: 'vale-merchant.react.hurt', slot: 'react', text: 'You are bleeding! Moon dew! Thirty! It is genuine moon! Mostly dew!', when: { event: 'hurt' } },

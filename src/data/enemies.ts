@@ -1,7 +1,7 @@
 import type { BrainParams } from '../combat/EnemyBrain';
 import type { Element } from '../combat/Elements';
 
-export type EnemyKind = 'beast' | 'bucket' | 'crystalgolem' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity' | 'cyclops' | 'cyclops-lord' | 'blood-eye' | 'trip-wizard' | 'galaxy-knight' | 'mail-knight' | 'diamond-wizard' | 'fish-guard' | 'angler' | 'grave-skeleton' | 'koi' | 'jellyfish';
+export type EnemyKind = 'beast' | 'bucket' | 'crystalsentry' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity' | 'cyclops' | 'cyclops-lord' | 'blood-eye' | 'trip-wizard' | 'galaxy-knight' | 'mail-knight' | 'diamond-wizard' | 'fish-guard' | 'angler' | 'grave-skeleton' | 'koi' | 'jellyfish';
 
 export type BossAttackKind = 'slam' | 'boulder' | 'roar' | 'volley' | 'summon' | 'blink' | 'roots' | 'sweep' | 'breath' | 'charge' | 'bite' | 'logthrow' | 'punch' | 'grab' | 'cupmortar' | 'cupvolley' | 'snowstorm' | 'web' | 'webdrop' | 'hop' | 'kaleido' | 'eyebeam' | 'mirror' | 'glare' | 'thorns' | 'rainbow' | 'diamond';
 
@@ -219,8 +219,8 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     drops: [{ itemId: 'star-chart', chance: 0.08 }, { itemId: 'rune-shard', chance: 0.7 }],
   },
   // Dd0wR9Jh2lH: a humanoid of blue crystal shards walking rippled sand.
-  crystalgolem: {
-    kind: 'crystalgolem', stomp: true, name: 'Crystal Golem', maxHp: 1700, def: 90, atk: 120, speed: 2.4, element: 'stone', hover: 0, bodyRadius: 1.0, height: 2.6,
+  crystalsentry: {
+    kind: 'crystalsentry', name: 'Crystal Sentry', maxHp: 1700, def: 90, atk: 120, speed: 3.2, element: 'stone', hover: 0, bodyRadius: 0.6, height: 1.95,
     brain: { aggroRange: 12, attackRange: 3.2, windup: 0.7, recover: 1.0, attackCooldown: 0.6 }, respawn: 45, leash: 20, shards: [12, 20], drops: [{ itemId: 'rune-shard', chance: 0.8 }],
   },
   // Ddn0A49tnW7: a red-eyed rider on a black horse with a burning mane, through the dead wood.
@@ -368,7 +368,7 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   // Camps (pairs)
   { kind: 'croc', x: 108, z: 10 }, { kind: 'croc', x: 118, z: 6 }, { kind: 'croc', x: 100, z: 15 }, // the river mouth, east
   { kind: 'beast', x: -62, z: 36 }, { kind: 'beast', x: -66, z: 30 },      // west meadow, by the stream
-  { kind: 'crystalgolem', x: 74, z: 52 }, { kind: 'crystalgolem', x: 70, z: 59 }, // the desert's east end, off the Pale Bride's walk
+  { kind: 'crystalsentry', x: 74, z: 52 }, { kind: 'crystalsentry', x: 70, z: 59 }, // the desert's east end, off the Pale Bride's walk
   // Yung Lean's kingdom: Styro-Ghouls on the lean cups and round the plaza; the Lean-Chucker on the pavilion's throne.
   // (Off the cups: by the Lean-Chucker's pavilion and along the plaza; the cups belong to the lean bubbles.)
   { kind: 'styro-ghoul', x: 1028, z: -46 }, { kind: 'styro-ghoul', x: 1043, z: -47 }, { kind: 'styro-ghoul', x: 1040, z: -64 },
@@ -390,10 +390,10 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'mail-knight', x: 908, z: 52 }, { kind: 'mail-knight', x: 860, z: 52 },
   { kind: 'diamond-wizard', x: 900, z: 18, exact: true, yaw: 0 },  // mid-street, where Old Hollowstaff stood
   // The Dragon's Vale's fields (it stood empty): fog beasts roaming the east meadow and the river's far bank, crystal
-  // golems in the stones under the crowned head, a pack by the floating castle's cliff.
+  // sentries in the stones under the crowned head, a pack by the floating castle's cliff.
   { kind: 'beast', x: 1045, z: 960 }, { kind: 'beast', x: 1052, z: 966 }, { kind: 'beast', x: 1060, z: 900 },
   { kind: 'beast', x: 1072, z: 860 }, { kind: 'beast', x: 1066, z: 852 }, { kind: 'beast', x: 930, z: 990 },
-  { kind: 'crystalgolem', x: 930, z: 905 }, { kind: 'crystalgolem', x: 922, z: 940 },
+  { kind: 'crystalsentry', x: 930, z: 905 }, { kind: 'crystalsentry', x: 922, z: 940 },
   // The snow quarter of the Lean Quarter: skeletons stalking the graves round the chapel.
   { kind: 'grave-skeleton', x: 880, z: 140 }, { kind: 'grave-skeleton', x: 925, z: 160 }, { kind: 'grave-skeleton', x: 940, z: 100 }, { kind: 'grave-skeleton', x: 875, z: 165 },
   // The Skeleton Court's treasury.

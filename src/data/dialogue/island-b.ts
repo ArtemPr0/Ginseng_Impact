@@ -26,7 +26,7 @@ const COOK: NpcDialogue = {
     { id: 'cook.greet.knight', slot: 'greet', text: 'Sir Aldric. Your cup is purple and my pot is green. Keep them apart.', when: { hero: 'knight', metMin: 1 } },
     { id: 'cook.greet.wizard', slot: 'greet', text: 'A floating wizard. Good. Nothing of yours drips in the pot.', when: { hero: 'wizard', metMin: 1 } },
 
-    { id: 'cook.react.golem', slot: 'react', text: 'You broke a crystal golem in the dunes. The core thickens a stew. Bring it; I pay by the weight, not the glitter.', when: { event: 'kill', enemy: 'crystalgolem' } },
+    { id: 'cook.react.golem', slot: 'react', text: 'You broke a crystal sentry in the dunes. The core thickens a stew. Bring it; I pay by the weight, not the glitter.', when: { event: 'kill', enemy: 'crystalsentry' } },
     { id: 'cook.react.croc', slot: 'react', text: 'A crocodile at the river mouth. Mire hide goes two ways: stewed, or sold to me and stewed.', when: { event: 'kill', enemy: 'croc' } },
     { id: 'cook.react.cyclops', slot: 'react', text: 'The Cyclops that waded the eye. An eye that size does not fit the pot. I measured, years ago, with a spoon.', when: { event: 'kill', enemy: 'cyclops' } },
     { id: 'cook.react.warden', slot: 'react', text: 'The Antlered Warden, in the rain. Antler boils to glue. The King wants it back; the King is not the one with a pot.', when: { event: 'kill', enemy: 'warden' } },
@@ -78,7 +78,7 @@ const ALDOUS: NpcDialogue = {
     { id: 'aldous.greet.knight', slot: 'greet', text: 'Another knight with a cup. Keep it. I do not share and I do not judge. Mostly the second one.', when: { hero: 'knight' } },
     { id: 'aldous.greet.archer', slot: 'greet', text: 'The archer. You eat mushrooms off the ground, and I am the one with the questionable habits.', when: { hero: 'archer', metMin: 1 } },
 
-    { id: 'aldous.react.golem', slot: 'react', text: 'A crystal golem in the dunes behind us. The ale rippled. Rippled, for glass. It is a generous ale.', when: { event: 'kill', enemy: 'crystalgolem' } },
+    { id: 'aldous.react.golem', slot: 'react', text: 'A crystal sentry in the dunes behind us. The ale rippled. Rippled, for glass. It is a generous ale.', when: { event: 'kill', enemy: 'crystalsentry' } },
     { id: 'aldous.react.cyclops', slot: 'react', text: 'The Cyclops in the eye. It waded past this yard for a year and never came up for a drink. The foam went flat for it. That is a lot, from foam.', when: { event: 'kill', enemy: 'cyclops' } },
     { id: 'aldous.react.croc', slot: 'react', text: 'Crocodiles at the river mouth. The ale did not move. It never moved for crocodiles; they are all mouth and no surprise.', when: { event: 'kill', enemy: 'croc' } },
     { id: 'aldous.react.wyrm', slot: 'react', text: 'The Moon Wyrm, off the tower. The ale went white at the top, and the moon looked away a moment. I had not known it could.', when: { event: 'kill', enemy: 'wyrm' } },
@@ -102,7 +102,7 @@ const ALDOUS: NpcDialogue = {
 
     { id: 'aldous.bye.road', slot: 'bye', text: 'Go on. The road is still there; I checked.' },
     { id: 'aldous.bye.cup', slot: 'bye', text: 'Go on, then. The cup stays. A joke. Bring the cup.' },
-    { id: 'aldous.bye.golems', slot: 'bye', text: 'The dunes have golems. Glass, not sand. Do not sit on one; I speak from experience and one scar.' },
+    { id: 'aldous.bye.golems', slot: 'bye', text: 'The dunes have sentries. Glass, not sand. Do not sit on one; I speak from experience and one scar.' },
 
     { id: 'aldous.bark.rate', slot: 'bark', text: 'Rate is a hundred and twenty.' },
     { id: 'aldous.bark.ale', slot: 'bark', text: 'Cold ale. Patient moon.' },
@@ -126,7 +126,7 @@ const MIRREN: NpcDialogue = {
     { id: 'mirren.greet.wizard', slot: 'greet', text: 'Orlan. The Blue Mountain. I have never seen it, which is how I know it is real. The fake ones are always in view.', when: { hero: 'wizard' } },
     { id: 'mirren.greet.knight', slot: 'greet', text: 'The knight. A cup in one hand, a sword in the other, and you came to buy a third thing. Ambition.', when: { hero: 'knight', metMin: 1 } },
 
-    { id: 'mirren.react.golem', slot: 'react', text: 'A crystal golem, in the dunes. It was a kingdom once. Everything here was. Buy something before you are too.', when: { event: 'kill', enemy: 'crystalgolem' } },
+    { id: 'mirren.react.golem', slot: 'react', text: 'A crystal sentry, in the dunes. It was a kingdom once. Everything here was. Buy something before you are too.', when: { event: 'kill', enemy: 'crystalsentry' } },
     { id: 'mirren.react.cyclops', slot: 'react', text: 'The Cyclops that waded the eye is dead. The eye will open wider now. It always does when it is lonely.', when: { event: 'kill', enemy: 'cyclops' } },
     { id: 'mirren.react.shade', slot: 'react', text: 'The Horned Shade, in the cathedral. Astral. It will come back as a draught, and draughts are free.', when: { event: 'kill', enemy: 'shade' } },
     { id: 'mirren.react.skeleton', slot: 'react', text: 'The campfire three. A hundred years round a kettle with nothing in it. You ended the meeting.', when: { event: 'kill', enemy: 'skeleton' } },
@@ -174,7 +174,7 @@ const SNIK: NpcDialogue = {
     { id: 'gob-a.greet.knight', slot: 'greet', text: 'Knight with cup! Purple cup! Snik had purple cup once. Was this one. Give it back.', when: { hero: 'knight' } },
     { id: 'gob-a.greet.archer', slot: 'greet', text: 'Bow girl! Eats mushrooms! Snik eats mushrooms too, when nobody looks, which is never. Vrak always looks.', when: { hero: 'archer' } },
 
-    { id: 'gob-a.react.golem', slot: 'react', text: "You broke glass man in the sand! Snik's glass man. Snik was going to break him. Later. Snik has a list.", when: { event: 'kill', enemy: 'crystalgolem' } },
+    { id: 'gob-a.react.golem', slot: 'react', text: "You broke glass man in the sand! Snik's glass man. Snik was going to break him. Later. Snik has a list.", when: { event: 'kill', enemy: 'crystalsentry' } },
     { id: 'gob-a.react.cyclops', slot: 'react', text: 'Big eye in the pond, dead! Snik did that. Snik was here, but Snik did that. In spirit.', when: { event: 'kill', enemy: 'cyclops' } },
     { id: 'gob-a.react.croc', slot: 'react', text: "Crocodile at the river! Snik's crocodile. Was going to be boots. Now is your boots. Thief.", when: { event: 'kill', enemy: 'croc' } },
     { id: 'gob-a.react.skeleton', slot: 'react', text: "Bone men at the fire. They owed Snik a kettle. Now kettle is nobody's. Which is Snik's.", when: { event: 'kill', enemy: 'skeleton' } },
@@ -222,7 +222,7 @@ const VRAK: NpcDialogue = {
     { id: 'gob-b.greet.seven', slot: 'greet', text: 'hic hic hic. ...hic. hic hic. hic.', when: { metMin: 6, metMax: 9 } },
     { id: 'gob-b.greet.many', slot: 'greet', text: 'hic hic hic hic hic hic hic. ...hic. hic. hic hic hic. ...hic.', when: { metMin: 10 } },
 
-    { id: 'gob-b.react.golem', slot: 'react', text: 'hic. ...hic?', when: { event: 'kill', enemy: 'crystalgolem' } },
+    { id: 'gob-b.react.golem', slot: 'react', text: 'hic. ...hic?', when: { event: 'kill', enemy: 'crystalsentry' } },
     { id: 'gob-b.react.cyclops', slot: 'react', text: '...HIC.', when: { event: 'kill', enemy: 'cyclops' } },
     { id: 'gob-b.react.croc', slot: 'react', text: 'hic-hic.', when: { event: 'kill', enemy: 'croc' } },
     { id: 'gob-b.react.skeleton', slot: 'react', text: '...hic. hic.', when: { event: 'kill', enemy: 'skeleton' } },
@@ -468,7 +468,7 @@ const CORVIN: NpcDialogue = {
     { id: 'rose-knight.react.cyclops', slot: 'react', text: 'The Cyclops in the eye. I heard it fall from here. She looked up. She has not looked up for me in a winter.', when: { event: 'kill', enemy: 'cyclops' } },
     { id: 'rose-knight.react.lurker', slot: 'react', text: 'The thing in the pond. Dead. It used to watch us from the water. I think it was rooting for me. I had no one else.', when: { event: 'kill', enemy: 'lurker' } },
     { id: 'rose-knight.react.skeleton', slot: 'react', text: 'The campfire three. Dead. They came past once and one of them whistled. I did not turn. The arm.', when: { event: 'kill', enemy: 'skeleton' } },
-    { id: 'rose-knight.react.golem', slot: 'react', text: 'A golem in the dunes, shattered. Diamonds, I hear. If one of them was red I did not see it. I cannot turn.', when: { event: 'kill', enemy: 'crystalgolem' } },
+    { id: 'rose-knight.react.golem', slot: 'react', text: 'A sentry in the dunes, shattered. Diamonds, I hear. If one of them was red I did not see it. I cannot turn.', when: { event: 'kill', enemy: 'crystalsentry' } },
     { id: 'rose-knight.react.boss', slot: 'react', text: '{lastBoss}. Another great one. She counts them, you know. She has never said what the number is.', when: { event: 'kill', boss: true } },
     { id: 'rose-knight.react.hurt', slot: 'react', text: 'You are hurt. I would help. I cannot lower the arm. If I lower the arm it has been for nothing.', when: { event: 'hurt' } },
     { id: 'rose-knight.react.down', slot: 'react', text: 'You went down out there. Get up slower next time; she notices the things that take a while. I would know.', when: { event: 'down' } },
@@ -521,7 +521,7 @@ const ELOWEN: NpcDialogue = {
     { id: 'maiden.react.cyclops', slot: 'react', text: 'The Cyclops in the eye. I heard it. That counts. The great ones count.', when: { event: 'kill', enemy: 'cyclops' } },
     { id: 'maiden.react.lurker', slot: 'react', text: 'The thing in the lily pond. Gone. Another great one. I keep the count. He does not know the number.', when: { event: 'kill', enemy: 'lurker' } },
     { id: 'maiden.react.skeleton', slot: 'react', text: 'The campfire three. Small bones. Those do not count. I am not being cruel; I am being exact.', when: { event: 'kill', enemy: 'skeleton' } },
-    { id: 'maiden.react.golem', slot: 'react', text: 'A golem in the dunes. Pretty, dead. It does not count; it is not great, only loud.', when: { event: 'kill', enemy: 'crystalgolem' } },
+    { id: 'maiden.react.golem', slot: 'react', text: 'A sentry in the dunes. Pretty, dead. It does not count; it is not great, only loud.', when: { event: 'kill', enemy: 'crystalsentry' } },
     { id: 'maiden.react.boss', slot: 'react', text: '{lastBoss}. A great one. The count moves. The blue flowers do not, yet.', when: { event: 'kill', boss: true } },
     { id: 'maiden.react.hurt', slot: 'react', text: 'You are bleeding in the garden. The red ones mean now. Do not add to them.', when: { event: 'hurt' } },
     { id: 'maiden.react.down', slot: 'react', text: 'You fell, out there. I do not count falls. Do not give me a reason to start.', when: { event: 'down' } },

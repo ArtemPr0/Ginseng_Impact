@@ -195,7 +195,7 @@ export const ISLAND_A: DialogueBook = {
       { id: 'vigil.greet.knight', slot: 'greet', text: 'Sir Aldric. You carry that cup like a relic. Perhaps it is one; I never ask what is in relics.', when: { hero: 'knight', metMin: 1 }, weight: 1.2 },
       { id: 'vigil.greet.ended', slot: 'greet', text: 'The bell. I hear it. I can stand up now. I had forgotten how; it turns out the knees remember.', when: { quest: ['silence', 'ended'] }, weight: 3 },
 
-      { id: 'vigil.react.golem', slot: 'react', text: 'The crystal men in the sand. I heard them shatter from here. It is the first new sound in a year.', when: kill('crystalgolem') },
+      { id: 'vigil.react.golem', slot: 'react', text: 'The crystal men in the sand. I heard them shatter from here. It is the first new sound in a year.', when: kill('crystalsentry') },
       { id: 'vigil.react.cyclops', slot: 'react', text: 'The cyclops in the eye pool. I heard it go down. The water is still settling.', when: kill('cyclops') },
       { id: 'vigil.react.warden', slot: 'react', text: 'The antlered one in the east forest. It stopped. Even the rain seems to have noticed.', when: kill('warden') },
       { id: 'vigil.react.lurker', slot: 'react', text: 'The thing in the lily pond. I heard the splash and then I heard no splash. The second is the one I was waiting for.', when: kill('lurker') },
@@ -617,7 +617,7 @@ export const ISLAND_A: DialogueBook = {
       { id: 'bride.greet.bells', slot: 'greet', text: '...do you hear the bells? They are real. They are coming from the shore. He said the bells, and then the sand ends.', when: { quest: ['bell', 'done'] }, weight: 3 },
       { id: 'bride.greet.shore', slot: 'greet', text: 'You brought me to where the sand ends. It is wet. Nobody said it would be wet.', when: { quest: ['bride', 'done'] }, weight: 5 },
 
-      { id: 'bride.react.golem', slot: 'react', text: 'The crystal men. You broke them. They walked beside me some nights; they never said where the sand ends either.', when: kill('crystalgolem'), weight: 2 },
+      { id: 'bride.react.golem', slot: 'react', text: 'The crystal men. You broke them. They walked beside me some nights; they never said where the sand ends either.', when: kill('crystalsentry'), weight: 2 },
       { id: 'bride.react.cyclops', slot: 'react', text: 'The one-eyed thing in the pool, gone. It looked at me. One eye, and it chose me. I was flattered, a little.', when: kill('cyclops') },
       { id: 'bride.react.warden', slot: 'react', text: 'The antlered one is dead in the east. He walked through the rain. I walk through the sand. We were going to compare.', when: kill('warden') },
       { id: 'bride.react.hurt', slot: 'react', text: 'The sand is drinking you. It drinks everything; it is why it never ends.', when: HURT },

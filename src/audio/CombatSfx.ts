@@ -8,7 +8,7 @@ export type SwingKind = 'blade' | 'bow' | 'staff';
 /** Every enemy kind that is not flesh (the rest are). */
 const MATERIALS = new Map<string, HitMaterial>([
   ['skeleton', 'bone'], ['grave-skeleton', 'bone'], ['diamond-wizard', 'bone'],
-  ['crystalgolem', 'stone'], ['troll', 'stone'], ['warden', 'stone'], ['cyclops', 'stone'], ['cyclops-lord', 'stone'],
+  ['crystalsentry', 'stone'], ['troll', 'stone'], ['warden', 'stone'], ['cyclops', 'stone'], ['cyclops-lord', 'stone'],
   ['shade', 'ghost'], ['rivershade', 'ghost'], ['blood-eye', 'ghost'], ['dmt-entity', 'ghost'], ['trip-wizard', 'ghost'],
 ]);
 
