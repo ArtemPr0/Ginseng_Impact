@@ -108,10 +108,10 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
   // --- The village: the street bends through a square round an old tree, the houses stand as people built them ---
   // (dx, dz, the way the door looks, size.)
   const homes: ReadonlyArray<readonly [number, number, number, number]> = [
-    [-8, 102, 0.15, 1], [-6, 88, -0.12, 1.05], [-6.5, 74, 0.22, 0.95], [-18, 63, 0.45, 1], [-19, 40, -0.4, 1.05], [-17, 26, 0.12, 1], [-15, 12, -0.2, 0.95],
+    [-8, 102, 0.15, 1], [-6, 88, -0.12, 1.05], [-6.5, 74, 0.22, 0.95], [-18, 63, 0.45, 1], [-20, 34, -0.4, 1.05], [-17, 26, 0.12, 1], [-15, 12, -0.2, 0.95],
     [18, 41, Math.PI + 0.3, 1], [14, 27, Math.PI - 0.12, 1.05], [12, 13, Math.PI + 0.15, 0.95],
     [-25, 97, 0.85, 0.95], [-23, 81, -0.5, 1], [-31, 67, 0.25, 1], [-29, 30, 0.55, 1], [-30, 14, -0.3, 1.05],
-    [31, 44, Math.PI - 0.5, 1], [32, 27, Math.PI + 0.2, 0.95], [27, 11, Math.PI - 0.3, 1], [45, 34, Math.PI, 1.05],
+    [38, 52, Math.PI - 0.5, 1], [32, 27, Math.PI + 0.2, 0.95], [27, 11, Math.PI - 0.3, 1], [46, 39, Math.PI, 1.05],
   ];
   homes.forEach(([dx, dz, yaw, size], i) => {
     const x = X + dx, z = Z + dz;
@@ -147,14 +147,14 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
   api.flora('lantern-post', lanterns);
   for (const l of lanterns) { api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: l.x, z: l.z, r: 0.2, top: vy + 2.5 }] }); glow(LANTERN, 1.2, l.x, vy + 2.3, l.z, 0.5); }
   // The square: stalls round an old tree hung with lanterns, a long table in its shade.
-  for (const [dx, dz, yaw] of [[6.8, 41.4, Math.PI], [-12, 46, 0.3], [13.5, 51, Math.PI - 0.2], [-11, 60, -0.4]] as const) {
+  for (const [dx, dz, yaw] of [[6.8, 41.4, Math.PI], [-12.5, 36, 0.3], [13.5, 51, Math.PI - 0.2], [-11, 60, -0.4]] as const) {
     const x = X + dx, z = Z + dz;
     api.place(modelLandmark('market-stall', x, z, vy, { yaw: face(yaw), footprints: [{ kind: 'box', x, z, hw: 1.2, hd: 1.8, top: vy + 1.1, rotY: -face(yaw) }] }));
   }
   api.place(modelLandmark('gnarled-tree', X + 1, Z + 52, vy, { scale: 1.3, collider: 'manual', footprints: [{ kind: 'cyl', x: X + 1, z: Z + 52, r: 0.9, top: vy + 5 }] }));
   for (const a of [0.4, 2.2, 4.1]) glow(LANTERN, 1.6, X + 1 + Math.cos(a) * 3.2, vy + 3.4, Z + 52 + Math.sin(a) * 3.2, 0.55);
   {
-    const tx = X - 3, tz = Z + 58;
+    const tx = X + 7.5, tz = Z + 63;
     api.flora('tavern-table', [{ x: tx, y: vy, z: tz, yaw: 0.5, scale: 1 }]);
     api.place({ object: new Group(), footprints: [{ kind: 'box', x: tx, z: tz, hw: 1.6, hd: 0.6, top: vy + 0.95, rotY: -0.5 }] });
     api.flora('tankard', [[-0.7, 0.15], [0.6, -0.1], [0.1, 0.2]].map(([dx, dz]) => ({ x: tx + dx, y: vy + 0.96, z: tz + dz, yaw: api.rnd() * 6, scale: 1 })), { shadows: false });
@@ -239,8 +239,8 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
     const shelfY = cy + 5;
     const platY = plats[0][2] + 4.9;
     for (const span of [
-      chainSpan(X + 84, Z - 5, api.h(X + 84, Z - 5) + 0.05, X + 103.5, Z - 6, platY, tile),
-      chainSpan(X + 108.5, Z - 5, platY, X + 118, Z + 3, shelfY, tile),
+      chainSpan(X + 84, Z - 5, api.h(X + 84, Z - 5) + 0.05, X + 105, Z - 6, platY, tile),
+      chainSpan(X + 105, Z - 6, platY, X + 118, Z + 3, shelfY, tile),
     ]) { api.place(span); api.flora('chasm-bridge', span.tiles); }
     for (const dz of [-2, 2]) {
       const y = api.h(X + 83, Z - 5 + dz);

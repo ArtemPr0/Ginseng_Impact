@@ -60,7 +60,7 @@ export function ruin(api: RealmApi, x: number, z: number, yaw: number): void {
     api.place(modelLandmark('ruin-column', px, pz, api.h(px, pz) - 0.2, { yaw: api.rnd() * 6 }));
   }
   for (const d of [-11, -7.5]) { const px = x + d * c + 6 * s, pz = z + d * s - 6 * c; api.place(modelLandmark('stone-wall', px, pz, api.h(px, pz) - 0.1, { yaw })); }
-  api.flora('boulder', ring(api, x, z, 14, 5, 7, [0.7, 1.6]));
+  api.flora('boulder', ring(api, x, z, 16, 5, 11, [0.7, 1.6]));
 }
 
 /** A little graveyard under a dead tree. */
@@ -74,7 +74,7 @@ export function graves(api: RealmApi, x: number, z: number, r = 11): void {
 /** A ring of toadstools with one giant among them, lit from under the caps. */
 export function shrooms(api: RealmApi, x: number, z: number): void {
   api.flora('mushroom', ring(api, x, z, 9, 16, 4));
-  api.flora('giant-mushroom', ring(api, x, z, 7, 3, 2, [0.9, 1.4]), { trunk: 0.5 });
+  api.flora('giant-mushroom', [[0, 0, 1.3], [5.5, 3, 1], [-4, 5, 0.85]].map(([dx, dz, scale]) => ({ x: x + dx, y: api.h(x + dx, z + dz), z: z + dz, yaw: dx, scale })), { trunk: 0.5 });
   for (let i = 0; i < 4; i++) { const a = i * 1.7, g = glowSprite(0x7fd8ff, 2, 0.4, true); g.position.set(x + Math.cos(a) * 5, api.h(x, z) + 1.1, z + Math.sin(a) * 5); api.group.add(g); }
 }
 
@@ -99,8 +99,8 @@ export function pier(api: RealmApi, x: number, z: number, wx: number, y: number)
 export function wreck(api: RealmApi, x: number, z: number, yaw: number): void {
   const y = api.h(x, z);
   api.place(modelLandmark('boat', x, z, y - 0.5, { yaw, scale: 2, collider: 'manual', footprints: [{ kind: 'cyl', x, z, r: 2.2, top: y + 1 }] }));
-  api.flora('kelp', ring(api, x, z, 7, 8, 2.5), { wind: 0.3 });
-  api.flora('coral', ring(api, x, z, 8, 5, 3));
+  api.flora('kelp', ring(api, x, z, 10, 8, 6), { wind: 0.3 });
+  api.flora('coral', ring(api, x, z, 10, 5, 6));
 }
 
 /** The Dragon's Vale: what lies round the village. */
@@ -118,7 +118,8 @@ export function dressVale(api: RealmApi): void {
   // Woods on the far side of everything, thick enough to be a place of their own.
   api.flora('pine', [...field(api, 860, 930, 790, 845, 11), ...field(api, 1020, 1075, 800, 845, 12)].filter((p) => p.y > -3), { trunk: 0.4 });
   api.flora('gnarled-tree', [...field(api, 852, 900, 880, 905, 14), ...field(api, 850, 925, 975, 1005, 15)].filter((p) => p.y > -3), { trunk: 0.5 });
-  api.flora('boulder', [...ring(api, 985, 870, 60, 12, 30, [0.8, 2]), ...ring(api, 900, 960, 40, 8, 20, [0.8, 2])].filter((p) => p.y > -3));
+  // (Not in the village, the gate's ruin or the crowned head's mound.)
+  api.flora('boulder', [...ring(api, 985, 870, 60, 12, 30, [0.8, 2]), ...ring(api, 900, 960, 40, 8, 20, [0.8, 2])].filter((p) => p.y > -3 && !(p.x > 960 && p.z > 890) && Math.hypot(p.x - 1000, p.z - 830) > 17 && Math.hypot(p.x - 908, p.z - 918) > 24));
 }
 
 /** The kingdom's margins: a purple wood north of Bucket Street, crystal outcrops by the court, more graves in the snow. */
@@ -135,8 +136,11 @@ export function dressKingdom(api: RealmApi): void {
 /** The drowned land round the sea king's city: wrecks, weed and old stones. */
 export function dressSunken(api: RealmApi): void {
   wreck(api, -1070, -60, 0.6); wreck(api, -930, -100, 2.1); wreck(api, -1078, 58, 4); wreck(api, -926, 62, 1.2); wreck(api, -1000, 112, 3); wreck(api, -1000, -146, 5.2);
-  api.flora('kelp', [...field(api, -1095, -1045, -130, 120, 15), ...field(api, -955, -908, -130, 120, 15)], { wind: 0.3 });
-  api.flora('coral', [...field(api, -1090, -1050, -120, 110, 21), ...field(api, -950, -912, -120, 110, 21), ...field(api, -1040, -960, 84, 125, 17), ...field(api, -1040, -960, -158, -118, 17)]);
+  // (Weed round the wrecks, ruins and skulls, never through them.)
+  const taken: Array<[number, number, number]> = [[-1070, -60, 7], [-930, -100, 7], [-1078, 58, 7], [-926, 62, 7], [-1000, 112, 7], [-1000, -146, 7], [-1060, -115, 13], [-940, 25, 13], [-1062, 15, 13], [-945, -38, 8], [-1058, 108, 8]];
+  const free = (p: Placement) => !taken.some(([x, z, r]) => Math.hypot(p.x - x, p.z - z) < r);
+  api.flora('kelp', [...field(api, -1095, -1045, -130, 120, 15), ...field(api, -955, -908, -130, 120, 15)].filter(free), { wind: 0.3 });
+  api.flora('coral', [...field(api, -1090, -1050, -120, 110, 21), ...field(api, -950, -912, -120, 110, 21), ...field(api, -1040, -960, 84, 125, 17), ...field(api, -1040, -960, -158, -118, 17)].filter(free));
   for (const [x, z, yaw] of [[-1060, -115, 0.4], [-940, 25, 2], [-1062, 15, 1.2]] as const) ruin(api, x, z, yaw);
   prop(api, 'giant-skull', -945, -38, 2.4, 3, 2.2, 1.4);
   prop(api, 'giant-skull', -1058, 108, 2.4, 3, 0.6, 1.2);

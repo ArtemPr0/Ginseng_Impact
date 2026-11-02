@@ -134,7 +134,7 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   croak: { x: -112, z: 2 },
   frogking: { x: -54, z: -26 },
   cook: { x: 25.6, z: 77 },
-  moss: { x: -56, z: 19, dy: 0.02 },
+  moss: { x: -56, z: 19, dy: 0.38 },
   sentry: { x: -40, z: -90, dy: 0.02 },
   standard: { x: -54, z: -93 },
   'rose-knight': { x: 16, z: 34 }, maiden: { x: 18.2, z: 33 },

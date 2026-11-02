@@ -652,6 +652,9 @@ export class World {
       const candles = [-0.9, 0.9].map((dx) => ({ x: tx + dx, y: ty + 0.97, z: tz, yaw: 0, scale: 1 }));
       flora('candle', candles, { shadows: false });
       for (const c of candles) { const g = glowSprite(0xffb050, 0.7, 0.55, true); g.position.set(c.x, c.y + 0.38, c.z); this.group.add(g); }
+      // What the regulars are drinking stands on the table in front of them.
+      flora('tankard', [[-0.45, 0.2], [0.35, 0.22]].map(([dx, dz]) => ({ x: tx + dx, y: ty + 0.97, z: tz + dz, yaw: dx * 4, scale: 1 })), { shadows: false });
+      flora('lean-cup', [[0.5, -0.2], [-0.3, -0.22]].map(([dx, dz]) => ({ x: tx + dx, y: ty + 0.97, z: tz + dz, yaw: 0, scale: 1 })), { shadows: false });
     }
     const campY = h(-24, 52);
     this.place(modelLandmark('campfire', -24, 52, campY));
@@ -1129,6 +1132,6 @@ function cutDoor(root: Object3D, d: { x: number; z: number; halfWidth: number; f
 
 /** Ground kept clear of trees around the island's landmarks (x, z, radius). */
 const LANDMARK_CLEARINGS = [
-  { x: 10, z: -96, r: 11 }, { x: 70, z: -72, r: 8 }, { x: 18, z: -136, r: 15 }, { x: 83, z: 32, r: 15 }, { x: -90, z: 30, r: 11 },
-  { x: 88, z: -103, r: 12 }, { x: 44, z: -104, r: 17 }, { x: 68, z: -18, r: 34 }, { x: 106, z: -13, r: 11 },
+  { x: 10, z: -96, r: 11 }, { x: 70, z: -72, r: 8 }, { x: 18, z: -136, r: 15 }, { x: 83, z: 32, r: 17 },
+  { x: 88, z: -103, r: 12 }, { x: 44, z: -104, r: 23 }, { x: -46, z: 48, r: 10 }, { x: -66, z: 57, r: 17 }, { x: -90, z: 30, r: 13 }, { x: 68, z: -18, r: 34 }, { x: 106, z: -13, r: 11 },
 ];

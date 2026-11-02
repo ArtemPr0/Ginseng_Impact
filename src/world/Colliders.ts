@@ -283,6 +283,10 @@ export class HeightWorld implements WorldQuery {
   }
 
   /** True when (x, z) is inside any structure's outline (not just under its overhang). */
+  onDeck(x: number, z: number, y: number): boolean {
+    return this.heightAt(x, z, y) > this.terrain.heightAt(x, z) + 0.05;
+  }
+
   blocked(x: number, z: number): boolean {
     const list = this.grid.get(HeightWorld.key(Math.floor(x / HeightWorld.CELL), Math.floor(z / HeightWorld.CELL)));
     if (list) for (const f of list) if (footprintContains(f, x, z)) return true;

@@ -56,6 +56,8 @@ export interface ControllerInput {
 }
 
 export interface WorldQuery {
+  /** True when the surface at (x, z) under `y` is something built on the ground, not the ground itself. */
+  onDeck?(x: number, z: number, y: number): boolean;
   /** Surface height under (x, z); with `y` (the asker's feet) overhangs they fit under are skipped. */
   heightAt(x: number, z: number, y?: number): number;
   /** Underside of the lowest overhang above feet at `y` (a bridge deck), or Infinity. */
@@ -314,7 +316,8 @@ export function stepController(s: ControllerState, input: ControllerInput, world
       const ground = world.heightAt(nx, nz, oldY);
       const ahead = gradientAt(world, nx, nz, oldY);
       const rise = ground - oldY;
-      const steep = (ahead.g > CONTROLLER.walkableGradient && rise > 0.05) || rise > CONTROLLER.stepHeight;
+      // (On something built, a ramp or a bridge, the drop beside you is not a wall in front of you: only the step counts.)
+      const steep = (ahead.g > CONTROLLER.walkableGradient && rise > 0.05 && !world.onDeck?.(nx, nz, oldY)) || rise > CONTROLLER.stepHeight;
       if (steep) {
         if (wantsMove && s.stamina >= CONTROLLER.climbMinStamina) {
           // Stay at the base; climbing moves us from here.
