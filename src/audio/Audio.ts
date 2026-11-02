@@ -406,6 +406,13 @@ export class Audio {
     this.tone('square', 95, 60, 0.7, 0.2, 0.05, 0.06, 0.3);
   }
 
+  /** A boss gathering a blow: a low rising growl. */
+  windup(_at: { x: number; y: number; z: number }): void {
+    if (!this.ctx) return;
+    this.tone('sawtooth', 44, 96, 0.55, 0.22, 0, 0.15, 0.1);
+    this.noise(0.5, 'lowpass', 200, 700, 0.3, 0.25);
+  }
+
   stomp(): void {
     this.tone('sine', 90, 30, 0.3, 0.8);
     this.noise(0.18, 'lowpass', 600, 80, 0.8, 0.5);

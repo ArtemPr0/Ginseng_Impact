@@ -201,6 +201,9 @@ const MIRROR_DEF: EnemyDef = {
   attacks: [{ kind: 'kaleido', range: 30, windup: 1.2, recover: 1.6, weight: 1 }],
 };
 
+/** The share of its max HP dealt within four seconds that staggers a boss, and how often it can (seconds). */
+const STAGGER_SHARE = 0.08;
+const STAGGER_EVERY = 14;
 /** How many summoned mobs one caster keeps at a time. */
 const SUMMON_CAP = 4;
 let thrownCup: GLTF | null = null;
@@ -346,6 +349,10 @@ export class CombatSystem {
   /** Down: the death clip plays for DOWN_HOLD seconds before the next hero takes over (or the fog takes the party). */
   private downed: { t: number } | null = null;
   private readonly clouds: SmokeCloud[] = [];
+  /** When each boss last fought the hero (its entrance plays after a long enough gap), and its broken stance. */
+  private readonly bossMet = new Map<number, number>();
+  private readonly poise = new Map<number, { hits: number; at: number; broke: number }>();
+  private time = 0;
   /** Mobs each caster has summoned (capped, and sent away with their caster). */
   private readonly summoned = new Map<number, Enemy[]>();
   private frenzyLeft = 0;
@@ -679,6 +686,7 @@ export class CombatSystem {
   }
 
   update(dt: number, input: CombatInput): void {
+    this.time += dt;
     // Whom the enemies fight this step: the hero, then every companion still standing.
     this.gatherMarks();
     this.updateGraveRising(dt);
@@ -950,6 +958,15 @@ export class CombatSystem {
       this.warnWindup(e, foe !== null);
       const boss = !!e.def.boss && e.aggro && e.alive;
       bossFight ||= boss;
+      // The first sight of a boss is an event: its name, its roar, the ground shaking. Not again for two minutes.
+      if (boss && this.time - (this.bossMet.get(e.id) ?? -Infinity) > 120) {
+        d.hud.announce(`${e.def.name}${e.def.title ? ` · ${e.def.title}` : ''}`, { seconds: 3, priority: 2 });
+        d.audio.roar();
+        d.onShake?.(0.7);
+        d.onPulse?.(0.5);
+        this.fx.dust(_v.set(e.pos.x, e.pos.y, e.pos.z), 2.4);
+      }
+      if (boss) this.bossMet.set(e.id, this.time);
       if (foe) { if (action) this.brawlHit(e, foe); continue; }
       anyAggro ||= e.aggro && e.status.confuse <= 0;
       if (boss) bossNear = bossNear ?? e;
@@ -1525,6 +1542,8 @@ export class CombatSystem {
       return;
     }
     if (!list) {
+      // Every boss blow is heard coming, from where it stands.
+      if (e.def.boss) this.d.audio.windup(e.pos);
       const aim = this.aimOf(e, this.aimTmp);
       const spec = warnSpec(e.def, e.currentAttack, Math.hypot(aim.x - e.pos.x, aim.z - e.pos.z));
       list = [];
@@ -2253,6 +2272,22 @@ export class CombatSystem {
     const kb = { x: kdx / kl, z: kdz / kl };
     const bossKb = e.def.boss ? 0.15 : 1;
     const died = e.takeDamage(dmg, kb, (knockback + (reaction ? REACTIONS[reaction].knockback : 0)) * bossKb);
+    // Enough punishment in a short time breaks a boss's stance: it reels, and that is the opening.
+    if (!died && e.def.boss && e.def.kind !== 'hollowking') {
+      const p = this.poise.get(e.id) ?? { hits: 0, at: 0, broke: -Infinity };
+      if (this.time - p.at > 4) p.hits = 0;
+      p.hits += dmg; p.at = this.time;
+      if (p.hits >= e.def.maxHp * STAGGER_SHARE && this.time - p.broke > STAGGER_EVERY) {
+        p.hits = 0; p.broke = this.time;
+        e.afflict('stun', 2.4);
+        this.d.hud.announce('Staggered', { seconds: 1.4 });
+        this.d.audio.stomp();
+        this.d.onShake?.(0.45);
+        this.d.onPulse?.(0.4);
+        this.fx.dust(_v.set(e.pos.x, e.pos.y, e.pos.z), 2.2);
+      }
+      this.poise.set(e.id, p);
+    }
     const sc = e.def.scale ?? 1;
     const at = new Vector3(e.pos.x, e.pos.y + e.def.height * sc * 0.5, e.pos.z);
     // Where it struck: a shot's head, else the body's side facing the hero at about the swing's height (a giant is hit
@@ -2730,6 +2765,8 @@ export class CombatSystem {
     const hp = Math.max(0, this.hp.get(me.id)! - dmg);
     this.hp.set(me.id, hp);
     this.iframes = IFRAMES;
+    // A hard blow lands on the player too: a catch in time and a jolt through the frame.
+    if (dmg >= this.maxOf(me) * BIG_HIT) { this.d.game.hitStop = Math.max(this.d.game.hitStop, 0.09); this.d.onPulse?.(0.45); this.d.onShake?.(0.5); }
     // The body reacts: a flinch, or the whole reaction for a big one.
     this.hurt = { t: 0, big: dmg >= this.maxOf(me) * BIG_HIT };
     const at = this.playerPos().clone().add(new Vector3(0, 1.9, 0));

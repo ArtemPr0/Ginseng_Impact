@@ -155,6 +155,7 @@ class Bounds {
   }
 }
 
+const plane2Crack = new PlaneGeometry(2, 2);
 const _tellAt = new Vector3();
 const _tellDir = new Vector3();
 
@@ -165,6 +166,8 @@ export class CombatFx {
   private readonly arcs: ArcSlot[] = [];
   private readonly shocks: ShockSlot[] = [];
   private readonly telegraphs: TelegraphSlot[] = [];
+  private readonly cracks: Array<{ mesh: Mesh; mat: ShaderMaterial; birth: number }> = [];
+  private crackNext = 0;
 
   // Sparks: one InstancedMesh, a ring of instances (the oldest is always the next overwritten).
   private readonly sparkMesh: InstancedMesh;
@@ -500,6 +503,33 @@ export class CombatFx {
       this.shocks.push({ mesh, mat, birth: 0, seconds: 0.35, radius: 1 });
     }
 
+    // --- Cracks: dark fissures radiating from an impact, drawn on one plane each.
+    for (let i = 0; i < 6; i++) {
+      const mat = new ShaderMaterial({
+        transparent: true, depthWrite: false, fog: false, side: DoubleSide, forceSinglePass: true,
+        polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+        uniforms: { uSeed: { value: 0 }, uAlpha: { value: 0 } },
+        vertexShader: /* glsl */ `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+        fragmentShader: /* glsl */ `
+          uniform float uSeed; uniform float uAlpha; varying vec2 vUv;
+          float n(float x) { return fract(sin(x * 91.7 + uSeed) * 43758.5); }
+          void main() {
+            vec2 p = vUv * 2.0 - 1.0; float r = length(p); float a = atan(p.y, p.x);
+            float seg = 7.0; float k = floor((a + 3.1416) / 6.2832 * seg); float f = fract((a + 3.1416) / 6.2832 * seg) - 0.5;
+            float wob = sin(r * 13.0 + n(k) * 20.0) * 0.16 + sin(r * 31.0 + n(k + 3.0) * 9.0) * 0.07;
+            float reach = 0.55 + 0.45 * n(k + 7.0);
+            float w = 0.09 * (1.0 - r / reach);
+            float line = (1.0 - smoothstep(0.0, max(0.005, w), abs(f + wob))) * step(r, reach);
+            gl_FragColor = vec4(0.01, 0.01, 0.03, line * 0.85 * uAlpha);
+          }`,
+      });
+      const mesh = new Mesh(plane2Crack, mat);
+      mesh.visible = false;
+      mesh.name = 'crack';
+      this.group.add(mesh);
+      this.cracks.push({ mesh, mat, birth: 0 });
+    }
+
     // --- Telegraphs: one flat unit plane per slot; ring, cone or disc drawn in the fragment shader with a fill
     // that sweeps outward and a thin bright edge.
     const plane2 = new PlaneGeometry(2, 2);
@@ -745,7 +775,19 @@ export class CombatFx {
       this.dust(_tellAt.set(at.x + Math.cos(a) * radius * 0.7, at.y + 0.1, at.z + Math.sin(a) * radius * 0.7), 0.7 + radius * 0.22);
     }
     this.sparks(at, _tellDir.set(0, 1, 0), Math.min(24, 6 + Math.round(radius * 3)), 0x9c8a76, 3 + radius);
+    if (radius >= 3) this.crack(at, radius);
     void color; void seconds;
+  }
+
+  /** The ground broken where something heavy landed: dark fissures that fade over some seconds. */
+  private crack(at: Vector3, radius: number): void {
+    const s = this.cracks[this.crackNext++ % this.cracks.length];
+    s.mesh.position.set(at.x, at.y + 0.06, at.z);
+    s.mesh.rotation.set(-Math.PI / 2, 0, Math.random() * 6.28);
+    s.mesh.scale.setScalar(radius * 1.3);
+    s.mat.uniforms.uSeed.value = Math.random() * 40;
+    s.birth = COMBATFX_CLOCK.value;
+    s.mesh.visible = true;
   }
 
   // ---------------------------------------------------------------- dust
@@ -948,6 +990,13 @@ export class CombatFx {
         s.mesh.scale.setScalar(0.2 + k * s.radius);
         s.mat.opacity = 0.9 * (1 - k);
       }
+    }
+
+    for (const s of this.cracks) {
+      if (!s.mesh.visible) continue;
+      const k = (now - s.birth) / 7;
+      if (k >= 1) s.mesh.visible = false;
+      else s.mat.uniforms.uAlpha.value = Math.min(1, (1 - k) * 2.5);
     }
 
     if (this.liveTelegraphs > 0) {
