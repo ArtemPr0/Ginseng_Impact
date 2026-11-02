@@ -486,8 +486,8 @@ export class World {
     }
     this.place(modelLandmark('colossus-statue', WORLD.dead.x - 14, WORLD.dead.z + 6, h(WORLD.dead.x - 14, WORLD.dead.z + 6) - 0.5, { yaw: 0.9 }));
     if (PRESENT_MODELS.has('burning-castle')) {
-      this.place(modelLandmark('burning-castle', 0, 180, -32, { color: PALETTE.blood, collider: 'none' }));
-      vfx(fire(0, 12, 180, 14, 0));
+      this.place(modelLandmark('burning-castle', 0, 180, -14, { color: PALETTE.blood, collider: 'none' }));
+      vfx(fire(0, 25, 180, 14, 0));
     }
     for (const r of LAYOUT.ruins) this.place(modelLandmark(r.arch ? 'ruin-arch' : 'ruin-column', r.x, r.z, h(r.x, r.z) - 0.3, { yaw: r.yaw }));
     // Rainy orchard (DdKl7fKMO75): rows of twisted trees; each trunk is solid once the tree model exists.
@@ -504,10 +504,20 @@ export class World {
     const mr = rng(77);
     for (let i = 0; i < 20; i++) { const a = (i / 20) * Math.PI * 2 + (mr() - 0.5) * 0.25; const r = 270 + mr() * 60; mr(); const hgt = 130 + mr() * 90; mountains.push({ x: Math.cos(a) * r, y: -90, z: -36 + Math.sin(a) * r, yaw: mr() * Math.PI, scale: hgt / 180 }); }
     for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2 + 0.3 + (mr() - 0.5) * 0.4; const r = 190 + mr() * 35; mr(); const hgt = 60 + mr() * 40; mountains.push({ x: Math.cos(a) * r, y: -90, z: -36 + Math.sin(a) * r, yaw: mr() * Math.PI, scale: hgt / 180 }); }
-    flora('mountain', mountains, { shadows: false });
+    // (Shaded, not textured: simplifying the mesh scrambles its UVs. Night rock, with snow on whatever faces up.)
+    flora('mountain', mountains, { shadows: false, patch: (m) => {
+      m.map = m.normalMap = m.roughnessMap = m.metalnessMap = null;
+      m.color.set(0x27345f); m.roughness = 1; m.metalness = 0; m.envMapIntensity = 0;
+      m.onBeforeCompile = (sh) => {
+        sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.62, 0.7, 0.92), smoothstep(0.52, 0.74, inverseTransformDirection(normal, viewMatrix).y));`);
+      };
+      m.customProgramCacheKey = () => 'mountain-snow';
+    } });
     const pinSpots: Placement[] = [];
     for (let i = 0; i < 26; i++) pinSpots.push({ x: (rnd() - 0.5) * 190, y: LAYOUT.cloudSea.y - 6, z: 141 + rnd() * 66, yaw: rnd() * 6, scale: 0.6 + rnd() * 0.9 });
-    flora('pinnacle', pinSpots, { shadows: false });
+    // (The burning castle stands clear of them, seen across the water from the south shore.)
+    flora('pinnacle', pinSpots.filter((p) => Math.hypot(p.x, p.z - 180) > 42 && Math.abs(p.x) > 20), { shadows: false });
 
     // --- creatures that wander ---
     // The Frog King is an NPC now (he has a son to find); his bulk stays solid.

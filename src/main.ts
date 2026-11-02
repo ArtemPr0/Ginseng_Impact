@@ -589,6 +589,8 @@ if (titleMusic) {
   audio.title(true);
   if (audio.suspended) { input.hold = true; hud.setPress('CLICK TO BEGIN'); }
 }
+// (A save always shows on the title: the block above runs only when licensed title music ships.)
+if (!input.hold && !debugAt && save.has()) hud.setPress('CLICK TO CONTINUE · N NEW GAME');
 
 // Title cinematic: a slow dolly up the causeway toward the head while the pointer is not locked.
 const HEAD_EYES = new Vector3(LAYOUT.head.x, terrain.heightAt(LAYOUT.head.x, LAYOUT.head.z) - 3 + LAYOUT.head.height * 0.69, LAYOUT.head.z);

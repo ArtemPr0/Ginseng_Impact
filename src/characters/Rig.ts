@@ -1566,9 +1566,9 @@ export class Rig {
       this.animateNpcCup(dt);
       this.animateSnack(pose, dt);
       if (pose.look) {
-        // (The clip rewrites the neck next frame, so nothing piles up. A body with no neck simply does not turn.)
+        // (`turn` undoes itself next frame. A body with no neck simply does not turn.)
         this.neck ??= findNeck(this.model.root) ?? false;
-        if (this.neck) { this.neck.updateWorldMatrix(true, false); this.neck.rotateOnWorldAxis(_lookUp, pose.look); }
+        if (this.neck) this.turn(this.neck as Bone, _lookUp, pose.look);
       }
     }
     else this.placeholder?.update(dt);

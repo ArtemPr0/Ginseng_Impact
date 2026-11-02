@@ -12,6 +12,8 @@ export class Input {
   mouseDX = 0;
   mouseDY = 0;
   locked = false;
+  /** Playing without pointer lock, the browser having refused it. */
+  private soft = false;
 
   /**
    * @param free Debug mode (`?at=` in the URL): behaves as if the pointer were locked so screenshots and
@@ -49,6 +51,18 @@ export class Input {
       this.mousePressed.clear();
       if (!this.locked) this.releaseAll();
     });
+    // A browser or embed that refuses the lock must not leave the player on the title: play on with the plain mouse
+    // (movementX still turns the camera). Esc leaves, as the browser's own unlock would.
+    document.addEventListener('pointerlockerror', () => {
+      if (this.free || this.hold || this.uiOpen) return;
+      this.soft = true;
+      this.locked = true;
+      this.pressed.clear();
+      this.mousePressed.clear();
+    });
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Escape' && this.soft && this.locked && !this.uiOpen) { this.locked = false; this.releaseAll(); }
+    });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
@@ -82,6 +96,7 @@ export class Input {
   /** Releases the pointer so a panel can be used. */
   unlock(): void {
     if (document.pointerLockElement === this.canvas) document.exitPointerLock();
+    else if (this.soft) { this.locked = false; this.releaseAll(); }
   }
 
   /** Raw WASD axis in input space: x = right, z = forward (positive = forward). */
