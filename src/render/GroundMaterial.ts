@@ -146,9 +146,9 @@ vec4 marbleTex(vec2 p) {
   float seam = smoothstep(0.485, 0.5, max(ft.x, ft.y));
   float m = fbm(p * 0.35);
   float vein = smoothstep(0.035, 0.0, abs(sin((p.x * 0.45 + p.y * 0.2 + m * 4.0) * 1.7)) * (0.6 + m));
-  vec3 white = vec3(0.86, 0.86, 0.9), grey = vec3(0.6, 0.6, 0.68);
+  vec3 white = vec3(0.5, 0.42, 0.66), grey = vec3(0.1, 0.07, 0.17);
   vec3 base = mix(grey, white, checker) * (0.9 + 0.12 * m);
-  base = mix(base, vec3(0.38, 0.38, 0.46), vein * 0.5);
+  base = mix(base, vec3(0.2, 0.14, 0.3), vein * 0.5);
   float crack = smoothstep(0.035, 0.0, voronoiEdge(p * 0.22));
   vec3 c = base * MARBLE_LEVEL * (1.0 - seam * 0.5) * (1.0 - crack * 0.55);
   return vec4(c, 1.0 - max(seam, crack));
@@ -189,7 +189,7 @@ float gWet = vC.w;
     w = vB.z; if (w > 0.02) { acc += snowTex(p) * w; patternMean += TINT_SNOW * w; rough += 0.9 * w; wsum += w; }
     w = vB.w; if (w > 0.02) { acc += sandTex(p) * w; patternMean += TINT_SAND * w; rough += 0.95 * w; wsum += w; }
     w = vC.x; if (w > 0.02) { acc += deadTex(p) * w; patternMean += TINT_DEAD * w; rough += 0.95 * w; wsum += w; }
-    w = vC.y; if (w > 0.02) { acc += marbleTex(p) * w; patternMean += TINT_MARBLE * w; rough += 0.25 * w; wsum += w; }
+    w = vC.y; if (w > 0.02) { acc += marbleTex(p) * w; patternMean += TINT_MARBLE * w; rough += 0.6 * w; wsum += w; }
     w = vC.z; if (w > 0.02) { acc += seabedTex(p) * w; patternMean += TINT_SEABED * w; rough += 0.8 * w; wsum += w; }
     if (wsum < 0.02) { acc = grassTex(p); patternMean = TINT_GRASS; rough = 0.95; wsum = 1.0; }
     acc /= wsum;
@@ -233,10 +233,10 @@ const EMISSIVE_FRAGMENT = /* glsl */ `
 {
   vec3 V = normalize(cameraPosition - vW);
   vec3 nW = transformNormalByInverseViewMatrix(normal, viewMatrix);
-  float glossW = gMarble * 0.55 + gWet * 0.35;
+  float glossW = gMarble * 0.3 + gWet * 0.35;
   if (glossW > 0.002) {
     float fres = pow(1.0 - max(dot(nW, V), 0.0), 4.0);
-    totalEmissiveRadiance += skyColor(reflect(-V, nW)) * fres * glossW;
+    totalEmissiveRadiance += min(skyColor(reflect(-V, nW)), vec3(1.2)) * fres * glossW;
   }
   if (gMarble > 0.02 && gDetail > 0.001) {
     vec2 p = vW.xz;
@@ -250,7 +250,7 @@ const EMISSIVE_FRAGMENT = /* glsl */ `
 export interface GroundMaterialOptions {
   /**
    * The lowest roughness any layer renders at (Sculpt.roughnessFloor; 0 keeps each layer's own: flagstone 0.6, cobble
-   * 0.55, marble 0.25). Wet ground still halves it.
+   * 0.55, marble 0.6). Wet ground still halves it.
    */
   roughnessFloor?: number;
 }

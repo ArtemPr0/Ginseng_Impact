@@ -8,6 +8,7 @@ import { LeanBubble } from '../render/LeanBubble';
 import { patchTrippy } from '../render/Materials';
 import { patchDissolve } from '../render/CombatFx';
 import { EyeIris } from '../render/EyeIris';
+import { easeLean, slopeTarget, type Lean } from '../characters/SlopeLean';
 import type { EnemyDef } from '../data/enemies';
 import { PALETTE } from '../render/palette';
 import type { WorldQuery } from '../player/CharacterController';
@@ -176,6 +177,9 @@ export class Enemy {
   private lastX = 0;
   private lastZ = 0;
   private lastYaw = 0;
+  /** The body's slope lean (SlopeLean), eased, and the target it eases toward. */
+  private readonly lean: Lean = { pitch: 0, roll: 0 };
+  private readonly leanTarget: Lean = { pitch: 0, roll: 0 };
   private groundSpeed = 0;
   private moveDirX = 0;
   private moveDirZ = 0;
@@ -867,13 +871,24 @@ export class Enemy {
       return;
     }
     this.object.rotation.y = yawToRotation(this.yaw);
-    if (!this.def.flying) {
-      const s = 0.7;
-      const y0 = this.pos.y;
-      const gx = this.world.heightAt(this.pos.x + s, this.pos.z, y0) - this.world.heightAt(this.pos.x - s, this.pos.z, y0);
-      const gz = this.world.heightAt(this.pos.x, this.pos.z + s, y0) - this.world.heightAt(this.pos.x, this.pos.z - s, y0);
-      const along = (gx * Math.cos(this.yaw) + gz * Math.sin(this.yaw)) / (2 * s);
-      this.object.rotation.x = Math.max(-0.2, Math.min(0.2, -along));
+    // On the ground the body tips with the slope and leans into turns, as the heroes do (SlopeLean); a wader, a
+    // seated or rooted giant and anything in the air stay upright. The samples straddle the body (a big one reads the
+    // ground under its whole footprint) and a giant tips less. Off screen (`far`) the last lean is kept.
+    if (!far) {
+      const grounded = !this.def.flying && !this.def.seated && this.def.speed > 0 && this.def.floatAt === undefined && !this.def.body && !this.def.eye && this.hopT < 0;
+      let target: Lean | null = null;
+      if (grounded) {
+        const s = Math.max(0.6, this.def.bodyRadius * 0.8);
+        const y0 = this.pos.y + 0.5;
+        const gx = (this.world.heightAt(this.pos.x + s, this.pos.z, y0) - this.world.heightAt(this.pos.x - s, this.pos.z, y0)) / (2 * s);
+        const gz = (this.world.heightAt(this.pos.x, this.pos.z + s, y0) - this.world.heightAt(this.pos.x, this.pos.z - s, y0)) / (2 * s);
+        const big = Math.min(1, Math.max(0.3, 4 / Math.max(1, this.def.height)));
+        if (Math.hypot(gx, gz) < 1) target = slopeTarget(gx, gz, this.yaw, yawRate, this.groundSpeed, this.leanTarget, big);
+      }
+      easeLean(this.lean, target, dt);
+      this.object.rotation.order = 'YXZ';
+      this.object.rotation.x = this.lean.pitch;
+      this.object.rotation.z = this.lean.roll;
     }
     if (!m) { this.placeholder?.update(dt); return; }
     if (this.def.stomp && st === 'chase' && this.groundSpeed > 0.4) {

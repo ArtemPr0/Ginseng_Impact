@@ -34,6 +34,7 @@ void main() {
 }`;
 
 export interface FaceMoon {
+  setCrescent(crescent: number, warm: number): void;
   group: Group;
   /** Resolves true once the model is in (false if its file is missing: keep the fallback moon). */
   ready: Promise<boolean>;
@@ -82,6 +83,10 @@ export function faceMoon(id: string, radius: number, opts: { crescent?: number; 
   });
   return {
     group, ready, tint,
+    /** The ending: the crescent fills, the moon warms (0..1). */
+    setCrescent(crescent: number, warm: number) {
+      for (const m of mats) { m.uniforms.uCrescent.value = crescent; m.uniforms.uGlow.value = (opts.glow ?? 0.6) * (1 + warm * 0.5); }
+    },
     update(dt) {
       t += dt;
       for (const m of mats) m.uniforms.uTime.value = t;

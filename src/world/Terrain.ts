@@ -10,7 +10,7 @@ import { Color, type Group, type Vector3 } from 'three';
 import { ChunkedGround, Heightfield, LAYER, type Sculpt } from '../render/Ground';
 import { groundMaterial } from '../render/GroundMaterial';
 import { Noise2D, lerp, smoothstep } from './noise';
-import { FLATS, KNOLL, LAYOUT, PADS, VILLAGE } from '../data/world';
+import { FLATS, FOOTINGS, KNOLL, LAYOUT, PADS, VILLAGE } from '../data/world';
 
 /** World layout constants (metres). The island is centred at ISLAND_CENTRE; the causeway runs along x = 0. */
 export const WORLD = {
@@ -274,7 +274,7 @@ export function knollAt(x: number, z: number): number {
  * rim carries a rock lip; the gorge, the peak, the chasm, the river, the stream and the cliff carve exactly as they
  * always did, and the level pads win last.
  */
-export function terrainHeight(x: number, z: number, noise: Noise2D, relief = true): number {
+export function terrainHeight(x: number, z: number, noise: Noise2D, relief = true, footings = true): number {
   // Solid pads are land wherever they reach (the castle's rock past the cliff).
   let padLand = 0;
   for (const p of SOLID_PADS) {
@@ -390,6 +390,15 @@ export function terrainHeight(x: number, z: number, noise: Noise2D, relief = tru
     const dd = Math.hypot(x - p.x, z - p.z);
     if (dd >= p.r + p.blend) continue;
     plateau = lerp(plateau, p.y, 1 - smoothstep(p.r, p.r + p.blend, dd));
+  }
+  // Level footings under the buildings, at the height each one's centre has without them.
+  if (relief && footings) for (const f of FOOTINGS) {
+    const dd = Math.hypot(x - f.x, z - f.z);
+    if (dd >= f.r + f.blend) continue;
+    const y = f.y ?? terrainHeight(f.x, f.z, noise, true, false);
+    const t = 1 - smoothstep(f.r, f.r + f.blend, dd);
+    plateau = lerp(plateau, y, t);
+    padLand = Math.max(padLand, t);
   }
   return lerp(WORLD.abyssY, plateau, Math.max(land, padLand));
 }

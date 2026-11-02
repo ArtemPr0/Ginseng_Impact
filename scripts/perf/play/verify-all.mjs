@@ -39,13 +39,13 @@ function runBody(name, at, loadS, file) {
   const hardConsole = (() => {
     try {
       const arr = JSON.parse(cons.slice('CONSOLE: '.length));
-      return arr.filter((e) => e.level === 'error');
+      return arr.filter((e) => e.level === 'error' && !/favicon\.ico/.test(e.url ?? ''));
     } catch { return []; }
   })();
-  // Audits list by-design flags; they fail only on exceptions / console errors, not on flagged rows.
+  // The characters audit has its by-design list inside it, so any flagged row fails. Layout and glows still need reading.
   const isAudit = name.startsWith('layout') || name.startsWith('glows') || name.startsWith('characters');
   const sweepOk = isAudit
-    ? !String(body).startsWith('EXCEPTION') && hardConsole.length === 0
+    ? !String(body).startsWith('EXCEPTION') && hardConsole.length === 0 && (!name.startsWith('characters') || (parsed?.flagged?.length ?? 1) === 0)
     : parsed?.ok === true || (name === 'hollowking' && parsed?.aggro === true);
   const ok = r.status === 0 && sweepOk && !String(body).startsWith('EXCEPTION') && hardConsole.length === 0;
   results.push({
@@ -63,15 +63,17 @@ const play = join(root, 'scripts/perf/play');
 const audit = join(root, 'scripts/perf/audit');
 
 let allOk = true;
-allOk = runBody('dialogue', '0,40', 10, join(play, 'sweep-dialogue.js')) && allOk;
-allOk = runBody('quests', '0,40', 10, join(play, 'sweep-quests.js')) && allOk;
-allOk = runBody('enemies', '0,40', 10, join(play, 'sweep-enemies.js')) && allOk;
-allOk = runBody('interact', '0,40', 10, join(play, 'sweep-interact.js')) && allOk;
+allOk = runBody('dialogue', '0,40', 26, join(play, 'sweep-dialogue.js')) && allOk;
+// The whole story, played: F, buttons, pickups and real blows; nothing forces a quest.
+allOk = runBody('story', '0,-130', 26, join(play, 'sweep-story.js')) && allOk;
+allOk = runBody('enemies', '0,40', 26, join(play, 'sweep-enemies.js')) && allOk;
+allOk = runBody('interact', '0,40', 26, join(play, 'sweep-interact.js')) && allOk;
 allOk = runBody('hollowking', '36,-146', 8, join(play, 'hollowking.js')) && allOk;
 allOk = runBody('layout', '0,40', 8, join(audit, 'layout.js')) && allOk;
 allOk = runBody('glows', '0,40', 8, join(audit, 'glows.js')) && allOk;
-allOk = runBody('characters@island', '0,40', 8, join(audit, 'characters.js')) && allOk;
-allOk = runBody('characters@snow', '931,124', 8, join(audit, 'characters.js')) && allOk;
+for (const [zone, at] of [['island', '0,40'], ['north', '-20,-110'], ['plaza', '1000,20'], ['snow', '931,124'], ['vale', '1000,1006'], ['sunken', '-1000,56'], ['graveyard', '0,-916'], ['dream', '0,2630']]) {
+  allOk = runBody(`characters@${zone}`, at, 10, join(audit, 'characters.js')) && allOk;
+}
 
 // Ending shortcut.
 console.log('\n===== ending =====');

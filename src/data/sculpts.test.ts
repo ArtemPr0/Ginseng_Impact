@@ -570,7 +570,7 @@ describe('realm sculpts: the land', () => {
     // (The bed rises to the shore over its last WATER_BANK metres at each end, so the sheet's ends sink into the banks.)
     for (let z = 784; z <= 1021; z += 3) {
       expect(landMask(v, 955, z, noise), `river at z ${z}`).toBe(1);
-      expect(h(v, 955, z)).toBeCloseTo(VALE.y - 2.2, 6);
+      expect(h(v, 955, z)).toBeCloseTo(VALE.y - 2.2, 1); // (Within millimetres: the warped land border's blend reaches the bed at the ends.)
       for (const x of [947, 963]) expect(h(v, x, z), `bank (${x}, ${z})`).toBeGreaterThanOrEqual(VALE_RIVER.level + FREEBOARD - 1e-9);
     }
   });
@@ -740,7 +740,7 @@ describe('realm sculpts: layers and tint', () => {
     expect(at(v, 955, 850)[LAYER.seabed]).toBeGreaterThan(0.95);
     expect(at(gr, 0, -1000)[LAYER.flagstone]).toBeGreaterThan(0.9);
     expect(at(su, -1000, -40)[LAYER.cobble]).toBeGreaterThan(0.95);
-    expect(at(su, -1000, 150)[LAYER.wet]).toBeCloseTo(0.6, 6);
+    expect(at(su, -1000, 150)[LAYER.wet]).toBeCloseTo(0.2, 6);
     // Rock on steep ground and on the cliff band; the default ground where nothing else is painted.
     expect(at(v, 1040, 870, 0.95)[LAYER.rock]).toBe(1);
     const grass = (() => { let best = 0; for (let x = 1040; x < 1075; x += 5) for (let z = 850; z < 880; z += 5) best = Math.max(best, at(v, x, z)[LAYER.grass]); return best; })();

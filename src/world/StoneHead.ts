@@ -2,7 +2,7 @@
  * The giant stone head's living eyes: glowing red irises whose pupils follow the hero when near, and a deep voice
  * that now and then asks what you are doing here.
  */
-import { CircleGeometry, Group, Mesh, MeshBasicMaterial, Vector3, type Sprite } from 'three';
+import { CircleGeometry, Color, Group, Mesh, MeshBasicMaterial, Vector3, type Sprite } from 'three';
 import { VOICES, voiceUrl } from '../data/voices';
 import { glowSprite } from '../render/Glow';
 import { PALETTE } from '../render/palette';
@@ -18,6 +18,10 @@ const LINES = ['head-doing-here', 'head-blocking'];
 const SEE = 60;
 const HEAR = 45;
 
+/** The ending: 0 the head's blood-red eyes, 1 rune-cyan. */
+export const HEAD_LIT = { value: 0 };
+const RUNE = new Color(PALETTE.rune);
+
 export function stoneHeadEyes(): Landmark {
   const group = new Group();
   const eyes = EYES.map((at) => {
@@ -29,7 +33,7 @@ export function stoneHeadEyes(): Landmark {
     const glow = glowSprite(PALETTE.blood, 3.2, 0.5, true);
     eye.add(iris, pupil, glow);
     group.add(eye);
-    return { eye, pupil, glow: glow as Sprite };
+    return { eye, iris, pupil, glow: glow as Sprite };
   });
   // (The bubble sets its own height each frame: give it the mouth's, and only place x and z.)
   const bubble = new SpeechBubble(MOUTH.y - 1.4);
@@ -58,6 +62,7 @@ export function stoneHeadEyes(): Landmark {
         e.pupil.position.x += (Math.max(-0.2, Math.min(0.2, Math.sin(yaw) * 0.32)) * k - e.pupil.position.x) * Math.min(1, dt * 4);
         e.pupil.position.y += (Math.max(-0.2, Math.min(0.2, Math.sin(pitch) * 0.32)) * k - e.pupil.position.y) * Math.min(1, dt * 4);
         e.eye.rotation.y += (yaw * 0.25 * k - e.eye.rotation.y) * Math.min(1, dt * 3);
+        if (HEAD_LIT.value > 0) { (e.iris.material as MeshBasicMaterial).color.setHex(PALETTE.blood).lerp(RUNE, HEAD_LIT.value); e.glow.material.color.copy((e.iris.material as MeshBasicMaterial).color); }
         e.glow.material.opacity = 0.25 + near * 0.45 + flare * 0.3 + Math.sin(t * 2.2) * 0.04;
         e.glow.scale.setScalar(3.2 + near * 1.6 + flare * 1.5);
       }

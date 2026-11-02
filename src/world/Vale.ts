@@ -181,8 +181,10 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
     const ux = 0.894, uz = 0.447;
     for (const side of [-1, 1]) {
       const x = X - 72 - uz * side * 2.8, z = Z + 28.5 + ux * side * 2.8;
-      api.place(modelLandmark('brazier', x, z, vy, { footprints: [{ kind: 'cyl', x, z, r: 0.6, top: vy + 1.3 }] }));
-      api.vfx(fire(x, vy + 1.5, z, 0.55, 0));
+      // (On the hill's slope: at the ground there, not the street's level.)
+      const by = api.h(x, z);
+      api.place(modelLandmark('brazier', x, z, by, { footprints: [{ kind: 'cyl', x, z, r: 0.6, top: by + 1.3 }] }));
+      api.vfx(fire(x, by + 1.5, z, 0.55, 0));
     }
   }
 

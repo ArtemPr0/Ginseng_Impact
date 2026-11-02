@@ -1,3 +1,4 @@
+import { FOOTINGS } from '../data/world';
 import { describe, expect, it } from 'vitest';
 import { Noise2D, smoothstep } from './noise';
 import { FLATS, KNOLL, LAYOUT, PADS } from '../data/world';
@@ -135,7 +136,9 @@ describe('island relief', () => {
           const mz = z - ((bz - az) * 0.5) / n;
           const s = Math.hypot(mx - KNOLL.landing.x, mz - KNOLL.landing.z);
           const onRiser = KNOLL.risers.some((at) => Math.abs(s - at) < 0.5 + KNOLL.riserRun);
-          const limit = Math.max(MAX_GRADIENT + (onRiser ? KNOLL.riser : 0), gBare > MAX_GRADIENT ? gBare + MAX_GRADIENT : 0);
+          // (A building's footing may steepen the street beside it a little: a short bank the hero walks.)
+          const byFooting = FOOTINGS.some((f) => Math.hypot(x - f.x, z - f.z) < f.r + f.blend);
+          const limit = Math.max(MAX_GRADIENT + (onRiser ? KNOLL.riser : 0) + (byFooting ? 0.25 : 0), gBare > MAX_GRADIENT ? gBare + MAX_GRADIENT : 0);
           if (g > limit) bad.push(`(${x.toFixed(1)}, ${z.toFixed(1)}) gradient ${g.toFixed(2)} (bare ${gBare.toFixed(2)})`);
           prev = h;
           prevBare = bare;
@@ -154,7 +157,7 @@ describe('island relief', () => {
     const flat: string[] = [];
     const level = (x: number, z: number, what: string) => {
       if (reliefAt(x, z, noise) !== 0) flat.push(`${what} (${x.toFixed(1)}, ${z.toFixed(1)}) relief ${reliefAt(x, z, noise).toFixed(3)}`);
-      else if (knollAt(x, z) === 0 && H(x, z) !== B(x, z)) flat.push(`${what} (${x.toFixed(1)}, ${z.toFixed(1)}) moved ${(H(x, z) - B(x, z)).toFixed(3)}`);
+      else if (knollAt(x, z) === 0 && !FOOTINGS.some((f) => Math.hypot(x - f.x, z - f.z) < f.r + f.blend) && H(x, z) !== B(x, z)) flat.push(`${what} (${x.toFixed(1)}, ${z.toFixed(1)}) moved ${(H(x, z) - B(x, z)).toFixed(3)}`);
     };
     const disc = (cx: number, cz: number, r: number, what: string) => {
       level(cx, cz, what);
@@ -306,5 +309,18 @@ describe('Terrain', () => {
     expect(terrain.field.s.roughnessFloor).toBeGreaterThanOrEqual(0.85);
     const mat = (terrain.group.children[0] as unknown as { material: { userData: { roughFloor: { value: number } } } }).material;
     expect(mat.userData.roughFloor.value).toBe(terrain.field.s.roughnessFloor);
+  });
+});
+
+describe('building footings', () => {
+  it('stands every footing level at the height of its centre', () => {
+    const n = new Noise2D(1337);
+    for (const f of FOOTINGS) {
+      const y = f.y ?? terrainHeight(f.x, f.z, n, true, false);
+      for (let a = 0; a < 8; a++) {
+        const g = terrainHeight(f.x + Math.cos(a) * f.r, f.z + Math.sin(a) * f.r, n);
+        expect(Math.abs(g - y), `footing at ${f.x},${f.z}`).toBeLessThan(0.25);
+      }
+    }
   });
 });
