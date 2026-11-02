@@ -138,7 +138,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   spiderchapel: {
     kind: 'spiderchapel', name: 'The Spider Chapel', title: 'That Walks the Sky', maxHp: 9500, def: 85, atk: 140, speed: 4.5, element: 'fog', hover: 0, bodyRadius: 7, height: 28, boss: true,
     flying: true, flyAbove: 16, floatAt: 2,
-    brain: { aggroRange: 24, attackRange: 24, windup: 1.0, recover: 1.4, attackCooldown: 1.2, preferredRange: 18 }, respawn: 360, leash: 60, shards: [260, 360],
+    brain: { aggroRange: 18, attackRange: 18, windup: 1.0, recover: 1.4, attackCooldown: 1.2, preferredRange: 14 }, respawn: 360, leash: 60, shards: [260, 360],
     attacks: [{ kind: 'web', range: 36, windup: 1.0, recover: 1.4, weight: 3 }, { kind: 'webdrop', range: 30, windup: 1.2, recover: 1.5, weight: 2 }],
     drops: [{ itemId: 'star-chart', chance: 1 }, { itemId: 'rune-shard', chance: 1 }],
   },
@@ -346,7 +346,7 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'rivershade', x: -67, z: 38 },    // rising from the witch stream, upstream of the bridge and Old Moss
   { kind: 'passbeast', x: -36, z: -140 },
   // The spider chapel walks its loop in the sky over the west cliffs (it used to be scenery).
-  { kind: 'spiderchapel', x: -104, z: 44, exact: true, patrol: [[-104, 44], [-88, 58], [-104, 72], [-120, 58]] },   // the mountain pass behind the peak
+  { kind: 'spiderchapel', x: -104, z: 62, exact: true, patrol: [[-104, 62], [-90, 74], [-104, 86], [-118, 74]] },   // the mountain pass behind the peak
   { kind: 'troll', x: -64, z: -133, exact: true }, // on the gorge floor under the stone bridge
   { kind: 'lurker', x: -24, z: -14 },       // the lily pond's shallows (west of the whirlpool)
   { kind: 'marshdemon', x: 106, z: -13, exact: true },   // waist-deep in his mud pool, east of the cathedral

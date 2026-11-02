@@ -69,7 +69,7 @@ const out = {};
   const k = G.combat.enemies.find((e) => e.def.kind === 'hollowking');
   await tp(k.pos.x + 16, k.pos.z + 4, k.pos.y + 3, k.pos.x, k.pos.z);
   let woke = false, called = 0; const t0 = performance.now();
-  while (performance.now() - t0 < 25000) {
+  while (performance.now() - t0 < 60000 && !called) { // (His pick is random: summons are 2 in 6.)
     woke ||= k.aggro; called = Math.max(called, G.combat.enemies.filter((e) => e.summoned && e.alive).length);
     G.combat.hp.set(G.party.active?.id ?? 'knight', 1700); await sleep(200);
   }
