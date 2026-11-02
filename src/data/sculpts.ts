@@ -575,7 +575,7 @@ const SUNKEN_SCULPT: RealmSculpt = {
   ],
   defaultLayer: 'seabed',
   accent: { layer: 'sand', wavelength: 25, cover: 0.6 },
-  wet: 0.6,
+  wet: 0.2,
   grass: false,
   cloudSea: null,
   sky: 'island',

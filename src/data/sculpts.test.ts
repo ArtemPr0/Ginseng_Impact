@@ -740,7 +740,7 @@ describe('realm sculpts: layers and tint', () => {
     expect(at(v, 955, 850)[LAYER.seabed]).toBeGreaterThan(0.95);
     expect(at(gr, 0, -1000)[LAYER.flagstone]).toBeGreaterThan(0.9);
     expect(at(su, -1000, -40)[LAYER.cobble]).toBeGreaterThan(0.95);
-    expect(at(su, -1000, 150)[LAYER.wet]).toBeCloseTo(0.6, 6);
+    expect(at(su, -1000, 150)[LAYER.wet]).toBeCloseTo(0.2, 6);
     // Rock on steep ground and on the cliff band; the default ground where nothing else is painted.
     expect(at(v, 1040, 870, 0.95)[LAYER.rock]).toBe(1);
     const grass = (() => { let best = 0; for (let x = 1040; x < 1075; x += 5) for (let z = 850; z < 880; z += 5) best = Math.max(best, at(v, x, z)[LAYER.grass]); return best; })();
