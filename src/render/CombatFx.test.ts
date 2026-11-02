@@ -215,7 +215,8 @@ describe('telegraphs and the rest', () => {
     expect(fx.live).toMatchObject({ arcs: 1, flashes: 1, rune: true });
     expect(fx.live.dust).toBeGreaterThanOrEqual(3);
     fx.rune(P, 0x37f5ff, false);
-    for (let i = 0; i < 60; i++) fx.update(1 / 30, cam);
+    // (The ground stays cracked a while: seven seconds.)
+    for (let i = 0; i < 240; i++) fx.update(1 / 30, cam);
     expect(fx.live).toEqual(DARK);
     expect(visible(fx)).toBe(0);
   });
