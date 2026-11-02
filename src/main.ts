@@ -950,6 +950,8 @@ declare global {
       /** The fight's pooled effects (live counts: `fx.live`). */
       fx: CombatFx;
       inventory: Inventory; hud: Hud; companions: Companion[]; audio: Audio;
+      /** The drawn ground alone, no colliders: what the audits must measure from. */
+      groundOnly(x: number, z: number): number;
       /** The save, for the headless reload check. */
       loadSave(): boolean; snapshot(): SaveV1;
       /** Quests and side adventures; F and its current target (headless checks press F without pointer lock). */
@@ -966,4 +968,4 @@ declare global {
     };
   }
 }
-window.__ginseng = { loadSave: () => { const s = save.load(); if (s) applySave(s); return !!s; }, snapshot, scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, fx: combatFx, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs, events, ending, save, progress, realms: REALMS, teleport, carriage: CARRIAGE, worldState, story };
+window.__ginseng = { groundOnly: (x: number, z: number) => area.ground.heightAt(x, z), loadSave: () => { const s = save.load(); if (s) applySave(s); return !!s; }, snapshot, scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, fx: combatFx, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs, events, ending, save, progress, realms: REALMS, teleport, carriage: CARRIAGE, worldState, story };

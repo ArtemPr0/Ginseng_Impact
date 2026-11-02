@@ -314,8 +314,12 @@ export class World {
   private readonly realmRimAdded = new Set<string>();
   private readonly noise = new Noise2D(1337);
 
+  /** The drawn ground alone, no colliders. */
+  readonly ground: GroundQuery;
+
   constructor(readonly terrain: Terrain) {
-    this.heights = new HeightWorld(new GroundQuery(terrain, this.realmGround));
+    this.ground = new GroundQuery(terrain, this.realmGround);
+    this.heights = new HeightWorld(this.ground);
     // The great river is the swimmable water (the lily pond and the pools are only knee to waist deep), and the realms'
     // rivers and moats (RealmApi.water).
     this.heights.water = (x, z) => {
@@ -347,6 +351,8 @@ export class World {
     // Ground-level height for things placed on the island (walkers, NPCs, grass): overhangs above the ground are skipped.
     const hw = (x: number, z: number, y?: number) => this.heights.heightAt(x, z, y ?? terrain.heightAt(x, z));
     const flora = (id: string, placements: Placement[], opts?: Parameters<typeof floraSet>[2] & { trunk?: number }) => {
+      // Trees and bushes keep off the landmarks: nothing grows through a statue or a tower.
+      if (/tree|pine|birch|palm|bush|cypress/.test(id)) placements = placements.filter((p) => !LANDMARK_CLEARINGS.some((c) => Math.hypot(p.x - c.x, p.z - c.z) < c.r));
       // No tree grows where someone stands: a crown over an NPC's spot hid their head in it (Mother Marrow's pine).
       if (TREES.has(id)) placements = placements.filter((p) => !Object.values(ANCHORS).some((a) => (a.x - p.x) ** 2 + (a.z - p.z) ** 2 < TREE_CLEAR ** 2));
       // Trees are solid at the trunk (climbable, like any trunk), never at the crown.
@@ -469,24 +475,11 @@ export class World {
       caveLight.position.copy(cave.position);
       this.group.add(caveLight);
     }
-    if (PRESENT_MODELS.has('floating-rock')) for (let i = 0; i < 14; i++) {
-      const radius = 14 + ((i * 41) % 20);
-      const height = towerY + 6 + ((i * 23) % 24);
-      const speed = 0.03 + ((i * 13) % 5) * 0.012;
-      let angle = (i / 14) * Math.PI * 2;
-      // Keep the orbit clear of the cave mouth so rocks never seal the doorway.
-      const caveAng = Math.atan2(caveZ - tw.z, caveX - tw.x);
-      if (Math.abs(Math.atan2(Math.sin(angle - caveAng), Math.cos(angle - caveAng))) < 0.55 && radius < 18) angle += 1.1;
-      this.place(modelLandmark('floating-rock', tw.x + Math.cos(angle) * radius, tw.z + Math.sin(angle) * radius, height, {
-        collider: 'none',
-        update: (dt, root) => { angle += dt * speed; root.position.set(tw.x + Math.cos(angle) * radius, height + Math.sin(angle * 9 + i) * 1.2, tw.z + Math.sin(angle) * radius); root.rotation.y += dt * 0.08; },
-      }));
-    }
     const tr = LAYOUT.treehouse;
     this.place(modelLandmark('treehouse', tr.x, tr.z, h(tr.x, tr.z) - 0.6, { yaw: Math.PI / 2 }));
     // (Beside the stone head on the north half: the last flat open ground there. It once stood over the chasm.)
     this.place(modelLandmark('nave', 18, -136, h(18, -136) - 0.4, { yaw: 0 }));
-    this.place(modelLandmark('archgate', 58, -90, h(58, -90) - 0.3, { yaw: 0.5 }));
+    this.place(modelLandmark('archgate', 70, -72, h(70, -72) - 0.3, { yaw: 0.5 }));
     // Things that only make sense once their model exists: the palm island's falls, the burning castle's blaze.
     if (PRESENT_MODELS.has('palmisland')) {
       this.place(modelLandmark('palmisland', 72, 89, 34, { collider: 'none', update: (dt, root) => { root.position.y = 34 + Math.sin(performance.now() * 0.0004) * 0.6; void dt; } }));
@@ -1136,3 +1129,9 @@ function cutDoor(root: Object3D, d: { x: number; z: number; halfWidth: number; f
     mesh.material = m;
   });
 }
+
+/** Ground kept clear of trees around the island's landmarks (x, z, radius). */
+const LANDMARK_CLEARINGS = [
+  { x: 10, z: -96, r: 11 }, { x: 70, z: -72, r: 8 }, { x: 18, z: -136, r: 15 }, { x: 83, z: 32, r: 15 }, { x: -90, z: 30, r: 11 },
+  { x: 88, z: -103, r: 12 }, { x: 44, z: -104, r: 17 }, { x: 68, z: -18, r: 34 }, { x: 106, z: -13, r: 11 },
+];
