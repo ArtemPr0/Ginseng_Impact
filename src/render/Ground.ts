@@ -45,7 +45,7 @@ export const LAYER_TINT: ReadonlyArray<readonly [number, number, number]> = [
   [0.332, 0.392, 0.551], // snow (its sparkle included)
   [0.504, 0.531, 0.635], // sand
   [0.352, 0.123, 0.211], // dead leaves
-  [0.495, 0.495, 0.536], // marble
+  [0.22, 0.18, 0.3], // marble
   [0.032, 0.082, 0.101], // seabed
   [0, 0, 0], // wet (modifier)
 ];
