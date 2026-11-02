@@ -543,6 +543,12 @@ export class CombatSystem {
   }
 
   /** Max HP including charm and weapon affixes and the level. */
+  /** A share of the active hero's full health gone (a fall off the world): it can hurt, never kill. */
+  loseShare(share: number): void {
+    const me = this.active;
+    this.hp.set(me.id, Math.max(1, this.hp.get(me.id)! - this.maxOf(me) * share));
+  }
+
   private maxOf(me: CharacterDef): number {
     return (me.maxHp + this.d.inventory.hpBonus(me.id)) * hpMult(this.level);
   }

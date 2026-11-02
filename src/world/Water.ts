@@ -47,44 +47,59 @@ uniform float uTime; uniform vec3 uDeep; uniform vec3 uShallow; uniform vec3 uFo
 uniform vec4 uDisc; uniform vec4 uEye;
 varying vec2 vUv; varying vec3 vWorld;
 ${WATER_COMMON}
-// Wave heights: two scrolling layers, small and smaller.
+// One ridged swell: sharper crests than plain noise, the way water piles up.
+float ridge(vec2 p) { return 1.0 - abs(vnoise(p) * 2.0 - 1.0); }
+// The surface's height: long swells bent by a slow warp, chop over them, fine ripples over that, each moving its own way.
 float waves(vec2 q) {
-  return vnoise(q * 0.55 + vec2(uTime * 0.35, uTime * 0.12)) * 0.6 + vnoise(q * 1.3 - vec2(uTime * 0.2, -uTime * 0.31)) * 0.3
-       + vnoise(q * 3.1 + vec2(uTime * 0.6, 0.0)) * 0.1;
+  float t = uTime;
+  vec2 w = vec2(vnoise(q * 0.19 + t * 0.07), vnoise(q * 0.23 + 9.1 - t * 0.06)) * 1.5;
+  vec2 p = q + w;
+  return ridge(p * 0.42 + vec2(t * 0.31, t * 0.1)) * 0.44 + ridge(p * 0.93 + vec2(-t * 0.27, t * 0.33)) * 0.27
+       + vnoise(p * 2.4 + vec2(t * 0.8, -t * 0.5)) * 0.17 + vnoise(p * 5.3 + vec2(-t * 1.2, t * 0.9)) * 0.12;
 }
 void main() {
   // A river flows along its ribbon (uv.x is metres / 30 along it, uv.y across); a pond is still (world xz).
-  vec2 q = uFlow > 0.5 ? vec2(vUv.x * 30.0 - uTime * uFlow, vUv.y * uWidth) : vWorld.xz;
-  float e = 0.12;
+  bool flows = uFlow > 0.5;
+  vec2 q = flows ? vec2(vUv.x * 30.0 - uTime * uFlow, vUv.y * uWidth) : vWorld.xz;
+  vec3 toEye = cameraPosition - vWorld;
+  float dist = length(toEye);
+  vec3 V = toEye / dist;
+  float e = 0.07;
   float h0 = waves(q), hx = waves(q + vec2(e, 0.0)), hz = waves(q + vec2(0.0, e));
-  vec3 N = normalize(vec3(-(hx - h0) / e * 0.35, 1.0, -(hz - h0) / e * 0.35));
-  vec3 V = normalize(cameraPosition - vWorld);
-  float fres = 0.03 + 0.97 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
-  vec3 refl = skyColor(reflect(-V, N));
-  float n = fbm(q * 0.18 + uTime * 0.02);
-  vec3 body = mix(uDeep, uShallow, smoothstep(0.25, 0.85, n)) * (0.55 + h0 * 0.5);
-  // Light caught under the surface where the waves crest.
-  body += uShallow * smoothstep(0.62, 0.9, h0) * 0.35;
+  // Far water calms (the ripples are smaller than a pixel there and would only shimmer).
+  float rough = clamp(1.25 / (1.0 + dist * 0.016), 0.22, 1.0);
+  vec2 tilt = vec2(hx - h0, hz - h0) / e * 0.34 * rough;
+  // (On a ribbon the tilt is in flow space: turned back into the world by the ribbon's own axis would need its tangent;
+  // ripples have no direction of their own, so the raw tilt reads the same.)
+  vec3 N = normalize(vec3(-tilt.x, 1.0, -tilt.y));
+  float fres = 0.025 + 0.975 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
+  vec3 R = reflect(-V, N);
+  R.y = abs(R.y);
+  vec3 refl = skyColor(R);
+  // The body: deep water, lighter where the slow shallows drift, lit through the wave faces that lean toward you.
+  float n = fbm(q * 0.075 + uTime * 0.012);
+  vec3 body = mix(uDeep, uShallow, 0.1 + 0.34 * n);
+  body += uShallow * pow(clamp(h0 - 0.42, 0.0, 1.0) * 1.7, 2.0) * (0.3 + 0.7 * max(dot(N.xz, -V.xz) * 3.0, 0.0));
   // Near the eye pool the river turns into the reference's psychedelic flow.
   float trip = 0.0;
   if (uEye.w > 0.0) {
     trip = (1.0 - smoothstep(uEye.z * 0.35, uEye.z, distance(vWorld.xz, uEye.xy))) * uEye.w;
     if (trip > 0.0) body = mix(body, tripColor(q, uTime), trip);
   }
-  vec3 c = mix(body, refl, fres * (1.0 - trip * 0.5));
-  // Foam: streaks in the current and a lace along a river's banks.
-  float streak = smoothstep(0.6, 0.85, vnoise(vec2(q.x * 0.9, q.y * 2.4))) * 0.25;
-  float bank = uFlow > 0.5 ? (1.0 - smoothstep(0.0, 0.1, vUv.y)) + (1.0 - smoothstep(0.0, 0.1, 1.0 - vUv.y)) : 0.0;
-  float lace = bank * smoothstep(0.4, 0.75, vnoise(q * 2.2 + uTime * 0.8));
-  c += uFoam * (streak * (1.0 - trip) + lace * 0.7);
-  // Moonlit sparkle on the crests.
-  float glint = pow(max(dot(reflect(-V, N), uMoonDir), 0.0), 60.0) * smoothstep(0.7, 0.95, h0);
-  c += uMoonCol * glint * 2.5;
+  vec3 c = mix(body, refl, min(1.0, fres * (1.0 - trip * 0.5) + 0.05));
+  // Foam: thin strings drawn out along the current, and a lace along a river's banks.
+  float bank = flows ? (1.0 - smoothstep(0.02, 0.17, vUv.y)) + (1.0 - smoothstep(0.02, 0.17, 1.0 - vUv.y)) : 0.0;
+  float strings = flows ? vnoise(vec2(q.x * 0.11, q.y * 2.7)) * vnoise(vec2(q.x * 0.31 + 4.0, q.y * 1.1 + 2.0)) : 0.0;
+  float lace = bank * smoothstep(0.42, 0.72, vnoise(q * vec2(0.9, 2.6)) + h0 * 0.25);
+  c += uFoam * (smoothstep(0.3, 0.52, strings) * 0.14 * (1.0 - trip) + lace * 0.42);
+  // Moonlight breaking on the facets: small, hard and restless, never a patch.
+  float sp = max(dot(R, uMoonDir), 0.0);
+  c += uMoonCol * (pow(sp, 420.0) * 3.2 + pow(sp, 60.0) * 0.1) * smoothstep(0.25, 0.8, h0);
   float edge = uDisc.w > 0.0
     ? 1.0 - smoothstep(uDisc.z, uDisc.w, distance(vWorld.xz, uDisc.xy))
     : smoothstep(0.0, 0.12, vUv.y) * smoothstep(1.0, 0.88, vUv.y);
   if (edge <= 0.002) discard;
-  gl_FragColor = vec4(c, mix(0.8, 0.97, max(fres, trip)) * edge + 0.03);
+  gl_FragColor = vec4(c, mix(0.86, 0.98, max(fres, trip)) * edge + 0.02);
 }`;
 
 /**
@@ -494,7 +509,7 @@ export function waterSheet(x: number, z: number, w: number, d: number, level: nu
  * A stream running down a sloped bed (the forest gorge's floor): a ribbon through `points` ([x, z, surface y]),
  * `half` metres either side of its centre line, flowing from the first point to the last.
  */
-export function waterRibbon(points: ReadonlyArray<readonly [number, number, number]>, half: number): Landmark {
+export function waterRibbon(points: ReadonlyArray<readonly [number, number, number]>, half: number, colors: [number, number, number] = [0x061a70, 0x3a8cff, 0xd0e4ff], flow = 3.2): Landmark {
   const pos: number[] = [];
   const uv: number[] = [];
   const idx: number[] = [];
@@ -514,7 +529,7 @@ export function waterRibbon(points: ReadonlyArray<readonly [number, number, numb
   geo.setAttribute('position', new Float32BufferAttribute(pos, 3));
   geo.setAttribute('uv', new Float32BufferAttribute(uv, 2));
   geo.setIndex(idx);
-  const mat = waterMaterial(0x061a70, 0x3a8cff, 0xd0e4ff, 3.2, half * 2);
+  const mat = waterMaterial(colors[0], colors[1], colors[2], flow, half * 2);
   const mesh = new Mesh(geo, mat);
   mesh.renderOrder = 2;
   const g = new Group();

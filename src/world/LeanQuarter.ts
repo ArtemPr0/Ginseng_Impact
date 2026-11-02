@@ -26,7 +26,6 @@ import { Glints, LEAN, meteors, mistLayers, ringedPlanet, skyVortex, tickLeanFx 
 import { clipAbove, patchLitWindows } from '../render/Materials';
 import { PALETTE } from '../render/palette';
 import { PipeSmoke } from '../render/Smoke';
-import type { Footprint } from './Colliders';
 import { cascade } from './Falls';
 import { fire, PURPLE_FIRE } from './Fire';
 import type { Placement } from './Flora';
@@ -83,15 +82,8 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
 
   // ===== Floors and walls =====
   const rect = (r: readonly [number, number, number, number]) => ({ x: (r[0] + r[1]) / 2, z: (r[2] + r[3]) / 2, w: r[1] - r[0], d: r[3] - r[2] });
-  const wall = (x: number, z: number, hw: number, hd: number): Footprint => ({ kind: 'box', x, z, hw, hd, top: gy + 6 });
   const court = rect(Q.court), moat = rect(Q.moat);
-  // The quarters stand on the kingdom sculpt (RealmGround). The walls still keep the void out.
-  api.place({ object: new Group(), footprints: [
-    // Unseen walls round the quarters (the plaza's east edge stays open onto the lean waves).
-    wall(1000, -185.5, 60.5, 0.5), wall(1060.5, -135, 0.5, 50), wall(939.5, -112.5, 0.5, 72.5),
-    wall(860, -40.5, 80.5, 0.5), wall(779.5, 17.5, 0.5, 58), wall(820, 75.5, 40, 0.5),
-    wall(859.5, 125, 0.5, 50.5), wall(910, 175.5, 50.5, 0.5), wall(960.5, 125, 0.5, 50), wall(1010, 75.5, 50, 0.5),
-  ] });
+  // The quarters stand on the kingdom sculpt (RealmGround), open to their cliffs.
 
   // ===== The Skeleton Court, north (Def4LDkxikA) =====
   api.group.add(mistLayers(court.x, court.z - 5, court.w, court.d - 10, gy, 0x5a26b0, 0.26, 3));

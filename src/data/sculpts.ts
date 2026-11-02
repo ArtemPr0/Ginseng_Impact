@@ -83,7 +83,7 @@ export interface LayerRect extends Shape {
  * bed over `bank` metres (default WATER_BANK; 0 = a channel cut straight down). `cut: false` leaves the ground under
  * the water to the pads (a walled channel whose bed is a pad with grid-exact walls inside the sheet: the lean moat).
  */
-export interface WaterRect { rect: Rect; level: number; bed: number; bank?: number; cut?: boolean }
+export interface WaterRect { rect: Rect; level: number; bed: number; bank?: number; cut?: boolean; /** The channel winds: x shifts by this at z. */ meander?: (z: number) => number }
 
 /** A dome of extra relief: `height` at its centre, easing to 0 at `disc.r`; `falloff` 0..1 is the share of the radius the ease takes (1 = a full smoothstep dome). */
 export interface ExtraHill { disc: Disc; height: number; falloff: number }
@@ -406,6 +406,7 @@ const GALAXY_SCULPT: RealmSculpt = {
     extra: [{ name: 'plaza-south', rect: [956, 1044, 76, 80], margin: 18, wobble: 3 }],
   },
   edge: { kind: 'cliff', drop: 70, width: 22, lip: 1.2 },
+  crag: { amp: 5, wavelength: 20, ledge: 6 },
   water: [{ rect: Q.moat, level: MOAT_LEVEL, bed: MOAT_BED, cut: false }],
   layerRects: [
     { rect: Q.court, layer: 'flagstone', warp: 5, blend: 10 },
@@ -450,7 +451,14 @@ export const VALE_HEAD_Y = VY + 5;
 /** The crowned head's hill: a mesa whose level top is the seat, easing down to the meadows by r 40 (the fbm hills masked off on it). */
 export const VALE_DOME: ExtraHill = { disc: { x: VALE_HEAD_SEAT.x, z: VALE_HEAD_SEAT.z, r: 40 }, height: VALE_HEAD_Y - VY, falloff: 1 - VALE_HEAD_SEAT.r / 40 };
 /** The river (Vale.ts: riverX = X − 45, 10 m wide, z0..z1 = Z − 120..Z + 125), its surface at vy − 0.35 over a bed 2.2 m down. */
-export const VALE_RIVER: WaterRect = { rect: [VALE.x - 50, VALE.x - 40, VALE.z - 120, VALE.z + 125], level: VY - 0.35, bed: VY - 2.2 };
+/** How far the river swings either side of its line; it crosses the line at the bridge, where the banks are level. */
+export const VALE_MEANDER_AMP = 7;
+const VALE_BRIDGE_Z = VALE.z + 40;
+export const valeMeander = (z: number): number => {
+  const d = z - VALE_BRIDGE_Z;
+  return -VALE_MEANDER_AMP * (0.68 * Math.sin(d * 0.031) + 0.32 * Math.sin(d * 0.067)) * smoothstep(5, 22, Math.abs(d));
+};
+export const VALE_RIVER: WaterRect = { rect: [VALE.x - 50, VALE.x - 40, VALE.z - 120, VALE.z + 125], meander: valeMeander, level: VY - 0.35, bed: VY - 2.2 };
 /** The bridge's banks (Vale.ts: the braziers at riverX ± 6.5, bridgeZ ± 3; the slab deck spans the water on its own collider). */
 export const VALE_BANKS: readonly [Rect, Rect] = [[VALE.x - 55, VALE.x - 50, VALE.z + 35, VALE.z + 45], [VALE.x - 40, VALE.x - 35, VALE.z + 35, VALE.z + 45]];
 /**
@@ -528,6 +536,7 @@ const VALE_SCULPT: RealmSculpt = {
     ],
   },
   edge: { kind: 'cliff', drop: 60, width: 20, lip: 1 },
+  crag: { amp: 5, wavelength: 20, ledge: 6 },
   water: [VALE_RIVER],
   extraHills: [VALE_DOME],
   layerRects: [
@@ -651,6 +660,7 @@ const GRAVEYARD_SCULPT: RealmSculpt = {
   hills: { amp: 2, wavelength: 40, seed: 31, mask: (x) => smoothstep(21, 30, Math.abs(x - GX)) },
   land: { kind: 'pads', margin: 22, wobble: 4, extra: [ALLEY_LAND] },
   edge: { kind: 'cliff', drop: 40, width: 15, lip: 0.8 },
+  crag: { amp: 5, wavelength: 20, ledge: 6 },
   layerRects: [
     // The alley's cracked slabs (the old shader painted |x| < 2.6..3.2), rock beyond the plots.
     { rect: [GX - 3, GX + 3, GZ - 122, GZ + 122], layer: 'flagstone', warp: 1.5, blend: 3, fray: 0.45 },
@@ -693,6 +703,8 @@ interface Compiled {
   layers: Array<{ start: number; end: number; layer: number; warp: number; blend: number; fray: number; reach: number; solid: number }>;
   /** Water rects: cx, cz, hx, hz, level, bed, bank, cut (1 or 0) (WATER_STRIDE each). */
   water: Float64Array;
+  /** The winding channels water rects refer to (their stride's last slot, -1 for a straight one). */
+  meanders: Array<(z: number) => number>;
   /** Extra hills (domes): x, z, r, inner radius, height (5 each). */
   domes: Float64Array;
   /** Floaters: x, z, r, gap (4 each): the land keeps `gap` metres back from each disc. */
@@ -725,7 +737,7 @@ interface Compiled {
 }
 
 const COMPILED = new WeakMap<RealmSculpt, Compiled>();
-const WATER_STRIDE = 8;
+const WATER_STRIDE = 9;
 
 /** The cliff from `top` at the border down past base − drop at `width` to the abyss (one smoothstep, no shelf). */
 function cliffHeight(top: number, e: number, base: number, drop: number, width: number): number {
@@ -758,7 +770,8 @@ function compile(s: RealmSculpt): Compiled {
     reach: l.blend * 0.5 + l.warp + 0.5, solid: l.blend * 1.25 + l.warp + 0.5,
   }));
   const water: number[] = [];
-  for (const w of s.water ?? []) water.push((w.rect[0] + w.rect[1]) * 0.5, (w.rect[2] + w.rect[3]) * 0.5, (w.rect[1] - w.rect[0]) * 0.5, (w.rect[3] - w.rect[2]) * 0.5, w.level, w.bed, w.bank ?? WATER_BANK, w.cut === false ? 0 : 1);
+  const meanders: Array<(z: number) => number> = [];
+  for (const w of s.water ?? []) water.push((w.rect[0] + w.rect[1]) * 0.5, (w.rect[2] + w.rect[3]) * 0.5, (w.rect[1] - w.rect[0]) * 0.5, (w.rect[3] - w.rect[2]) * 0.5, w.level, w.bed, w.bank ?? WATER_BANK, w.cut === false ? 0 : 1, w.meander ? meanders.push(w.meander) - 1 : -1);
   const domes: number[] = [];
   for (const h of s.extraHills ?? []) domes.push(h.disc.x, h.disc.z, h.disc.r, h.disc.r * (1 - Math.min(1, Math.max(1e-3, h.falloff))), h.height);
   const edge = s.edge;
@@ -785,7 +798,7 @@ function compile(s: RealmSculpt): Compiled {
   const c: Compiled = {
     kind: Uint8Array.from(kinds), part: Float64Array.from(nums), landParts, margin: Float64Array.from(margins), wobble: Float64Array.from(wobbles),
     disc: L.kind === 'disc' ? [L.disc.x, L.disc.z, L.disc.r, L.wobble ?? 0] : null,
-    pads, layers, water: Float64Array.from(water), domes: Float64Array.from(domes), clear: Float64Array.from(clear),
+    pads, layers, water: Float64Array.from(water), meanders, domes: Float64Array.from(domes), clear: Float64Array.from(clear),
     amp: H.amp, invL: 1 / H.wavelength, ox: H.seed * 7.31, oz: -H.seed * 3.17, mask: H.mask ?? null,
     cliff, drop, width, lip, fall, reach,
     rimH: s.rim?.height ?? 0, rimInner: s.rim?.inner ?? 1, rimInvL: 1 / (s.rim?.wavelength ?? 1),
@@ -914,10 +927,17 @@ export function landMask(s: RealmSculpt, x: number, z: number, noise: Noise2D): 
 }
 
 /** Banks raised above each water rect's surface round it, the ground inside cut down to its bed (unless a pad shapes it). */
+/** Distance outside water rect `i` (W index), its channel winding where it does. */
+function waterSd(c: Compiled, i: number, x: number, z: number): number {
+  const W = c.water;
+  const m = W[i + 8] >= 0 ? c.meanders[W[i + 8]](z) : 0;
+  return sdBox(x - m, z, W[i], W[i + 1], W[i + 2], W[i + 3]);
+}
+
 function applyWater(c: Compiled, x: number, z: number, h: number): number {
   const W = c.water;
   for (let i = 0; i < W.length; i += WATER_STRIDE) {
-    const d = sdBox(x, z, W[i], W[i + 1], W[i + 2], W[i + 3]);
+    const d = waterSd(c, i, x, z);
     if (d >= BANK_OUT) continue;
     const shore = W[i + 4] + FREEBOARD;
     if (d > 0) {
@@ -977,7 +997,7 @@ export function realmHeight(s: RealmSculpt, x: number, z: number, noise: Noise2D
           const q = (top - h) / c.ledge;
           const f = q - Math.floor(q);
           // (Measured down from the rim: a shelf where the depth is just past a whole step.)
-          const stepped = top - c.ledge * (Math.floor(q) + smoothstep(0, 0.5, f));
+          const stepped = top - c.ledge * (Math.floor(q) + smoothstep(0, 0.8, f));
           h = Math.min(h, lerp(h, stepped, k * 0.85));
         }
       }
@@ -1029,7 +1049,7 @@ function layerWeights(s: RealmSculpt, x: number, z: number, slope: number, noise
   // Wet within 3 m of water (or everywhere, under the sea).
   let wet = s.wet ?? 0;
   const W = c.water;
-  for (let i = 0; i < W.length; i += WATER_STRIDE) wet = Math.max(wet, 1 - smoothstep(0, 3, sdBox(x, z, W[i], W[i + 1], W[i + 2], W[i + 3])));
+  for (let i = 0; i < W.length; i += WATER_STRIDE) wet = Math.max(wet, 1 - smoothstep(0, 3, waterSd(c, i, x, z)));
   out[LAYER.wet] = Math.min(1, Math.max(0, wet));
   // Out on the cliff band and beyond, nothing but rock.
   const e = landSd(c, x, z, noise ? borderWarp(x, z, noise) : 0);
@@ -1046,7 +1066,7 @@ function layerWeights(s: RealmSculpt, x: number, z: number, slope: number, noise
   for (let i = 0; i < layers.length; i++) paint(out, layers[i].layer, coverage(c, layers[i], x, z, noise));
   // The bed under the water.
   for (let i = 0; i < W.length; i += WATER_STRIDE) {
-    paint(out, LAYER.seabed, 1 - smoothstep(-1.5, 0.5, sdBox(x, z, W[i], W[i + 1], W[i + 2], W[i + 3])));
+    paint(out, LAYER.seabed, 1 - smoothstep(-1.5, 0.5, waterSd(c, i, x, z)));
   }
   paint(out, LAYER.rock, Math.max(smoothstep(0.45, 0.8, slope), band));
 }

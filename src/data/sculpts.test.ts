@@ -9,6 +9,7 @@ import {
   REALM_SCULPTS, SEABED_FALL, SNOW_FLATS, VALE_DOME, VALE_HEAD_PATH, VALE_HEAD_SEAT, VALE_HEAD_Y, VALE_PATH, VALE_PATH_GRADE, VALE_RIVER,
   hillHeight, landDistance, landMask, onGrid, padMask, padY, realmField, realmHeight, realmLayers, realmTint, sculptFor, sdRect,
   sdSeg, sdShape, snowY, type Pad, type RealmSculpt,
+  valeMeander,
 } from './sculpts';
 import { ANCHORS, GALAXY, GRAVEYARD, LEAN_QUARTER, REALMS, SUNKEN, VALE } from './world';
 
@@ -467,10 +468,10 @@ describe('realm sculpts: the land', () => {
       }
       for (let k = 0; k < N; k++) {
         if (wet[k] || wet[k + 1]) continue;
-        // No tears anywhere (a 0.1 m step never jumps more than a gradient of 8 allows, cliffs included: their steepest
-        // ground is about 6.2, see the scan below)…
+        // No tears anywhere (a 0.1 m step never jumps more than a gradient of 18 allows, cliffs included: their rock ledges
+        // reach about 17, see the scan below)…
         const dh = Math.abs(hs[k + 1] - hs[k]);
-        if (!(dh < 0.8)) bad.push(`${s.id} (${xs[k].toFixed(2)}, ${zs[k].toFixed(2)}) → 0.1 m: ${dh.toFixed(3)}`);
+        if (!(dh < 1.8)) bad.push(`${s.id} (${xs[k].toFixed(2)}, ${zs[k].toFixed(2)}) → 0.1 m: ${dh.toFixed(3)}`);
         // …and on the land, under 1.5 m a metre.
         if (k + 10 > N || wet[k + 10] || !land[k] || !land[k + 10]) continue;
         const dm = Math.abs(hs[k + 10] - hs[k]);
@@ -482,9 +483,9 @@ describe('realm sculpts: the land', () => {
 
   for (const s of SCULPTS) {
     if (s.edge.kind !== 'cliff') continue;
-    it(`${s.id}: the steepest cliff ground (every metre of the cliff band, central differences) is under a gradient of 8`, () => {
-      // The cliff's smoothstep is 4.2..4.6 steep straight across the border; the border's fbm warp adds its own gradient
-      // where it bends, up to about 6.2 (the kingdom's). Not one sample of the band may tear past 8.
+    it(`${s.id}: the steepest cliff ground (every metre of the cliff band, central differences) is under a gradient of 18`, () => {
+      // The cliff's smoothstep is 4.2..4.6 steep straight across the border; the crags and rock ledges lift that to about 17.
+      // Not one sample of the band may tear past 18.
       const f = realmField(s);
       const d = 0.05;
       let worst = 0, at = '', band = 0;
@@ -496,7 +497,7 @@ describe('realm sculpts: the land', () => {
         if (g > worst) { worst = g; at = `(${x}, ${z})`; }
       }
       expect(band).toBeGreaterThan(5000);
-      expect(worst, `steepest ${worst.toFixed(2)} at ${at}`).toBeLessThan(8);
+      expect(worst, `steepest ${worst.toFixed(2)} at ${at}`).toBeLessThan(18);
       // And it is a cliff: steeper than its smoothstep alone somewhere.
       expect(worst).toBeGreaterThan(4);
     }, SCAN_TIMEOUT);
@@ -569,9 +570,11 @@ describe('realm sculpts: the land', () => {
     for (let z = 790; z <= 1020; z += 5) expect(landMask(v, 1095, z, noise), `x 1095, z ${z}`).toBe(0);
     // (The bed rises to the shore over its last WATER_BANK metres at each end, so the sheet's ends sink into the banks.)
     for (let z = 784; z <= 1021; z += 3) {
-      expect(landMask(v, 955, z, noise), `river at z ${z}`).toBe(1);
-      expect(h(v, 955, z)).toBeCloseTo(VALE.y - 2.2, 1); // (Within millimetres: the warped land border's blend reaches the bed at the ends.)
-      for (const x of [947, 963]) expect(h(v, x, z), `bank (${x}, ${z})`).toBeGreaterThanOrEqual(VALE_RIVER.level + FREEBOARD - 1e-9);
+      // (It winds: the channel's middle is the line plus the meander, its banks follow.)
+      const mid = 955 + valeMeander(z);
+      expect(landMask(v, mid, z, noise), `river at z ${z}`).toBe(1);
+      expect(h(v, mid, z)).toBeCloseTo(VALE.y - 2.2, 1); // (Within millimetres: the warped land border's blend reaches the bed at the ends.)
+      for (const x of [mid - 8, mid + 8]) expect(h(v, x, z), `bank (${x}, ${z})`).toBeGreaterThanOrEqual(VALE_RIVER.level + FREEBOARD - 1e-9);
     }
   });
 

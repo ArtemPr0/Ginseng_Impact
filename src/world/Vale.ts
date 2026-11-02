@@ -12,7 +12,7 @@
  * Buildings, props and creatures are Meshy models by id; the ground, water, fire, smoke and sky are procedural.
  */
 import { Color, Group, type Mesh, type MeshStandardMaterial, Vector3 } from 'three';
-import { ISLAND_PORTALS, VALE } from '../data/world';
+import { CLOUD_LEVEL, ISLAND_PORTALS, VALE } from '../data/world';
 import { MODELS } from '../data/models';
 import { glowSprite } from '../render/Glow';
 import { horizonMoon, skyVortex } from '../render/LeanFx';
@@ -26,12 +26,15 @@ import { modelLandmark } from './ModelLandmark';
 import { PRESENT_MODELS } from '../data/colliderGrids';
 import { portal, type PortalLink } from './Portal';
 import type { RealmApi } from './Realms';
-import { floorSlab } from './Walkways';
-import { waterSheet } from './Water';
+import { chainSpan, witchBridgeDeck } from './Walkways';
+import { waterRibbon } from './Water';
+import { VALE_MEANDER_AMP, valeMeander } from '../data/sculpts';
 
 /** Rotation that turns a model's front (local +z) toward world direction `yaw` (cos, sin). */
 const face = (yaw: number) => Math.PI / 2 - yaw;
 const LANTERN = 0xffa040;
+/** How high over the vale the castle's rock foot hangs: low enough for its west shelf to be walked to. */
+const VALE_CASTLE_LIFT = 3;
 /** Where the hero comes in from the island, at the street's south end, facing north up it. */
 export const VALE_ARRIVAL = { x: VALE.x, z: VALE.z + 106 };
 
@@ -75,13 +78,9 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
   const fx = new Group();
   const updates: Array<(dt: number) => void> = [];
   api.vfx({ group: fx, update: (dt) => { for (const u of updates) u(dt); } });
-  // The vale stands on its sculpt. Unseen walls at the edges; the river is water over the sculpted bed.
-  const x0 = X - 110, x1 = X + 100, z0 = Z - 120, z1 = Z + 125;
+  // The vale stands on its sculpt, open to its cliffs; the river is water over the sculpted bed.
+  const z0 = Z - 120, z1 = Z + 125;
   const riverX = X - 45;
-  api.place({ object: new Group(), footprints: [
-    { kind: 'box', x: x0 - 0.5, z: (z0 + z1) / 2, hw: 0.5, hd: (z1 - z0) / 2 + 1, top: vy + 6 }, { kind: 'box', x: x1 + 0.5, z: (z0 + z1) / 2, hw: 0.5, hd: (z1 - z0) / 2 + 1, top: vy + 6 },
-    { kind: 'box', x: (x0 + x1) / 2, z: z0 - 0.5, hw: (x1 - x0) / 2 + 1, hd: 0.5, top: vy + 6 }, { kind: 'box', x: (x0 + x1) / 2, z: z1 + 0.5, hw: (x1 - x0) / 2 + 1, hd: 0.5, top: vy + 6 },
-  ] });
   // The way home: the arch behind where you arrive, between two lantern posts like the island's (it hung alone).
   api.place(portal(X, vy + 2.4, VALE_ARRIVAL.z + 8, 1.7, { vertical: true, facing: -Math.PI / 2, colors: [0x0a2a1a, 0xffb050] }));
   for (const dx of [-2.4, 2.4]) {
@@ -161,12 +160,19 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
   glow(0x7fd8ff, 0.9, X - 5, vy + 0.72, Z + 4.72, 0.45);
 
   // --- West: the river, the stone bridge between braziers, the crowned head on its hill ---
-  api.place(waterSheet(riverX, (z0 + z1) / 2, 10, z1 - z0, vy - 0.35, [0x041628, 0x1c5a8a, 0xa8d0ff]));
-  api.water?.(riverX - 5, riverX + 5, z0, z1, vy - 0.35);
+  {
+    // It winds, and it runs: a ribbon over the sculpt's meandering bed, flowing south to the cliff.
+    const bed: Array<[number, number, number]> = [];
+    for (let z = z0 - 4; z <= z1 + 12; z += 3) bed.push([riverX + valeMeander(z), z, vy - 0.35]);
+    api.place(waterRibbon(bed, 6.6, [0x041628, 0x1c5a8a, 0xa8d0ff], 1.7));
+  }
+  api.water?.(riverX - 5 - VALE_MEANDER_AMP, riverX + 5 + VALE_MEANDER_AMP, z0, z1, vy - 0.35);
   const bridgeZ = Z + 40;
-  api.place(floorSlab(riverX, bridgeZ, vy, 11, 5));
-  api.place(modelLandmark('witch-bridge', riverX, bridgeZ, vy - 1.2, { yaw: face(0), collider: 'none' }));
-  for (const [dx, dz] of [[6.5, -3], [6.5, 3], [-6.5, -3], [-6.5, 3]]) {
+  // Bank to bank across the current, its deck following the arch (its 22 m span lands on the flat banks either side).
+  const deck = witchBridgeDeck(riverX, bridgeZ, api.h);
+  api.place(deck);
+  api.place(modelLandmark('witch-bridge', riverX, bridgeZ, deck.baseY, { collider: 'none', onLoad: () => { deck.object.visible = false; deck.object.userData.hidden = true; } }));
+  for (const [dx, dz] of [[13, -3.4], [13, 3.4], [-13, -3.4], [-13, 3.4]]) {
     const x = riverX + dx, z = bridgeZ + dz;
     api.place(modelLandmark('brazier', x, z, vy, { footprints: [{ kind: 'cyl', x, z, r: 0.6, top: vy + 1.3 }] }));
     api.vfx(fire(x, vy + 1.5, z, 0.55, dx > 0 ? 9 : 0));
@@ -190,17 +196,30 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
 
   // --- East: the floating castle over the clouds, its chained platforms and lanterns ---
   {
-    // (Still and solid, as it looks, 35 m nearer the vale's edge: you can fly over and land on its rock and roofs.)
-    const cx = X + 130, cz = Z + 10, cy = vy + 18;
+    // (Still and solid, as it looks: you can walk the chains across to its rock, or fly over and land on its roofs.)
+    const cx = X + 130, cz = Z + 10, cy = vy + VALE_CASTLE_LIFT;
     api.place(modelLandmark('floating-castle', cx, cz, cy, { yaw: face(Math.PI) }));
     // (Its falls only once there is a castle to pour them.)
-    if (PRESENT_MODELS.has('floating-castle')) for (const [dx, dz, w] of [[-14, -6, 4], [-14, 9, 3]] as const) api.place(cascade({ x: cx + dx, z: cz + dz, top: cy + 12, height: 40, width: w, yaw: -Math.PI / 2, curve: 2 }));
+    if (PRESENT_MODELS.has('floating-castle')) for (const [dx, dz, w] of [[-14, -6, 4], [-14, 9, 3]] as const) api.place(cascade({ x: cx + dx, z: cz + dz, top: cy + 12, height: cy + 12 - (CLOUD_LEVEL.vale ?? -30) + 2, width: w, yaw: -Math.PI / 2, curve: 2, foot: false }));
     // (Two between the vale's edge and the castle, stepping stones to fly by; two beyond it. Clear of its 30 m rock.)
     const plats: Array<[number, number, number]> = [[X + 106, Z - 6, vy + 3], [X + 108, Z + 30, vy + 7], [X + 152, Z - 22, vy + 11], [X + 150, Z + 44, vy + 2]];
     plats.forEach(([px, pz, py], i) => {
       api.place(modelLandmark('chained-platform', px, pz, py, { yaw: i * 1.7 }));
       glow(LANTERN, 2.2, px, py + 1.4, pz, 0.55);
     });
+    // The way over: planks on chains from the vale's edge to the first platform, and on to the castle's west shelf.
+    const tile = MODELS['chasm-bridge'].height;
+    const shelfY = cy + 5;
+    const platY = plats[0][2] + 4.9;
+    for (const span of [
+      chainSpan(X + 84, Z - 5, api.h(X + 84, Z - 5) + 0.05, X + 103.5, Z - 6, platY, tile),
+      chainSpan(X + 108.5, Z - 5, platY, X + 118, Z + 3, shelfY, tile),
+    ]) { api.place(span); api.flora('chasm-bridge', span.tiles); }
+    for (const dz of [-2, 2]) {
+      const y = api.h(X + 83, Z - 5 + dz);
+      api.place(modelLandmark('lantern-post', X + 83, Z - 5 + dz, y, { footprints: [{ kind: 'cyl', x: X + 83, z: Z - 5 + dz, r: 0.2, top: y + 2.5 }] }));
+      glow(LANTERN, 1.8, X + 83, y + 2.3, Z - 5 + dz, 0.6);
+    }
     const vortex = skyVortex(380, [0x4a2a9a, 0xa04ab0]);
     vortex.position.set(cx + 160, vy + 170, cz);
     vortex.lookAt(X, vy + 40, Z);

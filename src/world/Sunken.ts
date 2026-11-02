@@ -73,11 +73,7 @@ export function buildSunken(api: RealmApi, link: (at: Vector3, radius: number, h
   };
   const [fx0, fx1, fz0, fz1] = SUNKEN_FLOOR;
   const fw = fx1 - fx0, fd = fz1 - fz0, fcx = (fx0 + fx1) / 2, fcz = (fz0 + fz1) / 2;
-  // The city stands on its sculpt. Unseen walls round the old slab (beyond it the murk hides a long fall).
-  api.place({ object: new Group(), footprints: [
-    { kind: 'box', x: fx0 - 0.5, z: fcz, hw: 0.5, hd: fd / 2 + 1, top: sy + 6 }, { kind: 'box', x: fx1 + 0.5, z: fcz, hw: 0.5, hd: fd / 2 + 1, top: sy + 6 },
-    { kind: 'box', x: fcx, z: fz0 - 0.5, hw: fw / 2 + 1, hd: 0.5, top: sy + 6 }, { kind: 'box', x: fcx, z: fz1 + 0.5, hw: fw / 2 + 1, hd: 0.5, top: sy + 6 },
-  ] });
+  // The city stands on its sculpt, the sea floor falling away into the murk.
   // ===== The water itself =====
   const fx = new Group();
   fx.add(causticFloor(fcx, fcz, fw, fd, sy));

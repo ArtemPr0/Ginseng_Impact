@@ -48,11 +48,8 @@ export function buildGraveyard(api: GraveyardApi): { links: PortalLink[]; intera
   const zGate = R.z + 85;
   const zArena = R.z - 68;
   const rnd = api.rnd;
-  // The alley stands on its sculpt. Invisible walls at the old floor's edge (beyond is the void and the fog).
+  // The alley stands on its sculpt, open to the fog.
   const solid: Footprint[] = [];
-  // Invisible walls at the floor's edge (beyond is the void and the fog).
-  for (const side of [-1, 1]) solid.push({ kind: 'box', x: R.x + side * 24.5, z: R.z, hw: 0.5, hd: 120, top: y0 + 6 });
-  solid.push({ kind: 'box', x: R.x, z: R.z + 120.5, hw: 25, hd: 0.5, top: y0 + 6 }, { kind: 'box', x: R.x, z: R.z - 120.5, hw: 25, hd: 0.5, top: y0 + 6 });
 
   // Walls either side of the path, with a gap every 30 m (a way onto the plots).
   // One segment's length (stone-wall.glb is 2.16 times as long as it is tall).

@@ -120,7 +120,7 @@ describe('groundMaterial shader', () => {
     before(/varying vec4 vColor;/, colorAt);
     before(/uniform float roughness;/, colorAt);
     before(/vec3 transformNormalByInverseViewMatrix\(/, emisAt);
-    before(/varying vec4 vA; varying vec4 vB; varying vec4 vC; varying vec3 vW; varying float vDist;/, colorAt);
+    before(/varying vec4 vA; varying vec4 vB; varying vec4 vC; varying vec3 vW; varying vec3 vNW; varying float vDist;/, colorAt);
   });
 
   it('lays the pattern over its mean on the tint, from TINT_* constants generated off LAYER_TINT', () => {

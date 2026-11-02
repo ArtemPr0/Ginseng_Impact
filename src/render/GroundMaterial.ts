@@ -51,7 +51,7 @@ ${TINT_DEFINES}
 #define MARBLE_LEVEL ${num(MARBLE_LEVEL)}
 uniform float uTime; uniform float uDetailFar; uniform float uBump; uniform float uRoughFloor;
 uniform vec3 uSkyHorizon; uniform vec3 uSkyMid; uniform vec3 uSkyZenith; uniform vec3 uSkyCloud; uniform vec3 uMoonDir; uniform vec3 uMoonCol; uniform float uSkyTime;
-varying vec4 vA; varying vec4 vB; varying vec4 vC; varying vec3 vW; varying float vDist;
+varying vec4 vA; varying vec4 vB; varying vec4 vC; varying vec3 vW; varying vec3 vNW; varying float vDist;
 ${GLSL_NOISE}
 ${GLSL_VORONOI_EDGE}
 // The sky as seen in a reflection (Water.ts WATER_COMMON's skyColor, so the gloss matches the water's sky).
@@ -80,13 +80,28 @@ vec4 mossTex(vec2 p) {
   c *= 0.7 + v * 0.5;
   return vec4(c, v * 0.6);
 }
-// Rock (the sky dock's rockTop): dark cracked rock, moss in the hollows.
-vec4 rockTex(vec2 p) {
-  vec2 cl = cells(p * 0.55);
-  float crack = smoothstep(0.0, 0.07, cl.y - cl.x);
-  vec3 c = mix(vec3(0.045, 0.05, 0.08), vec3(0.1, 0.11, 0.15), fbm(p * 0.35)) * (0.5 + 0.5 * crack);
-  c = mix(c, vec3(0.05, 0.09, 0.06), smoothstep(0.55, 0.78, fbm(p * 0.8 + 3.1)) * 0.7);
-  return vec4(c, crack);
+// Rock: beds of real stone, level layers warped by the land, broken by joints that stop and start at the bed lines.
+vec4 rockFace(vec2 uv) {
+  float y = uv.y + fbm(uv * vec2(0.035, 0.09)) * 6.0;
+  float beds = fbm(vec2(uv.x * 0.02, y * 0.42));
+  float thin = vnoise(vec2(uv.x * 0.09, y * 2.6));
+  float grit = vnoise(uv * 3.7);
+  float j = abs(vnoise(vec2(uv.x * 0.34 + floor(y * 0.5) * 7.1, y * 0.06)) - 0.5);
+  float joint = 1.0 - smoothstep(0.0, 0.035, j);
+  vec3 c = mix(vec3(0.045, 0.04, 0.045), vec3(0.13, 0.105, 0.09), smoothstep(0.28, 0.72, beds));
+  c = mix(c, vec3(0.19, 0.15, 0.115), smoothstep(0.6, 0.9, thin) * 0.55);
+  c *= (0.75 + 0.35 * grit) * (1.0 - 0.7 * joint);
+  return vec4(c, (beds * 0.5 + thin * 0.35 + grit * 0.1 - joint * 0.5) * 6.0);
+}
+// Seen from whichever side the face looks (the ground's own xz would smear it down a cliff), with broken stone and dirt
+// lying wherever the slope eases.
+vec4 rockTex(vec3 P, vec3 N) {
+  float ax = N.x * N.x * N.x * N.x, az = N.z * N.z * N.z * N.z;
+  float k = ax / max(ax + az, 1e-4);
+  vec4 side = rockFace(vec2(P.z, P.y)) * k + rockFace(vec2(P.x, P.y)) * (1.0 - k);
+  float n = fbm(P.xz * 0.6);
+  vec4 top = vec4(mix(vec3(0.05, 0.043, 0.042), vec3(0.15, 0.12, 0.1), n), vnoise(P.xz * 2.3) * 2.5);
+  return mix(side, top, smoothstep(0.42, 0.82, N.y));
 }
 // Soil: a worn earth path, dark and slightly warm-grey, mottled, with grit.
 vec4 soilTex(vec2 p) {
@@ -182,7 +197,7 @@ float gWet = vC.w;
     float wsum = 0.0, rough = 0.0, w;
     w = vA.x; if (w > 0.02) { acc += grassTex(p) * w; patternMean += TINT_GRASS * w; rough += 0.95 * w; wsum += w; }
     w = vA.y; if (w > 0.02) { acc += mossTex(p) * w; patternMean += TINT_MOSS * w; rough += 0.95 * w; wsum += w; }
-    w = vA.z; if (w > 0.02) { acc += rockTex(p) * w; patternMean += TINT_ROCK * w; rough += 0.95 * w; wsum += w; }
+    w = vA.z; if (w > 0.02) { acc += rockTex(vW, vNW) * w; patternMean += TINT_ROCK * w; rough += 0.95 * w; wsum += w; }
     w = vA.w; if (w > 0.02) { acc += soilTex(p) * w; patternMean += TINT_SOIL * w; rough += 0.95 * w; wsum += w; }
     w = vB.x; if (w > 0.02) { acc += flagstoneTex(p, vec3(0.45, 0.15, 0.9)) * w; patternMean += TINT_FLAGSTONE * w; rough += 0.6 * w; wsum += w; }
     w = vB.y; if (w > 0.02) { acc += cobbleTex(p) * w; patternMean += TINT_COBBLE * w; rough += 0.55 * w; wsum += w; }
@@ -274,10 +289,11 @@ export function groundMaterial(opts: GroundMaterialOptions = {}): MeshStandardMa
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
 attribute vec4 layerA; attribute vec4 layerB; attribute vec4 layerC;
-varying vec4 vA; varying vec4 vB; varying vec4 vC; varying vec3 vW; varying float vDist;`)
+varying vec4 vA; varying vec4 vB; varying vec4 vC; varying vec3 vW; varying vec3 vNW; varying float vDist;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
 vA = layerA; vB = layerB; vC = layerC;
 vW = (modelMatrix * vec4(transformed, 1.0)).xyz;
+vNW = normalize(mat3(modelMatrix) * objectNormal);
 vDist = distance(vW, cameraPosition);`);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>${FRAG_COMMON}`)

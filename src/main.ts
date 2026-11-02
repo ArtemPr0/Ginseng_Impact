@@ -11,7 +11,7 @@ import { Input } from './core/Input';
 import { CLOUD_LEVEL, DISTRICT_AIR, GALAXY, LAYOUT, leanDistrict, REALM_SKY, REALMS, VALE, ZONE_LIGHT } from './data/world';
 import { kingdomNight, kingdomSkyColors } from './world/Kingdom';
 import { Inventory } from './items/Inventory';
-import { riverAt } from './world/Terrain';
+import { riverAt, WORLD } from './world/Terrain';
 import { ITEMS } from './items/Items';
 import { CONTROLLER, createControllerState, startDash, stepController } from './player/CharacterController';
 import { Party } from './player/Party';
@@ -137,9 +137,16 @@ let interactIn = 0;
 // --- player ---
 // `?at=x,z` starts the party at a world position (used to check landmarks and bosses quickly).
 const atParam = new URLSearchParams(location.search).get('at')?.split(',').map(Number);
+/** Where the hero last stood well clear of an edge, how far below it counts as lost, and the height of the void. */
+const safeStand = new Vector3();
+const FALL_RECOVER = 24;
+const ABYSS_LINE = WORLD.abyssY + 10;
+let safeClock = 0;
+
 const SPAWN = atParam && atParam.length === 2 && atParam.every((n) => Number.isFinite(n)) ? new Vector3(atParam[0], 0, atParam[1]) : new Vector3(LAYOUT.spawn.x, 0, LAYOUT.spawn.z);
 SPAWN.y = world.heightAt(SPAWN.x, SPAWN.z);
 const controller = createControllerState(SPAWN);
+safeStand.copy(SPAWN);
 const party = new Party(ROSTER);
 const rigs = ROSTER.map((def) => new Rig(def));
 for (const r of rigs) {
@@ -236,6 +243,7 @@ const combat = new CombatSystem({
 /** Moves the hero (portals, doors, the frog's dream): everything that was chasing stays behind. */
 function teleport(x: number, y: number, z: number, yaw: number, name?: string): void {
   hud.curtain();
+  safeStand.set(x, y, z);
   adventures.riding = null;
   controller.pos = { x, y: y + 0.05, z };
   controller.vel = { x: 0, y: 0, z: 0 };
@@ -733,6 +741,22 @@ game
         stopFly: input.locked && input.justPressed('KeyX'),
         hold: combat.busy || combat.charging > 0,
       }, world, dt);
+      // Off the edge of the world: nothing stops you walking off a cliff; the fog sets you back where you last stood.
+      if (input.locked && !CARRIAGE.driving) {
+        const p = controller.pos;
+        const under = area.ground.heightAt(p.x, p.z);
+        safeClock -= dt;
+        if (controller.mode === 'ground' && safeClock <= 0 && under > ABYSS_LINE) {
+          safeClock = 0.4;
+          const lip = [[3, 0], [-3, 0], [0, 3], [0, -3]].some(([dx, dz]) => area.ground.heightAt(p.x + dx, p.z + dz) < p.y - 3.5);
+          if (!lip && Math.abs(p.y - world.heightAt(p.x, p.z, p.y + 1)) < 0.4) safeStand.set(p.x, p.y, p.z);
+        }
+        if (p.y < safeStand.y - FALL_RECOVER && under < p.y + 1) {
+          teleport(safeStand.x, safeStand.y, safeStand.z, controller.yaw);
+          combat.loseShare(0.08);
+          hud.announce('The fog sets you back on solid ground', { seconds: 2.2 });
+        }
+      }
       // Feats of movement, once per entry: a take-off, a swim, a climb, a mushroom bounce, taking the carriage's reins.
       if (controller.mode !== lastMode) { if (controller.mode === 'fly' || controller.mode === 'swim' || controller.mode === 'climb') events.emit({ kind: 'feat', what: controller.mode }); lastMode = controller.mode; }
       if (!!controller.bouncing !== wasBouncing) { if (controller.bouncing) events.emit({ kind: 'feat', what: 'bounce' }); wasBouncing = !!controller.bouncing; }

@@ -75,9 +75,7 @@ export const SOURCE_SECONDS: Record<HeroId, Partial<Record<ClipName, number>>> =
   // archer.glb: Idle_03 4.292, Walking 1.042, Running 0.667, Regular_Jump 1.875, Archery_Shot 5.0, Archery_Shot_1 1.0,
   // Archery_Aim_with_Lateral_Scan 5.0, Hit_Reaction 1.667, Stand_Dodge 1.417, dying_backwards 2.208, Swim_Forward 4.5, Swim_Idle 3.0.
   archer: { idle: 4.292, walk: 1.042, run: 0.667, jump: 1.875, attack: 5.0, heavy: 1.0, cast: 5.0, hit: 1.667, dodge: 1.417, death: 2.208, swim: 4.5, swimIdle: 3.0, climb: 2.0 },
-  // wizard.glb (2026-10-27): Idle_02 1.867, Walking 1.033, Running 0.633, Regular_Jump 1.867, mage_soell_cast 2.267,
-  // Charged_Spell_Cast 2.667, Hit_Reaction 1.633, Roll_Dodge_1 1.267, dying_backwards 2.2, Swim_Idle 3.0.
-  wizard: { idle: 1.867, walk: 1.033, run: 0.633, jump: 1.867, attack: 2.267, heavy: 2.667, cast: 2.667, hit: 1.633, dodge: 1.267, death: 2.2, swimIdle: 3.0 },
+  wizard: { idle: 1, walk: 1, run: 1, jump: 0.45, attack: 0.5, heavy: 0.8, cast: 0.45, hit: 0.5, dodge: 0.5, death: 1.2 },
 };
 
 /**
@@ -133,24 +131,23 @@ const ARCHER: HeroClips = {
 };
 
 /**
- * Orlan (wizard.glb). mage_soell_cast: the hand comes up by 0.3, the blow at 0.59, settled by 0.74, then a long recovery
- * nobody needs. Charged_Spell_Cast: the blow at 0.63, settled by 0.77. Roll_Dodge_1 rolls 0.05-1.15. Regular_Jump is the
- * same clip length and timing as Wren's. Keys: attack = the mage cast, heavy and cast = the charged cast.
+ * Orlan (wizard.glb is a boneless robe, so these are the procedural fallback's timings: Rig.driveStaticModel leans
+ * into the cast and thrusts the staff at `strike`). When his rigged body lands, these rows get measured like the others.
  */
 const WIZARD: HeroClips = {
   attack: [
-    { key: 'attack', from: 0.15, to: 0.95, strike: 0.55, speed: 1.8, fade: 0.08 },
-    { key: 'heavy', from: 0.2, to: 1.0, strike: 0.54, speed: 1.8, fade: 0.08 },
-    { key: 'attack', from: 0.1, to: 1.1, strike: 0.49, speed: 1.8, fade: 0.08 },
+    { key: 'attack', from: 0, to: 0.4, strike: 0.4 },
+    { key: 'attack', from: 0, to: 0.4, strike: 0.4 },
+    { key: 'attack', from: 0, to: 0.5, strike: 0.4 },
   ],
-  heavy: { key: 'heavy', from: 0.1, to: 1.3, strike: 0.44, speed: 1.3, fade: 0.1 },
+  heavy: { key: 'heavy', from: 0, to: 0.8, strike: 0.6 },
   heavyHold: 0.3,
-  skill: { key: 'cast', from: 0.2, to: 1.05, strike: 0.51, speed: 1.6, fade: 0.1 },
-  hit: { key: 'hit', from: 0, to: 1.25, speed: 1.4, fade: 0.06 },
+  skill: { key: 'cast', from: 0, to: 0.45, strike: 0.4 },
+  hit: { key: 'hit', from: 0, to: 0.5 },
   hitLayer: /spine|neck|head|arm/i,
-  dodge: { key: 'dodge', from: 0.05, to: 1.15, speed: 2, fade: 0.06 },
-  death: { key: 'death', from: 0.3, to: 2.2, fade: 0.12, keepRoot: true },
-  jump: { key: 'jump', takeoff: [0.2, 0.8], apex: 1, land: { key: 'jump', from: 1.15, to: 1.5, fade: 0.08, groundHips: true } },
+  dodge: { key: 'dodge', from: 0, to: 0.5 },
+  death: { key: 'death', from: 0, to: 1.2 },
+  jump: { key: 'jump', takeoff: [0, 0.3], apex: 1, land: { key: 'jump', from: 0.3, to: 0.45 } },
   walk: 'walk',
   run: 'run',
 };

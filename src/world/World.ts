@@ -311,7 +311,6 @@ export class World {
   /** Sculpted floors of the four realms. HeightWorld reads them; the mesh is baked on the first visit. */
   readonly realmGround = new RealmGrounds();
   /** Rim colliders added once per sculpted realm (first visit). */
-  private readonly realmRimAdded = new Set<string>();
   private readonly noise = new Noise2D(1337);
 
   /** The drawn ground alone, no colliders. */
@@ -483,7 +482,8 @@ export class World {
     // Things that only make sense once their model exists: the palm island's falls, the burning castle's blaze.
     if (PRESENT_MODELS.has('palmisland')) {
       this.place(modelLandmark('palmisland', 72, 89, 34, { collider: 'none', update: (dt, root) => { root.position.y = 34 + Math.sin(performance.now() * 0.0004) * 0.6; void dt; } }));
-      for (const [dx, dz] of [[20, 0], [-20, 0], [0, 20], [0, -20]] as const) this.place(waterfall(72 + dx, 89 + dz, 36, 5, 46));
+      // Two falls off the rock's real rim (measured: 8.2 m out, 13 m up its 28 m), down into the cloud sea.
+      for (const [dx, dz, w] of [[7.6, 1.5, 2.6], [-4.5, 6.4, 2]] as const) this.place(waterfall(72 + dx, 89 + dz, 46.6, w, 76, false));
     }
     this.place(modelLandmark('colossus-statue', WORLD.dead.x - 14, WORLD.dead.z + 6, h(WORLD.dead.x - 14, WORLD.dead.z + 6) - 0.5, { yaw: 0.9 }));
     if (PRESENT_MODELS.has('burning-castle')) {
@@ -733,9 +733,7 @@ export class World {
     }
     const unbuilt = (p: Placement): boolean => !this.heights.near(p.x, p.z, plantPad) && !this.heights.blocked(p.x, p.z);
     flora('willow', ringSpots(WORLD.pond.x, WORLD.pond.z, 18, 6, h, rnd).filter(unbuilt));
-    const islandPalms: Placement[] = [];
-    for (let i = 0; i < 9; i++) { const a = (i / 9) * Math.PI * 2; islandPalms.push({ x: 72 + Math.cos(a) * 14, y: 36.4, z: 89 + Math.sin(a) * 14, yaw: rnd() * 6, scale: 0.9 + rnd() * 0.3 }); }
-    flora('palm', [...this.scatterDisc(rnd, WORLD.desert.x, WORLD.desert.z, WORLD.desert.r, 18, 0.8, 1.3), ...(PRESENT_MODELS.has('palmisland') ? islandPalms : [])]);
+    flora('palm', [...this.scatterDisc(rnd, WORLD.desert.x, WORLD.desert.z, WORLD.desert.r, 18, 0.8, 1.3), ]);
     flora('dead-forest-tree', this.scatterDisc(rnd, WORLD.dead.x, WORLD.dead.z, WORLD.dead.r, 60, 0.8, 1.4, 2.6).filter((p) => Math.hypot(p.x - WORLD.dead.x, p.z - WORLD.dead.z) > 9));
     flora('gnarled-tree', ringSpots(LAYOUT.orchard.x, LAYOUT.orchard.z, 32, 14, h, rnd).filter(unbuilt));
     flora('fallen-fruit', this.scatterDisc(rnd, LAYOUT.orchard.x, LAYOUT.orchard.z, 26, 90, 0.8, 1.2), { shadows: false });
@@ -890,10 +888,6 @@ export class World {
       const g = this.realmGroups.get(id);
       if (g) {
         this.realmGround.ensure(id, g);
-        if (!this.realmRimAdded.has(id) && id in REALM_SCULPTS) {
-          this.realmRimAdded.add(id);
-          this.heights.add(...this.realmGround.rimFootprints(id));
-        }
       }
     }
     for (const child of this.group.children) {

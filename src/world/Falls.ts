@@ -102,7 +102,12 @@ export interface CascadeOptions {
   /** How far the water arcs out from the lip before it drops (metres). */
   curve?: number;
   color?: Color;
+  /** False for a fall into the void: no plunge pool, spray or mist hanging in the air where it ends. */
+  foot?: boolean;
 }
+
+/** Every fall built, for the audit (does it start on something, and end on something?). */
+export const FALLS: Array<{ x: number; z: number; yaw: number; top: number; height: number; curve: number; foot: boolean }> = [];
 
 const BLUE = new Color(0.22, 0.55, 1.35);
 
@@ -111,6 +116,8 @@ export function cascade(o: CascadeOptions): Landmark {
   const color = o.color ?? BLUE;
   const curve = o.curve ?? Math.min(3, o.height * 0.12);
   const yaw = o.yaw ?? 0;
+  const foot = o.foot !== false;
+  FALLS.push({ x: o.x, z: o.z, yaw, top: o.top, height: o.height, curve, foot });
   const g = new Group();
   g.position.set(o.x, 0, o.z);
   g.rotation.y = yaw;
@@ -158,17 +165,17 @@ export function cascade(o: CascadeOptions): Landmark {
   ring.rotation.x = -Math.PI / 2;
   ring.position.set(0, footY + 0.08, footZ);
   ring.renderOrder = 5;
-  g.add(ring);
+  if (foot) g.add(ring);
   // Mist boiling up from the foot: soft white puffs that rise, swell and thin out, one after another.
   const mistColor = new Color(0.8, 0.86, 1.0).lerp(color, 0.25).getHex();
-  const mists = Array.from({ length: 6 }, (_, i) => {
+  const mists = Array.from({ length: foot ? 6 : 0 }, (_, i) => {
     const sp = glowSprite(mistColor, 1, 0, true);
     sp.renderOrder = 6;
     g.add(sp);
     return { sp, age: i / 6, x: (Math.random() - 0.5) * o.width };
   });
   // Spray: droplets thrown up and out of the foot that fall back.
-  const n = Math.round(40 + o.width * 16);
+  const n = foot ? Math.round(40 + o.width * 16) : 0;
   const spray = new Float32Array(n * 3);
   const vel: Vector3[] = [];
   const reset = (i: number) => {
@@ -190,7 +197,7 @@ export function cascade(o: CascadeOptions): Landmark {
   points.renderOrder = 6;
   // Culled by a sphere round the whole spray (never by its first frame's positions).
   sg.boundingSphere = new Sphere(new Vector3(0, footY + 2, footZ), o.width + 6);
-  g.add(points);
+  if (foot) g.add(points);
   const sattr = sg.attributes.position as BufferAttribute;
   let t = 0;
   const mistRise = Math.min(6, 1.5 + o.height * 0.15);
@@ -222,6 +229,6 @@ export function cascade(o: CascadeOptions): Landmark {
 }
 
 /** Blue waterfall pouring down a cliff (the older call: lip at (x, topY, z), facing +z). */
-export function waterfall(x: number, z: number, topY: number, width: number, height: number): Landmark {
-  return cascade({ x, z, top: topY, height, width });
+export function waterfall(x: number, z: number, topY: number, width: number, height: number, foot = true): Landmark {
+  return cascade({ x, z, top: topY, height, width, foot });
 }

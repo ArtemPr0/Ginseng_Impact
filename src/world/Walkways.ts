@@ -195,6 +195,30 @@ export function archBridge(x: number, zA: number, zB: number, endY: number, crow
   return { object: new Group(), tiles, posts, footprints, surface };
 }
 
+/**
+ * A plank walkway hung on chains from (ax, az, ay) to (bx, bz, by): `chasm-bridge` tiles pitched along the rise, its walk
+ * surface in 0.6 m collider slices (a climb a body can walk).
+ */
+export function chainSpan(ax: number, az: number, ay: number, bx: number, bz: number, by: number, tileHeight: number): Landmark & { tiles: Array<{ x: number; y: number; z: number; yaw: number; scale: number; pitch: number }> } {
+  const len = Math.hypot(bx - ax, bz - az);
+  const rotY = Math.atan2(bz - az, bx - ax);
+  const yaw = Math.atan2(bx - ax, bz - az);
+  const pitch = -Math.atan2(by - ay, len);
+  const n = Math.ceil(len / BRIDGE_TILE);
+  const tiles = [];
+  for (let i = 0; i < n; i++) {
+    const t = (i + 0.5) / n;
+    tiles.push({ x: ax + (bx - ax) * t, y: ay + (by - ay) * t - tileHeight * BRIDGE_DECK, z: az + (bz - az) * t, yaw, scale: len / n / BRIDGE_TILE, pitch });
+  }
+  const slices = Math.ceil(len / 0.6);
+  const footprints: Footprint[] = [];
+  for (let k = 0; k < slices; k++) {
+    const t = (k + 0.5) / slices;
+    footprints.push({ kind: 'box', x: ax + (bx - ax) * t, z: az + (bz - az) * t, hw: len / slices / 2 + 0.03, hd: 1.3, top: ay + (by - ay) * t, rotY, bottom: ay + (by - ay) * t - 0.6 });
+  }
+  return { object: new Group(), tiles, footprints };
+}
+
 /** Deck, parapets and piers of the bridge over the witch stream. */
 /**
  * The witches' humpback bridge (DeWji_1PuKW): 22 m along x. The walk surface follows the Meshy model's deck

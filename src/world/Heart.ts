@@ -162,7 +162,7 @@ export function buildHeart(api: HeartApi): { eye: ReturnType<typeof eyePool>; bo
   api.place(waterRibbon(bed, 2.6));
   // Over the cliff at the mouth, down into the cloud sea.
   const mouthY = h(G.x, G.zMouth - 4) + 0.3;
-  api.place(cascade({ x: G.x, z: G.zMouth - 5, top: mouthY, height: mouthY - LAYOUT.cloudSea.y + 4, width: 5, yaw: Math.PI, curve: 2 }));
+  api.place(cascade({ x: G.x, z: G.zMouth - 5, top: mouthY, height: mouthY - LAYOUT.cloudSea.y + 4, width: 5, yaw: Math.PI, curve: 2, foot: false }));
   // The stone arch across it (the witches' bridge model: 22 m, the gorge's full width at the rims).
   const deck = witchBridgeDeck(G.x, -124, h);
   api.place(deck);

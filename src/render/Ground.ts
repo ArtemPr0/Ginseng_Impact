@@ -38,7 +38,7 @@ export const GROUND_ALBEDO = 0.8;
 export const LAYER_TINT: ReadonlyArray<readonly [number, number, number]> = [
   [0.074, 0.167, 0.121], // grass
   [0.054, 0.132, 0.075], // moss
-  [0.067, 0.075, 0.105], // rock
+  [0.098, 0.082, 0.08], // rock (strata, warm earth)
   [0.164, 0.15, 0.145], // soil
   [0.101, 0.097, 0.198], // flagstone (its violet crack glow included)
   [0.191, 0.246, 0.314], // cobble
