@@ -144,6 +144,9 @@ function turnedAbout(bone: Object3D, axis: Vector3, angle: number, out = new Qua
 
 /** Scene-side enemy: a Meshy model (or a placeholder marker), movement, hit reactions, aura and defence debuff bookkeeping. */
 export class Enemy {
+  /** Seconds left of a dive down to the hero. */
+  private dive = 0;
+  private heroY = 0;
   readonly id = nextId++;
   readonly object = new Group();
   readonly brain: EnemyBrain;
@@ -468,6 +471,7 @@ export class Enemy {
    */
   update(dt: number, marks: ReadonlyArray<Mark>): EnemyAction {
     const player = this.chooseMark(marks);
+    this.heroY = player.y;
     if (this.eyePivot && this.eyeIris) {
       const dist = Math.hypot(player.x - this.pos.x, player.z - this.pos.z);
       const dy = player.y + 1 - (this.pos.y + this.eyePivot.position.y);
@@ -722,8 +726,12 @@ export class Enemy {
     // (A breath, not a flight: as much as a fifth of the hover, so the Frog God's belly never dips into the floor.)
     const bob = this.def.hover > 0 ? Math.sin(this.time * 2.4) * Math.min(0.25, this.def.hover * 0.2) : 0;
     const groundY = Math.max(this.world.heightAt(this.pos.x, this.pos.z, feet), this.def.floatAt ?? -Infinity);
-    const targetY = (flyAt ?? groundY) + this.def.hover + bob;
-    this.pos.y += (targetY - this.pos.y) * Math.min(1, dt * (this.def.flying ? 2 : 12));
+    // A dive: a flyer's breath and charge are delivered low, at the hero's level, and then it climbs back.
+    const move = this.currentAttack?.kind;
+    if (this.def.flying && (move === 'breath' || move === 'charge') && (this.state === 'windup' || this.state === 'attack')) this.dive = 1.5;
+    else this.dive = Math.max(0, this.dive - dt);
+    const targetY = this.dive > 0 ? Math.max(groundY, this.heroY) + 3 : (flyAt ?? groundY) + this.def.hover + bob;
+    this.pos.y += (targetY - this.pos.y) * Math.min(1, dt * (this.dive > 0 ? 5 : this.def.flying ? 2 : 12));
   }
 
   /** Walks back to the spawn point, ignoring the player, healing as it goes. */
@@ -1260,7 +1268,8 @@ export function topplePose(t: number): { pitch: number; sink: number } {
 export function attackClips(kind: BossAttackKind | undefined): string[] {
   switch (kind) {
     case 'slam': case 'roots': return ['charged_ground_slam', 'heavy', 'attack'];
-    case 'volley': case 'summon': case 'blink': return ['charged_spell_cast', 'mage_s', 'cast', 'attack'];
+    case 'volley': return ['charged_spell_cast', 'mage_s', 'cast', 'attack'];
+    case 'summon': case 'blink': return ['shouting', 'charged_spell_cast', 'mage_s', 'cast', 'attack'];
     case 'breath': case 'roar': return ['zombie_scream', 'shouting', 'roar', 'attack'];
     // A swing or a charge: the plain Attack clip, which boss bodies list under 'heavy' ('attack' is their slam).
     case 'sweep': case 'bite': case 'charge': return ['heavy', 'attack'];

@@ -1,4 +1,4 @@
-import { BoxGeometry, BufferGeometry, CircleGeometry, Color, Float32BufferAttribute, Group, LineBasicMaterial, LineSegments, Mesh, PerspectiveCamera, Scene, Vector3, ConeGeometry, CylinderGeometry, TorusGeometry, MeshBasicMaterial, AdditiveBlending, DoubleSide, Sprite, SpriteMaterial } from 'three';
+import { BoxGeometry, IcosahedronGeometry, BufferGeometry, CircleGeometry, Color, Float32BufferAttribute, Group, LineBasicMaterial, LineSegments, Mesh, PerspectiveCamera, Scene, Vector3, ConeGeometry, CylinderGeometry, TorusGeometry, MeshBasicMaterial, AdditiveBlending, DoubleSide, Sprite, SpriteMaterial } from 'three';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Audio } from '../audio/Audio';
 import { CombatSfx, hitMaterial } from '../audio/CombatSfx';
@@ -373,7 +373,6 @@ export class CombatSystem {
   private bladeWas = false;
   private bladeFed = false;
   /** The cast circle is up; seconds to the next mote off the charging weapon. */
-  private runeOn = false;
   private chargeSpark = 0;
   /** Which shot draws each ribbon id, and the round-robin counters for Wren's arrows and Starfall's stars. */
   private readonly trailOwners = new Map<string, Projectile>();
@@ -893,11 +892,6 @@ export class CombatSystem {
 
     // The cast circle under the hero while the heavy charges or a skill is cast; motes rising slowly off the charging
     // weapon (the blade, the staff's knob, the bow hand) every 0.15 s.
-    const circle = this.heavyCharge > 0 || this.casting !== null;
-    if (circle || this.runeOn) {
-      this.fx.rune(_v.set(c.pos.x, c.pos.y, c.pos.z), ELEMENT_COLOR[this.elementOf(me)], circle);
-      this.runeOn = circle;
-    }
     if (this.heavyCharge > 0) {
       this.chargeSpark -= dt;
       if (this.chargeSpark <= 0 && this.d.weaponTips?.(_g, _t)) {
@@ -970,7 +964,7 @@ export class CombatSystem {
         else {
           this.contact.set(e.id, left);
           const reach = e.def.bodyRadius * sc + CONTACT_REACH;
-          const touching = (x: number, z: number, y: number): boolean => y > e.pos.y - 1.5 && y < e.pos.y + e.def.height * sc && Math.hypot(e.pos.x - x, e.pos.z - z) < reach;
+          const touching = (x: number, z: number, y: number): boolean => y > e.pos.y - (e.def.flying ? 5 : 1.5) && y < e.pos.y + e.def.height * sc && Math.hypot(e.pos.x - x, e.pos.z - z) < reach;
           const hero = touching(c.pos.x, c.pos.z, c.pos.y);
           if (this.strike(e, 1.2, touching) > 0) { this.contact.delete(e.id); if (hero) this.d.onShake?.(0.7); }
         }
@@ -1706,7 +1700,7 @@ export class CombatSystem {
         break;
       }
       case 'volley':
-        for (const sp of [-0.28, 0, 0.28]) this.enemyBolt(e, sp, 15, 0.8);
+        for (const sp of [-0.14, 0, 0.14]) this.enemyBolt(e, sp, 18, 0.8);
         this.d.audio.cast();
         break;
       case 'summon': {
@@ -1714,7 +1708,8 @@ export class CombatSystem {
         const list = (this.summoned.get(e.id) ?? []).filter((m) => m.alive && this.enemies.includes(m));
         this.summoned.set(e.id, list);
         const kind = e.def.kind === 'rift-king' ? 'styro-ghoul' : 'beast';
-        if (list.length >= SUMMON_CAP || !PRESENT_MODELS.has(kind)) { this.d.audio.roar(); break; }
+        // (Full house: the caster fights on instead of standing there.)
+        if (list.length >= SUMMON_CAP || !PRESENT_MODELS.has(kind)) { for (const sp of [-0.14, 0, 0.14]) this.enemyBolt(e, sp, 18, 0.8); this.d.audio.cast(); break; }
         this.fx.flash(_v.copy(at).add(_w.set(0, 3, 0)), color, 5);
         for (let i = 0; i < Math.min(2, SUMMON_CAP - list.length); i++) {
           const a = Math.random() * Math.PI * 2;
@@ -1733,7 +1728,13 @@ export class CombatSystem {
         // Only onto open ground near its own level (never into a wall or over a drop).
         const w = this.d.world as Partial<HeightWorld> & WorldQuery;
         // (A flyer only needs open air: its own height is not the ground's.)
-        if (w.blocked?.(bx, bz) || (!e.def.flying && Math.abs(this.d.world.heightAt(bx, bz, e.pos.y + 2) - (e.pos.y - e.def.hover)) > 3)) break;
+        // (Nor past its leash, which would only walk it straight back. Refused, it throws instead of doing nothing.)
+        const home = e.def.leash !== undefined && Math.hypot(bx - e.spawn.x, bz - e.spawn.z) > e.def.leash;
+        if (home || w.blocked?.(bx, bz) || (!e.def.flying && Math.abs(this.d.world.heightAt(bx, bz, e.pos.y + 2) - (e.pos.y - e.def.hover)) > 3)) {
+          for (const sp of [-0.14, 0, 0.14]) this.enemyBolt(e, sp, 18, 0.8);
+          this.d.audio.cast();
+          break;
+        }
         this.fx.flash(_v.copy(at).add(_w.set(0, 3, 0)), color, 6);
         e.pos.x = bx;
         e.pos.z = bz;
@@ -1741,6 +1742,8 @@ export class CombatSystem {
         e.yaw = Math.atan2(c.pos.z - bz, c.pos.x - bx);
         this.fx.flash(_v.set(bx, e.pos.y + 3, bz), color, 6);
         this.d.audio.dodge();
+        // It arrives striking: a blink behind the hero is the start of a blow.
+        this.delayed.push({ t: 0.3, fn: () => { if (e.alive) { this.strike(e, 0.9, (x, z) => inCone(e.pos, e.yaw, { x, z }, 5.5, SWEEP_HALF)); this.fx.arc(_v.set(e.pos.x, e.pos.y + 1.6, e.pos.z), e.yaw, 0, 5, color); } } });
         break;
       }
       case 'roots': {
@@ -2502,7 +2505,8 @@ export class CombatSystem {
       object.position.copy(from);
       object.lookAt(aim.copy(from).add(vel));
     } else {
-      const core = new Mesh(new BoxGeometry(size, size, size), surface({ color: PALETTE.void, emissive: color, emissiveIntensity: 3 }));
+      // (A big shot is a rock with a faint heat, a small one all light: no cube.)
+      const core = new Mesh(new IcosahedronGeometry(size * 0.6, 1), surface({ color: PALETTE.void, emissive: color, emissiveIntensity: 3 }));
       core.rotation.set(0.7, 0.7, 0);
       object.add(core, glowSprite(color, 1.1 * (size / 0.24), 0.8, true));
       object.position.copy(from);
@@ -2691,7 +2695,7 @@ export class CombatSystem {
   /** A puddle of lean: a burst cup's slows the hero who stands in it; one off the lean cyclone (`hero`) slows the mobs instead. */
   private spawnPuddle(at: Vector3, owner: 'hero' | 'enemy' = 'enemy'): void {
     const y = this.d.world.heightAt(at.x, at.z, at.y + 1) + 0.04;
-    const mesh = new Mesh(new CircleGeometry(2.4, 24), new MeshBasicMaterial({ color: 0x8a2be2, transparent: true, opacity: 0.75, depthWrite: false, toneMapped: false }));
+    const mesh = new Mesh(new CircleGeometry(2.4, 24), new MeshBasicMaterial({ map: puffTexture(), color: 0x8a2be2, transparent: true, opacity: 0.6, depthWrite: false, toneMapped: false }));
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(at.x, y, at.z);
     // (A burst cup's puddle glows; the cyclone's trail goes without, a halo a puddle being as many planes again.)

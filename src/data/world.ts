@@ -156,7 +156,7 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   'potion-brewer': { x: 1026, z: -127 },
   bartender: { x: 1173.0, z: 10.1 }, 'dock-knight': { x: 1181, z: 7.5, dy: 0.02 },
   // On the snow flat at snowY(124.6) ≈ 26.1 (SNOW_FLATS plague-doctor); GroundQuery sets y.
-  'plague-doctor': { x: 931, z: 124.6 },
+  'plague-doctor': { x: 931, z: 124.6, dy: 0 },
   // Down in the crypt bar (Interiors.ts, CRYPT_ROOM): two along the west counter facing the way in, Knuckles on a
   // barrel against the east counter facing them; Sir Gilt before the back counter's skulls.
   'crypt-red': { x: -1001.9, z: 1299.6 }, 'crypt-witch': { x: -1001.9, z: 1301.3 }, 'crypt-bones': { x: -998.7, z: 1300.6, dy: 0.02 },

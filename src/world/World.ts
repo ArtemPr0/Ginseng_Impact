@@ -1,4 +1,4 @@
-import { Color, Group, type Mesh, type MeshStandardMaterial, type Object3D, Vector3 } from 'three';
+import { type BufferGeometry, Color, Group, type Mesh, type MeshStandardMaterial, type Object3D, Vector2, Vector3 } from 'three';
 import { REALM_SCULPTS } from '../data/sculpts';
 import { ANCHORS, CRYPT_ROOM, GALAXY, ISLAND_PORTALS, LAYOUT, REALMS, SUNKEN, TAVERN_ROOM, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
@@ -386,7 +386,15 @@ export class World {
     this.place(stoneHeadEyes());
     const cathY = LAYOUT.cathedral.y;
     const cs = LAYOUT.cathedral.scale;
-    this.place(modelLandmark('cathedral', LAYOUT.cathedral.x, LAYOUT.cathedral.z, cathY, { yaw: LAYOUT.cathedral.yaw, scale: cs }));
+    {
+      // The east door is the way in: the model's arch is 2.6 m wide and too low for a hero, so a broken gap replaces
+      // it, in the collider (carved) and in the mesh (cut away in the shader).
+      const door = { x: 86, z: -17.9, halfWidth: 3.2, floor: 3.75, spring: 2.6 };
+      const cathedral = modelLandmark('cathedral', LAYOUT.cathedral.x, LAYOUT.cathedral.z, cathY, { yaw: LAYOUT.cathedral.yaw, scale: cs, onLoad: (m) => cutDoor(m.root, door) });
+      let grid = cathedral.footprints.find((f): f is GridFootprint => f.kind === 'grid');
+      if (grid) { for (const x of [83.4, 84.4, 85.4, 86.4, 87.4]) grid = carveGridOpening(grid, x, door.z, door.halfWidth - 0.4); cathedral.footprints = [grid]; }
+      this.place(cathedral);
+    }
     // Its nave is open to walk in through the arch at the east end (scripts/collider-grids.mjs): two rows of candles
     // down the aisle and a cold light under the vault so the inside reads.
     {
@@ -495,7 +503,6 @@ export class World {
     // (Not in the river: the orchard's south row reaches its channel.)
     flora('gnarled-tree', orchardSpots(LAYOUT.orchard.x, LAYOUT.orchard.z).map(([x, z]: [number, number]) => ({ x, y: h(x, z) - 0.2, z, yaw: orng() * Math.PI * 2, scale: 0.75 + orng() * 0.3 })).filter((p) => riverAt(p.x, p.z) < 0.02 && riverDistance(p.x, p.z) > 7 && !this.heights.blocked(p.x, p.z)), { trunk: 0.05 });
     const pool = LAYOUT.floodedRuin;
-    this.place(modelLandmark('flooded-ruin', pool.x, pool.z, h(pool.x, pool.z) - 0.6));
     // The Marsh Sovereign stands waist-deep in it; wading in drags at your legs.
     this.place(mudPool(pool.x, pool.z, pool.mud, pool.r, (wading) => { if (wading) this.hooks.mire?.(0.4); }));
     // (The troll's gorge is carved into the terrain now: Terrain.ts WORLD.gorge, dressed in Heart.ts.)
@@ -574,8 +581,8 @@ export class World {
     flora('reed', theRiver.reedSpots.filter((p) => Math.hypot(p.x - ft.x, p.z - ft.z) > 8.5 && !(Math.abs(p.x - wb.streamX) < 13 && Math.abs(p.z - wb.bridgeZ) < 3.5) && !this.heights.blocked(p.x, p.z)), { wind: 0.22, shadows: false });
     const pond = lilyPond(WORLD.pond.x, WORLD.pond.z, WORLD.pond.r, rnd);
     this.place(pond);
-    flora('lily-pad', pond.padSpots, { shadows: false });
-    flora('lotus', pond.lotusSpots, { shadows: false });
+    flora('lily-pad', pond.padSpots, { shadows: false, patch: padMaterial });
+    flora('lotus', pond.lotusSpots, { shadows: false, patch: lotusMaterial });
     // Two armoured knights row each boat (DdjlyzyOcnK), facing the stern as rowers do.
     for (const [start, speed] of [[0, 2.4], [108, 2.0]] as const) {
       const boat = riverDrifter('boat', start, speed);
@@ -1088,4 +1095,44 @@ function churchGlow(scene: Group, x: number, y: number, z: number): (dt: number)
   scene.add(glow, light);
   let t = 0;
   return (dt) => { t += dt; glow.material.opacity = 0.45 + Math.sin(t * 3) * 0.1; light.intensity = 110 + Math.sin(t * 5) * 20; };
+}
+
+/** Pond flowers: the model is a carved lotus, so colour climbs its height: gold heart, white, pink tips. */
+function lotusMaterial(m: MeshStandardMaterial, geo: BufferGeometry): void {
+  const b = geo.boundingBox!;
+  m.color.set(0xffffff); m.roughness = 0.75; m.emissive.set(0x5a1f48); m.emissiveIntensity = 0.45;
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uY = { value: new Vector2(b.min.y, b.max.y - b.min.y) };
+    sh.vertexShader = 'varying float vLotus; uniform vec2 uY;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vLotus = (position.y - uY.x) / uY.y;');
+    sh.fragmentShader = 'varying float vLotus;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      vec3 lot = mix(vec3(1.0, 0.72, 0.28), vec3(1.0, 0.92, 0.96), smoothstep(0.1, 0.45, vLotus));
+      diffuseColor.rgb = mix(lot, vec3(1.0, 0.38, 0.72), smoothstep(0.5, 0.95, vLotus));`);
+  };
+  m.customProgramCacheKey = () => 'lotus-flower';
+}
+
+/** Lily pads: the same model pressed nearly flat, in two greens. */
+function padMaterial(m: MeshStandardMaterial): void {
+  m.color.set(0x1f7a4a); m.roughness = 0.6; m.emissive.set(0x0a2a1c); m.emissiveIntensity = 0.5;
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n transformed.y *= 0.06;');
+  };
+  m.customProgramCacheKey = () => 'lily-pad-flat';
+}
+
+/** Cuts a round-headed door out of a model in world space, on its own copy of the materials. */
+function cutDoor(root: Object3D, d: { x: number; z: number; halfWidth: number; floor: number; spring: number }): void {
+  root.traverse((o) => {
+    const mesh = o as Mesh;
+    if (!mesh.isMesh) return;
+    const m = (mesh.material as MeshStandardMaterial).clone();
+    m.onBeforeCompile = (sh) => {
+      sh.vertexShader = 'varying vec3 vDoor;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vDoor = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      sh.fragmentShader = 'varying vec3 vDoor;\n' + sh.fragmentShader.replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+        { float dz = vDoor.z - (${d.z.toFixed(2)}); float w = ${d.halfWidth.toFixed(2)};
+          if (abs(dz) < w && abs(vDoor.x - ${d.x.toFixed(2)}) < 4.0 && vDoor.y < ${(d.floor + d.spring).toFixed(2)} + sqrt(max(0.0, w * w - dz * dz))) discard; }`);
+    };
+    m.customProgramCacheKey = () => 'cut-door';
+    mesh.material = m;
+  });
 }

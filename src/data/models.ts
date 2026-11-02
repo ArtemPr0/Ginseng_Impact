@@ -102,7 +102,7 @@ export const MODELS: Record<string, ModelDef> = {
   // Meshy animate exports bundle every added preset into one GLB; clip names are the preset's English ids.
   // (Remade 2026-10-19: a clean full-body A-pose yeti; the old mesh had its arms fused to its flanks, damped and cut.)
   yeti: { file: 'yeti.glb', height: 3.2, faceForward: 0.25, armDamp: 0.45, doubleSided: true, clips: BOSS_CLIPS },
-  shade: { file: 'horned-shade.glb', height: 4.5, armDamp: 0.7, idleBlend: 0.3, faceForward: 0.25, clips: BOSS_CLIPS },
+  shade: { file: 'horned-shade.glb', height: 4.5, armDamp: 0.3, idleBlend: 0.3, faceForward: 0.25, clips: BOSS_CLIPS },
   warden: { file: 'antlered-warden.glb', height: 6.5, faceForward: 0.25, clips: BOSS_CLIPS },
   wyrm: { file: 'moon-wyrm.glb', height: 3, yOffset: 0, clips: { idle: 'fly|idle|hover', fly: 'fly|idle', attack: 'bite|attack' } },
   // (Its face is local +z like every Meshy body: a half turn here made it fight with its back to you.)
@@ -155,7 +155,6 @@ export const MODELS: Record<string, ModelDef> = {
   candle: stat('candle.glb', 0.3, 'candle'),
   'ruin-arch': stat('ruin-arch.glb', 6.6, 'ruined stone arch'),
   'ruin-column': stat('ruin-column.glb', 4.5, 'broken stone column'),
-  'flooded-ruin': stat('flooded-ruin.glb', 9, 'flooded ruin: ring of columns, wall and arch'),
   'troll-gorge': stat('troll-gorge.glb', 15, 'rock walls of the troll gorge'),
   'floating-rock': stat('floating-rock.glb', 3, 'floating boulder'),
   pinnacle: stat('pinnacle.glb', 30, 'sea pinnacle rising from the cloud sea'),

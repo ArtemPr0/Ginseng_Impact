@@ -349,7 +349,8 @@ export class ModelRig {
         (o as SkinnedMesh).boundingSphere = sphere;
       }
       o.frustumCulled = true;
-      if (opts.cloneMaterials) mesh.material = Array.isArray(mesh.material) ? mesh.material.map((m) => m.clone()) : mesh.material.clone();
+      // (A tint goes on this id's own copy: one file can serve several ids, and a shared material would take them all.)
+      if (opts.cloneMaterials || def.tint !== undefined) mesh.material = Array.isArray(mesh.material) ? mesh.material.map((m) => m.clone()) : mesh.material.clone();
       // Meshy textures are unlit and often near-black; a faint cobalt self-light keeps the silhouette readable at night.
       const mats = Array.isArray(mesh.material) ? (mesh.material as MeshStandardMaterial[]) : [mesh.material as MeshStandardMaterial];
       for (const m of mats) {

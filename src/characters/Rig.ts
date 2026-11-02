@@ -14,6 +14,7 @@ import { cutSeconds, cutStrike, heroClipsOf, moveCut, type ClipCut, type HeroCli
 import { easeLean, slopeTarget, yawDelta, type Lean } from './SlopeLean';
 
 const _lookUp = new Vector3(0, 1, 0);
+const _qb = new Quaternion();
 /** The bone a look turns: the neck, else the head. */
 function findNeck(root: Object3D): Object3D | null {
   let neck: Object3D | null = null, head: Object3D | null = null;
@@ -288,7 +289,7 @@ export class Rig {
    */
   private npcCupWanted = false;
   private npcCupModel: GLTF | null = null;
-  private npcCup: { cup: LeanCup; fingers: Array<{ bone: Object3D; q: Quaternion }> } | null = null;
+  private npcCup: { cup: LeanCup; pivot: Group; fingers: Array<{ bone: Object3D; q: Quaternion }> } | null = null;
   private sip: { action: AnimationAction; w: number; slurped: boolean } | null = null;
   private sipIn: number = SIP.every[0];
   /** The carry pose (cup at the chest in flight) is playing. */
@@ -604,9 +605,20 @@ export class Rig {
       holder.add(pivot);
       hand.add(holder);
       this.fx.add(cup.drops);
-      this.npcCup = { cup, fingers: this.solveGrip(side, hand, pivot, cup) };
+      this.npcCup = { cup, pivot, fingers: this.solveGrip(side, hand, pivot, cup) };
     }
     for (const f of this.npcCup.fingers) f.bone.quaternion.copy(f.q);
+    // Whatever the hand does, the rim stays up: no body's clip knows it holds a cup, and some have no fingers to read.
+    const p = this.npcCup.pivot;
+    if (p.parent) {
+      p.parent.updateWorldMatrix(true, false);
+      p.updateWorldMatrix(false, false);
+      p.getWorldQuaternion(_q);
+      _a.set(0, 1, 0).applyQuaternion(_q);
+      _qb.setFromUnitVectors(_a, _lookUp).multiply(_q);
+      p.parent.getWorldQuaternion(_q);
+      p.quaternion.copy(_q.invert().multiply(_qb));
+    }
     this.npcCup.cup.update(dt);
   }
 

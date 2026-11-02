@@ -153,7 +153,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   'lean-chucker': {
     kind: 'lean-chucker', name: 'The Lean-Chucker', title: 'Who Holds the Pavilion', maxHp: 5200, def: 70, atk: 120, speed: 3.2, element: 'astral', hover: 0, bodyRadius: 0.8, height: 1.9, boss: true,
     brain: { aggroRange: 14, attackRange: 18, windup: 1.0, recover: 1.2, attackCooldown: 0.8, preferredRange: 8 }, respawn: 200, leash: 22, shards: [150, 220], seated: true,
-    attacks: [{ kind: 'cupvolley', range: 20, windup: 1.0, recover: 1.3, weight: 3 }, { kind: 'cupmortar', range: 20, windup: 0.8, recover: 1.0, weight: 2 }, { kind: 'sweep', range: 3, windup: 0.6, recover: 1.0, weight: 1 }],
+    attacks: [{ kind: 'cupvolley', range: 20, windup: 1.0, recover: 1.3, weight: 3 }, { kind: 'cupmortar', range: 20, windup: 0.8, recover: 1.0, weight: 2 }, { kind: 'sweep', range: 5, windup: 0.6, recover: 1.0, weight: 1 }],
     drops: [{ itemId: 'rune-shard', chance: 1 }, { itemId: 'moon-dew', chance: 1 }], voices: GHOUL_VOICES,
   },
   // Old Hollowstaff on the bucket street (DeaqHWJBBPw's skeleton wizard): his diamonds circle him, and the one

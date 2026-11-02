@@ -334,6 +334,7 @@ export const NPC_DEFS: NpcDef[] = [
     model: 'skeleton-red', accent: PALETTE.witch,
     lines: ['Green eyes? Lean does that. To skeletons.', 'This coat was red when I bought it. So was I.', 'Cheers to the snow. It never asks for anything.'],
     behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI * 0.4 },
+    cup: true,
     sipAt: 0.42,
   },
   {
@@ -341,6 +342,7 @@ export const NPC_DEFS: NpcDef[] = [
     model: 'skeleton-witch', accent: PALETTE.dusk,
     lines: ['The hat stays on. The head under it is optional.', 'Gold teeth, gold chain, purple cup. A lady keeps standards.'],
     behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI * 0.42 },
+    cup: true,
     sipAt: 0.42,
   },
   {
@@ -356,6 +358,7 @@ export const NPC_DEFS: NpcDef[] = [
     model: 'gold-knight', accent: PALETTE.dusk,
     lines: ['To the dead! They are excellent company and never leave early.', 'The skulls behind me were knights. Raise your cup to them.'],
     behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI / 2 },
+    cup: true,
     sipAt: 0.42,
   },
   // --- Round 6: the Dragon's Vale (Dd5Bqt7vQ5T); the toasters stand round the long table in its tavern (Interiors.ts) ---
@@ -364,6 +367,7 @@ export const NPC_DEFS: NpcDef[] = [
     model: 'candle-head', accent: PALETTE.moon,
     lines: ['Mind the drips. Everything I say comes out warm.', 'A toast! To short wicks and long nights.', 'I do not blow out. I have tried.'],
     behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI / 2 },
+    cup: true,
     sipAt: 0.42,
   },
   {
@@ -371,6 +375,7 @@ export const NPC_DEFS: NpcDef[] = [
     model: 'dwarf', accent: PALETTE.electric,
     lines: ['Raise it higher! The candle in the cup is for luck, not for drinking.', 'The dragon? He sleeps through the singing. We have checked.'],
     behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI / 4 },
+    cup: true,
     sipAt: 0.42,
   },
   {
@@ -378,6 +383,7 @@ export const NPC_DEFS: NpcDef[] = [
     model: 'dwarf', accent: PALETTE.blood,
     lines: ['Three braids for three wars. The fourth is for the ale.', 'If the head on the hill ever opens its eyes, I am leaving.'],
     behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI * 0.75 },
+    cup: true,
     sipAt: 0.42,
   },
   {

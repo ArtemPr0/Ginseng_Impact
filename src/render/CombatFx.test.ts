@@ -45,8 +45,9 @@ describe('CombatFx pools', () => {
     fx.update(0.01, cam);
     expect(fx.live.flashes).toBe(4);
     expect(fx.live.sparks).toBe(32);
+    // (A shock is dust and grit now: no drawn ring, no slot.)
     for (let i = 0; i < 5; i++) fx.shock(P, 0xffffff, 3, 0.5);
-    expect(fx.live.shocks).toBe(3);
+    expect(fx.live.shocks).toBe(0);
   });
 
   it('advances the shared clock in update()', () => {
@@ -211,7 +212,7 @@ describe('telegraphs and the rest', () => {
     fx.flash(P, 0xff2a2a, 2);
     fx.rune(P, 0x37f5ff, true);
     fx.update(0.05, cam);
-    expect(fx.live).toMatchObject({ arcs: 1, shocks: 1, flashes: 1, sparks: 12, rune: true });
+    expect(fx.live).toMatchObject({ arcs: 1, flashes: 1, rune: true });
     expect(fx.live.dust).toBeGreaterThanOrEqual(3);
     fx.rune(P, 0x37f5ff, false);
     for (let i = 0; i < 60; i++) fx.update(1 / 30, cam);
