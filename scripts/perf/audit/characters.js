@@ -53,6 +53,12 @@ const surfaceUnder = (x, y, z, skip) => {
 };
 // By design, each with its reason (by kind or id: never a blanket filter). The check named is skipped for it only.
 const ALLOW = {
+  // Seats that are part of a model with no collider of their own, so the measure reads the floor under them (each one looked at).
+  'npc:skeleton-king': { 'hips over': 'on the dragon throne (model seat)', 'model sinks': 'his chair legs hang inside the throne dais' },
+  'npc:skeleton-lord': { 'hips over': 'on the pavilion settee (model seat)' },
+  'npc:yunglean': { 'hips over': 'on the marble throne (model seat)' },
+  'npc:court-knight': { 'hips over': 'on a stool (no collider)' },
+  'npc:carriage-count': { 'hips over': 'inside the carriage (no collider)' },
   // The Lurker floats in the shallows at its floatAt (0.6): the lake bed is under the water it rises from.
   'enemy:lurker': { 'pos above': 'floats on the lake shallows (floatAt 0.6)' },
   // The Marsh Sovereign stands knee-deep in its mud basin (filled to 4.9): the mud is drawn over its shins.

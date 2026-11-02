@@ -39,13 +39,13 @@ function runBody(name, at, loadS, file) {
   const hardConsole = (() => {
     try {
       const arr = JSON.parse(cons.slice('CONSOLE: '.length));
-      return arr.filter((e) => e.level === 'error');
+      return arr.filter((e) => e.level === 'error' && !/favicon\.ico/.test(e.url ?? ''));
     } catch { return []; }
   })();
-  // Audits list by-design flags; they fail only on exceptions / console errors, not on flagged rows.
+  // The characters audit has its by-design list inside it, so any flagged row fails. Layout and glows still need reading.
   const isAudit = name.startsWith('layout') || name.startsWith('glows') || name.startsWith('characters');
   const sweepOk = isAudit
-    ? !String(body).startsWith('EXCEPTION') && hardConsole.length === 0
+    ? !String(body).startsWith('EXCEPTION') && hardConsole.length === 0 && (!name.startsWith('characters') || (parsed?.flagged?.length ?? 1) === 0)
     : parsed?.ok === true || (name === 'hollowking' && parsed?.aggro === true);
   const ok = r.status === 0 && sweepOk && !String(body).startsWith('EXCEPTION') && hardConsole.length === 0;
   results.push({
