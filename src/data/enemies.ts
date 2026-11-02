@@ -138,7 +138,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   spiderchapel: {
     kind: 'spiderchapel', name: 'The Spider Chapel', title: 'That Walks the Sky', maxHp: 9500, def: 85, atk: 140, speed: 4.5, element: 'fog', hover: 0, bodyRadius: 7, height: 28, boss: true,
     flying: true, flyAbove: 16, floatAt: 2,
-    brain: { aggroRange: 40, attackRange: 36, windup: 1.0, recover: 1.4, attackCooldown: 1.2, preferredRange: 20 }, respawn: 360, leash: 60, shards: [260, 360],
+    brain: { aggroRange: 24, attackRange: 24, windup: 1.0, recover: 1.4, attackCooldown: 1.2, preferredRange: 18 }, respawn: 360, leash: 60, shards: [260, 360],
     attacks: [{ kind: 'web', range: 36, windup: 1.0, recover: 1.4, weight: 3 }, { kind: 'webdrop', range: 30, windup: 1.2, recover: 1.5, weight: 2 }],
     drops: [{ itemId: 'star-chart', chance: 1 }, { itemId: 'rune-shard', chance: 1 }],
   },
@@ -203,7 +203,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   },
   // The sea king's castle in the Sunken City: fish-headed guards with tridents at its gate, anglerfish men in its lane.
   'fish-guard': {
-    kind: 'fish-guard', name: 'Castle Fishguard', maxHp: 1100, def: 55, atk: 92, speed: 3.2, element: 'tide', hover: 0, bodyRadius: 0.55, height: 2.0,
+    kind: 'fish-guard', neutral: true, name: 'Castle Fishguard', maxHp: 1100, def: 55, atk: 92, speed: 3.2, element: 'tide', hover: 0, bodyRadius: 0.55, height: 2.0,
     brain: { aggroRange: 10, attackRange: 2.6, windup: 0.6, recover: 0.9, attackCooldown: 0.6 }, respawn: 70, leash: 10, shards: [10, 16],
     drops: [{ itemId: 'rune-shard', chance: 0.4 }],
   },
@@ -343,7 +343,7 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'shade', x: 68, z: -18, exact: true },  // in the cathedral's nave, under the candles
   { kind: 'warden', x: 68, z: 38 },         // the clearing in the east forest, under the rain
   { kind: 'wyrm', x: 106, z: 22 },          // circling the lonely wizard tower
-  { kind: 'rivershade', x: -62, z: 16 },    // rising from the witch stream by the bridge
+  { kind: 'rivershade', x: -67, z: 38 },    // rising from the witch stream, upstream of the bridge and Old Moss
   { kind: 'passbeast', x: -36, z: -140 },
   // The spider chapel walks its loop in the sky over the west cliffs (it used to be scenery).
   { kind: 'spiderchapel', x: -104, z: 44, exact: true, patrol: [[-104, 44], [-88, 58], [-104, 72], [-120, 58]] },   // the mountain pass behind the peak
@@ -368,7 +368,7 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   // Camps (pairs)
   { kind: 'croc', x: 108, z: 10 }, { kind: 'croc', x: 118, z: 6 }, { kind: 'croc', x: 100, z: 15 }, // the river mouth, east
   { kind: 'beast', x: -62, z: 36 }, { kind: 'beast', x: -66, z: 30 },      // west meadow, by the stream
-  { kind: 'crystalgolem', x: 44, z: 62 }, { kind: 'crystalgolem', x: 52, z: 66 }, // deep in the desert
+  { kind: 'crystalgolem', x: 74, z: 52 }, { kind: 'crystalgolem', x: 70, z: 59 }, // the desert's east end, off the Pale Bride's walk
   // Yung Lean's kingdom: Styro-Ghouls on the lean cups and round the plaza; the Lean-Chucker on the pavilion's throne.
   // (Off the cups: by the Lean-Chucker's pavilion and along the plaza; the cups belong to the lean bubbles.)
   { kind: 'styro-ghoul', x: 1028, z: -46 }, { kind: 'styro-ghoul', x: 1043, z: -47 }, { kind: 'styro-ghoul', x: 1040, z: -64 },
@@ -384,9 +384,10 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   // above his feet, so a small imp on a big throne sits with his legs dangling over the edge.
   { kind: 'lean-chucker', x: 1034.3, z: -55, yaw: Math.PI, exact: true, sitY: 24.56 },
   // Bucket Street in the kingdom's west quarter (LEAN_QUARTER in data/world.ts): the mimics and the chain-mail knights.
-  { kind: 'bucket', x: 934, z: 15 }, { kind: 'bucket', x: 918, z: 21 }, { kind: 'bucket', x: 896, z: 13 },
-  { kind: 'bucket', x: 884, z: 23 }, { kind: 'bucket', x: 864, z: 16 }, { kind: 'bucket', x: 848, z: 20 },
-  { kind: 'mail-knight', x: 908, z: 18 }, { kind: 'mail-knight', x: 860, z: 18 },
+  // (Up and down the street's ends: the stalls and their keepers stand clear of them.)
+  { kind: 'bucket', x: 934, z: 60 }, { kind: 'bucket', x: 918, z: 66 }, { kind: 'bucket', x: 896, z: 58 },
+  { kind: 'bucket', x: 884, z: -24 }, { kind: 'bucket', x: 864, z: -28 }, { kind: 'bucket', x: 848, z: 62 },
+  { kind: 'mail-knight', x: 908, z: 52 }, { kind: 'mail-knight', x: 860, z: 52 },
   { kind: 'diamond-wizard', x: 900, z: 18, exact: true, yaw: 0 },  // mid-street, where Old Hollowstaff stood
   // The Dragon's Vale's fields (it stood empty): fog beasts roaming the east meadow and the river's far bank, crystal
   // golems in the stones under the crowned head, a pack by the floating castle's cliff.
