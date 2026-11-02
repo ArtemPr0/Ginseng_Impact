@@ -258,7 +258,7 @@ export const DISTRICT_AIR: Record<LeanDistrict, { fog: number; density: number; 
  */
 export interface ZoneLight { sky: number; ground: number; hemi: number; moon: number; fill: number; fillColor: number; cameraFill: number }
 export const ZONE_LIGHT: Record<string, ZoneLight> = {
-  island: { sky: 0x1a2cff, ground: 0x0a0f2e, hemi: 0.7, moon: 1.5, fill: 0.75, fillColor: 0x8fa5f0, cameraFill: 0 },
+  island: { sky: 0x1a2cff, ground: 0x141c4a, hemi: 0.95, moon: 1.5, fill: 0.75, fillColor: 0x8fa5f0, cameraFill: 0 },
   lean: { sky: 0x5a4ab8, ground: 0x150a2a, hemi: 0.75, moon: 1.3, fill: 1.1, fillColor: 0xe6dcff, cameraFill: 1 },
   vale: { sky: 0x3a4ac0, ground: 0x0a1a1a, hemi: 0.7, moon: 1.4, fill: 1.0, fillColor: 0xe0e6ff, cameraFill: 1 },
   // Indoors: no moon; the hearth and the candles light the room (their own point lights), a dim warm fill for faces.

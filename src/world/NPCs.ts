@@ -33,7 +33,7 @@ export interface NpcDef {
   /** Items for sale (buy) — the NPC also buys any material. */
   shop?: ShopEntry[];
   /** Holds a lean cup (a body whose mesh has none: the drink clip lifts an empty hand otherwise). */
-  cup?: boolean;
+  cup?: boolean | 'tankard';
   /** No body of its own (it speaks for a landmark: the vale's green dragon), talked to within `talkRange` metres. */
   invisible?: boolean;
   talkRange?: number;
@@ -358,7 +358,7 @@ export const NPC_DEFS: NpcDef[] = [
     model: 'gold-knight', accent: PALETTE.dusk,
     lines: ['To the dead! They are excellent company and never leave early.', 'The skulls behind me were knights. Raise your cup to them.'],
     behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI / 2 },
-    cup: true,
+    cup: 'tankard',
     sipAt: 0.42,
   },
   // --- Round 6: the Dragon's Vale (Dd5Bqt7vQ5T); the toasters stand round the long table in its tavern (Interiors.ts) ---
@@ -375,7 +375,7 @@ export const NPC_DEFS: NpcDef[] = [
     model: 'dwarf', accent: PALETTE.electric,
     lines: ['Raise it higher! The candle in the cup is for luck, not for drinking.', 'The dragon? He sleeps through the singing. We have checked.'],
     behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI / 4 },
-    cup: true,
+    cup: 'tankard',
     sipAt: 0.42,
   },
   {
@@ -383,7 +383,7 @@ export const NPC_DEFS: NpcDef[] = [
     model: 'dwarf', accent: PALETTE.blood,
     lines: ['Three braids for three wars. The fourth is for the ale.', 'If the head on the hill ever opens its eyes, I am leaving.'],
     behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI * 0.75 },
-    cup: true,
+    cup: 'tankard',
     sipAt: 0.42,
   },
   {
@@ -486,7 +486,7 @@ export class Npc {
     this.rig = new Rig({ id: def.id, name: def.name, title: def.title, element: 'fog', weapon: def.weapon, maxHp: 1, atk: 1, accent: def.accent }, def.model);
     this.object = this.rig.root;
     if (def.invisible) { this.object.visible = false; this.object.userData.hidden = true; }
-    if (def.cup) this.rig.holdCup();
+    if (def.cup) this.rig.holdCup(def.cup === 'tankard' ? 'tankard' : 'lean-cup');
     if (def.scale && def.scale !== 1) this.object.scale.setScalar(def.scale);
     this.pos.set(start.x, heightAt(start.x, start.z), start.z);
     if (def.behaviour.kind === 'stand') this.yaw = def.behaviour.yaw;

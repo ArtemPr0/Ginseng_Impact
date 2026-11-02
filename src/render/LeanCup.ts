@@ -62,6 +62,12 @@ export class LeanCup {
   private splashCooldown = 0;
   private t = 0;
 
+  /** No lean in this one (a tankard's beer is in its own mesh): no glowing surface, no shine. */
+  plain(): void {
+    this.liquid.visible = false;
+    this.shine.visible = false;
+  }
+
   /** The cup's height, metres (its rim is at this height above `group`'s origin). */
   get height(): number {
     return this.h;

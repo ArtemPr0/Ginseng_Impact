@@ -207,6 +207,7 @@ export const MODELS: Record<string, ModelDef> = {
   'styro-ghoul': { file: 'styro-ghoul.glb', height: 1.25, faceForward: 0.3, label: 'purple imp in baggy streetwear with a double-cup backpack', clips: { idle: 'combat_stance|idle_03|idle', walk: 'walking|walk', run: 'running|run', attack: 'over_shoulder_throw|throw', heavy: 'crouch_pull_and_throw|throw', throw: 'over_shoulder_throw|throw', sit: 'chair_sit|sit', stand: 'sit_to_stand|stand', hit: 'hit_reaction|hit', death: 'dying|death' } },
   'lean-chucker': { file: 'styro-ghoul.glb', height: 1.9, faceForward: 0.3, tint: 0xd7b7ff, label: 'the Lean-Chucker, boss of the Styro-Ghouls', clips: { idle: 'combat_stance|idle_03|idle', walk: 'walking|walk', run: 'running|run', attack: 'over_shoulder_throw|throw', heavy: 'crouch_pull_and_throw|throw', throw: 'over_shoulder_throw|throw', sit: 'chair_sit|sit', stand: 'sit_to_stand|stand', hit: 'hit_reaction|hit', death: 'dying|death' } },
   // A double cup of lean (frames/lean-cup.png): the knight's cup, thrown cups, the giant cup islands, the signed cup.
+  tankard: stat('tankard.glb', 0.21, 'wooden beer tankard with iron bands, full of foam'),
   'lean-cup': stat('lean-cup.glb', 0.17, 'double white styrofoam cup of glowing purple lean (frames/lean-cup.png)'),
   'lean-cup-island': stat('lean-cup.glb', 22, 'giant double cup of lean, an island of the kingdom'),
   // Goldgrin's brother in the tree house: diamond grills, a job for the player.

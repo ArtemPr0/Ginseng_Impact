@@ -289,6 +289,8 @@ export class Rig {
    */
   private npcCupWanted = false;
   private npcCupModel: GLTF | null = null;
+  private npcCupId: 'lean-cup' | 'tankard' = 'lean-cup';
+  private npcCupWait = 0;
   private npcCup: { cup: LeanCup; pivot: Group; fingers: Array<{ bone: Object3D; q: Quaternion }> } | null = null;
   private sip: { action: AnimationAction; w: number; slurped: boolean } | null = null;
   private sipIn: number = SIP.every[0];
@@ -567,13 +569,14 @@ export class Rig {
   }
 
   /** An NPC holds a lean cup (NpcDef.cup): seated once the model is in and posed (see animateNpcCup). */
-  holdCup(): void {
+  holdCup(kind: 'lean-cup' | 'tankard' = 'lean-cup'): void {
+    this.npcCupId = kind;
     this.npcCupWanted = true;
     if (this.model) this.loadNpcCup();
   }
 
   private loadNpcCup(): void {
-    void loadModelOrWarn('lean-cup', MODELS['lean-cup']?.label).then((g) => { this.npcCupModel = g; });
+    void loadModelOrWarn(this.npcCupId, MODELS[this.npcCupId]?.label).then((g) => { this.npcCupModel = g; });
   }
 
   /**
@@ -583,6 +586,8 @@ export class Rig {
   private animateNpcCup(dt: number): void {
     const m = this.model;
     if (!this.npcCupModel || !m) return;
+    // (Seat it once the body's clip is running: on the first frame every hand is still at rest, and the wrong one wins.)
+    if (!this.npcCup && (this.npcCupWait += dt) < 0.6) return;
     if (!this.npcCup) {
       const head = this.bones?.head;
       const hands: Array<['left' | 'right', Object3D | null]> = [['left', this.offHand], ['right', this.hand]];
@@ -594,8 +599,9 @@ export class Rig {
       const side: 'left' | 'right' = near.left < near.right ? 'left' : 'right';
       const hand = side === 'left' ? this.offHand : this.hand;
       if (!hand) { this.npcCupModel = null; return; }
-      const rig = new ModelRig('lean-cup', this.npcCupModel);
+      const rig = new ModelRig(this.npcCupId, this.npcCupModel);
       const cup = new LeanCup(rig.root, rig.height);
+      if (this.npcCupId === 'tankard') cup.plain();
       m.root.updateWorldMatrix(true, true);
       const ws = hand.getWorldScale(new Vector3());
       const holder = new Group();
