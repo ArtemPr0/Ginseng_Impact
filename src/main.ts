@@ -41,6 +41,7 @@ import { Story } from './game/Story';
 import { WorldState } from './game/WorldState';
 import { glowSprite } from './render/Glow';
 import { Glints } from './render/LeanFx';
+import { Ambience } from './audio/Ambience';
 import { WINDOWS } from './render/Materials';
 import { Concert } from './world/Concert';
 import { HEAD_LIT } from './world/StoneHead';
@@ -492,6 +493,7 @@ function storyProps(): void {
   if (bride && Math.hypot(bride.pos.x - BRIDE_SHORE.x, bride.pos.z - BRIDE_SHORE.z) < 1.5) adventures.quests.step('bride', 'done', adventures.wallet);
 }
 
+const ambience = new Ambience(audio);
 const concert = new Concert({
   area, camera, fx: combatFx,
   enemies: () => combat.enemies as unknown as ReadonlyArray<{ object: { visible: boolean }; brain: { p: { aggroRange: number } }; pos: { x: number; z: number } }>,
@@ -524,7 +526,7 @@ const ending = new Ending({
   credits: (lines, button, onContinue) => hud.credits(lines, button, onContinue),
   leftParty: () => Math.hypot(controller.pos.x - GALAXY.x, controller.pos.z - GALAXY.z) > GALAXY.radius,
   disperse: () => concert.disperse(),
-  onPlus: () => { newGamePlus = true; combat.beginPlus(); hud.announce('New Game+'); save.write(snapshot()); },
+  onPlus: () => { newGamePlus = true; combat.beginPlus(); hud.announce('New Game+'); if (resumed) save.write(snapshot()); },
 });
 function startNewGame(): void {
   save.clear();
@@ -534,8 +536,9 @@ function startNewGame(): void {
 }
 hud.setOnNewGame(startNewGame);
 hud.setSavePresent(save.has());
-events.on('zone', () => save.write(snapshot()));
-events.on('quest', () => save.write(snapshot()));
+// (Never before the player has entered: the zone event at startup would overwrite the save with a blank game.)
+events.on('zone', () => { if (resumed) save.write(snapshot()); });
+events.on('quest', () => { if (resumed) save.write(snapshot()); });
 
 window.addEventListener('keydown', (e) => {
   // (Held keys repeat: a held digit would pick choice after choice, a held I would flicker the bag.)
@@ -679,8 +682,8 @@ game
       shopClock += dt;
       if (shopClock >= 600) { shopClock = 0; shopLeft.clear(); }
       hoardGlints.update(dt);
-      save.tick(dt, snapshot);
-      if (input.locked) audio.score.zone(placeZone());
+      if (resumed) save.tick(dt, snapshot);
+      if (input.locked) { audio.score.zone(placeZone()); ambience.zone(placeZone(), dt); }
       controller.speedScale = combat.webbed > 0 ? 0 : combat.slowed > 0 ? 0.6 : combat.mired > 0 ? 0.55 : 1;
       if (adventures.riding) { if (space) adventures.leaveBoat(); }
       // Driving the carriage: W/S and A/D take the reins, Space climbs down.
@@ -920,6 +923,8 @@ declare global {
       /** The fight's pooled effects (live counts: `fx.live`). */
       fx: CombatFx;
       inventory: Inventory; hud: Hud; companions: Companion[]; audio: Audio;
+      /** The save, for the headless reload check. */
+      loadSave(): boolean; snapshot(): SaveV1;
       /** Quests and side adventures; F and its current target (headless checks press F without pointer lock). */
       adventures: Adventures; pressF: () => void; interactTarget: typeof interactTarget;
       /** The party's bodies (bones, held props), in roster order. */
@@ -934,4 +939,4 @@ declare global {
     };
   }
 }
-window.__ginseng = { scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, fx: combatFx, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs, events, ending, save, progress, realms: REALMS, teleport, carriage: CARRIAGE, worldState, story };
+window.__ginseng = { loadSave: () => { const s = save.load(); if (s) applySave(s); return !!s; }, snapshot, scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, fx: combatFx, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs, events, ending, save, progress, realms: REALMS, teleport, carriage: CARRIAGE, worldState, story };
