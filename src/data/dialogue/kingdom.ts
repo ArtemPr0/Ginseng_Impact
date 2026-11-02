@@ -168,7 +168,7 @@ export const KINGDOM: DialogueBook = {
       { id: 'skeleton-king.topic.coins', slot: 'topic', ask: 'About the portal coins', text: "Every coin on these stones was paid to cross the portal. Some paid twice. The second time is for the view." },
       { id: 'skeleton-king.topic.rival', slot: 'topic', ask: 'About the antlered king', text: "The antlered fool on the island pays in silence. I pay in shards. Silence is cheaper, and he knows it." },
       { id: 'skeleton-king.topic.trade', slot: 'topic', ask: 'What do you buy?', text: "I buy what the great ones drop. Twice what the antlered fool offers. He hasn't noticed. Don't tell him; I enjoy it." },
-      { id: 'skeleton-king.topic.silence', slot: 'topic', ask: 'The Hollow King swallowed the voices.', text: "The Hollow King swallowed our voices, the head says. He never swallowed my coins. We'll see who's richer at the end.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
+      { id: 'skeleton-king.topic.silence', slot: 'topic', ask: 'What do you make of the silence?', text: "The Hollow King swallowed our voices, the head says. He never swallowed my coins. We'll see who's richer at the end.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
       { id: 'skeleton-king.topic.ended', slot: 'topic', ask: 'Can you hear the coins now?', text: "Every coin rings now. I'd forgotten they rang. The court is loud and I'm counting again, by ear.", when: { quest: ['silence', 'ended'] }, weight: 3 },
 
       { id: 'skeleton-king.bye.spend', slot: 'bye', text: "Go. Spend. Come back." },
@@ -488,7 +488,7 @@ export const KINGDOM: DialogueBook = {
       { id: 'skeleton-lord.topic.diamonds', slot: 'topic', ask: 'Diamonds in your teeth?', text: "Every diamond in these teeth was a promise someone broke. This one swore he'd come back for his cloak. This one swore the smoke was harmless." },
       { id: 'skeleton-lord.topic.smoke', slot: 'topic', ask: 'Why is the smoke purple?', text: "The smoke is purple because of what's in it. The view is purple because of the smoke. It's a system." },
       { id: 'skeleton-lord.topic.castle', slot: 'topic', ask: 'Carriage guests to the castle?', text: "The carriage brings guests to the castle. The castle keeps them. I'm not a guest. I'm the reason there's a castle." },
-      { id: 'skeleton-lord.topic.silence', slot: 'topic', ask: 'The Hollow King swallowed the voices.', text: "A king swallowed the voices, the head says. Not mine. I never used mine; I smoke. He'd have choked.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
+      { id: 'skeleton-lord.topic.silence', slot: 'topic', ask: 'What do you make of the silence?', text: "A king swallowed the voices, the head says. Not mine. I never used mine; I smoke. He'd have choked.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
       { id: 'skeleton-lord.topic.ended', slot: 'topic', ask: 'Has the smoke changed?', text: "The smoke moves differently now; it has something to move to. Someone promised me that, years ago. I wear him on the left.", when: { quest: ['silence', 'ended'] }, weight: 3 },
 
       { id: 'skeleton-lord.bye.smoke', slot: 'bye', text: "The smoke will miss you. I'll manage." },

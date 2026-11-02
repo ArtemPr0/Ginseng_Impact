@@ -111,13 +111,13 @@ export function buildGraveyard(api: GraveyardApi): { links: PortalLink[]; intera
     if (i % 3 === 0) api.vfx(fire(x, y0 + 0.3, z, 0.1, 1));
   }
   api.flora('candle', candles, { shadows: false });
-  // The skeletons that sit waiting by the gate sit on stones (a mob that sits needs a seat: ENEMY_SPAWNS), 0.28 m behind
-  // their spot, the stone's top at the height their sit pose expects (0.5 m, as the campfire barrels).
+  // The skeletons that sit waiting by the gate sit on barrels (a mob that sits needs a seat: ENEMY_SPAWNS), 0.28 m behind
+  // their spot, the barrel's top at the height their sit pose expects (0.5 m, as the campfire barrels).
   const seats: Placement[] = ENEMY_SPAWNS.filter((sp) => sp.kind === 'skeleton' && Math.hypot(sp.x - R.x, sp.z - R.z) < R.radius).map((sp) => {
     const yaw = sp.yaw ?? 0;
-    return { x: sp.x - Math.cos(yaw) * 0.28, y: y0, z: sp.z - Math.sin(yaw) * 0.28, yaw: rnd() * 6, scale: 0.5 / MODELS.boulder.height };
+    return { x: sp.x - Math.cos(yaw) * 0.28, y: y0, z: sp.z - Math.sin(yaw) * 0.28, yaw: rnd() * 6, scale: 0.5 / MODELS.barrel.height };
   });
-  api.flora('boulder', seats);
+  api.flora('barrel', seats);
   // A small glowing toadstool by an open grave (it was a bare glow in the ground): jump on its cap and it squashes and
   // flings you high.
   const graveZ = R.z - 15;

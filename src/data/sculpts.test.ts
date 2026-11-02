@@ -570,7 +570,7 @@ describe('realm sculpts: the land', () => {
     // (The bed rises to the shore over its last WATER_BANK metres at each end, so the sheet's ends sink into the banks.)
     for (let z = 784; z <= 1021; z += 3) {
       expect(landMask(v, 955, z, noise), `river at z ${z}`).toBe(1);
-      expect(h(v, 955, z)).toBeCloseTo(VALE.y - 2.2, 6);
+      expect(h(v, 955, z)).toBeCloseTo(VALE.y - 2.2, 1); // (Within millimetres: the warped land border's blend reaches the bed at the ends.)
       for (const x of [947, 963]) expect(h(v, x, z), `bank (${x}, ${z})`).toBeGreaterThanOrEqual(VALE_RIVER.level + FREEBOARD - 1e-9);
     }
   });

@@ -210,7 +210,7 @@ const TREE_CLEAR = 4.5;
 /** NPCs who sit on a barrel (the island tavern's four sit round their table in the yard). */
 const SEATED = new Set(['rattle', 'bone', 'marrow', 'moss', 'sentry', 'vale-beggar', 'court-knight', 'dock-knight', 'dragon-reader', 'crypt-bones', 'aldous', 'mirren', 'gob-a', 'gob-b', 'croak']);
 /** Sitters whose seat is not a barrel (Brother Croak reads on a stone in the castle's shadow). */
-const SEAT_MODEL: Record<string, string> = { croak: 'boulder' };
+const SEAT_MODEL: Record<string, string> = {};
 /**
  * The lantern in the rider's right hand, in horse-rider.glb's own frame (forward is -x, the rider's right -z, y up
  * from the hooves): the centre of its lit glass (the texels of the flame, averaged), less the fire's own lift.
@@ -336,6 +336,14 @@ export class World {
     const h = (x: number, z: number) => terrain.heightAt(x, z);
     /** Island terrain, or a realm's sculpt where one reaches (placements, seats, the realm builders' `h`). */
     const gh = (x: number, z: number) => this.realmGround.heightAt(x, z) ?? h(x, z);
+    // What a seat stands on: the sculpted ground, or over a realm's void (the sky dock, the rooms) the floor collider at
+    // the realm's own height, shapes overhead ignored.
+    const seatGround = (x: number, z: number) => {
+      const g = gh(x, z);
+      if (g > -20) return g;
+      const r = REALMS.find((q) => Math.hypot(x - q.x, z - q.z) < q.radius);
+      return r ? this.heights.heightAt(x, z, r.y + 0.5) : g;
+    };
     // Ground-level height for things placed on the island (walkers, NPCs, grass): overhangs above the ground are skipped.
     const hw = (x: number, z: number, y?: number) => this.heights.heightAt(x, z, y ?? terrain.heightAt(x, z));
     const flora = (id: string, placements: Placement[], opts?: Parameters<typeof floraSet>[2] & { trunk?: number }) => {
@@ -801,7 +809,7 @@ export class World {
       const bz = a.z - Math.sin(facing) * 0.28;
       // On the ground its sitter sits on: the island's, or out in a realm (the island's terrain is the void there) the
       // realm's floor under any roof (as the NPCs below).
-      const by = gh(bx, bz);
+      const by = seatGround(bx, bz);
       // (In the sitter's realm's group: the island's group is hidden while the player is in a realm.)
       const realm = REALMS.find((r) => Math.hypot(bx - r.x, bz - r.z) < r.radius);
       this.enterZone(realm ? realm.id : null);
@@ -827,7 +835,7 @@ export class World {
       // Seated NPCs sit `dy` above the ground itself (not above the stool the tavern model already has).
       if (s.dy !== undefined) {
         // Out in a realm the island terrain is the void far below: sit on the realm's own floor instead.
-        npc.pos.y = gh(s.x, s.z) + s.dy;
+        npc.pos.y = seatGround(s.x, s.z) + s.dy;
       }
       // A guard bars the doorway behind him (a box across it, 6 m wide) until he steps aside.
       if (def.behaviour.kind === 'guard') {
