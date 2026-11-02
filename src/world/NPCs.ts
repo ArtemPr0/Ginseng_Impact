@@ -492,6 +492,13 @@ export class Npc {
    * written line `line` in a bubble instead (his first, the one the talk panel opens on, unless another is asked for),
    * his pose kept (a seated one stays seated).
    */
+  /** Sets out along a new path at `speed` m/s (the loop restarts from its first leg): the Pale Bride's walk to the shore. */
+  walk(path: Array<[number, number]>, speed: number): void {
+    this.def.behaviour = { kind: 'loop', path, speed };
+    this.seg = 0;
+    this.along = 0;
+  }
+
   speak(gain = 1, line = 0): void {
     const v = this.def.voice;
     if (v) {

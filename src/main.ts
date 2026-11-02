@@ -40,6 +40,7 @@ import { Progress, xpForKill } from './game/Progress';
 import { Save, type SaveV1 } from './game/Save';
 import { Story } from './game/Story';
 import { WorldState } from './game/WorldState';
+import { glowSprite } from './render/Glow';
 import { Glints } from './render/LeanFx';
 import { CHESTS, CHEST_RESPAWN, type ChestDef } from './data/chests';
 import { ENEMY_DEFS } from './data/enemies';
@@ -358,7 +359,13 @@ const story = new Story({
   isHireable: (id) => !!area.npcs.find((n) => n.def.id === id)?.def.hire,
   isFollowing: (id) => companions.some((c) => c.def.id === id),
   hasShop: (id) => !!area.npcs.find((n) => n.def.id === id)?.def.shop,
-  follow: () => {},
+  follow: (id) => {
+    const npc = area.npcs.find((n) => n.def.id === id);
+    if (!npc || id !== 'bride') return;
+    // There and held there: the second leg is the same spot, so she stops at the shore.
+    npc.walk([[npc.pos.x, npc.pos.z], [BRIDE_SHORE.x, BRIDE_SHORE.z], [BRIDE_SHORE.x + 0.01, BRIDE_SHORE.z]], 1.6);
+    hud.announce('The Pale Bride walks to where the sand ends');
+  },
   npcsNear: (x, z, r) => area.npcs
     .filter((n) => !n.hidden && Math.hypot(n.pos.x - x, n.pos.z - z) < r)
     .map((n) => ({ id: n.def.id, bubble: (text: string) => n.bubble(text) })),
@@ -455,6 +462,33 @@ for (const c of CHESTS) {
 const hoardGlints = new Glints(16, 8);
 scene.add(hoardGlints.group);
 for (const c of CHESTS) if (c.kind === 'hoard') hoardGlints.add(chestProps.get(c.id)!.position, new Vector3(0, 0.8, 0), 0.45);
+
+// The Drowned Bell, in the lane behind the Fish King's throne: there only while he is asking for it.
+const BELL_AT = new Vector3(-1000, -46.6, -92);
+const bellProp = modelLandmark('hanging-lantern', BELL_AT.x, BELL_AT.z, BELL_AT.y - 0.6, { collider: 'none' });
+const bellGlow = glowSprite(0x37f5ff, 3.2, 0.7, false);
+bellGlow.position.y = 0.6;
+bellProp.root.add(bellGlow);
+area.adopt('sunken', bellProp.object);
+bellProp.object.visible = false;
+const bellWanted = () => adventures.quests.stage('bell') === 'active' && !inventory.has('drowned-bell');
+area.interactables.push({
+  pos: BELL_AT, range: 3, zone: 'sunken',
+  label: () => (bellWanted() ? 'Take the Drowned Bell' : null),
+  act: () => {
+    inventory.add('drowned-bell', 1);
+    events.emit({ kind: 'loot', item: 'drowned-bell', rarity: 4 });
+    hud.announce('The Drowned Bell');
+  },
+});
+// The Pale Bride's walk ends here: she hears the bells once the bell is out of the lane.
+const BRIDE_SHORE = { x: 56, z: 68 };
+function storyProps(): void {
+  bellProp.object.visible = bellWanted();
+  if (adventures.quests.stage('bride') !== 'walking') return;
+  const bride = area.npcs.find((n) => n.def.id === 'bride');
+  if (bride && Math.hypot(bride.pos.x - BRIDE_SHORE.x, bride.pos.z - BRIDE_SHORE.z) < 1.5) adventures.quests.step('bride', 'done', adventures.wallet);
+}
 
 const PLAZA = { x: 1000, crowdZ: -50, heroZ: -60 };
 const concertLook = new Vector3();
@@ -689,6 +723,7 @@ game
       worldState.setLevel(progress.level);
       worldState.setCompanions(companions.length);
       story.update(dt);
+      storyProps();
       playTime += dt;
       shopClock += dt;
       if (shopClock >= 600) { shopClock = 0; shopLeft.clear(); }

@@ -130,16 +130,17 @@ async function talkTo(id, { quiet = false } = {}) {
   const r = Math.max(1.2, Math.min(2.2, n.talkRange * 0.6));
   let got = null;
   const tried = [];
-  for (const a of [Math.PI / 2 + n.yaw, n.yaw, -Math.PI / 2 + n.yaw, 0, Math.PI / 2, Math.PI, -Math.PI / 2, Math.PI / 4, -Math.PI / 4, 3 * Math.PI / 4]) {
+  // (Nearer the second time: in a crowded room a neighbour can be the closest from further out.)
+  for (const rr of [r, 1]) { if (got) break; for (const a of [Math.PI / 2 + n.yaw, n.yaw, -Math.PI / 2 + n.yaw, 0, Math.PI / 2, Math.PI, -Math.PI / 2, Math.PI / 4, -Math.PI / 4, 3 * Math.PI / 4]) {
     // (npc.yaw is the way it faces: stand in front of it first.)
-    const x = n.pos.x + Math.cos(a) * r;
-    const z = n.pos.z + Math.sin(a) * r;
+    const x = n.pos.x + Math.cos(a) * rr;
+    const z = n.pos.z + Math.sin(a) * rr;
     await tp(x, z, n.pos.y + 2, n.pos.x, n.pos.z);
     await sleep(120);
     const t = G.interactTarget();
     tried.push(t ? `${t.kind}:${t.label}` : 'none');
     if (t?.kind === 'talk' && t.npc === n) { got = t; break; }
-  }
+  } }
   if (!got) { if (!quiet) fail('cannot talk (F does something else or nothing)', { id, tried: [...new Set(tried)].slice(0, 4) }); return null; }
   await press('KeyF', 60);
   const p = await waitFor(() => panelOpen() && readPanel(), 2000);
