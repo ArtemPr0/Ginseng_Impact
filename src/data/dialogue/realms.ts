@@ -313,7 +313,7 @@ const WAXWICK: LineDef[] = [
   { id: 'waxwick.react.ale', slot: 'react', text: 'Rowers\' beer, on your breath, from the island. Heard it is brewed under a bench. Mine is brewed under me. Candle ale. Do not.', when: { flag: 'ale' }, once: true },
   // topic
   { id: 'waxwick.topic.toast', slot: 'topic', ask: 'About the toast', text: 'A toast. To short wicks and long nights. Brannoc wants it higher. There is a ceiling.',
-    choices: [{ label: 'To short wicks.', action: 'close' }] },
+    choices: [{ label: "I'll drink to that.", action: 'close' }] },
   { id: 'waxwick.topic.out', slot: 'topic', ask: 'Can you blow out?', text: 'I do not blow out. I have tried. I asked the dwarves. Hilde tried. The beard is shorter now.',
     choices: [{ label: 'Noted.', action: 'close' }] },
   { id: 'waxwick.topic.head', slot: 'topic', ask: 'About the crowned head', text: 'The crowned head on the hill, lying in the grass. Hilde says if it opens its eyes she is leaving. She has been leaving for years.',

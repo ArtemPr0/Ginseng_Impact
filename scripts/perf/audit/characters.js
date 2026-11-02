@@ -53,6 +53,16 @@ const surfaceUnder = (x, y, z, skip) => {
 };
 // By design, each with its reason (by kind or id: never a blanket filter). The check named is skipped for it only.
 const ALLOW = {
+  // Looked at in lit close-ups, 2026-11-02: each stands or sits right; the measure cannot see barrels or model seats.
+  'npc:king': { 'hips over': 'perched on the throne (model seat)', 'model sinks': 'his robe hem inside the throne' },
+  'npc:sentry': { 'hips over': 'sits on his sword on the cliff seat' },
+  'npc:croak': { 'hips over': 'on a barrel (no collider)' },
+  'npc:aldous': { 'hips over': 'on a barrel (no collider)' }, 'npc:mirren': { 'hips over': 'on a barrel (no collider)' },
+  'npc:moss': { 'hips over': 'on a barrel (no collider)', 'model sinks': 'his boots in the bank' },
+  'npc:dock-knight': { 'hips over': 'on a barrel (no collider)' }, 'npc:dragon-reader': { 'hips over': 'on a barrel (no collider)' },
+  'npc:frogking': { 'pos below': 'squats in his hollow under the footprint of its rim' },
+  'enemy:loggiant': { 'model sinks': 'boots in the soft ground' }, 'enemy:yeti': { 'model sinks': 'feet in the snow' },
+  'enemy:troll': { 'model sinks': 'feet in the gorge bed' },
   // Seats that are part of a model with no collider of their own, so the measure reads the floor under them (each one looked at).
   'npc:skeleton-king': { 'hips over': 'on the dragon throne (model seat)', 'model sinks': 'his chair legs hang inside the throne dais' },
   'npc:skeleton-lord': { 'hips over': 'on the pavilion settee (model seat)' },

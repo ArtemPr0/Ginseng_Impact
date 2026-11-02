@@ -101,7 +101,7 @@ const ALDOUS: NpcDialogue = {
     { id: 'aldous.topic.cup', slot: 'topic', ask: 'About my purple cup', text: 'Your cup. Purple. Mine is ale, honest and cold. We can still work together; I am very open-minded for a fee.', when: { hero: 'knight' } },
 
     { id: 'aldous.bye.road', slot: 'bye', text: 'Go on. The road is still there; I checked.' },
-    { id: 'aldous.bye.cup', slot: 'bye', text: 'Leave the cup. A joke. Bring the cup.' },
+    { id: 'aldous.bye.cup', slot: 'bye', text: 'Go on, then. The cup stays. A joke. Bring the cup.' },
     { id: 'aldous.bye.golems', slot: 'bye', text: 'The dunes have golems. Glass, not sand. Do not sit on one; I speak from experience and one scar.' },
 
     { id: 'aldous.bark.rate', slot: 'bark', text: 'Rate is a hundred and twenty.' },

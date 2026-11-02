@@ -579,7 +579,7 @@ export const ISLAND_A: DialogueBook = {
       { id: 'wanderer.react.graveskel', slot: 'react', text: 'Skeletons in the alley of graves, so they say. Bones everywhere want to walk. I walk; I understand them.', when: kill('grave-skeleton') },
       { id: 'wanderer.react.boss', slot: 'react', text: '{lastBoss} died somewhere far. The castle did not stop burning. I checked; it is the one thing I check.', when: BOSS },
 
-      { id: 'wanderer.topic.castle', slot: 'topic', ask: 'The burning castle', text: 'Across the water a castle burns and never falls.', weight: 2, choices: [
+      { id: 'wanderer.topic.castle', slot: 'topic', ask: 'What do you see out there?', text: 'Across the water a castle burns and never falls.', weight: 2, choices: [
         { label: "Where? I don't see it.", to: 'wanderer.topic.point' },
         { label: 'Why does it burn?', to: 'wanderer.topic.why' },
         { label: 'Leave', action: 'close' },
