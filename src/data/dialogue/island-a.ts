@@ -530,7 +530,7 @@ export const ISLAND_A: DialogueBook = {
       { id: 'lantern-witch.react.angler', slot: 'react', text: 'An angler died under the lake, I hear. Down there the lanterns are jellyfish. Up here mine is oil, and it minds its business.', when: kill('angler') },
       { id: 'lantern-witch.react.boss', slot: 'react', text: '{lastBoss}. Dead. Across the water the spires did not move. They never do; that is how I know they are there.', when: BOSS },
 
-      { id: 'lantern-witch.topic.city', slot: 'topic', ask: 'The city across the water', text: 'Spires, aqueducts, a bridge for every citizen and six to spare. It is there when the fog thins. The fog has not thinned in my lifetime.', choices: [
+      { id: 'lantern-witch.topic.city', slot: 'topic', ask: 'What is out past the lake?', text: 'Spires, aqueducts, a bridge for every citizen and six to spare. It is there when the fog thins. The fog has not thinned in my lifetime.', choices: [
         { label: 'I see nothing.', to: 'lantern-witch.topic.nothing' },
         { label: 'Leave', action: 'close' },
       ] },

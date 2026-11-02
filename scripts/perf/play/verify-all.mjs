@@ -71,6 +71,7 @@ allOk = runBody('interact', '0,40', 26, join(play, 'sweep-interact.js')) && allO
 allOk = runBody('hollowking', '36,-146', 8, join(play, 'hollowking.js')) && allOk;
 // The six bugs of the takeover, as a player meets them.
 allOk = runBody('bugs', '0,40', 26, join(play, 'sweep-bugs.js')) && allOk;
+allOk = runBody('plan', '0,40', 26, join(play, 'sweep-plan.js')) && allOk;
 allOk = runBody('layout', '0,40', 8, join(audit, 'layout.js')) && allOk;
 allOk = runBody('glows', '0,40', 8, join(audit, 'glows.js')) && allOk;
 for (const [zone, at] of [['island', '0,40'], ['north', '-20,-110'], ['plaza', '1000,20'], ['snow', '931,124'], ['vale', '1000,1006'], ['sunken', '-1000,56'], ['graveyard', '0,-916'], ['dream', '0,2630']]) {

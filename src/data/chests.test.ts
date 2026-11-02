@@ -80,7 +80,7 @@ const GRIDS: Array<[string, Footprint | null]> = [
   ['crowned-head', gridFootprint('crowned-head', 1000 - 85, 0, 900 + 20, face(0.25), 1.5)],
 ];
 /** How many of GRIDS resolve: every building but the eight ruins. */
-const GRIDS_RESOLVED = GRIDS.length - LAYOUT.ruins.length;
+const GRIDS_RESOLVED = GRIDS.length;
 const BUILDINGS: Footprint[] = [
   ...GRIDS.map(([, f]) => f).filter((f): f is Footprint => f !== null),
   ...[924, 906, 888, 870, 852].flatMap((x) => [4, 32].map((z): Footprint => ({ kind: 'box', x, z, hw: 3.4, hd: 3.4, top: GY + 9 }))),
@@ -145,10 +145,10 @@ describe('CHESTS', () => {
   });
 
   it('stands outside the buildings and the creatures\' pads', () => {
-    // Every building named resolves to its baked grid, except the ruins, which have none and are kept off by distance.
-    expect(GRIDS.filter(([, f]) => f === null).map(([id]) => id)).toEqual(LAYOUT.ruins.map(ruinKind));
+    // Every building named resolves to its baked grid, the ruins too (their models now exist).
+    expect(GRIDS.filter(([, f]) => f === null)).toEqual([]);
     expect(GRIDS.filter(([, f]) => f !== null)).toHaveLength(GRIDS_RESOLVED);
-    expect(GRIDS_RESOLVED).toBe(15);
+    expect(GRIDS_RESOLVED).toBe(15 + LAYOUT.ruins.length);
     expect(BUILDINGS.length).toBeGreaterThan(GRIDS_RESOLVED + 20);
     for (const c of CHESTS) {
       for (const f of BUILDINGS) for (const p of ring(c)) expect(footprintContains(f, p.x, p.z), `${c.id} inside ${f.kind === 'grid' ? f.id : `${f.kind} at ${f.x},${f.z}`}`).toBe(false);
