@@ -446,8 +446,8 @@ export const FOOTINGS: ReadonlyArray<{ x: number; z: number; r: number; blend: n
   { x: LAYOUT.church.x, z: LAYOUT.church.z, r: 10.5, blend: 3 },
   { x: LAYOUT.cathedral.x, z: LAYOUT.cathedral.z, r: 14, blend: 6, y: LAYOUT.cathedral.y },
   ...VILLAGE.houses.map(([dx, dz]) => ({ x: VILLAGE.x + dx, z: VILLAGE.z + dz, r: 4.4, blend: 2.6 })),
-  ...LAYOUT.hamlet.filter(([x]) => x !== -8).map(([x, z]) => ({ x, z, r: 4.4, blend: 2.6 })), // (the west house has its PAD)
-  { x: 20, z: 63, r: 5.6, blend: 3 },    // the tavern
+  ...LAYOUT.hamlet.filter(([x]) => x !== -8 && x !== 7).map(([x, z]) => ({ x, z, r: 3.5, blend: 1.2 })), // (tight: terraced on the knoll. The west house has its PAD; the one by the road is cut into the bank)
   { x: 32, z: 64.5, r: 4.6, blend: 3.6 }, // the cloister
+  { x: 20, z: 63, r: 5.6, blend: 3 },    // the tavern
   { x: -46, z: 48, r: 5.5, blend: 4 },   // the observatory
 ];

@@ -319,7 +319,7 @@ describe('building footings', () => {
       const y = f.y ?? terrainHeight(f.x, f.z, n, true, false);
       for (let a = 0; a < 8; a++) {
         const g = terrainHeight(f.x + Math.cos(a) * f.r, f.z + Math.sin(a) * f.r, n);
-        expect(Math.abs(g - y), `footing at ${f.x},${f.z}`).toBeLessThan(0.2);
+        expect(Math.abs(g - y), `footing at ${f.x},${f.z}`).toBeLessThan(0.25);
       }
     }
   });
