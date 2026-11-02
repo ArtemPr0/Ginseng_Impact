@@ -28,7 +28,8 @@ import { portal, type PortalLink } from './Portal';
 import type { RealmApi } from './Realms';
 import { chainSpan, witchBridgeDeck } from './Walkways';
 import { waterRibbon } from './Water';
-import { VALE_MEANDER_AMP, valeMeander } from '../data/sculpts';
+import { VALE_MEANDER_AMP, VALE_STREET, valeMeander } from '../data/sculpts';
+import { dressVale } from './Pois';
 
 /** Rotation that turns a model's front (local +z) toward world direction `yaw` (cos, sin). */
 const face = (yaw: number) => Math.PI / 2 - yaw;
@@ -96,6 +97,7 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
     api.place({ object: new Group(), footprints: [{ kind: 'box', x: X + 15, z, hw: 1.9, hd: 0.7, top: vy + 1.1 }] });
     api.flora('candle', [-1.2, 0, 1.2].map((dx) => ({ x: X + 15 + dx, y: vy + 1.12, z, yaw: 0, scale: 1 })), { shadows: false });
     for (const dx of [-1.2, 0, 1.2]) glow(0xffb050, 0.7, X + 15 + dx, vy + 1.5, z, 0.55);
+    api.flora('tankard', [-0.6, 0.6].map((dx) => ({ x: X + 15 + dx, y: vy + 1.12, z: z + 0.25, yaw: api.rnd() * 6, scale: 1 })), { shadows: false });
   }
   api.place(modelLandmark('campfire', X + 19, Z + 66, vy));
   api.vfx(fire(X + 19, vy + 0.3, Z + 66, 1, 18));
@@ -103,37 +105,62 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
   api.flora('barrel', yardBarrels);
   for (const b of yardBarrels) api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: b.x, z: b.z, r: 0.5, top: vy + 1.1 }] });
 
-  // --- The village street (z +100 → +10), houses both sides facing it ---
-  const houseZs = [92, 80, 56, 44, 32, 20];
-  houseZs.forEach((dz, i) => {
-    for (const side of [-1, 1]) {
-      // (The tavern stands where the east side's first two houses would.)
-      if (side > 0 && dz > 70) continue;
-      const x = X + side * (11 + (i % 2) * 1.2);
-      const z = Z + dz;
-      api.place(modelLandmark('village-house', x, z, vy, { yaw: face(side < 0 ? 0 : Math.PI), footprints: [{ kind: 'box', x, z, hw: 3.3, hd: 3.3, top: vy + 6 }], onLoad: (m) => restyle(m, (mat) => patchLitWindows(mat)) }));
-      // Lamplight on the house fronts (village-house.glb's front wall is 2.85 m from its middle: the glow hung 0.75 m out in
-      // the street), and smoke from every other chimney.
-      glow(LANTERN, 2, x - side * 2.95, vy + 2.6, z + 1.6, 0.6);
-      if (i % 2 === 0) {
-        const smoke = new PipeSmoke(0x9aa6c0);
-        smoke.emitter.position.set(x + side * 1.2, vy + 6.3, z - 1);
-        smoke.emitter.scale.setScalar(6);
-        fx.add(smoke.emitter, smoke.particles);
-        updates.push((dt) => smoke.update(dt));
-      }
+  // --- The village: the street bends through a square round an old tree, the houses stand as people built them ---
+  // (dx, dz, the way the door looks, size.)
+  const homes: ReadonlyArray<readonly [number, number, number, number]> = [
+    [-8, 102, 0.15, 1], [-6, 88, -0.12, 1.05], [-6.5, 74, 0.22, 0.95], [-18, 63, 0.45, 1], [-19, 40, -0.4, 1.05], [-17, 26, 0.12, 1], [-15, 12, -0.2, 0.95],
+    [18, 41, Math.PI + 0.3, 1], [14, 27, Math.PI - 0.12, 1.05], [12, 13, Math.PI + 0.15, 0.95],
+    [-25, 97, 0.85, 0.95], [-23, 81, -0.5, 1], [-31, 67, 0.25, 1], [-29, 30, 0.55, 1], [-30, 14, -0.3, 1.05],
+    [31, 44, Math.PI - 0.5, 1], [32, 27, Math.PI + 0.2, 0.95], [27, 11, Math.PI - 0.3, 1], [45, 34, Math.PI, 1.05],
+  ];
+  homes.forEach(([dx, dz, yaw, size], i) => {
+    const x = X + dx, z = Z + dz;
+    api.place(modelLandmark('village-house', x, z, vy, { yaw: face(yaw), scale: size, onLoad: (m) => restyle(m, (mat) => patchLitWindows(mat)) }));
+    // Lamplight on the house front, smoke from every third chimney.
+    glow(LANTERN, 1.1, x + Math.cos(yaw) * 3 - Math.sin(yaw) * 1.6, vy + 2.6, z + Math.sin(yaw) * 3 + Math.cos(yaw) * 1.6, 0.42);
+    if (i % 3 === 0) {
+      const smoke = new PipeSmoke(0x9aa6c0);
+      smoke.emitter.position.set(x - Math.cos(yaw) * 1.2, vy + 6.3, z - Math.sin(yaw) * 1.2);
+      smoke.emitter.scale.setScalar(6);
+      fx.add(smoke.emitter, smoke.particles);
+      updates.push((dt) => smoke.update(dt));
     }
   });
+  // Barrels by the door, the odds and ends of living there.
+  const stacks: Placement[] = [];
+  homes.forEach(([dx, dz, yaw], i) => {
+    if (i % 2) return;
+    for (let k = 0; k < 2; k++) stacks.push({ x: X + dx + Math.cos(yaw) * 3.9 + Math.sin(yaw) * (2.2 + k * 0.95), y: vy, z: Z + dz + Math.sin(yaw) * 3.9 - Math.cos(yaw) * (2.2 + k * 0.95), yaw: api.rnd() * 6, scale: 0.9 });
+  });
+  api.flora('barrel', stacks);
+  for (const b of stacks) api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: b.x, z: b.z, r: 0.45, top: vy + 1 }] });
+  // Lamps along the bend, side to side.
   const lanterns: Placement[] = [];
-  // (Clear of the stalls at dz 41.4, 30 and 18.)
-  for (const dz of [88, 64, 36, 12]) for (const side of [-1, 1]) lanterns.push({ x: X + side * 6.4, y: vy, z: Z + dz, yaw: 0, scale: 1 });
-  api.flora('lantern-post', lanterns);
-  for (const l of lanterns) { api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: l.x, z: l.z, r: 0.2, top: vy + 2.5 }] }); glow(LANTERN, 1.8, l.x, vy + 2.3, l.z, 0.6); }
-  // Stalls along the street, a barrel for the beggar to sit on.
-  for (const [dx, dz, yaw] of [[6.8, 41.4, Math.PI], [-6.8, 30, 0], [6.8, 18, Math.PI]] as const) {
-    const x = X + dx, z = Z + dz;
-    api.place(modelLandmark('market-stall', x, z, vy, { yaw: face(yaw), footprints: [{ kind: 'box', x, z, hw: 1.2, hd: 1.8, top: vy + 1.1 }] }));
+  for (let i = 0, side = 1; i + 1 < VALE_STREET.length; i++) {
+    const [ax, az] = VALE_STREET[i], [bx, bz] = VALE_STREET[i + 1];
+    const len = Math.hypot(bx - ax, bz - az);
+    for (let d = 7; d < len; d += 15, side = -side) {
+      const t = d / len;
+      lanterns.push({ x: X + ax + (bx - ax) * t + ((bz - az) / len) * side * 5.6, y: vy, z: Z + az + (bz - az) * t - ((bx - ax) / len) * side * 5.6, yaw: 0, scale: 1 });
+    }
   }
+  api.flora('lantern-post', lanterns);
+  for (const l of lanterns) { api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: l.x, z: l.z, r: 0.2, top: vy + 2.5 }] }); glow(LANTERN, 1.2, l.x, vy + 2.3, l.z, 0.5); }
+  // The square: stalls round an old tree hung with lanterns, a long table in its shade.
+  for (const [dx, dz, yaw] of [[6.8, 41.4, Math.PI], [-12, 46, 0.3], [13.5, 51, Math.PI - 0.2], [-11, 60, -0.4]] as const) {
+    const x = X + dx, z = Z + dz;
+    api.place(modelLandmark('market-stall', x, z, vy, { yaw: face(yaw), footprints: [{ kind: 'box', x, z, hw: 1.2, hd: 1.8, top: vy + 1.1, rotY: -face(yaw) }] }));
+  }
+  api.place(modelLandmark('gnarled-tree', X + 1, Z + 52, vy, { scale: 1.3, collider: 'manual', footprints: [{ kind: 'cyl', x: X + 1, z: Z + 52, r: 0.9, top: vy + 5 }] }));
+  for (const a of [0.4, 2.2, 4.1]) glow(LANTERN, 1.6, X + 1 + Math.cos(a) * 3.2, vy + 3.4, Z + 52 + Math.sin(a) * 3.2, 0.55);
+  {
+    const tx = X - 3, tz = Z + 58;
+    api.flora('tavern-table', [{ x: tx, y: vy, z: tz, yaw: 0.5, scale: 1 }]);
+    api.place({ object: new Group(), footprints: [{ kind: 'box', x: tx, z: tz, hw: 1.6, hd: 0.6, top: vy + 0.95, rotY: -0.5 }] });
+    api.flora('tankard', [[-0.7, 0.15], [0.6, -0.1], [0.1, 0.2]].map(([dx, dz]) => ({ x: tx + dx, y: vy + 0.96, z: tz + dz, yaw: api.rnd() * 6, scale: 1 })), { shadows: false });
+  }
+  // The wider vale: gardens, ruins, camps and the rest (Pois.ts).
+  dressVale(api);
 
   // --- The green dragon lying behind the last houses, the reader on its claw ---
   // Twice the registry size: in the reel he looms over the roofs, head raised, at the end of the street (facing up it).

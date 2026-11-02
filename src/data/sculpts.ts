@@ -497,14 +497,24 @@ const VALE_FLOATERS: Floater[] = [
   })),
 ];
 
+/** The village street: it bends through the square at (X + 1, Z + 52) on its way from the arch to the dragon. */
+export const VALE_STREET: ReadonlyArray<readonly [number, number]> = [[0, 114], [5, 96], [7, 78], [3, 60], [-3, 44], [-6, 26], [-2, 8], [0, -6]];
+const VALE_STREET_SEGS: Seg[] = VALE_STREET.slice(1).map(([x, z], i) => ({ ax: VALE.x + VALE_STREET[i][0], az: VALE.z + VALE_STREET[i][1], bx: VALE.x + x, bz: VALE.z + z, r: 4.4 }));
+/** Worn lanes from the square: west to the bridge, east over the meadow to the chains, and round behind the houses. */
+const VALE_LANE_LINES: ReadonlyArray<ReadonlyArray<readonly [number, number]>> = [
+  [[-11, 48], [-22, 45], [-37, 40]], [[12, 54], [24, 50], [46, 22], [62, 8], [84, -5]],
+  [[-12, 66], [-19, 72], [-20, 90], [-14, 104]], [[-10, 20], [-23, 22], [-24, 36]], [[10, 34], [22, 33], [24, 18]],
+];
+const VALE_LANES: Seg[] = VALE_LANE_LINES.flatMap((line) => line.slice(1).map(([x, z], i) => ({ ax: VALE.x + line[i][0], az: VALE.z + line[i][1], bx: VALE.x + x, bz: VALE.z + z, r: 1.7 })));
+
 const VALE_SCULPT: RealmSculpt = {
   id: 'vale',
   base: VY,
   pads: [
     // (The green dragon at twice its size: 24 × 22 m round (X, Z − 8).)
     { name: 'dragon', disc: { x: VALE.x, z: VALE.z - 8, r: 24 }, y: VY, blend: 6 },
-    // (The houses' boxes reach x 984.5 and 1015.5: the street holds 2 m wider than the plan's 986..1014.)
-    { name: 'street', rect: [VALE.x - 16, VALE.x + 16, VALE.z, VALE.z + 110], y: VY, blend: 6 },
+    // The whole village stands on one level: the bending street, its square and the lanes behind.
+    { name: 'street', rect: [VALE.x - 34, VALE.x + 50, VALE.z, VALE.z + 110], y: VY, blend: 8 },
     // (The yard is at Z + 58..92: the tavern at +76, tables at +73/+78.4, the fire at +66, barrels to +84.)
     { name: 'tavern-yard', rect: [VALE.x + 4, VALE.x + 34, VALE.z + 58, VALE.z + 92], y: VY, blend: 6 },
     { name: 'arrival', rect: [VALE.x - 8, VALE.x + 8, VALE.z + 104, VALE.z + 116], y: VY, blend: 6 },
@@ -533,6 +543,9 @@ const VALE_SCULPT: RealmSculpt = {
       { name: 'river-north', disc: { x: VALE.x - 52, z: VALE.z + 110, r: 22 }, margin: 12 },
       { name: 'west-meadow', disc: { x: VALE.x - 70, z: VALE.z + 85, r: 20 }, margin: 10 },
       { name: 'east-meadow', rect: [VALE.x + 40, VALE.x + 70, VALE.z - 55, VALE.z + 5], margin: 12 },
+      // The woods north of the street, either side of the fallen gate.
+      { name: 'north-west-wood', rect: [VALE.x - 130, VALE.x - 60, VALE.z - 105, VALE.z - 50], margin: 12 },
+      { name: 'north-east-wood', rect: [VALE.x + 20, VALE.x + 72, VALE.z - 105, VALE.z - 56], margin: 12 },
     ],
   },
   edge: { kind: 'cliff', drop: 60, width: 20, lip: 1 },
@@ -541,7 +554,9 @@ const VALE_SCULPT: RealmSculpt = {
   extraHills: [VALE_DOME],
   layerRects: [
     // The street's cobbles (cobbleFloor was 12 m wide, Z − 15..+115), the path's, the yard trodden to soil round the fire.
-    { rect: [VALE.x - 6, VALE.x + 6, VALE.z - 14, VALE.z + 114], layer: 'cobble', warp: 3, blend: 6, fray: 0.3 },
+    ...VALE_STREET_SEGS.map((seg) => ({ seg, layer: 'cobble' as const, warp: 2.5, blend: 2.5, fray: 0.35 })),
+    { disc: { x: VALE.x + 1, z: VALE.z + 52, r: 13 }, layer: 'cobble', warp: 3, blend: 3, fray: 0.35 },
+    ...VALE_LANES.map((seg) => ({ seg, layer: 'soil' as const, warp: 2.5, blend: 2.5, fray: 0.4 })),
     { seg: VALE_PATH, layer: 'cobble', warp: 1.5, blend: 3, fray: 0.3 },
     { disc: { x: VALE.x + 19, z: VALE.z + 66, r: 7 }, layer: 'soil', warp: 2, blend: 5, fray: 0.4 },
     // The crown: the head's mound stands on bare rock, frayed into the grass of the seat's rim.

@@ -394,6 +394,20 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'beast', x: 1045, z: 960 }, { kind: 'beast', x: 1052, z: 966 }, { kind: 'beast', x: 1060, z: 900 },
   { kind: 'beast', x: 1072, z: 860 }, { kind: 'beast', x: 1066, z: 852 }, { kind: 'beast', x: 930, z: 990 },
   { kind: 'crystalsentry', x: 930, z: 905 }, { kind: 'crystalsentry', x: 922, z: 940 },
+  // Round the vale's new places (Pois.ts): the wolves in the north wood, the dead at their graves and their fire, sentries
+  // at the fallen gate.
+  { kind: 'beast', x: 880, z: 835 }, { kind: 'beast', x: 892, z: 842 }, { kind: 'beast', x: 870, z: 846 },
+  { kind: 'beast', x: 1045, z: 822 }, { kind: 'beast', x: 1056, z: 830 },
+  { kind: 'grave-skeleton', x: 890, z: 860 }, { kind: 'grave-skeleton', x: 874, z: 876 },
+  { kind: 'grave-skeleton', x: 915, z: 808 }, { kind: 'grave-skeleton', x: 922, z: 820 }, { kind: 'grave-skeleton', x: 908, z: 820 },
+  { kind: 'crystalsentry', x: 1008, z: 838 }, { kind: 'crystalsentry', x: 992, z: 822 },
+  // The kingdom's margins: imps in the purple wood, the dead at their graves.
+  { kind: 'styro-ghoul', x: 880, z: -56 }, { kind: 'styro-ghoul', x: 900, z: -50 }, { kind: 'styro-ghoul', x: 950, z: -60 },
+  { kind: 'mail-knight', x: 832, z: -48 }, { kind: 'grave-skeleton', x: 965, z: 112 }, { kind: 'grave-skeleton', x: 815, z: 96 },
+  // The drowned land beyond the city: anglers among the wrecks.
+  { kind: 'angler', x: -1062, z: -52 }, { kind: 'angler', x: -938, z: -92 }, { kind: 'angler', x: -1070, z: 50 }, { kind: 'angler', x: -934, z: 54 },
+  // Beyond the alley's walls.
+  { kind: 'grave-skeleton', x: -21, z: -1090 }, { kind: 'grave-skeleton', x: 26, z: -1034 }, { kind: 'grave-skeleton', x: -27, z: -978 }, { kind: 'grave-skeleton', x: 27, z: -918 },
   // The snow quarter of the Lean Quarter: skeletons stalking the graves round the chapel.
   { kind: 'grave-skeleton', x: 880, z: 140 }, { kind: 'grave-skeleton', x: 925, z: 160 }, { kind: 'grave-skeleton', x: 940, z: 100 }, { kind: 'grave-skeleton', x: 875, z: 165 },
   // The Skeleton Court's treasury.

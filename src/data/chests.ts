@@ -77,6 +77,15 @@ export const CHESTS: ChestDef[] = [
   // On the grass beside the cobbled path from the stone bridge, at the foot of the crowned head's hill.
   { id: 'vale-hill', zone: 'vale', x: 936, z: 937, kind: 'cache', respawn: CHEST_RESPAWN, shards: [15, 40],
     table: [{ itemId: 'lotus-tea', chance: 0.5 }, { itemId: 'beast-fang', chance: 0.5 }, { itemId: 'old-bone', chance: 0.4 }, { itemId: 'hunters-bow', chance: 0.08 }] },
+  // Under the fallen gate north of the street, the sentries' whole reason for standing there.
+  { id: 'vale-gate', zone: 'vale', x: 1003, z: 826, kind: 'hoard', respawn: CHEST_RESPAWN, shards: [40, 100],
+    table: [{ itemId: 'rune-shard', chance: 0.6 }, { itemId: 'sentinel-core', chance: 0.3 }, { itemId: 'moon-dew', chance: 0.5 }] },
+  // By the dead men's fire in the north-west of the vale.
+  { id: 'vale-camp', zone: 'vale', x: 921, z: 811, kind: 'cache', respawn: CHEST_RESPAWN, shards: [15, 40],
+    table: [{ itemId: 'old-bone', chance: 0.6 }, { itemId: 'lotus-tea', chance: 0.5 }] },
+  // On the castle's west shelf, at the far end of the chains.
+  { id: 'vale-castle', zone: 'vale', x: 1120, z: 903, kind: 'hoard', respawn: CHEST_RESPAWN, shards: [60, 120],
+    table: [{ itemId: 'wisp-ember', chance: 0.5 }, { itemId: 'rune-shard', chance: 0.6 }, { itemId: 'moon-dew', chance: 0.6 }] },
   // ----- The Alley of Graves -----
   // In the alley just past the candle shrine, on the way to the cyclops.
   { id: 'grave-shrine', zone: 'graveyard', x: 0, z: -984, kind: 'hoard', respawn: CHEST_RESPAWN, shards: [40, 110],

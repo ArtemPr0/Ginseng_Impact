@@ -1,5 +1,6 @@
 import { type BufferGeometry, Color, Group, type Mesh, type MeshStandardMaterial, type Object3D, Vector2, Vector3 } from 'three';
 import { REALM_SCULPTS } from '../data/sculpts';
+import { FOLK } from '../data/folk';
 import { ANCHORS, CRYPT_ROOM, GALAXY, ISLAND_PORTALS, LAYOUT, REALMS, SUNKEN, TAVERN_ROOM, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
 import type { Events, Zone } from '../game/Events';
@@ -208,7 +209,9 @@ const CAMPFIRE_SEATS = new Set(['rattle', 'bone', 'marrow']);
 const TREES = new Set(['pine', 'snow-pine', 'dead-forest-tree', 'gnarled-tree', 'cypress', 'birch', 'willow', 'palm', 'pod-tree', 'giant-mushroom']);
 const TREE_CLEAR = 4.5;
 /** NPCs who sit on a barrel (the island tavern's four sit round their table in the yard). */
-const SEATED = new Set(['rattle', 'bone', 'marrow', 'moss', 'sentry', 'vale-beggar', 'court-knight', 'dock-knight', 'dragon-reader', 'crypt-bones', 'aldous', 'mirren', 'gob-a', 'gob-b', 'croak']);
+const EVERYONE = [...NPC_DEFS, ...FOLK];
+for (const f of FOLK) ANCHORS[f.id] = f.at;
+const SEATED = new Set([...FOLK.filter((f) => f.seat).map((f) => f.id), 'rattle', 'bone', 'marrow', 'moss', 'sentry', 'vale-beggar', 'court-knight', 'dock-knight', 'dragon-reader', 'crypt-bones', 'aldous', 'mirren', 'gob-a', 'gob-b', 'croak']);
 /** Sitters whose seat is not a barrel (Brother Croak reads on a stone in the castle's shadow). */
 const SEAT_MODEL: Record<string, string> = {};
 /**
@@ -809,7 +812,7 @@ export class World {
     // Seats for NPCs whose only rest pose is sitting on a chair: a barrel at stool height just behind each sitter
     // (the campfire skeletons, Old Moss on the stream bank, Sir Halvard on the cliff).
     for (const id of SEATED) {
-      const def = NPC_DEFS.find((d) => d.id === id);
+      const def = EVERYONE.find((d) => d.id === id);
       const a = ANCHORS[id];
       // The campfire seats belong to the skeletons (enemies now): they face the fire; NPCs face their own way.
       const facing = CAMPFIRE_SEATS.has(id) ? Math.atan2(CAMPFIRE.z - a.z, CAMPFIRE.x - a.x) : def?.behaviour.kind === 'stand' ? def.behaviour.yaw : 0;
@@ -835,8 +838,8 @@ export class World {
       ANCHORS.king = { x: th.x, z: seatZ, y: this.heights.heightAt(th.x, seatZ) - 0.42 };
     }
 
-    // --- NPCs ---
-    for (const def of NPC_DEFS) {
+    // --- NPCs, and the folk going about their day ---
+    for (const def of EVERYONE) {
       const s = ANCHORS[def.id] ?? { x: 0, z: 0 };
       const npc = new Npc(def, s, hw);
       if (s.y !== undefined) npc.pos.y = s.y;

@@ -92,12 +92,12 @@ const CHEST_R = 0.9;
 const ring = (c: XZ): XZ[] => [c, ...Array.from({ length: 8 }, (_, i) => ({ x: c.x + Math.cos((i / 8) * Math.PI * 2) * CHEST_R, z: c.z + Math.sin((i / 8) * Math.PI * 2) * CHEST_R }))];
 
 describe('CHESTS', () => {
-  it('has about fourteen chests with unique ids and the right mix of kinds', () => {
+  it('has about seventeen chests with unique ids and the right mix of kinds', () => {
     expect(CHESTS.length).toBeGreaterThanOrEqual(12);
     expect(new Set(CHESTS.map((c) => c.id)).size).toBe(CHESTS.length);
     const kinds = { hoard: 0, cache: 0, mimic: 0 };
     for (const c of CHESTS) kinds[c.kind]++;
-    expect(kinds).toEqual({ hoard: 9, cache: 3, mimic: 2 });
+    expect(kinds).toEqual({ hoard: 11, cache: 4, mimic: 2 });
     expect(chestById('gorge-head')?.kind).toBe('hoard');
     expect(chestById('nowhere')).toBeUndefined();
   });

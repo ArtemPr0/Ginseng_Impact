@@ -89,9 +89,9 @@ void main() {
   vec3 c = mix(body, refl, min(1.0, fres * (1.0 - trip * 0.5) + 0.05));
   // Foam: thin strings drawn out along the current, and a lace along a river's banks.
   float bank = flows ? (1.0 - smoothstep(0.02, 0.17, vUv.y)) + (1.0 - smoothstep(0.02, 0.17, 1.0 - vUv.y)) : 0.0;
-  float strings = flows ? vnoise(vec2(q.x * 0.11, q.y * 2.7)) * vnoise(vec2(q.x * 0.31 + 4.0, q.y * 1.1 + 2.0)) : 0.0;
+  float strings = flows ? vnoise(vec2(q.x * 0.17, q.y * 5.5) + vec2(0.0, h0 * 1.4)) * vnoise(vec2(q.x * 0.43 + 4.0, q.y * 2.3 + 2.0)) : 0.0;
   float lace = bank * smoothstep(0.42, 0.72, vnoise(q * vec2(0.9, 2.6)) + h0 * 0.25);
-  c += uFoam * (smoothstep(0.3, 0.52, strings) * 0.14 * (1.0 - trip) + lace * 0.42);
+  c += uFoam * (smoothstep(0.26, 0.56, strings) * 0.075 * (1.0 - trip) + lace * 0.34);
   // Moonlight breaking on the facets: small, hard and restless, never a patch.
   float sp = max(dot(R, uMoonDir), 0.0);
   c += uMoonCol * (pow(sp, 420.0) * 3.2 + pow(sp, 60.0) * 0.1) * smoothstep(0.25, 0.8, h0);

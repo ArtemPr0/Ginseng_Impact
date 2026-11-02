@@ -11,6 +11,7 @@
  * Overhead the sea's surface ripples with the sun burning through it; light falls in shafts, caustics dance on the
  * cobbles, bubbles rise everywhere. Buildings, props and creatures are Meshy models by id; the water is shaders.
  */
+import { dressSunken } from './Pois';
 import { Color, Group, type Mesh, type MeshStandardMaterial, PointLight, Vector3 } from 'three';
 import { ISLAND_PORTALS, SUNKEN } from '../data/world';
 import { MODELS } from '../data/models';
@@ -267,6 +268,7 @@ export function buildSunken(api: RealmApi, link: (at: Vector3, radius: number, h
   api.place(portal(home.x, sy + 0.06, home.z, 2.6, { vertical: false, colors: [PALETTE.abyss, PALETTE.moon], spin: 1 }));
   for (let k = 0; k < 8; k++) glow(PALETTE.moon, 0.8, home.x + (api.rnd() - 0.5) * 2, sy + 1 + k * 1.6, home.z + (api.rnd() - 0.5) * 2, 0.4);
   links.push(link(new Vector3(home.x, sy + 0.5, home.z), 2.2, 3, POND_EXIT.x, POND_EXIT.z, POND_EXIT.yaw, 'The Lily Pond'));
+  dressSunken(api);
   api.realm(null);
   return links;
 }

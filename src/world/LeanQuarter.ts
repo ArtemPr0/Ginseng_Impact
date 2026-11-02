@@ -13,6 +13,7 @@
  * Every structure is a Meshy model by id (nothing shows until its file exists); floors, mist, falls, flames,
  * sparkles and skies are procedural.
  */
+import { dressKingdom } from './Pois';
 import { Color, Group, type MeshStandardMaterial, type Mesh, Vector3 } from 'three';
 import { GALAXY, LEAN_QUARTER } from '../data/world';
 import { MODELS } from '../data/models';
@@ -387,6 +388,7 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
     updates.push((dt) => m.update(dt));
   }
 
+  dressKingdom(api);
   api.realm(null);
   return { interactables };
 }

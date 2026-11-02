@@ -44,6 +44,8 @@ export interface NpcDef {
   voice?: { url: string; caption: string; every: number; range: number; firstAfter?: number };
   /** Slurp at this fraction of the drink clip (the moment the cup meets the mouth). */
   sipAt?: number;
+  /** Passing folk: says one of its lines now and then when the hero is near. */
+  chatter?: boolean;
   /** Scale multiplier applied to the rig (ogres, trolls). */
   scale?: number;
   /** Where his speech bubble floats, in metres over his feet (the model's height + 0.55 unless said): the Count's clears his carriage roof. */
@@ -421,6 +423,7 @@ export const NPC_DEFS: NpcDef[] = [
 
 /** A talking, posed or wandering non-player character built on the party rig. */
 export class Npc {
+  private chatWait = 2 + Math.random() * 10;
   private lookNow = 0;
   private flinchT = 0;
   private flinchX = 0;
@@ -549,6 +552,10 @@ export class Npc {
     const v = this.def.voice;
     this.speech?.update(dt);
     if (this.speaking > 0) this.speaking -= dt;
+    if (this.def.chatter) {
+      this.chatWait -= dt;
+      if (this.chatWait <= 0 && d < 8) { this.chatWait = 16 + Math.random() * 18; this.speak(1, Math.floor(Math.random() * this.def.lines.length)); }
+    }
     if (v) {
       this.voiceWait -= dt;
       // Speak between sips: once the cup is back down (end of the drink loop) and the pause has passed.

@@ -5,6 +5,7 @@
  * 35 m or so something happens: skeleton guards, a candle shrine, an open grave that throws you up, the gate.
  * The floor (path and moss) is a shader like the terrain; walls, graves, trees and towers are models.
  */
+import { dressGraveyard } from './Pois';
 import { Color, Mesh, type MeshStandardMaterial, Vector3 } from 'three';
 import { ENEMY_SPAWNS } from '../data/enemies';
 import { GRAVEYARD } from '../data/world';
@@ -162,6 +163,7 @@ export function buildGraveyard(api: GraveyardApi): { links: PortalLink[]; intera
   // Ways in and out: the church door on the island, the portal at the alley's mouth back to it.
   const exit = portal(R.x, y0 + 2, zGate + 6, 1.8, { vertical: true, facing: -Math.PI / 2, colors: [0x6a2aa8, 0x2a1446] });
   api.place(exit);
+  dressGraveyard(api);
   api.realm(null);
   api.heights.add(...solid, ...walls);
   const door = api.door;
