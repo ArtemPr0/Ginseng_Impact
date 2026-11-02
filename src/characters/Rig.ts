@@ -14,6 +14,7 @@ import { cutSeconds, cutStrike, heroClipsOf, moveCut, type ClipCut, type HeroCli
 import { easeLean, slopeTarget, yawDelta, type Lean } from './SlopeLean';
 
 const _lookUp = new Vector3(0, 1, 0);
+const _qb = new Quaternion();
 /** The bone a look turns: the neck, else the head. */
 function findNeck(root: Object3D): Object3D | null {
   let neck: Object3D | null = null, head: Object3D | null = null;
@@ -288,7 +289,9 @@ export class Rig {
    */
   private npcCupWanted = false;
   private npcCupModel: GLTF | null = null;
-  private npcCup: { cup: LeanCup; fingers: Array<{ bone: Object3D; q: Quaternion }> } | null = null;
+  private npcCupId: 'lean-cup' | 'tankard' = 'lean-cup';
+  private npcCupWait = 0;
+  private npcCup: { cup: LeanCup; pivot: Group; fingers: Array<{ bone: Object3D; q: Quaternion }> } | null = null;
   private sip: { action: AnimationAction; w: number; slurped: boolean } | null = null;
   private sipIn: number = SIP.every[0];
   /** The carry pose (cup at the chest in flight) is playing. */
@@ -566,13 +569,14 @@ export class Rig {
   }
 
   /** An NPC holds a lean cup (NpcDef.cup): seated once the model is in and posed (see animateNpcCup). */
-  holdCup(): void {
+  holdCup(kind: 'lean-cup' | 'tankard' = 'lean-cup'): void {
+    this.npcCupId = kind;
     this.npcCupWanted = true;
     if (this.model) this.loadNpcCup();
   }
 
   private loadNpcCup(): void {
-    void loadModelOrWarn('lean-cup', MODELS['lean-cup']?.label).then((g) => { this.npcCupModel = g; });
+    void loadModelOrWarn(this.npcCupId, MODELS[this.npcCupId]?.label).then((g) => { this.npcCupModel = g; });
   }
 
   /**
@@ -582,6 +586,8 @@ export class Rig {
   private animateNpcCup(dt: number): void {
     const m = this.model;
     if (!this.npcCupModel || !m) return;
+    // (Seat it once the body's clip is running: on the first frame every hand is still at rest, and the wrong one wins.)
+    if (!this.npcCup && (this.npcCupWait += dt) < 0.6) return;
     if (!this.npcCup) {
       const head = this.bones?.head;
       const hands: Array<['left' | 'right', Object3D | null]> = [['left', this.offHand], ['right', this.hand]];
@@ -593,8 +599,9 @@ export class Rig {
       const side: 'left' | 'right' = near.left < near.right ? 'left' : 'right';
       const hand = side === 'left' ? this.offHand : this.hand;
       if (!hand) { this.npcCupModel = null; return; }
-      const rig = new ModelRig('lean-cup', this.npcCupModel);
+      const rig = new ModelRig(this.npcCupId, this.npcCupModel);
       const cup = new LeanCup(rig.root, rig.height);
+      if (this.npcCupId === 'tankard') cup.plain();
       m.root.updateWorldMatrix(true, true);
       const ws = hand.getWorldScale(new Vector3());
       const holder = new Group();
@@ -604,9 +611,20 @@ export class Rig {
       holder.add(pivot);
       hand.add(holder);
       this.fx.add(cup.drops);
-      this.npcCup = { cup, fingers: this.solveGrip(side, hand, pivot, cup) };
+      this.npcCup = { cup, pivot, fingers: this.solveGrip(side, hand, pivot, cup) };
     }
     for (const f of this.npcCup.fingers) f.bone.quaternion.copy(f.q);
+    // Whatever the hand does, the rim stays up: no body's clip knows it holds a cup, and some have no fingers to read.
+    const p = this.npcCup.pivot;
+    if (p.parent) {
+      p.parent.updateWorldMatrix(true, false);
+      p.updateWorldMatrix(false, false);
+      p.getWorldQuaternion(_q);
+      _a.set(0, 1, 0).applyQuaternion(_q);
+      _qb.setFromUnitVectors(_a, _lookUp).multiply(_q);
+      p.parent.getWorldQuaternion(_q);
+      p.quaternion.copy(_q.invert().multiply(_qb));
+    }
     this.npcCup.cup.update(dt);
   }
 

@@ -84,7 +84,7 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   // ===== Floors and walls =====
   const rect = (r: readonly [number, number, number, number]) => ({ x: (r[0] + r[1]) / 2, z: (r[2] + r[3]) / 2, w: r[1] - r[0], d: r[3] - r[2] });
   const wall = (x: number, z: number, hw: number, hd: number): Footprint => ({ kind: 'box', x, z, hw, hd, top: gy + 6 });
-  const court = rect(Q.court), moat = rect(Q.moat), snow = rect(Q.snow);
+  const court = rect(Q.court), moat = rect(Q.moat);
   // The quarters stand on the kingdom sculpt (RealmGround). The walls still keep the void out.
   api.place({ object: new Group(), footprints: [
     // Unseen walls round the quarters (the plaza's east edge stays open onto the lean waves).
@@ -235,8 +235,9 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
 
   // ===== The snow chapel, south-west (DeldocTvFiB) =====
   // Snow climbs from plaza level (gy) to CHAPEL_Y; place every prop on h()/snowY, not flat gy.
-  api.group.add(mistLayers(snow.x, snow.z, snow.w, snow.d, CHAPEL_Y, 0xc8d6ff, 0.16, 2));
   const CH = Q.chapel;
+  // (Mist only on the chapel's own flat: anywhere else the snow slopes through its flat layers.)
+  api.group.add(mistLayers(CH.x, CH.z, 28, 28, CHAPEL_Y, 0xc8d6ff, 0.16, 2));
   const gate = { x: 950, z: 86 };
   const chapelY = CHAPEL_Y;
   const gateY = snowY(gate.z);
@@ -378,7 +379,9 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
     const cupBase = top + MODELS['round-tower'].height * 0.85;
     api.place(modelLandmark('lean-cup', ix, iz, cupBase, { scale: cupH / MODELS['lean-cup'].height, collider: 'none' }));
     glow(LEAN, 12, ix, cupBase + cupH, iz, 0.35);
-    api.place(cascade({ x: ix + 2.2, z: iz, top: cupBase + cupH * 0.9, height: 16, width: 1.4, yaw: Math.PI / 2, curve: 0.8, color: LEAN_FALL }));
+    // (It spills past the tower wall and lands in the pool on the rock itself.)
+    const lip = cupBase + cupH * 0.9;
+    api.place(cascade({ x: ix + 2.2, z: iz, top: lip, height: lip - top, width: 1.4, yaw: Math.PI / 2, curve: 3.2, color: LEAN_FALL }));
   }
 
   // ===== The sky: a ringed planet in a pink nebula, meteors (DeOemU1BOZF) =====

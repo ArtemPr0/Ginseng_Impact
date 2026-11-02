@@ -388,7 +388,7 @@ const GALAXY_SCULPT: RealmSculpt = {
   base: GY,
   pads: [
     // (The plaza's east edge stays open onto the lean waves: its land ends 5 m out, so the cups float as they do.)
-    { name: 'plaza', rect: PLAZA, y: GY, blend: 8, margin: 5, wobble: 2 },
+    { name: 'plaza', rect: PLAZA, y: GY, blend: 8, margin: 7, wobble: 7 },
     { name: 'court', rect: Q.court, y: GY, blend: 8 },
     { name: 'street', rect: Q.street, y: GY, blend: 8 },
     { name: 'castle-yard', rect: Q.castleYard, y: GY, blend: 8 },

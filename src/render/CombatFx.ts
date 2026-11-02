@@ -110,7 +110,8 @@ interface ShockSlot { mesh: Mesh; mat: MeshBasicMaterial; birth: number; seconds
  * (driveTelegraph): then `fill` is the owner's, `keptAt` when the owner last drove it, and `full` that the sweep has
  * been shown at the edge (it goes dark at the next update).
  */
-interface TelegraphSlot { mesh: Mesh; mat: ShaderMaterial; id: number; birth: number; seconds: number; driven: boolean; fill: number; keptAt: number; full: boolean }
+interface TelegraphSlot {  kind: number; size: number; yaw: number; half: number; nextDust: number;
+mesh: Mesh; mat: ShaderMaterial; id: number; birth: number; seconds: number; driven: boolean; fill: number; keptAt: number; full: boolean }
 
 /** A driven telegraph its owner stops driving goes dark this long after the last drive (seconds): it fell, or let go. */
 export const TELEGRAPH_KEEP = 0.5;
@@ -154,6 +155,10 @@ class Bounds {
   }
 }
 
+const plane2Crack = new PlaneGeometry(2, 2);
+const _tellAt = new Vector3();
+const _tellDir = new Vector3();
+
 export class CombatFx {
   readonly group = new Group();
 
@@ -161,6 +166,8 @@ export class CombatFx {
   private readonly arcs: ArcSlot[] = [];
   private readonly shocks: ShockSlot[] = [];
   private readonly telegraphs: TelegraphSlot[] = [];
+  private readonly cracks: Array<{ mesh: Mesh; mat: ShaderMaterial; birth: number }> = [];
+  private crackNext = 0;
 
   // Sparks: one InstancedMesh, a ring of instances (the oldest is always the next overwritten).
   private readonly sparkMesh: InstancedMesh;
@@ -496,12 +503,39 @@ export class CombatFx {
       this.shocks.push({ mesh, mat, birth: 0, seconds: 0.35, radius: 1 });
     }
 
+    // --- Cracks: dark fissures radiating from an impact, drawn on one plane each.
+    for (let i = 0; i < 6; i++) {
+      const mat = new ShaderMaterial({
+        transparent: true, depthWrite: false, fog: false, side: DoubleSide, forceSinglePass: true,
+        polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+        uniforms: { uSeed: { value: 0 }, uAlpha: { value: 0 } },
+        vertexShader: /* glsl */ `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+        fragmentShader: /* glsl */ `
+          uniform float uSeed; uniform float uAlpha; varying vec2 vUv;
+          float n(float x) { return fract(sin(x * 91.7 + uSeed) * 43758.5); }
+          void main() {
+            vec2 p = vUv * 2.0 - 1.0; float r = length(p); float a = atan(p.y, p.x);
+            float seg = 7.0; float k = floor((a + 3.1416) / 6.2832 * seg); float f = fract((a + 3.1416) / 6.2832 * seg) - 0.5;
+            float wob = sin(r * 13.0 + n(k) * 20.0) * 0.16 + sin(r * 31.0 + n(k + 3.0) * 9.0) * 0.07;
+            float reach = 0.55 + 0.45 * n(k + 7.0);
+            float w = 0.09 * (1.0 - r / reach);
+            float line = (1.0 - smoothstep(0.0, max(0.005, w), abs(f + wob))) * step(r, reach);
+            gl_FragColor = vec4(0.01, 0.01, 0.03, line * 0.85 * uAlpha);
+          }`,
+      });
+      const mesh = new Mesh(plane2Crack, mat);
+      mesh.visible = false;
+      mesh.name = 'crack';
+      this.group.add(mesh);
+      this.cracks.push({ mesh, mat, birth: 0 });
+    }
+
     // --- Telegraphs: one flat unit plane per slot; ring, cone or disc drawn in the fragment shader with a fill
     // that sweeps outward and a thin bright edge.
     const plane2 = new PlaneGeometry(2, 2);
     for (let i = 0; i < nTelegraphs; i++) {
       const mat = new ShaderMaterial({
-        transparent: true, depthWrite: false, fog: false, blending: AdditiveBlending, side: DoubleSide, forceSinglePass: true,
+        transparent: true, depthWrite: false, fog: false, side: DoubleSide, forceSinglePass: true,
         uniforms: {
           uColor: { value: new Color(0xffffff) }, uFill: { value: 0 }, uKind: { value: 2 }, uHalf: { value: 0.5 },
           uEdge: { value: 0.03 }, uAlpha: { value: 0 }, uTime: COMBATFX_CLOCK,
@@ -511,29 +545,12 @@ export class CombatFx {
           uniform vec3 uColor; uniform float uFill; uniform float uKind; uniform float uHalf; uniform float uEdge; uniform float uAlpha; uniform float uTime;
           varying vec2 vUv;
           void main() {
-            vec2 p = vUv * 2.0 - 1.0;
-            float r = length(p);
-            float ang = abs(atan(p.y, p.x));
-            float ring = step(uKind, 0.5);
-            float cone = step(0.5, uKind) * step(uKind, 1.5);
-            float inner = 0.72 * ring;
-            float outer = 1.0 - smoothstep(1.0 - uEdge, 1.0, r);
-            float shape = outer * smoothstep(inner, inner + uEdge, r);
-            // The cone's sides: an angular width that keeps the line the same thickness along the radius.
-            float aw = uEdge / max(r, 0.05);
-            float inCone = 1.0 - smoothstep(uHalf - aw, uHalf, ang);
-            shape *= mix(1.0, inCone, cone);
-            float edge = smoothstep(1.0 - 2.5 * uEdge, 1.0 - uEdge, r);
-            edge += ring * (1.0 - smoothstep(inner + uEdge, inner + 2.5 * uEdge, r));
-            edge += cone * smoothstep(uHalf - 2.5 * aw, uHalf - aw, ang);
-            edge = clamp(edge, 0.0, 1.0);
-            // The fill sweeps from the centre (the inner rim for a ring) out to the edge.
-            float frac = mix(r, (r - 0.72) / 0.28, ring);
-            float fill = 1.0 - smoothstep(uFill - uEdge, uFill, frac);
-            float lead = smoothstep(uFill - 3.0 * uEdge, uFill - uEdge, frac) * fill;
-            float pulse = 0.85 + 0.15 * sin(uTime * 9.0);
-            float a = shape * (0.08 + fill * 0.28 + lead * 0.4 + edge * 0.8) * uAlpha * pulse;
-            gl_FragColor = vec4(uColor * (0.9 + 0.5 * max(edge, lead)), a);
+            // No drawn shapes: only something falling casts a shadow, soft and wide at first, tightening as it lands.
+            if (uKind < 1.5) discard;
+            float r = length(vUv * 2.0 - 1.0);
+            float reach = mix(1.0, 0.62, uFill);
+            float a = (1.0 - smoothstep(reach * 0.25, reach, r)) * (0.18 + 0.5 * uFill) * uAlpha;
+            gl_FragColor = vec4(0.0, 0.0, 0.03, a);
           }`,
       });
       const mesh = new Mesh(plane2, mat);
@@ -541,7 +558,7 @@ export class CombatFx {
       mesh.renderOrder = 4;
       mesh.name = 'telegraph';
       this.group.add(mesh);
-      this.telegraphs.push({ mesh, mat, id: -1, birth: 0, seconds: 1, driven: false, fill: 0, keptAt: 0, full: false });
+      this.telegraphs.push({ kind: 2, size: 1, yaw: 0, half: 0.5, nextDust: 0, mesh, mat, id: -1, birth: 0, seconds: 1, driven: false, fill: 0, keptAt: 0, full: false });
     }
 
     // --- The cast rune: a tinted, turning ring texture under the hero.
@@ -751,19 +768,26 @@ export class CombatFx {
 
   /** A ground ring at `at` expanding to `radius` metres over `seconds`, fading as it goes. */
   shock(at: Vector3, color: ColorRepresentation, radius: number, seconds = 0.35): void {
-    const now = COMBATFX_CLOCK.value;
-    let slot: ShockSlot | undefined;
-    for (const s of this.shocks) if (!s.mesh.visible) { slot = s; break; }
-    if (!slot) { slot = this.shocks[0]; for (const s of this.shocks) if (s.birth < slot.birth) slot = s; }
-    else this.liveShocks++;
-    slot.birth = now;
-    slot.seconds = Math.max(0.05, seconds);
-    slot.radius = radius;
-    slot.mesh.position.set(at.x, at.y + 0.15, at.z);
-    slot.mesh.scale.setScalar(0.2);
-    slot.mat.color.set(color);
-    slot.mat.opacity = 0.9;
-    slot.mesh.visible = true;
+    // A wall of dust thrown outward and grit kicked up, not a drawn ring.
+    const n = Math.min(10, 4 + Math.round(radius * 1.5));
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + Math.random() * 0.4;
+      this.dust(_tellAt.set(at.x + Math.cos(a) * radius * 0.7, at.y + 0.1, at.z + Math.sin(a) * radius * 0.7), 0.7 + radius * 0.22);
+    }
+    this.sparks(at, _tellDir.set(0, 1, 0), Math.min(24, 6 + Math.round(radius * 3)), 0x9c8a76, 3 + radius);
+    if (radius >= 3) this.crack(at, radius);
+    void color; void seconds;
+  }
+
+  /** The ground broken where something heavy landed: dark fissures that fade over some seconds. */
+  private crack(at: Vector3, radius: number): void {
+    const s = this.cracks[this.crackNext++ % this.cracks.length];
+    s.mesh.position.set(at.x, at.y + 0.06, at.z);
+    s.mesh.rotation.set(-Math.PI / 2, 0, Math.random() * 6.28);
+    s.mesh.scale.setScalar(radius * 1.3);
+    s.mat.uniforms.uSeed.value = Math.random() * 40;
+    s.birth = COMBATFX_CLOCK.value;
+    s.mesh.visible = true;
   }
 
   // ---------------------------------------------------------------- dust
@@ -833,6 +857,11 @@ export class CombatFx {
     const u = slot.mat.uniforms;
     (u.uColor.value as Color).set(color);
     u.uKind.value = kind === 'ring' ? 0 : kind === 'cone' ? 1 : 2;
+    slot.kind = u.uKind.value as number;
+    slot.size = size;
+    slot.yaw = yaw;
+    slot.half = Math.min(Math.PI, Math.max(0.05, halfAngle));
+    slot.nextDust = 0;
     u.uHalf.value = Math.min(Math.PI, Math.max(0.05, halfAngle));
     u.uEdge.value = Math.min(0.08, Math.max(0.012, 0.1 / Math.max(0.1, size)));
     u.uFill.value = 0;
@@ -860,7 +889,7 @@ export class CombatFx {
     s.fill = Math.max(0, Math.min(1, fill));
     s.keptAt = COMBATFX_CLOCK.value;
     if (at) s.mesh.position.set(at.x, at.y + 0.08, at.z);
-    if (yaw !== undefined) s.mesh.rotation.set(-Math.PI / 2, 0, -yaw);
+    if (yaw !== undefined) { s.mesh.rotation.set(-Math.PI / 2, 0, -yaw); s.yaw = yaw; }
     s.mat.uniforms.uFill.value = s.fill;
     return true;
   }
@@ -915,6 +944,13 @@ export class CombatFx {
    */
   update(dt: number, camera: Camera): void {
     COMBATFX_CLOCK.value += dt;
+    // (Ahead of the idle shortcut: cracks outlast everything else.)
+    for (const s of this.cracks) {
+      if (!s.mesh.visible) continue;
+      const k = (COMBATFX_CLOCK.value - s.birth) / 7;
+      if (k >= 1) s.mesh.visible = false;
+      else s.mat.uniforms.uAlpha.value = Math.min(1, (1 - k) * 2.5);
+    }
     const now = COMBATFX_CLOCK.value;
     if (this.liveTrails === 0 && this.liveArcs === 0 && this.liveShocks === 0 && this.liveTelegraphs === 0
       && now >= this.sparksUntil && now >= this.flashUntil && now >= this.dustUntil && !this.runeOn && this.runeOpacity <= 0) {
@@ -976,6 +1012,14 @@ export class CombatFx {
           s.mat.uniforms.uFill.value = t / s.seconds;
         }
         s.mat.uniforms.uAlpha.value = Math.min(1, t / 0.06);
+        // The ground gives the blow away: dust lifts where it will land, faster as it comes.
+        if (s.kind !== 2 && now >= s.nextDust) {
+          const fill = s.mat.uniforms.uFill.value as number;
+          s.nextDust = now + 0.16 - 0.1 * fill;
+          const a = s.kind === 0 ? Math.random() * Math.PI * 2 : s.yaw + (Math.random() - 0.5) * 2 * s.half;
+          const d = s.size * (s.kind === 0 ? 0.55 + Math.random() * 0.45 : 0.25 + Math.random() * 0.75);
+          this.dust(_tellAt.set(s.mesh.position.x + Math.cos(a) * d, s.mesh.position.y, s.mesh.position.z + Math.sin(a) * d), 0.5 + fill * 0.7);
+        }
       }
     }
 

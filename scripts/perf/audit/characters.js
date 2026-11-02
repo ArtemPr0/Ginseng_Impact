@@ -53,6 +53,7 @@ const surfaceUnder = (x, y, z, skip) => {
 };
 // By design, each with its reason (by kind or id: never a blanket filter). The check named is skipped for it only.
 const ALLOW = {
+  'npc:plague-doctor': { 'pos below surface': 'stands on the snow; the collider above him is his own chest (truth.js measures the drawn ground)' },
   // Looked at in lit close-ups, 2026-11-02: each stands or sits right; the measure cannot see barrels or model seats.
   'npc:king': { 'hips over': 'perched on the throne (model seat)', 'model sinks': 'his robe hem inside the throne' },
   'npc:sentry': { 'hips over': 'sits on his sword on the cliff seat' },

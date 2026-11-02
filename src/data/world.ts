@@ -156,7 +156,7 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   'potion-brewer': { x: 1026, z: -127 },
   bartender: { x: 1173.0, z: 10.1 }, 'dock-knight': { x: 1181, z: 7.5, dy: 0.02 },
   // On the snow flat at snowY(124.6) ≈ 26.1 (SNOW_FLATS plague-doctor); GroundQuery sets y.
-  'plague-doctor': { x: 931, z: 124.6 },
+  'plague-doctor': { x: 931, z: 124.6, dy: 0 },
   // Down in the crypt bar (Interiors.ts, CRYPT_ROOM): two along the west counter facing the way in, Knuckles on a
   // barrel against the east counter facing them; Sir Gilt before the back counter's skulls.
   'crypt-red': { x: -1001.9, z: 1299.6 }, 'crypt-witch': { x: -1001.9, z: 1301.3 }, 'crypt-bones': { x: -998.7, z: 1300.6, dy: 0.02 },
@@ -258,7 +258,7 @@ export const DISTRICT_AIR: Record<LeanDistrict, { fog: number; density: number; 
  */
 export interface ZoneLight { sky: number; ground: number; hemi: number; moon: number; fill: number; fillColor: number; cameraFill: number }
 export const ZONE_LIGHT: Record<string, ZoneLight> = {
-  island: { sky: 0x1a2cff, ground: 0x0a0f2e, hemi: 0.7, moon: 1.5, fill: 0.75, fillColor: 0x8fa5f0, cameraFill: 0 },
+  island: { sky: 0x1a2cff, ground: 0x141c4a, hemi: 0.95, moon: 1.5, fill: 0.75, fillColor: 0x8fa5f0, cameraFill: 0 },
   lean: { sky: 0x5a4ab8, ground: 0x150a2a, hemi: 0.75, moon: 1.3, fill: 1.1, fillColor: 0xe6dcff, cameraFill: 1 },
   vale: { sky: 0x3a4ac0, ground: 0x0a1a1a, hemi: 0.7, moon: 1.4, fill: 1.0, fillColor: 0xe0e6ff, cameraFill: 1 },
   // Indoors: no moon; the hearth and the candles light the room (their own point lights), a dim warm fill for faces.

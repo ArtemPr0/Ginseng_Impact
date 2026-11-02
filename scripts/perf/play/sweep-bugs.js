@@ -56,11 +56,11 @@ const out = {};
 // 4. Snow heights: the doctor and everything in the chapel stands on the snow.
 {
   const d = npc('plague-doctor');
-  const gy = G.world.heightAt(d.pos.x, d.pos.z, d.pos.y + 3);
+  const gy = G.groundOnly(d.pos.x, d.pos.z);
   out.doctor = { y: +d.pos.y.toFixed(2), ground: +gy.toFixed(2) };
   if (Math.abs(d.pos.y - gy) > 0.3) fail('plague doctor off the ground', out.doctor);
   const off = G.area.npcs.filter((n) => !n.def.invisible && !n.seated && n.pos.x > 860 && n.pos.x < 960 && n.pos.z > 75 && n.pos.z < 175)
-    .map((n) => [n.def.id, +(n.pos.y - G.world.heightAt(n.pos.x, n.pos.z, n.pos.y + 3)).toFixed(2)]).filter((r) => Math.abs(r[1]) > 0.3);
+    .map((n) => [n.def.id, +(n.pos.y - G.groundOnly(n.pos.x, n.pos.z)).toFixed(2)]).filter((r) => Math.abs(r[1]) > 0.3);
   out.snowOff = off; if (off.length) note('snow npcs off ground', { off });
 }
 

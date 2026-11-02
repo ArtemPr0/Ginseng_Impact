@@ -1,4 +1,4 @@
-import { BoxGeometry, BufferGeometry, CircleGeometry, Color, Float32BufferAttribute, Group, LineBasicMaterial, LineSegments, Mesh, PerspectiveCamera, Scene, Vector3, ConeGeometry, CylinderGeometry, TorusGeometry, MeshBasicMaterial, AdditiveBlending, DoubleSide, Sprite, SpriteMaterial } from 'three';
+import { BoxGeometry, IcosahedronGeometry, BufferGeometry, CircleGeometry, Color, Float32BufferAttribute, Group, LineBasicMaterial, LineSegments, Mesh, PerspectiveCamera, Scene, Vector3, ConeGeometry, CylinderGeometry, TorusGeometry, MeshBasicMaterial, AdditiveBlending, DoubleSide, Sprite, SpriteMaterial } from 'three';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Audio } from '../audio/Audio';
 import { CombatSfx, hitMaterial } from '../audio/CombatSfx';
@@ -201,6 +201,9 @@ const MIRROR_DEF: EnemyDef = {
   attacks: [{ kind: 'kaleido', range: 30, windup: 1.2, recover: 1.6, weight: 1 }],
 };
 
+/** The share of its max HP dealt within four seconds that staggers a boss, and how often it can (seconds). */
+const STAGGER_SHARE = 0.08;
+const STAGGER_EVERY = 14;
 /** How many summoned mobs one caster keeps at a time. */
 const SUMMON_CAP = 4;
 let thrownCup: GLTF | null = null;
@@ -346,6 +349,10 @@ export class CombatSystem {
   /** Down: the death clip plays for DOWN_HOLD seconds before the next hero takes over (or the fog takes the party). */
   private downed: { t: number } | null = null;
   private readonly clouds: SmokeCloud[] = [];
+  /** When each boss last fought the hero (its entrance plays after a long enough gap), and its broken stance. */
+  private readonly bossMet = new Map<number, number>();
+  private readonly poise = new Map<number, { hits: number; at: number; broke: number }>();
+  private time = 0;
   /** Mobs each caster has summoned (capped, and sent away with their caster). */
   private readonly summoned = new Map<number, Enemy[]>();
   private frenzyLeft = 0;
@@ -373,7 +380,6 @@ export class CombatSystem {
   private bladeWas = false;
   private bladeFed = false;
   /** The cast circle is up; seconds to the next mote off the charging weapon. */
-  private runeOn = false;
   private chargeSpark = 0;
   /** Which shot draws each ribbon id, and the round-robin counters for Wren's arrows and Starfall's stars. */
   private readonly trailOwners = new Map<string, Projectile>();
@@ -680,6 +686,7 @@ export class CombatSystem {
   }
 
   update(dt: number, input: CombatInput): void {
+    this.time += dt;
     // Whom the enemies fight this step: the hero, then every companion still standing.
     this.gatherMarks();
     this.updateGraveRising(dt);
@@ -893,11 +900,6 @@ export class CombatSystem {
 
     // The cast circle under the hero while the heavy charges or a skill is cast; motes rising slowly off the charging
     // weapon (the blade, the staff's knob, the bow hand) every 0.15 s.
-    const circle = this.heavyCharge > 0 || this.casting !== null;
-    if (circle || this.runeOn) {
-      this.fx.rune(_v.set(c.pos.x, c.pos.y, c.pos.z), ELEMENT_COLOR[this.elementOf(me)], circle);
-      this.runeOn = circle;
-    }
     if (this.heavyCharge > 0) {
       this.chargeSpark -= dt;
       if (this.chargeSpark <= 0 && this.d.weaponTips?.(_g, _t)) {
@@ -956,6 +958,15 @@ export class CombatSystem {
       this.warnWindup(e, foe !== null);
       const boss = !!e.def.boss && e.aggro && e.alive;
       bossFight ||= boss;
+      // The first sight of a boss is an event: its name, its roar, the ground shaking. Not again for two minutes.
+      if (boss && this.time - (this.bossMet.get(e.id) ?? -Infinity) > 120) {
+        d.hud.announce(`${e.def.name}${e.def.title ? ` · ${e.def.title}` : ''}`, { seconds: 3, priority: 2 });
+        d.audio.roar();
+        d.onShake?.(0.7);
+        d.onPulse?.(0.5);
+        this.fx.dust(_v.set(e.pos.x, e.pos.y, e.pos.z), 2.4);
+      }
+      if (boss) this.bossMet.set(e.id, this.time);
       if (foe) { if (action) this.brawlHit(e, foe); continue; }
       anyAggro ||= e.aggro && e.status.confuse <= 0;
       if (boss) bossNear = bossNear ?? e;
@@ -970,7 +981,7 @@ export class CombatSystem {
         else {
           this.contact.set(e.id, left);
           const reach = e.def.bodyRadius * sc + CONTACT_REACH;
-          const touching = (x: number, z: number, y: number): boolean => y > e.pos.y - 1.5 && y < e.pos.y + e.def.height * sc && Math.hypot(e.pos.x - x, e.pos.z - z) < reach;
+          const touching = (x: number, z: number, y: number): boolean => y > e.pos.y - (e.def.flying ? 5 : 1.5) && y < e.pos.y + e.def.height * sc && Math.hypot(e.pos.x - x, e.pos.z - z) < reach;
           const hero = touching(c.pos.x, c.pos.z, c.pos.y);
           if (this.strike(e, 1.2, touching) > 0) { this.contact.delete(e.id); if (hero) this.d.onShake?.(0.7); }
         }
@@ -1531,6 +1542,8 @@ export class CombatSystem {
       return;
     }
     if (!list) {
+      // Every boss blow is heard coming, from where it stands.
+      if (e.def.boss) this.d.audio.windup(e.pos);
       const aim = this.aimOf(e, this.aimTmp);
       const spec = warnSpec(e.def, e.currentAttack, Math.hypot(aim.x - e.pos.x, aim.z - e.pos.z));
       list = [];
@@ -1706,7 +1719,7 @@ export class CombatSystem {
         break;
       }
       case 'volley':
-        for (const sp of [-0.28, 0, 0.28]) this.enemyBolt(e, sp, 15, 0.8);
+        for (const sp of [-0.14, 0, 0.14]) this.enemyBolt(e, sp, 18, 0.8);
         this.d.audio.cast();
         break;
       case 'summon': {
@@ -1714,7 +1727,8 @@ export class CombatSystem {
         const list = (this.summoned.get(e.id) ?? []).filter((m) => m.alive && this.enemies.includes(m));
         this.summoned.set(e.id, list);
         const kind = e.def.kind === 'rift-king' ? 'styro-ghoul' : 'beast';
-        if (list.length >= SUMMON_CAP || !PRESENT_MODELS.has(kind)) { this.d.audio.roar(); break; }
+        // (Full house: the caster fights on instead of standing there.)
+        if (list.length >= SUMMON_CAP || !PRESENT_MODELS.has(kind)) { for (const sp of [-0.14, 0, 0.14]) this.enemyBolt(e, sp, 18, 0.8); this.d.audio.cast(); break; }
         this.fx.flash(_v.copy(at).add(_w.set(0, 3, 0)), color, 5);
         for (let i = 0; i < Math.min(2, SUMMON_CAP - list.length); i++) {
           const a = Math.random() * Math.PI * 2;
@@ -1733,7 +1747,13 @@ export class CombatSystem {
         // Only onto open ground near its own level (never into a wall or over a drop).
         const w = this.d.world as Partial<HeightWorld> & WorldQuery;
         // (A flyer only needs open air: its own height is not the ground's.)
-        if (w.blocked?.(bx, bz) || (!e.def.flying && Math.abs(this.d.world.heightAt(bx, bz, e.pos.y + 2) - (e.pos.y - e.def.hover)) > 3)) break;
+        // (Nor past its leash, which would only walk it straight back. Refused, it throws instead of doing nothing.)
+        const home = e.def.leash !== undefined && Math.hypot(bx - e.spawn.x, bz - e.spawn.z) > e.def.leash;
+        if (home || w.blocked?.(bx, bz) || (!e.def.flying && Math.abs(this.d.world.heightAt(bx, bz, e.pos.y + 2) - (e.pos.y - e.def.hover)) > 3)) {
+          for (const sp of [-0.14, 0, 0.14]) this.enemyBolt(e, sp, 18, 0.8);
+          this.d.audio.cast();
+          break;
+        }
         this.fx.flash(_v.copy(at).add(_w.set(0, 3, 0)), color, 6);
         e.pos.x = bx;
         e.pos.z = bz;
@@ -1741,6 +1761,8 @@ export class CombatSystem {
         e.yaw = Math.atan2(c.pos.z - bz, c.pos.x - bx);
         this.fx.flash(_v.set(bx, e.pos.y + 3, bz), color, 6);
         this.d.audio.dodge();
+        // It arrives striking: a blink behind the hero is the start of a blow.
+        this.delayed.push({ t: 0.3, fn: () => { if (e.alive) { this.strike(e, 0.9, (x, z) => inCone(e.pos, e.yaw, { x, z }, 5.5, SWEEP_HALF)); this.fx.arc(_v.set(e.pos.x, e.pos.y + 1.6, e.pos.z), e.yaw, 0, 5, color); } } });
         break;
       }
       case 'roots': {
@@ -2250,6 +2272,22 @@ export class CombatSystem {
     const kb = { x: kdx / kl, z: kdz / kl };
     const bossKb = e.def.boss ? 0.15 : 1;
     const died = e.takeDamage(dmg, kb, (knockback + (reaction ? REACTIONS[reaction].knockback : 0)) * bossKb);
+    // Enough punishment in a short time breaks a boss's stance: it reels, and that is the opening.
+    if (!died && e.def.boss && e.def.kind !== 'hollowking') {
+      const p = this.poise.get(e.id) ?? { hits: 0, at: 0, broke: -Infinity };
+      if (this.time - p.at > 4) p.hits = 0;
+      p.hits += dmg; p.at = this.time;
+      if (p.hits >= e.def.maxHp * STAGGER_SHARE && this.time - p.broke > STAGGER_EVERY) {
+        p.hits = 0; p.broke = this.time;
+        e.afflict('stun', 2.4);
+        this.d.hud.announce('Staggered', { seconds: 1.4 });
+        this.d.audio.stomp();
+        this.d.onShake?.(0.45);
+        this.d.onPulse?.(0.4);
+        this.fx.dust(_v.set(e.pos.x, e.pos.y, e.pos.z), 2.2);
+      }
+      this.poise.set(e.id, p);
+    }
     const sc = e.def.scale ?? 1;
     const at = new Vector3(e.pos.x, e.pos.y + e.def.height * sc * 0.5, e.pos.z);
     // Where it struck: a shot's head, else the body's side facing the hero at about the swing's height (a giant is hit
@@ -2502,7 +2540,8 @@ export class CombatSystem {
       object.position.copy(from);
       object.lookAt(aim.copy(from).add(vel));
     } else {
-      const core = new Mesh(new BoxGeometry(size, size, size), surface({ color: PALETTE.void, emissive: color, emissiveIntensity: 3 }));
+      // (A big shot is a rock with a faint heat, a small one all light: no cube.)
+      const core = new Mesh(new IcosahedronGeometry(size * 0.6, 1), surface({ color: PALETTE.void, emissive: color, emissiveIntensity: 3 }));
       core.rotation.set(0.7, 0.7, 0);
       object.add(core, glowSprite(color, 1.1 * (size / 0.24), 0.8, true));
       object.position.copy(from);
@@ -2691,7 +2730,7 @@ export class CombatSystem {
   /** A puddle of lean: a burst cup's slows the hero who stands in it; one off the lean cyclone (`hero`) slows the mobs instead. */
   private spawnPuddle(at: Vector3, owner: 'hero' | 'enemy' = 'enemy'): void {
     const y = this.d.world.heightAt(at.x, at.z, at.y + 1) + 0.04;
-    const mesh = new Mesh(new CircleGeometry(2.4, 24), new MeshBasicMaterial({ color: 0x8a2be2, transparent: true, opacity: 0.75, depthWrite: false, toneMapped: false }));
+    const mesh = new Mesh(new CircleGeometry(2.4, 24), new MeshBasicMaterial({ map: puffTexture(), color: 0x8a2be2, transparent: true, opacity: 0.6, depthWrite: false, toneMapped: false }));
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(at.x, y, at.z);
     // (A burst cup's puddle glows; the cyclone's trail goes without, a halo a puddle being as many planes again.)
@@ -2726,6 +2765,8 @@ export class CombatSystem {
     const hp = Math.max(0, this.hp.get(me.id)! - dmg);
     this.hp.set(me.id, hp);
     this.iframes = IFRAMES;
+    // A hard blow lands on the player too: a catch in time and a jolt through the frame.
+    if (dmg >= this.maxOf(me) * BIG_HIT) { this.d.game.hitStop = Math.max(this.d.game.hitStop, 0.09); this.d.onPulse?.(0.45); this.d.onShake?.(0.5); }
     // The body reacts: a flinch, or the whole reaction for a big one.
     this.hurt = { t: 0, big: dmg >= this.maxOf(me) * BIG_HIT };
     const at = this.playerPos().clone().add(new Vector3(0, 1.9, 0));
