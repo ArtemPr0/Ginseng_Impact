@@ -15,6 +15,8 @@ export interface HudActions {
   /** Hires the NPC: 'ok', or why not ('poor': not enough shards, 'full': three companions already). */
   onHire(npc: NpcDef): 'ok' | 'poor' | 'full';
   onEquip(uid: number): boolean;
+  /** Puts a charm in the active hero's slot, or takes it out if it is already there. */
+  onCharm(uid: number): void;
   onUse(uid: number): boolean;
   onDrop(uid: number): void;
   onClose(): void;
@@ -635,7 +637,8 @@ export class Hud {
       let btn = '';
       if (d.kind === 'weapon') btn = e.equippedBy ? `<span class="tag">equipped by ${heroName(e.equippedBy)}</span>` : `<button data-act="equip" data-uid="${e.uid}" ${canWield(me.weapon, d.weaponClass) ? '' : 'disabled'}>Equip on ${me.name}</button>`;
       else if (d.kind === 'consumable') btn = `<button data-act="use" data-uid="${e.uid}">Use</button>`;
-      if (!e.equippedBy && d.kind !== 'key') btn += `<button class="ghost" data-act="drop" data-uid="${e.uid}">Drop</button>`;
+      else if (d.kind === 'charm') btn = e.charmOf ? `<span class="tag">worn by ${heroName(e.charmOf)}</span>${e.charmOf === me.id ? `<button class="ghost" data-act="charm" data-uid="${e.uid}">Take off</button>` : ''}` : `<button data-act="charm" data-uid="${e.uid}">Wear</button>`;
+      if (!e.equippedBy && !e.charmOf && d.kind !== 'key') btn += `<button class="ghost" data-act="drop" data-uid="${e.uid}">Drop</button>`;
       groups[d.kind].push(`<div class="row"><span class="item r${d.rarity}">${d.name}${e.count > 1 ? ` ×${e.count}` : ''}</span><span class="desc">${stats}</span><span class="btns">${btn}</span></div>`);
     }
     const section = (title: string, rows: string[]) => rows.length ? `<div class="col-title">${title}</div>${rows.join('')}` : '';
@@ -644,6 +647,7 @@ export class Hud {
       <div class="dlg-buttons"><button data-act="close">Close (I)</button></div>`;
     this.wire(el, (act, b) => {
       if (act === 'equip') { this.actions!.onEquip(Number(b.dataset.uid)); this.renderInventory(); }
+      else if (act === 'charm') { this.actions!.onCharm(Number(b.dataset.uid)); this.renderInventory(); }
       else if (act === 'use') { this.actions!.onUse(Number(b.dataset.uid)); this.renderInventory(); }
       else if (act === 'drop') { this.actions!.onDrop(Number(b.dataset.uid)); this.renderInventory(); }
       else this.actions!.onClose();

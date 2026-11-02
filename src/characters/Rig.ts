@@ -1,4 +1,4 @@
-import { type AnimationAction, type Bone, Group, LoopOnce, Matrix4, Quaternion, Vector3, type Object3D, type SkinnedMesh, type Sprite } from 'three';
+import { type AnimationAction, type Bone, Group, LoopOnce, Matrix4, Quaternion, Vector3, type Mesh, type MeshStandardMaterial, type Object3D, type SkinnedMesh, type Sprite } from 'three';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { loadModelOrWarn, ModelRig } from '../models/ModelRig';
 import { MissingModelPlaceholder } from '../models/Placeholder';
@@ -13,6 +13,18 @@ import { CYCLONE, type BurstKind } from '../combat/Skills';
 import { cutSeconds, cutStrike, heroClipsOf, moveCut, type ClipCut, type HeroClips } from './heroClips';
 import { easeLean, slopeTarget, yawDelta, type Lean } from './SlopeLean';
 
+const _lookUp = new Vector3(0, 1, 0);
+/** The bone a look turns: the neck, else the head. */
+function findNeck(root: Object3D): Object3D | null {
+  let neck: Object3D | null = null, head: Object3D | null = null;
+  root.traverse((o) => {
+    if (!(o as { isBone?: boolean }).isBone) return;
+    if (!neck && /neck/i.test(o.name)) neck = o;
+    if (!head && /head$/i.test(o.name)) head = o;
+  });
+  return neck ?? head;
+}
+
 export interface RigPose {
   mode: Mode;
   /** Horizontal speed, m/s. */
@@ -23,6 +35,8 @@ export interface RigPose {
   attackKind?: number | 'skill' | 'heavy' | 'burst';
   /** Static NPC poses. */
   pose?: 'sit' | 'kneel' | 'row' | 'ride' | 'carry' | 'drink' | 'fish' | 'telescope' | 'read' | 'pray' | 'stir' | 'offer' | 'bow' | 'banner' | 'sitSword' | 'lantern' | 'throne' | 'watch' | 'talk';
+  /** Turns the head alone this far (radians, to the body's left), the pose kept: an NPC watching someone pass. */
+  look?: number;
   /** Seconds since landing, for the landing crouch. */
   landed?: number;
   /** How long the whole swing or cast lasts, so the clip is fitted to it. */
@@ -201,6 +215,9 @@ export class Rig {
   private offHand: Object3D | null = null;
   /** Weapon prop parented to the hand (staff, greatsword); scaled in while attacking. */
   private prop: Group | null = null;
+  private weaponGlow: number | null = null;
+  /** The neck or head bone (false: the body has none). */
+  private neck: Object3D | false | undefined;
   private propRig: ModelRig | null = null;
   private propBase = 1;
   private propShown = 0;
@@ -1113,6 +1130,7 @@ export class Rig {
     parent.add(holder);
     this.prop = holder;
     this.propRig = rig;
+    if (this.weaponGlow !== null) this.setWeaponGlow(this.weaponGlow);
   }
 
   /**
@@ -1547,9 +1565,28 @@ export class Rig {
       this.animateCup(pose, dt);
       this.animateNpcCup(dt);
       this.animateSnack(pose, dt);
+      if (pose.look) {
+        // (The clip rewrites the neck next frame, so nothing piles up. A body with no neck simply does not turn.)
+        this.neck ??= findNeck(this.model.root) ?? false;
+        if (this.neck) { this.neck.updateWorldMatrix(true, false); this.neck.rotateOnWorldAxis(_lookUp, pose.look); }
+      }
     }
     else this.placeholder?.update(dt);
     this.animateProp(pose, dt);
+  }
+
+  /** The held weapon's glow: the wielded item's colour, or none. */
+  setWeaponGlow(color: number | null): void {
+    this.weaponGlow = color;
+    if (!this.propRig) return;
+    this.propRig.root.traverse((o) => {
+      const m = o as Mesh;
+      if (!m.isMesh) return;
+      const mat = (m.material as MeshStandardMaterial).clone();
+      mat.emissive.set(color ?? 0x000000);
+      mat.emissiveIntensity = color === null ? 0 : 0.6;
+      m.material = mat;
+    });
   }
 
   /**

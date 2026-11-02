@@ -440,6 +440,10 @@ export const NPC_DEFS: NpcDef[] = [
 
 /** A talking, posed or wandering non-player character built on the party rig. */
 export class Npc {
+  private lookNow = 0;
+  private flinchT = 0;
+  private flinchX = 0;
+  private flinchZ = 0;
   readonly rig: Rig;
   readonly object: Group;
   readonly pos = new Vector3();
@@ -493,6 +497,16 @@ export class Npc {
    * his pose kept (a seated one stays seated).
    */
   /** Sets out along a new path at `speed` m/s (the loop restarts from its first leg): the Pale Bride's walk to the shore. */
+  /** Swung at within two metres: a standing NPC steps a metre back (seated, walking and scripted ones hold). */
+  startle(from: { x: number; z: number }): void {
+    const b = this.def.behaviour;
+    const d = Math.hypot(this.pos.x - from.x, this.pos.z - from.z);
+    if (d > 2 || d < 0.01 || this.flinchT > 0 || b.kind !== 'stand' || b.pose) return;
+    this.flinchX = (this.pos.x - from.x) / d;
+    this.flinchZ = (this.pos.z - from.z) / d;
+    this.flinchT = 2.25;
+  }
+
   walk(path: Array<[number, number]>, speed: number): void {
     this.def.behaviour = { kind: 'loop', path, speed };
     this.seg = 0;
@@ -641,10 +655,23 @@ export class Npc {
       }
     }
     if (moving) this.pos.y += (this.heightAt(this.pos.x, this.pos.z, this.pos.y) - this.pos.y) * Math.min(1, dt * 8);
-    this.object.position.copy(this.pos);
+    // A startled step: a metre back over a quarter second, home again over two.
+    if (this.flinchT > 0) {
+      this.flinchT = Math.max(0, this.flinchT - dt);
+      const k = this.flinchT > 2 ? (2.25 - this.flinchT) / 0.25 : this.flinchT / 2;
+      this.object.position.set(this.pos.x + this.flinchX * k, this.pos.y, this.pos.z + this.flinchZ * k);
+    } else this.object.position.copy(this.pos);
     this.object.rotation.y = yawToRotation(this.yaw);
     this.sounds(dt, Math.hypot(player.x - this.pos.x, player.z - this.pos.z));
     const pose = b.kind === 'guard' && moving ? undefined : this.speaking > 0 ? 'talk' : talking ? (this.def.voice ? b.kind === 'stand' ? b.pose : undefined : undefined) : b.kind === 'stand' || b.kind === 'guard' || b.kind === 'loop' ? b.pose : undefined;
-    if (animate) this.rig.animate({ mode: 'ground', speed: moving ? this.speed : 0, pose }, dt);
+    // The hero within ten metres, ahead of it: the head follows, the pose stays.
+    const dx = player.x - this.pos.x, dz = player.z - this.pos.z, near = Math.hypot(dx, dz);
+    let want = 0;
+    if (!talking && !moving && near < 10 && near > 0.5) {
+      const off = Math.atan2(Math.sin(Math.atan2(dz, dx) - this.yaw), Math.cos(Math.atan2(dz, dx) - this.yaw));
+      if (Math.abs(off) < 2) want = -Math.max(-1.1, Math.min(1.1, off));
+    }
+    this.lookNow += (want - this.lookNow) * Math.min(1, dt * 4);
+    if (animate) this.rig.animate({ mode: 'ground', speed: moving ? this.speed : 0, pose, look: Math.abs(this.lookNow) > 0.01 ? this.lookNow : undefined }, dt);
   }
 }

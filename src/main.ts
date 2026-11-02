@@ -311,8 +311,14 @@ hud.bind({
   onEquip: (uid) => {
     const me = party.active;
     const ok = inventory.equip(uid, me.id, me.weapon);
-    if (ok) { audio.click(); const e = inventory.entries.find((x) => x.uid === uid)!; hud.announce(`${me.name} wields ${ITEMS[e.itemId].name}`); events.emit({ kind: 'trade', what: 'equip', item: e.itemId }); }
+    if (ok) { weaponGlows(); audio.click(); const e = inventory.entries.find((x) => x.uid === uid)!; hud.announce(`${me.name} wields ${ITEMS[e.itemId].name}`); events.emit({ kind: 'trade', what: 'equip', item: e.itemId }); }
     return ok;
+  },
+  onCharm: (uid) => {
+    const me = party.active;
+    if (inventory.charmOf(me.id)?.uid === uid) inventory.unequipCharm(me.id);
+    else if (inventory.equipCharm(uid, me.id)) { const e = inventory.entries.find((x) => x.uid === uid)!; hud.announce(`${me.name} wears ${ITEMS[e.itemId].name}`); }
+    audio.click();
   },
   onUse: (uid) => {
     const e = inventory.entries.find((x) => x.uid === uid);
@@ -379,6 +385,12 @@ const story = new Story({
   companions: () => companions.length,
 });
 adventures.story = story;
+/** Where the first open quest points, in this zone (main first, as the journal sorts): the minimap's tick. */
+function objective(): { x: number; z: number } | null {
+  const z = placeZone();
+  return adventures.quests.journal().find((j) => !j.done && j.marker?.zone === z)?.marker ?? null;
+}
+
 function placeZone(): Zone {
   const hit = REALMS.find((r) => Math.hypot(controller.pos.x - r.x, controller.pos.z - r.z) < r.radius);
   return (hit?.id ?? 'island') as Zone;
@@ -398,8 +410,17 @@ function snapshot(): SaveV1 {
   };
 }
 let newGamePlus = false;
+/** What each hero wields shows in the hand: the blade takes the item's colour. */
+function weaponGlows(): void {
+  ROSTER.forEach((c, i) => {
+    const e = inventory.equipped(c.id);
+    rigs[i].setWeaponGlow(e ? ITEMS[e.itemId].color ?? null : null);
+  });
+}
+
 function applySave(s: SaveV1): void {
   inventory.restore(s.inventory);
+  weaponGlows();
   adventures.quests.restore(s.quests);
   adventures.quests.restoreSlain(s.slain);
   if (s.state && typeof s.state === 'object') worldState.restore(s.state as Parameters<WorldState['restore']>[0]);
@@ -539,6 +560,8 @@ function startNewGame(): void {
 hud.setOnNewGame(startNewGame);
 hud.setSavePresent(save.has());
 // (Never before the player has entered: the zone event at startup would overwrite the save with a blank game.)
+// Swung at within reach, an NPC steps back.
+events.on('feat', (e) => { if (e.what === 'attack') for (const n of area.npcs) if (!n.def.invisible) n.startle(controller.pos); });
 events.on('zone', () => { if (resumed) save.write(snapshot()); });
 events.on('quest', () => { if (resumed) save.write(snapshot()); });
 
@@ -909,7 +932,7 @@ game
         if (!freshStart) { const stored = save.load(); if (stored) applySave(stored); }
       }
       game.paused = !input.locked;
-      minimap.draw(controller.pos.x, controller.pos.z, tpc.yaw, combat.enemies.map((e) => ({ x: e.pos.x, z: e.pos.z, alive: e.alive, aggro: e.aggro, boss: !!e.def.boss })), inventory.reveals(), area.npcs.map((n) => ({ x: n.pos.x, z: n.pos.z })));
+      minimap.draw(controller.pos.x, controller.pos.z, tpc.yaw, combat.enemies.map((e) => ({ x: e.pos.x, z: e.pos.z, alive: e.alive, aggro: e.aggro, boss: !!e.def.boss })), inventory.reveals(), area.npcs.map((n) => ({ x: n.pos.x, z: n.pos.z })), objective());
       // The fight's effects run on real time (they keep moving through a hit-stop), after the camera has moved.
       combatFx.update(dt, camera);
       renderer.render(scene, camera);

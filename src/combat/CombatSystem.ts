@@ -818,6 +818,7 @@ export class CombatSystem {
     // A buffered press chained the next hit in.
     if (prevSwinging && this.combo.swinging && this.combo.currentHit !== prevHit) begun = this.combo.currentHit;
     // The finisher takes some effort.
+    if (begun !== null) d.events?.emit({ kind: 'feat', what: 'attack' });
     if (begun === 2) this.sfx.effort(me.id);
     if (hit !== null) this.resolveAttack(me, COMBO[me.weapon].hits[hit], hit);
 
@@ -2239,7 +2240,7 @@ export class CombatSystem {
     const { aura, reaction } = applyElement(e.aura, element);
     e.aura = aura;
     const { amount: dmg, crit } = rollHit(
-      { atk: atk * this.d.inventory.damageMult(), multiplier: mult, defense: e.def.def - e.defDown.amount, reaction },
+      { atk: atk * this.d.inventory.damageMult(this.d.party.active.id), multiplier: mult, defense: e.def.def - e.defDown.amount, reaction },
       own ? CRIT_CHANCE + this.d.inventory.critBonus(this.active.id) : 0,
       this.rnd,
     );

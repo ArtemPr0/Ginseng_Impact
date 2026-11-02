@@ -288,7 +288,8 @@ function stubContainer() {
 }
 
 const actions: HudActions = {
-  onBuy: () => false, onSell() {}, onHire: () => 'ok', onEquip: () => false, onUse: () => false, onDrop() {}, onClose() {},
+  onBuy: () => false, onSell() {}, onHire: () => 'ok', onCharm() {},
+      onEquip: () => false, onUse: () => false, onDrop() {}, onClose() {},
 };
 
 describe('Hud satchel', () => {

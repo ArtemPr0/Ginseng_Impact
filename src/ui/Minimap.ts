@@ -132,7 +132,7 @@ export class Minimap {
     return c;
   }
 
-  draw(px: number, pz: number, cameraYaw: number, enemies: Iterable<{ x: number; z: number; alive: boolean; aggro: boolean; boss?: boolean }>, revealBosses = false, npcs: Iterable<{ x: number; z: number }> = []): void {
+  draw(px: number, pz: number, cameraYaw: number, enemies: Iterable<{ x: number; z: number; alive: boolean; aggro: boolean; boss?: boolean }>, revealBosses = false, npcs: Iterable<{ x: number; z: number }> = [], objective: { x: number; z: number } | null = null): void {
     const ctx = this.ctx;
     const r = SIZE / 2;
     const zone = this.zone;
@@ -182,6 +182,19 @@ export class Minimap {
     ctx.closePath();
     ctx.fill();
     ctx.restore();
+    // The open quest: a rune diamond on the map, or a tick on the rim pointing at it.
+    if (objective) {
+      const dx = objective.x - px, dz = objective.z - pz;
+      const c = Math.cos(cameraYaw), s = Math.sin(cameraYaw);
+      const mx = (dx * c - dz * s) * scale, my = (dx * s + dz * c) * scale;
+      const d = Math.hypot(mx, my);
+      ctx.save();
+      ctx.translate(r, r);
+      ctx.fillStyle = '#37f5ff';
+      if (d < r - 8) { ctx.translate(mx, my); ctx.rotate(Math.PI / 4); ctx.fillRect(-3, -3, 6, 6); }
+      else { ctx.rotate(Math.atan2(my, mx)); ctx.fillRect(r - 11, -2, 9, 4); }
+      ctx.restore();
+    }
     ctx.strokeStyle = 'rgba(223,230,255,0.35)';
     ctx.lineWidth = 1;
     ctx.beginPath();
