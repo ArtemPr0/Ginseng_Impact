@@ -7,13 +7,13 @@
  *    green-eyed skeletons sip at the counters among skulls and melting candles.
  * The floors, fire and dark are procedural.
  */
-import { Color, Group, type Mesh, type MeshStandardMaterial, PointLight, Quaternion, Vector3 } from 'three';
+import { Color, Group, type Mesh, type MeshStandardMaterial, PointLight, Vector3 } from 'three';
 import { CRYPT_ROOM, GALAXY, TAVERN_ROOM, VALE } from '../data/world';
 import { MODELS } from '../data/models';
 import { darkHollow, plankFloor } from '../render/Floors';
 import { glowSprite } from '../render/Glow';
 import { patchRetint } from '../render/Materials';
-import { loadModelOrWarn, ModelRig } from '../models/ModelRig';
+import type { ModelRig } from '../models/ModelRig';
 import { fire } from './Fire';
 import type { Footprint } from './Colliders';
 import type { Placement } from './Flora';
@@ -112,12 +112,8 @@ export function buildTavernRoom(api: RealmApi, teleport: Teleport): Interactable
   // More of the crowd at the side tables, toasting.
   for (const [dx, dz, yaw] of [[-3.8, 3.2, Math.PI], [-5.8, 4.6, 0], [3.8, 4.4, 0]] as const) {
     const t0 = api.rnd() * 4;
-    let mug: Group | null = null;
-    api.place(modelLandmark('dwarf', x + dx, z + dz, y, { yaw: face(yaw), clip: 'drink', collider: 'manual',
-      footprints: [{ kind: 'cyl', x: x + dx, z: z + dz, r: 0.35, top: y + 1.4 }],
-      onLoad: (m) => { m.update(t0); void handTankard(m).then((g) => { mug = g; }); },
-      // (The mug stays level whatever the arm does.)
-      update: () => { if (!mug?.parent) return; mug.parent.updateWorldMatrix(true, false); mug.parent.getWorldQuaternion(_mugQ); mug.quaternion.copy(_mugQ.invert()); } }));
+    api.place(modelLandmark('dwarf', x + dx, z + dz, y, { yaw: face(yaw), collider: 'manual',
+      footprints: [{ kind: 'cyl', x: x + dx, z: z + dz, r: 0.35, top: y + 1.4 }], onLoad: (m) => m.update(t0) }));
   }
   api.realm(null);
 
@@ -202,19 +198,4 @@ export function buildCryptRoom(api: RealmApi, teleport: Teleport): Interactable[
     { pos: new Vector3(D.x, chapelFloor, D.z), range: 3, zone: GALAXY.id, label: () => 'Go down to the crypt bar', act: () => teleport(exitAt.x, y, z + 4.2, -Math.PI / 2, R.name) },
     { pos: exitAt, range: 1.4, zone: R.id, label: () => 'Climb back up to the chapel', act: () => teleport(D.x + 2.2, chapelFloor, D.z - 2.4, -0.92) },
   ];
-}
-
-const _mugQ = new Quaternion();
-
-/** A tankard in a body's right hand (its own group, so it can be kept level). */
-async function handTankard(m: ModelRig): Promise<Group | null> {
-  const hand = m.bone(/right.?hand$/i);
-  const gltf = await loadModelOrWarn('tankard', MODELS.tankard?.label);
-  if (!hand || !gltf) return null;
-  const mug = new ModelRig('tankard', gltf);
-  const holder = new Group();
-  holder.scale.setScalar(1 / Math.max(1e-4, hand.getWorldScale(new Vector3()).y));
-  holder.add(mug.root);
-  hand.add(holder);
-  return holder;
 }

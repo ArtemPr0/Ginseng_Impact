@@ -14,7 +14,6 @@ import { cutSeconds, cutStrike, heroClipsOf, moveCut, type ClipCut, type HeroCli
 import { easeLean, slopeTarget, yawDelta, type Lean } from './SlopeLean';
 
 const _lookUp = new Vector3(0, 1, 0);
-const _qb = new Quaternion();
 /** The bone a look turns: the neck, else the head. */
 function findNeck(root: Object3D): Object3D | null {
   let neck: Object3D | null = null, head: Object3D | null = null;
@@ -283,15 +282,6 @@ export class Rig {
   private readonly cupGripQ = new Quaternion();
   /** His fingers wrapped round the cup (local rotations, solved once: the cup never moves in his hand). */
   private cupFingers: Array<{ bone: Object3D; q: Quaternion }> | null = null;
-  /**
-   * An NPC's lean cup (holdCup): wanted, the loaded model, then the cup seated in whichever hand the NPC's clip lifts
-   * to the mouth, the fingers closed round it (the clip does the drinking).
-   */
-  private npcCupWanted = false;
-  private npcCupModel: GLTF | null = null;
-  private npcCupId: 'lean-cup' | 'tankard' = 'lean-cup';
-  private npcCupWait = 0;
-  private npcCup: { cup: LeanCup; pivot: Group; fingers: Array<{ bone: Object3D; q: Quaternion }> } | null = null;
   private sip: { action: AnimationAction; w: number; slurped: boolean } | null = null;
   private sipIn: number = SIP.every[0];
   /** The carry pose (cup at the chest in flight) is playing. */
@@ -352,7 +342,6 @@ export class Rig {
       this.fx.add(this.smoke.particles);
     }
     if (id === 'knight' && this.offHand) void loadModelOrWarn('lean-cup', MODELS['lean-cup']?.label).then((g) => { if (g) this.attachCup(g); });
-    if (this.npcCupWanted) this.loadNpcCup();
     if (id === 'archer' && this.hand) void loadModelOrWarn('purple-mushroom', MODELS['purple-mushroom']?.label).then((g) => { if (g) this.attachShroom(g); });
     if (id === 'archer') this.fingerRest = bindFingers(this.model);
     if (id === 'archer') for (let i = 0; i < 14; i++) {
@@ -568,66 +557,10 @@ export class Rig {
     return fingers;
   }
 
-  /** An NPC holds a lean cup (NpcDef.cup): seated once the model is in and posed (see animateNpcCup). */
-  holdCup(kind: 'lean-cup' | 'tankard' = 'lean-cup'): void {
-    this.npcCupId = kind;
-    this.npcCupWanted = true;
-    if (this.model) this.loadNpcCup();
-  }
-
-  private loadNpcCup(): void {
-    void loadModelOrWarn(this.npcCupId, MODELS[this.npcCupId]?.label).then((g) => { this.npcCupModel = g; });
-  }
-
   /**
    * Seats the NPC's cup on the first posed frame: in the hand that comes nearest the mouth over the playing clip (a
    * drinking clip lifts one), else the right; fingers closed round it. Then each frame the fingers keep their grip.
    */
-  private animateNpcCup(dt: number): void {
-    const m = this.model;
-    if (!this.npcCupModel || !m) return;
-    // (Seat it once the body's clip is running: on the first frame every hand is still at rest, and the wrong one wins.)
-    if (!this.npcCup && (this.npcCupWait += dt) < 0.6) return;
-    if (!this.npcCup) {
-      const head = this.bones?.head;
-      const hands: Array<['left' | 'right', Object3D | null]> = [['left', this.offHand], ['right', this.hand]];
-      const near: Record<string, number> = { left: Infinity, right: Infinity };
-      if (head) m.sampleClip([0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9], () => {
-        const hp = head.getWorldPosition(_b);
-        for (const [side, b] of hands) if (b) near[side] = Math.min(near[side], b.getWorldPosition(_a).distanceTo(hp));
-      });
-      const side: 'left' | 'right' = near.left < near.right ? 'left' : 'right';
-      const hand = side === 'left' ? this.offHand : this.hand;
-      if (!hand) { this.npcCupModel = null; return; }
-      const rig = new ModelRig(this.npcCupId, this.npcCupModel);
-      const cup = new LeanCup(rig.root, rig.height);
-      if (this.npcCupId === 'tankard') cup.plain();
-      m.root.updateWorldMatrix(true, true);
-      const ws = hand.getWorldScale(new Vector3());
-      const holder = new Group();
-      holder.scale.setScalar(1 / Math.max(1e-4, ws.y));
-      const pivot = new Group();
-      pivot.add(cup.group);
-      holder.add(pivot);
-      hand.add(holder);
-      this.fx.add(cup.drops);
-      this.npcCup = { cup, pivot, fingers: this.solveGrip(side, hand, pivot, cup) };
-    }
-    for (const f of this.npcCup.fingers) f.bone.quaternion.copy(f.q);
-    // Whatever the hand does, the rim stays up: no body's clip knows it holds a cup, and some have no fingers to read.
-    const p = this.npcCup.pivot;
-    if (p.parent) {
-      p.parent.updateWorldMatrix(true, false);
-      p.updateWorldMatrix(false, false);
-      p.getWorldQuaternion(_q);
-      _a.set(0, 1, 0).applyQuaternion(_q);
-      _qb.setFromUnitVectors(_a, _lookUp).multiply(_q);
-      p.parent.getWorldQuaternion(_q);
-      p.quaternion.copy(_q.invert().multiply(_qb));
-    }
-    this.npcCup.cup.update(dt);
-  }
-
   /** Turns the wrist so the cup stands `amount` of the way upright (at most 1.15 rad of it). */
   private levelByWrist(amount: number): void {
     this.tipCup(_drink.set(0, 1, 0), amount, 1.15);
@@ -1581,7 +1514,6 @@ export class Rig {
       this.swimPose(pose, dt);
       this.animateCyclone(pose, dt);
       this.animateCup(pose, dt);
-      this.animateNpcCup(dt);
       this.animateSnack(pose, dt);
       if (pose.look) {
         // (`turn` undoes itself next frame. A body with no neck simply does not turn.)

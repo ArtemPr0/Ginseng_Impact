@@ -32,8 +32,6 @@ export interface NpcDef {
   behaviour: NpcBehaviour;
   /** Items for sale (buy) — the NPC also buys any material. */
   shop?: ShopEntry[];
-  /** Holds a lean cup (a body whose mesh has none: the drink clip lifts an empty hand otherwise). */
-  cup?: boolean | 'tankard';
   /** No body of its own (it speaks for a landmark: the vale's green dragon), talked to within `talkRange` metres. */
   invisible?: boolean;
   talkRange?: number;
@@ -137,16 +135,14 @@ export const NPC_DEFS: NpcDef[] = [
     id: 'aldous', name: 'Sir Aldous', title: 'Knight of the Tavern', weapon: 'greatsword',
     model: 'knight-npc', accent: PALETTE.rune,
     lines: ['Sit. The ale is cold and the moon is patient.', 'I have guarded worse roads than yours for less coin.', 'The fog takes the careless. Hire a sword that does not care.'],
-    cup: true,
-    behaviour: { kind: 'stand', pose: 'drink', yaw: -Math.PI / 2 },
+    behaviour: { kind: 'stand', pose: 'sit', yaw: -Math.PI / 2 },
     hire: { cost: 120, atk: 70, maxHp: 1400, ranged: false },
   },
   {
     id: 'mirren', name: 'Mirren', title: 'Wizard of the Long Night', weapon: 'staff',
     model: 'wizard-npc', accent: PALETTE.dusk,
     lines: ['Every ruin here was a kingdom once. Buy something before it is a ruin again.', 'Moon dew heals. Lunar charms sharpen. Star charts remember.', 'The stars are not above us. They are behind the fog.'],
-    cup: true,
-    behaviour: { kind: 'stand', pose: 'drink', yaw: -Math.PI / 2 },
+    behaviour: { kind: 'stand', pose: 'sit', yaw: -Math.PI / 2 },
     shop: [{ itemId: 'moon-dew', price: 35 }, { itemId: 'lunar-charm', price: 180 }, { itemId: 'travelers-blade', price: 220 }, { itemId: 'star-chart', price: 260 }],
   },
   {
@@ -199,8 +195,7 @@ export const NPC_DEFS: NpcDef[] = [
     id: 'gob-a', name: 'Snik', title: 'Tavern Goblin', weapon: 'sword',
     model: 'goblin', accent: PALETTE.witch,
     lines: ['Grk. Mine.', 'Knight pays. Goblin drinks. Good arrangement.'],
-    cup: true,
-    behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI / 2 },
+    behaviour: { kind: 'stand', pose: 'sit', yaw: Math.PI / 2 },
   },
   {
     id: 'gob-b', name: 'Vrak', title: 'Tavern Goblin', weapon: 'sword',
@@ -287,16 +282,13 @@ export const NPC_DEFS: NpcDef[] = [
     id: 'skeleton-lord', name: 'The Skeleton Lord', title: 'Who Breathes the Purple Smoke', weapon: 'sword',
     model: 'skeleton-lord', accent: PALETTE.dusk,
     lines: ['Every diamond in these teeth was a promise someone broke.', 'Sit. The smoke is free. The view costs.', 'The carriage brings guests to the castle. The castle keeps them.'],
-    cup: true,
     behaviour: { kind: 'stand', pose: 'sit', yaw: Math.PI },
   },
   {
     id: 'court-knight', name: 'Sir Cobalt', title: 'Guest of the Pavilion', weapon: 'sword',
     model: 'blue-knight', accent: PALETTE.electric,
     lines: ['I came for one goblet. That was many goblets ago.', 'My sword is ice. It never melts in here: nothing does.', 'He talks in smoke. I nod. It works.'],
-    cup: true,
-    behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI },
-    sipAt: 0.42,
+    behaviour: { kind: 'stand', pose: 'sit', yaw: Math.PI },
   },
   {
     id: 'potion-brewer', name: 'Merrow the Pourer', title: 'Keeper of the Galaxy Bottles', weapon: 'staff',
@@ -309,7 +301,6 @@ export const NPC_DEFS: NpcDef[] = [
     id: 'bartender', name: 'Old Ribs', title: 'Bartender of the Sky Bar', weapon: 'sword',
     model: 'skeleton-lord', accent: PALETTE.dusk,
     lines: ['Ice, straw, a slice of orange. House style.', 'The dragon drinks on credit. You do not.', 'Mind the edge. The last fellow who leaned too far is still falling.'],
-    cup: true,
     behaviour: { kind: 'stand', pose: 'offer', yaw: Math.PI * 0.75 },
     shop: [{ itemId: 'moon-dew', price: 30 }, { itemId: 'lotus-tea', price: 26 }],
   },
@@ -317,9 +308,7 @@ export const NPC_DEFS: NpcDef[] = [
     id: 'dock-knight', name: 'Sir Velvet', title: 'Who Drinks With the Dragon', weapon: 'sword',
     model: 'blue-knight', accent: PALETTE.electric,
     lines: ['He is called Grillmaw. Do not stare at his teeth, he knows they are nice.', 'We watch the sun go down from here. It never quite does.', 'One more cup and then we fly. Probably.'],
-    cup: true,
-    behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI },
-    sipAt: 0.42,
+    behaviour: { kind: 'stand', pose: 'sit', yaw: Math.PI },
   },
   {
     id: 'plague-doctor', name: 'The Plague Doctor', title: 'Who Prescribes the Purple', weapon: 'staff',
@@ -333,63 +322,49 @@ export const NPC_DEFS: NpcDef[] = [
     id: 'crypt-red', name: 'Rattlebones', title: 'Regular of the Crypt Bar', weapon: 'sword',
     model: 'skeleton-red', accent: PALETTE.witch,
     lines: ['Green eyes? Lean does that. To skeletons.', 'This coat was red when I bought it. So was I.', 'Cheers to the snow. It never asks for anything.'],
-    behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI * 0.4 },
-    cup: true,
-    sipAt: 0.42,
+    behaviour: { kind: 'stand', yaw: Math.PI * 0.4 },
   },
   {
     id: 'crypt-witch', name: 'Mother Grin', title: 'Who Wears the Tall Hat', weapon: 'staff',
     model: 'skeleton-witch', accent: PALETTE.dusk,
     lines: ['The hat stays on. The head under it is optional.', 'Gold teeth, gold chain, purple cup. A lady keeps standards.'],
-    behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI * 0.42 },
-    cup: true,
-    sipAt: 0.42,
+    behaviour: { kind: 'stand', yaw: Math.PI * 0.42 },
   },
   {
     id: 'crypt-bones', name: 'Knuckles', title: 'Who Counts the Skulls', weapon: 'sword',
     model: 'skeleton', accent: PALETTE.moon,
     lines: ['Four hundred and twelve skulls on that wall. I check every night.', 'Some of them are friends. Some of them owe me a drink.'],
-    cup: true,
-    behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI },
-    sipAt: 0.42,
+    behaviour: { kind: 'stand', pose: 'sit', yaw: Math.PI },
   },
   {
     id: 'gold-knight', name: 'Sir Gilt', title: 'Who Toasts the Dead', weapon: 'sword',
     model: 'gold-knight', accent: PALETTE.dusk,
     lines: ['To the dead! They are excellent company and never leave early.', 'The skulls behind me were knights. Raise your cup to them.'],
-    behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI / 2 },
-    cup: 'tankard',
-    sipAt: 0.42,
+    behaviour: { kind: 'stand', yaw: Math.PI / 2 },
   },
   // --- Round 6: the Dragon's Vale (Dd5Bqt7vQ5T); the toasters stand round the long table in its tavern (Interiors.ts) ---
   {
     id: 'waxwick', name: 'Waxwick', title: 'The Man With the Candle Head', weapon: 'staff',
     model: 'candle-head', accent: PALETTE.moon,
     lines: ['Mind the drips. Everything I say comes out warm.', 'A toast! To short wicks and long nights.', 'I do not blow out. I have tried.'],
-    behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI / 2 },
-    cup: true,
-    sipAt: 0.42,
+    behaviour: { kind: 'stand', yaw: Math.PI / 2 },
   },
   {
     id: 'brannoc', name: 'Brannoc', title: 'Dwarf of the Blue Mail', weapon: 'sword',
     model: 'dwarf', accent: PALETTE.electric,
     lines: ['Raise it higher! The candle in the cup is for luck, not for drinking.', 'The dragon? He sleeps through the singing. We have checked.'],
-    behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI / 4 },
-    cup: 'tankard',
-    sipAt: 0.42,
+    behaviour: { kind: 'stand', yaw: Math.PI / 4 },
   },
   {
     id: 'hilde', name: 'Hilde', title: 'Dwarf of the Braided Beard', weapon: 'sword',
     model: 'dwarf', accent: PALETTE.blood,
     lines: ['Three braids for three wars. The fourth is for the ale.', 'If the head on the hill ever opens its eyes, I am leaving.'],
-    behaviour: { kind: 'stand', pose: 'drink', yaw: Math.PI * 0.75 },
-    cup: 'tankard',
-    sipAt: 0.42,
+    behaviour: { kind: 'stand', yaw: Math.PI * 0.75 },
   },
   {
     // In the black-and-gold carriage at the lean castle's bridge (world/Carriage.ts carries him about).
     id: 'carriage-count', name: 'Count Rattlewheel', title: 'Who Rides to Nowhere in Style', weapon: 'sword',
-    model: 'skeleton-lord', accent: PALETTE.dusk, cup: true,
+    model: 'skeleton-lord', accent: PALETTE.dusk,
     lines: ['Climb up, climb up. Smoke? It is purple, it is free, it is terrible for you.', 'A drink for the road. The road goes round the castle twice and back. We never arrive.', 'Take the reins if you like. The horses left years ago. The carriage did not notice.'],
     behaviour: { kind: 'stand', pose: 'sit', yaw: 0 },
     // He sits 0.82 m up inside the carriage (Carriage.ts), whose roof is 3.2 m over its base: the bubble's lower edge
@@ -486,7 +461,6 @@ export class Npc {
     this.rig = new Rig({ id: def.id, name: def.name, title: def.title, element: 'fog', weapon: def.weapon, maxHp: 1, atk: 1, accent: def.accent }, def.model);
     this.object = this.rig.root;
     if (def.invisible) { this.object.visible = false; this.object.userData.hidden = true; }
-    if (def.cup) this.rig.holdCup(def.cup === 'tankard' ? 'tankard' : 'lean-cup');
     if (def.scale && def.scale !== 1) this.object.scale.setScalar(def.scale);
     this.pos.set(start.x, heightAt(start.x, start.z), start.z);
     if (def.behaviour.kind === 'stand') this.yaw = def.behaviour.yaw;
