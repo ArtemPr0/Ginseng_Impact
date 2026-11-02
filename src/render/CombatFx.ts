@@ -944,6 +944,13 @@ export class CombatFx {
    */
   update(dt: number, camera: Camera): void {
     COMBATFX_CLOCK.value += dt;
+    // (Ahead of the idle shortcut: cracks outlast everything else.)
+    for (const s of this.cracks) {
+      if (!s.mesh.visible) continue;
+      const k = (COMBATFX_CLOCK.value - s.birth) / 7;
+      if (k >= 1) s.mesh.visible = false;
+      else s.mat.uniforms.uAlpha.value = Math.min(1, (1 - k) * 2.5);
+    }
     const now = COMBATFX_CLOCK.value;
     if (this.liveTrails === 0 && this.liveArcs === 0 && this.liveShocks === 0 && this.liveTelegraphs === 0
       && now >= this.sparksUntil && now >= this.flashUntil && now >= this.dustUntil && !this.runeOn && this.runeOpacity <= 0) {
@@ -990,13 +997,6 @@ export class CombatFx {
         s.mesh.scale.setScalar(0.2 + k * s.radius);
         s.mat.opacity = 0.9 * (1 - k);
       }
-    }
-
-    for (const s of this.cracks) {
-      if (!s.mesh.visible) continue;
-      const k = (now - s.birth) / 7;
-      if (k >= 1) s.mesh.visible = false;
-      else s.mat.uniforms.uAlpha.value = Math.min(1, (1 - k) * 2.5);
     }
 
     if (this.liveTelegraphs > 0) {
