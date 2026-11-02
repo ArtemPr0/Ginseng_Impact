@@ -365,6 +365,8 @@ const story = new Story({
   follow: (id) => {
     const npc = area.npcs.find((n) => n.def.id === id);
     if (!npc || id !== 'bride') return;
+    // (Asked at the after-party: everyone goes home first, she walks from her own sand.)
+    concert.disperse();
     // There and held there: the second leg is the same spot, so she stops at the shore.
     npc.walk([[npc.pos.x, npc.pos.z], [BRIDE_SHORE.x, BRIDE_SHORE.z], [BRIDE_SHORE.x + 0.01, BRIDE_SHORE.z]], 1.6);
     hud.announce('The Pale Bride walks to where the sand ends');

@@ -95,7 +95,9 @@ await drive('dragon-reader', 'books', 'done');
 await drive('rose-knight', 'rose', ['asked', 'worthy', 'answered']);
 await drive('maiden', 'rose', 'answered');
 await drive('bride', 'bride', 'walking');
-const b = npc('bride'); log.push(`bride at ${b.pos.x.toFixed(1)},${b.pos.z.toFixed(1)}`);
+const b = npc('bride');
+await tp(52, 62, b.pos.y + 2); // (NPCs only walk in the zone the hero is in.)
+ log.push(`bride at ${b.pos.x.toFixed(1)},${b.pos.z.toFixed(1)}`);
 await waitFor(() => st('bride') === 'done', 45000, 250);
 if (st('bride') !== 'done') fail('the bride never reached the shore', { at: [b.pos.x, b.pos.z], stage: st('bride') });
 return report({ log, stages: Object.fromEntries(['silence','throne','croak','trip','crown','lean','sound','bell','grave','penny','books','rose','bride'].map((q) => [q, st(q)])) });
