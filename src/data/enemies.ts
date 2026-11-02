@@ -305,7 +305,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   // Decorative flyers you can shoot: they circle their pools and never fight back.
   koi: {
     kind: 'koi', name: 'Flying Koi', maxHp: 80, def: 5, atk: 0, speed: 3.2, element: 'tide', hover: 0, bodyRadius: 0.55, height: 0.6,
-    flying: true, flyAbove: 3.5, passive: true, neutral: true, leash: 40,
+    flying: true, flyAbove: 1.9, passive: true, neutral: true, leash: 40,
     brain: { aggroRange: 0, attackRange: 0, windup: 0.5, recover: 0.5, attackCooldown: 1 }, respawn: 45, shards: [2, 5],
   },
   jellyfish: {
