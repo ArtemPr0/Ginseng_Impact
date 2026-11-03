@@ -263,26 +263,45 @@ let moonTex: CanvasTexture | undefined;
 /** A pale full moon with soft grey seas, for the big moons sitting on a realm's horizon (Dd5Bqt7vQ5T). */
 export function horizonMoon(size: number): Sprite {
   if (!moonTex) {
-    const s = 128;
+    const s = 512;
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = s;
     const ctx = canvas.getContext('2d')!;
-    const g = ctx.createRadialGradient(s / 2, s / 2, s * 0.42, s / 2, s / 2, s / 2);
-    g.addColorStop(0, 'rgba(220,232,255,1)');
-    g.addColorStop(1, 'rgba(220,232,255,0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, s, s);
-    ctx.fillStyle = 'rgb(214,226,250)';
+    const R = s * 0.46, c = s / 2;
+    // A lit ball, not a disc: bright to one side, falling into shade across it, the limb a thin soft edge.
+    ctx.save();
     ctx.beginPath();
-    ctx.arc(s / 2, s / 2, s * 0.43, 0, Math.PI * 2);
-    ctx.fill();
-    // Seas: soft grey blotches.
-    for (const [x, y, r] of [[0.4, 0.38, 0.12], [0.58, 0.5, 0.09], [0.45, 0.6, 0.07], [0.62, 0.33, 0.06], [0.33, 0.55, 0.05]]) {
-      ctx.fillStyle = 'rgba(150,165,200,0.55)';
-      ctx.beginPath();
-      ctx.arc(x * s, y * s, r * s, 0, Math.PI * 2);
-      ctx.fill();
+    ctx.arc(c, c, R, 0, Math.PI * 2);
+    ctx.clip();
+    const body = ctx.createRadialGradient(c - R * 0.35, c - R * 0.35, R * 0.1, c, c, R * 1.08);
+    body.addColorStop(0, 'rgb(226,232,246)');
+    body.addColorStop(0.55, 'rgb(176,186,212)');
+    body.addColorStop(1, 'rgb(84,96,132)');
+    ctx.fillStyle = body;
+    ctx.fillRect(0, 0, s, s);
+    // Seed-fixed scatter: the same moon every time.
+    let seed = 7;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed & 0xffff) / 0xffff; };
+    // Seas: broad overlapping shadows with soft edges.
+    for (let i = 0; i < 26; i++) {
+      const x = c + (rnd() - 0.5) * R * 1.5, y = c + (rnd() - 0.5) * R * 1.5, r = R * (0.1 + rnd() * 0.28);
+      const g = ctx.createRadialGradient(x, y, r * 0.2, x, y, r);
+      g.addColorStop(0, 'rgba(92,104,142,0.34)');
+      g.addColorStop(1, 'rgba(92,104,142,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(x - r, y - r, r * 2, r * 2);
     }
+    // Craters: a dark bowl with a lit rim on the side away from the light.
+    for (let i = 0; i < 120; i++) {
+      const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * R * 0.96, r = R * (0.008 + rnd() * rnd() * 0.075);
+      const x = c + Math.cos(a) * d, y = c + Math.sin(a) * d;
+      ctx.fillStyle = 'rgba(58,68,100,0.3)';
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(236,240,250,0.3)';
+      ctx.lineWidth = Math.max(1, r * 0.2);
+      ctx.beginPath(); ctx.arc(x + r * 0.1, y + r * 0.1, r, 0.2, 2.6); ctx.stroke();
+    }
+    ctx.restore();
     moonTex = new CanvasTexture(canvas);
   }
   // (Dimmed below the bloom threshold: a pale disc, not a blown-out light.)

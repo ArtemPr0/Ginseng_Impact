@@ -107,8 +107,10 @@ export const LAYOUT = {
 export const VILLAGE = {
   x: -34, z: 70,
   houses: [
-    [-18, -6, 6, 5, 0.04], [-6, -6, 5, 5, -0.06], [6, -6, 7, 5, 0.03], [18, -6, 5, 6, 0.08],
-    [-14, 6, 6, 5, Math.PI + 0.05], [-2, 6, 5, 5, Math.PI - 0.06], [10, 6, 7, 5, Math.PI + 0.02], [22, 6, 5, 5, Math.PI - 0.08],
+    // (Set as they were built, not in a line: along the street, then a second row behind the south side.)
+    [-19, -7.5, 6, 5, 0.2], [-7, -6.5, 5, 5, -0.14], [5, -8.5, 7, 5, 0.26], [18, -6.5, 5, 6, 0.1],
+    [-15, 7, 6, 5, Math.PI + 0.22], [-3, 8.5, 5, 5, Math.PI - 0.16], [9, 6.8, 7, 5, Math.PI + 0.1], [23, 8, 5, 5, Math.PI - 0.24],
+    [-21, 20, 6, 5, Math.PI + 0.42], [-1, 21, 6, 5, Math.PI - 0.32], [15, 20, 6, 5, Math.PI + 0.18],
   ] as ReadonlyArray<readonly [number, number, number, number, number]>,
   /** Torch posts on both edges of the street, in the gaps between the houses. */
   torches: [[-24, -2.8], [-12, -2.8], [0, -2.8], [12, -2.8], [24, -2.8], [-20, 2.8], [-8, 2.8], [4, 2.8], [16, 2.8], [28, 2.8]] as ReadonlyArray<readonly [number, number]>,

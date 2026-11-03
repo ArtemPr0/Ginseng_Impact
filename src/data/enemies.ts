@@ -133,11 +133,10 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     // (No Third Eye here: the quest graph hands it over once, on the first kill, data/quests.ts trip 'god'.)
     drops: [{ itemId: 'moon-dew', chance: 1 }],
   },
-  // The chapel on spider legs (DdmvaMvMvS4): it walks the sky over the west cliffs above the treetops, and when you
-  // come near it spits webs that pin you where you stand and drops nets over where you are.
+  // The chapel on spider legs (DdmvaMvMvS4): it stalks the kingdom's snowfield past the graves on its own legs (no longer
+  // hung in the sky over the island's west rim, 2026-11-03: dangling legs read as broken), and when you come near it spits webs that pin you where you stand and drops nets over where you are.
   spiderchapel: {
-    kind: 'spiderchapel', name: 'The Spider Chapel', title: 'That Walks the Sky', maxHp: 9500, def: 85, atk: 140, speed: 4.5, element: 'fog', hover: 0, bodyRadius: 7, height: 28, boss: true,
-    flying: true, flyAbove: 16, floatAt: 2,
+    kind: 'spiderchapel', name: 'The Spider Chapel', title: 'That Walks the Snow', maxHp: 9500, def: 85, atk: 140, speed: 4.5, element: 'fog', hover: 0, bodyRadius: 7, height: 28, boss: true,
     brain: { aggroRange: 18, attackRange: 18, windup: 1.0, recover: 1.4, attackCooldown: 1.2, preferredRange: 14 }, respawn: 360, leash: 60, shards: [260, 360],
     attacks: [{ kind: 'web', range: 36, windup: 1.0, recover: 1.4, weight: 3 }, { kind: 'webdrop', range: 30, windup: 1.2, recover: 1.5, weight: 2 }],
     drops: [{ itemId: 'star-chart', chance: 1 }, { itemId: 'rune-shard', chance: 1 }],
@@ -346,7 +345,7 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'rivershade', x: -67, z: 38 },    // rising from the witch stream, upstream of the bridge and Old Moss
   { kind: 'passbeast', x: -36, z: -140 },
   // The spider chapel walks its loop in the sky over the west cliffs (it used to be scenery).
-  { kind: 'spiderchapel', x: -104, z: 62, exact: true, patrol: [[-104, 62], [-90, 74], [-104, 86], [-118, 74]] },   // the mountain pass behind the peak
+  { kind: 'spiderchapel', x: 932, z: 170, exact: true, patrol: [[932, 170], [944, 162], [942, 188], [922, 182]] },   // the kingdom's snowfield past the graves (off its old perch over the void)
   { kind: 'troll', x: -64, z: -133, exact: true }, // on the gorge floor under the stone bridge
   { kind: 'lurker', x: -24, z: -14 },       // the lily pond's shallows (west of the whirlpool)
   { kind: 'marshdemon', x: 106, z: -13, exact: true },   // waist-deep in his mud pool, east of the cathedral
@@ -405,7 +404,7 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'styro-ghoul', x: 880, z: -56 }, { kind: 'styro-ghoul', x: 900, z: -50 }, { kind: 'styro-ghoul', x: 950, z: -60 },
   { kind: 'mail-knight', x: 832, z: -48 }, { kind: 'grave-skeleton', x: 965, z: 112 }, { kind: 'grave-skeleton', x: 815, z: 96 },
   // The drowned land beyond the city: anglers among the wrecks.
-  { kind: 'angler', x: -1062, z: -52 }, { kind: 'angler', x: -938, z: -92 }, { kind: 'angler', x: -1070, z: 50 }, { kind: 'angler', x: -934, z: 54 },
+  { kind: 'angler', x: -1062, z: -52 }, { kind: 'angler', x: -938, z: -92 }, { kind: 'angler', x: -1066, z: 42 }, { kind: 'angler', x: -942, z: 50 },
   // Beyond the alley's walls.
   { kind: 'grave-skeleton', x: -21, z: -1090 }, { kind: 'grave-skeleton', x: 26, z: -1034 }, { kind: 'grave-skeleton', x: -27, z: -978 }, { kind: 'grave-skeleton', x: 27, z: -918 },
   // The snow quarter of the Lean Quarter: skeletons stalking the graves round the chapel.

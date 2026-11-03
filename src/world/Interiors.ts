@@ -101,6 +101,8 @@ export function buildTavernRoom(api: RealmApi, teleport: Teleport): Interactable
     const candles = [-1, 0, 1].map((k) => ({ x: tx + (along ? k : 0), y: y + 0.97, z: tz + (along ? 0 : k), yaw: 0, scale: 1 }));
     api.flora('candle', candles, { shadows: false });
     for (const c of candles) glow(CANDLE, 0.7, c.x, c.y + 0.38, c.z, 0.55);
+    // Tankards among the candles: the drinks stand on the tables, in front of whoever is drinking them.
+    api.flora('tankard', [-0.5, 0.5, 1.45].map((k, i) => ({ x: tx + (along ? k : 0.2), y: y + 0.97, z: tz + (along ? 0.25 : k), yaw: i * 2.1, scale: 1 })), { shadows: false });
   }
   // The chandelier of melting candles, and its light.
   const ch = { x, z: z + 0.2, y: y + 3.6 };
@@ -170,6 +172,8 @@ export function buildCryptRoom(api: RealmApi, teleport: Teleport): Interactable[
   }
   for (const dx of [-1.9, 0.7]) skulls.push({ x: x + dx, y: top, z: z - 4.1, yaw: api.rnd() * 6, scale: 0.45 });
   api.flora('skull-pile', skulls, { patch: (mat) => mat.color.set(0x9a9284) });
+  // The drinks, on the counters beside whoever ordered them.
+  api.flora('lean-cup', [[-3.2, -0.45], [-3.25, 1.3], [2.45, 0.6], [-0.4, -3.75]].map(([dx, dz], i) => ({ x: x + dx, y: y + 1.2, z: z + dz, yaw: i, scale: 1 })), { shadows: false });
   // Melting candles down the counters, each with its flame.
   const candles: Placement[] = [];
   for (let k = 0; k < 6; k++) for (const cx of [-3.25, 2.42]) candles.push({ x: x + cx + (api.rnd() - 0.5) * 0.2, y: top, z: z - 2.4 + k * 1.4, yaw: 0, scale: 0.8 + api.rnd() * 0.6 });

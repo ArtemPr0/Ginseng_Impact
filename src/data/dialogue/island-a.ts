@@ -130,7 +130,7 @@ export const ISLAND_A: DialogueBook = {
       { id: 'king.react.rivershade', slot: 'react', text: 'The shade in the witch\'s stream, dead. It flooded my cellar every spring. My cellar thanks you; it has never thanked anyone.', when: kill('rivershade') },
       { id: 'king.react.beast', slot: 'react', text: 'Fog beasts by the stream, dead. They ate my messengers. I had stopped sending messengers; now I may start.', when: kill('beast') },
       { id: 'king.react.loggiant', slot: 'react', text: 'You killed the log giant. He was carrying my firewood. He carried it for eleven years and never arrived, so: even.', when: kill('loggiant') },
-      { id: 'king.react.spider', slot: 'react', text: 'The chapel on legs fell out of the sky over my cliffs. I had a bet with the witch that it would land on her. I lost the bet; I won the view.', when: kill('spiderchapel') },
+      { id: 'king.react.spider', slot: 'react', text: 'The chapel on legs fell over in the snow past the kingdom graves. I had a bet with the witch that it would land on her. I lost the bet; I won the view.', when: kill('spiderchapel') },
       { id: 'king.react.hurt', slot: 'react', text: 'You are bleeding on my floor. Bleed on the candles; they like it.', when: HURT },
       { id: 'king.react.down', slot: 'react', text: 'You went down by the stream, I am told. The fog brings back what it finds. Not the shards. Never the shards.', when: DOWN },
       { id: 'king.react.lick', slot: 'react', text: 'You licked the frog. The frog is my neighbour. We do not speak; now I know why.', when: feat('lick') },

@@ -19,7 +19,7 @@ const bottom = (root) => {
     if (!(o.isMesh || o.isSkinnedMesh) || !o.geometry?.attributes?.position || !solid(o)) return;
     for (let p = o; p && p !== root.parent; p = p.parent) if (!p.visible) return;
     const pa = o.geometry.attributes.position;
-    if (o.isSkinnedMesh) { for (let i = 0; i < pa.count; i += 7) { o.getVertexPosition(i, v); o.applyBoneTransform(i, v); v.applyMatrix4(o.matrixWorld); mn = Math.min(mn, v.y); } }
+    if (o.isSkinnedMesh) { for (let i = 0; i < pa.count; i += 7) { o.getVertexPosition(i, v); v.applyMatrix4(o.matrixWorld); mn = Math.min(mn, v.y); } }
     else { if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); const bb = o.geometry.boundingBox; for (const x of [bb.min.x, bb.max.x]) for (const z of [bb.min.z, bb.max.z]) { v.set(x, bb.min.y, z).applyMatrix4(o.matrixWorld); mn = Math.min(mn, v.y); } }
   });
   return Number.isFinite(mn) ? mn : null;
@@ -64,6 +64,7 @@ const ALLOW = {
   'npc:frogking': { 'pos below': 'squats in his hollow under the footprint of its rim' },
   'enemy:loggiant': { 'model sinks': 'boots in the soft ground' }, 'enemy:yeti': { 'model sinks': 'feet in the snow' },
   'enemy:troll': { 'model sinks': 'feet in the gorge bed' },
+  'enemy:cyclops-lord': { 'model sinks': 'its tail tip drags under the alley floor; foot bones measured 0.1-0.4 m above it (2026-11-03)' },
   // Seats that are part of a model with no collider of their own, so the measure reads the floor under them (each one looked at).
   'npc:skeleton-king': { 'hips over': 'on the dragon throne (model seat)', 'model sinks': 'his chair legs hang inside the throne dais' },
   'npc:skeleton-lord': { 'hips over': 'on the pavilion settee (model seat)' },

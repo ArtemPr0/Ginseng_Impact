@@ -184,6 +184,7 @@ export class Enemy {
   private readonly lean: Lean = { pitch: 0, roll: 0 };
   private readonly leanTarget: Lean = { pitch: 0, roll: 0 };
   private groundSpeed = 0;
+  private farAnim = 1;
   private moveDirX = 0;
   private moveDirZ = 0;
   private stateClock = 0;
@@ -911,7 +912,10 @@ export class Enemy {
       m.root.rotation.z += (daze - m.root.rotation.z) * Math.min(1, dt * 8);
     }
     if (!far) this.flapWings(m, dt);
+    // (Far bodies still tick about once a second, so they hold a real clip pose, never the bind pose: a body whose
+    // clips stand lower than its bind pose would float there.)
     if (!far) m.update(dt * this.pace);
+    else if ((this.farAnim += dt) > 1) { m.update(this.farAnim * this.pace); this.farAnim = 0; }
     this.lunge = Math.max(0, this.lunge - dt * 2.8);
     this.flinch = Math.max(0, this.flinch - dt * 4);
     this.animateHalo(m.height);
@@ -1238,14 +1242,83 @@ export class Enemy {
     const r = m.root;
     const a = Math.min(1, dt * 14);
     // (A giant eye's body hangs below its tilt pivot by half its height: keep that offset.)
-    const base = this.eyePivot ? -this.eyePivot.position.y : 0;
+    const base = (this.eyePivot ? -this.eyePivot.position.y : 0) - this.legDrop;
     r.position.y += (base + y - r.position.y) * a;
     r.rotation.x += (pitch - r.rotation.x) * a;
     r.rotation.z += (roll - r.rotation.z) * a;
     r.rotation.y += (wiggle - r.rotation.y) * a;
     r.scale.set(1, sy, 1);
+    if (LEG_GAIT.has(this.def.kind)) this.driveLegs(m, ph, k);
+  }
+
+  private legs: Array<{ b: Object3D; tip: Object3D; bind: Quaternion; set: number; dir: Vector3; reach: number }> | null = null;
+  /** How far the body is lowered so its curled legs reach the ground. */
+  private legDrop = 0;
+
+  /**
+   * A many-legged body with a rig but no clips (the Spider Chapel). Its legs are modelled curled, hanging, so each one
+   * is aimed (root to tip, as one stiff limb) at a foothold on the ground out from the body, the body lowered until the
+   * shortest leg reaches; the footholds swing forward and back in two alternating sets and the swinging set lifts, so
+   * it walks on its feet instead of gliding. Legs are the bone chains whose tip hangs below their root; every frame
+   * starts again from the bind pose (no clip rewrites these bones).
+   */
+  private driveLegs(m: ModelRig, ph: number, k: number): void {
+    m.root.updateWorldMatrix(true, true);
+    const groundY = this.object.position.y;
+    if (!this.legs) {
+      this.legs = [];
+      const centre = m.root.getWorldPosition(new Vector3());
+      const isBone = (o: Object3D | null) => !!(o as { isBone?: boolean } | null)?.isBone;
+      let hip = -Infinity, minReach = Infinity;
+      m.root.traverse((o) => {
+        if (!isBone(o) || !isBone(o.parent)) return;
+        // (The start of a chain: its parent branches, so the links further down are not counted again.)
+        if (o.parent!.children.filter(isBone).length < 2) return;
+        // A chain: every link has exactly one bone child, at least five links deep.
+        let tip: Object3D = o; let n = 1;
+        for (;;) { const kids = tip.children.filter(isBone); if (kids.length !== 1) break; tip = kids[0]; n++; }
+        if (n < 5 || tip.children.some(isBone)) return;
+        const p0 = o.getWorldPosition(new Vector3()), p1 = tip.getWorldPosition(new Vector3());
+        if (p0.y - p1.y < m.height * 0.12) return;
+        const dir = new Vector3(p1.x - centre.x, 0, p1.z - centre.z);
+        if (dir.lengthSq() < 1e-4) return;
+        dir.normalize();
+        const reach = p0.distanceTo(p1);
+        hip = Math.max(hip, p0.y); minReach = Math.min(minReach, reach);
+        this.legs!.push({ b: o, tip, bind: o.quaternion.clone(), set: 0, dir, reach });
+      });
+      this.legs.sort((x, y) => Math.atan2(x.dir.z, x.dir.x) - Math.atan2(y.dir.z, y.dir.x));
+      this.legs.forEach((L, i) => { L.set = i % 2; });
+      // (Measured from the model's own feet origin, not the ground under it, so it holds wherever the body first loads.)
+      const rootY = m.root.getWorldPosition(new Vector3()).y + this.legDrop;
+      if (this.legs.length) this.legDrop = Math.max(0, hip - rootY - minReach * 0.9);
+      return; // (the drop takes effect from the next frame's body placement)
+    }
+    const up = _fwd.set(0, 1, 0);
+    for (const L of this.legs) {
+      const s = ph + L.set * Math.PI;
+      L.b.quaternion.copy(L.bind);
+      L.b.updateWorldMatrix(true, true);
+      const a = L.b.getWorldPosition(_legA);
+      const cur = L.tip.getWorldPosition(_legB).sub(a);
+      const lift = Math.max(0, Math.cos(s)) * k * 0.1 * L.reach;
+      // (The mesh foot reaches about 0.8 m past the last bone: aim the bone that much above the ground.)
+      const h = Math.max(0.5, a.y - groundY - 0.8 - lift);
+      const R = Math.sqrt(Math.max(L.reach * L.reach - h * h, (0.15 * L.reach) ** 2));
+      const dir = _legD.copy(L.dir).applyAxisAngle(up, Math.sin(s) * 0.28 * k);
+      const want = _legW.set(dir.x * R, -h, dir.z * R);
+      const axis = _legX.crossVectors(cur, want);
+      if (axis.lengthSq() < 1e-8) continue;
+      L.b.quaternion.copy(turnedAbout(L.b, axis.normalize(), cur.angleTo(want), _fq));
+      L.b.updateWorldMatrix(false, true);
+    }
   }
 }
+
+const _legA = new Vector3(), _legB = new Vector3(), _legD = new Vector3(), _legW = new Vector3(), _legX = new Vector3();
+
+/** Rigged bodies with no clips whose leg chains are walked by hand (see Enemy.driveLegs). */
+const LEG_GAIT: ReadonlySet<string> = new Set(['spiderchapel']);
 
 /** How long a clip body with no death clip (the log giant) takes to topple, how far back it pitches, how deep it sinks. */
 const TOPPLE_LEN = 0.9;
@@ -1288,6 +1361,6 @@ export function attackClips(kind: BossAttackKind | undefined): string[] {
 type StaticMotion = 'gallop' | 'slither' | 'hover' | 'wade' | 'fly' | 'seated' | 'stride';
 /** How each clip-less body moves (see driveStatic). */
 const STATIC_MOTION: Partial<Record<string, StaticMotion>> = {
-  'dmt-entity': 'hover', spiderchapel: 'hover', koi: 'fly', jellyfish: 'hover',
+  'dmt-entity': 'hover', koi: 'fly', jellyfish: 'hover',
   emberrider: 'gallop', croc: 'slither', rivershade: 'hover', lurker: 'wade', wyrm: 'fly', hollowking: 'seated', marshdemon: 'stride',
 };

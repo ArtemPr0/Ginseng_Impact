@@ -169,9 +169,12 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
 
   // ===== Bucket Street and the lean castle, west (DeaqHWJBBPw, DeXn5rSPxR8) =====
   // Purple houses both sides of the street (z = 18), facing it.
-  for (const x of [924, 906, 888, 870, 852]) {
-    for (const [z, yaw] of [[4, Math.PI / 2], [32, -Math.PI / 2]] as const) {
-      api.place(modelLandmark('purple-house', x, z, gy, { yaw: face(yaw), footprints: [{ kind: 'box', x, z, hw: 3.4, hd: 3.4, top: gy + 9 }], onLoad: (m) => restyle(m, (mat) => patchLitWindows(mat, 2.4, new Color(0.75, 0.35, 1.0))) }));
+  // (Not ruled off: each stands a little forward or back, a little turned.)
+  const houseSet = [[924, 0.14, -0.8], [906, -0.17, 0.7], [888, 0.2, -0.5], [870, -0.12, 1], [852, 0.16, -0.9]] as const;
+  for (const [x0, turn, step] of houseSet) {
+    for (const [z0, yaw0] of [[4, Math.PI / 2], [32, -Math.PI / 2]] as const) {
+      const x = x0, z = z0 + (yaw0 > 0 ? step : -step), yaw = yaw0 + (yaw0 > 0 ? turn : -turn);
+      api.place(modelLandmark('purple-house', x, z, gy, { yaw: face(yaw), footprints: [{ kind: 'box', x, z, hw: 3.4, hd: 3.4, top: gy + 9, rotY: -face(yaw) }], onLoad: (m) => restyle(m, (mat) => patchLitWindows(mat, 2.4, new Color(0.75, 0.35, 1.0))) }));
       glow(PALETTE.dusk, 3.5, x, gy + 7.5, z, 0.25);
     }
   }

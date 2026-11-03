@@ -14,7 +14,7 @@ export interface Folk extends NpcDef {
 const person = (id: string, name: string, title: string, model: string, at: Folk['at'], behaviour: NpcBehaviour, lines: string[], seat = false): Folk => ({
   id, name, title, model, at, behaviour, lines, seat, chatter: true, accent: PALETTE.rune, weapon: 'sword',
 });
-const stand = (yaw: number, pose?: 'read' | 'fish' | 'sit' | 'kneel'): NpcBehaviour => ({ kind: 'stand', yaw, pose });
+const stand = (yaw: number): NpcBehaviour => ({ kind: 'stand', yaw });
 const walk = (path: Array<[number, number]>, speed = 1.2): NpcBehaviour => ({ kind: 'loop', path, speed });
 const round = (x: number, z: number, r: number, n = 8): Array<[number, number]> => Array.from({ length: n }, (_, i) => [x + Math.cos((i / n) * Math.PI * 2) * r, z + Math.sin((i / n) * Math.PI * 2) * r]);
 
@@ -34,10 +34,10 @@ export const FOLK: Folk[] = [
     ['Nothing to report. Nothing has been reported since the dragon.', 'The chains hold. I check them. I do not cross them.', 'Beasts in the north wood. Stay on the lane, or do not, I am off at dusk.']),
   person('folk-guard-b', 'Pike', 'Of the Vale Watch', 'knight-npc', { x: X - 5, z: Z + 108 }, walk([[X - 5, Z + 108], [X + 8, Z + 108], [X + 11, Z + 94], [X + 8, Z + 108]], 1.2),
     ['I guard the arch. It has never tried anything.', 'Sergeant says stand here. So I walk about here.', 'Welcome to the vale. Please do not wake the lizard.']),
-  person('folk-fisher', 'Grell', 'Who Has Caught Something Once', 'troll-fisher', { x: 958, z: 982, dy: 0.38 }, stand(Math.PI, 'fish'),
-    ['Shh. Oh, it does not matter. There are no fish.', 'I caught one in the spring. I told it everything.', 'The river runs south and it does not come back. I respect that.'], true),
-  person('folk-reader', 'Brother Ambrel', 'Reading Under the Tree', 'frog-monk', { x: X - 4.5, z: Z + 48, dy: 0.38 }, stand(0.5, 'read'),
-    ['This book says the world ends. It has been saying so for eight hundred pages.', 'Sit. No, there is one barrel. Stand.', 'I have read it twice. The dragon has read it four times.'], true),
+  person('folk-fisher', 'Grell', 'Who Has Caught Something Once', 'troll-fisher', { x: 960.5, z: 982 }, stand(Math.PI),
+    ['Shh. Oh, it does not matter. There are no fish.', 'I caught one in the spring. I told it everything.', 'The river runs south and it does not come back. I respect that.']),
+  person('folk-reader', 'Brother Ambrel', 'Reading Under the Tree', 'frog-monk', { x: X - 8, z: Z + 50 }, walk([[X - 8, Z + 50], [X - 9, Z + 55], [X - 8, Z + 50]], 0.5),
+    ['This book says the world ends. It has been saying so for eight hundred pages.', 'I pace when it gets good. It is getting good.', 'I have read it twice. The dragon has read it four times.']),
   person('folk-gardener', 'Marrit', 'Who Grows Sunflowers', 'witch-cook', { x: 966, z: 1006 }, walk([[966, 1006], [980, 1006], [980, 1015], [966, 1015]], 0.7),
     ['They face the moon here. I did not teach them that.', 'Pick one and I will know.', 'The stew needs seeds. The seeds need the sun. We have an arrangement with the moon.']),
   person('folk-kid-a', 'Pip', 'Who Is It', 'gnome', { x: X + 1, z: Z + 58 }, walk(round(X + 1, Z + 52, 5.5, 10), 2.4), ['You are it!', 'Cannot catch me!', 'Is that a real sword? Is it? Is it?']),
@@ -63,7 +63,7 @@ export const FOLK: Folk[] = [
   person('folk-ham-a', 'Ilse', 'Who Keeps Hens', 'maiden', { x: 16, z: -12 }, walk([[17, -12], [12, -11.5], [17, -10.5], [21, -11]], 0.8),
     ['Have you seen a hen? Not any hen. A particular hen.', 'The hamlet is small but it has opinions.', 'Up the steps, past the torch. That is the whole tour.']),
   // ----- The kingdom -----
-  person('folk-k-a', 'Sir Clatter', 'Courtier', 'skeleton', { x: 990, z: -34 }, walk([[990, -34], [1006, -34], [1006, -17], [990, -17]], 1.1),
+  person('folk-k-a', 'Sir Clatter', 'Courtier', 'skeleton', { x: 990, z: -34 }, walk([[990, -34], [1006, -34], [1006, -21], [990, -21]], 1.1),
     ['I have been waiting on an audience for four hundred years.', 'Lovely plaza. I walk it for my bones. All of them.', 'The king will see you. The king sees everyone. He has the sockets for it.']),
   person('folk-k-b', 'Lady Hollowell', 'Courtier', 'skeleton', { x: 1006, z: 44 }, walk([[1006, 44], [1024, 50], [1036, 42], [1016, 36]], 1),
     ['One does so like a stroll after not eating.', 'That cup is the size of a cathedral. It is a bit much.', 'Do you dance? I have the legs for it. Just the legs.']),

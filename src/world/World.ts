@@ -533,7 +533,7 @@ export class World {
     this.place(snail);
     vfx(snailBehaviour(snail.root, this.heights, (from, s) => this.hooks.shoot?.(from, s)));
     // (The log giant is an enemy now: he walks his road and fights back when hit; see data/enemies.)
-    // (The spider chapel is a boss now: it walks the sky over the west cliffs and fights; see data/enemies.)
+    // (The spider chapel is a boss now: it stalks the kingdom's snowfield and fights; see data/enemies.)
     const rider = walkerLandmark('horse-rider', [...LAYOUT.riderPath], 3.2, h);
     // The lantern fire hangs from the rider's raised hand (horse-rider.glb, measured in the model's own frame).
     const lantern = fire(0, 0, 0, 0.3, 8);
