@@ -1,7 +1,7 @@
 /**
  * A floating island you can land on (floating-island.glb, every island in the game): still, solid at its top (a
  * cylinder to stand on, open underneath so you fly under it), its giant dead tree clipped away at the floor (render
- * Materials.clipAbove) with an ordinary tree in its place, a mossy rock floor over the cut (render Floors.rockTop).
+ * Materials.clipAbove), a mossy rock floor over the cut (render Floors.rockTop), and no tree on it unless asked.
  */
 import type { Mesh, MeshStandardMaterial } from 'three';
 import { MODELS } from '../data/models';
@@ -41,7 +41,8 @@ export function landableIsland(api: IslandApi, x: number, z: number, base: numbe
     onLoad: (m) => restyle(m, (mat) => clipAbove(mat, top - 0.02)),
   }));
   if (PRESENT_MODELS.has('floating-island')) api.group.add(rockTop(x, z, r + 0.3, top));
-  if (opts.tree !== false) {
+  // (No tree unless asked: the user wants no trees up in the sky, 2026-11-03; the islands stay, bare on top.)
+  if (opts.tree === true) {
     const a = (opts.yaw ?? 0) + 2.1;
     const tx = x + Math.cos(a) * r * 0.55, tz = z + Math.sin(a) * r * 0.55;
     api.place(modelLandmark('dead-forest-tree', tx, tz, top - 0.1, { scale: 0.9 * Math.min(1.4, scale), yaw: a, collider: 'manual', footprints: [{ kind: 'cyl', x: tx, z: tz, r: 0.35, top: top + 5 }] }));

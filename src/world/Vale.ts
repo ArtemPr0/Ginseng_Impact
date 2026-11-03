@@ -230,8 +230,10 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
     if (PRESENT_MODELS.has('floating-castle')) for (const [dx, dz, w] of [[-14, -6, 4], [-14, 9, 3]] as const) api.place(cascade({ x: cx + dx, z: cz + dz, top: cy + 12, height: cy + 12 - (CLOUD_LEVEL.vale ?? -30) + 2, width: w, yaw: -Math.PI / 2, curve: 2, foot: false }));
     // (Two between the vale's edge and the castle, stepping stones to fly by; two beyond it. Clear of its 30 m rock.)
     const plats: Array<[number, number, number]> = [[X + 106, Z - 6, vy + 3], [X + 108, Z + 30, vy + 7], [X + 152, Z - 22, vy + 11], [X + 150, Z + 44, vy + 2]];
+    // (A flat disc at the rock's walk top: the baked grid kept the lantern's 0.9 m stub right where the two chain spans
+    // meet, and a walker caught on it now and then, 2026-11-03.)
     plats.forEach(([px, pz, py], i) => {
-      api.place(modelLandmark('chained-platform', px, pz, py, { yaw: i * 1.7 }));
+      api.place(modelLandmark('chained-platform', px, pz, py, { yaw: i * 1.7, collider: 'manual', footprints: [{ kind: 'cyl', x: px, z: pz, r: 2.2, top: py + 4.9, bottom: py + 3.4 }] }));
       glow(LANTERN, 2.2, px, py + 1.4, pz, 0.55);
     });
     // The way over: planks on chains from the vale's edge to the first platform, and on to the castle's west shelf.

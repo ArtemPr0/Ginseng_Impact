@@ -1,7 +1,7 @@
 /**
  * The island's heart as the reference shows it (#28, 01.22.56): a flagstone road from the spawn between glowing blue
  * mushrooms to an arched wooden bridge over the eye-shaped vortex pool; a hamlet with lit windows on the far bank;
- * floating rock islands with dead trees, one pouring glowing waterfalls into the eye; three koi pools stepping down
+ * floating rock islands (bare on top), one pouring glowing waterfalls into the eye; three koi pools stepping down
  * beside the road (the whale reel). And the forest gorge (01.16.36): a waterfall at its head, a stream on its floor,
  * a stone bridge across, pines on its rims, and the dark spire castle rising out of the cloud sea beyond it under the
  * black sun. Everything is placed models and effects; the shapes in the ground come from Terrain.ts.

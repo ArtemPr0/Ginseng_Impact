@@ -1302,8 +1302,8 @@ export class Enemy {
       const a = L.b.getWorldPosition(_legA);
       const cur = L.tip.getWorldPosition(_legB).sub(a);
       const lift = Math.max(0, Math.cos(s)) * k * 0.1 * L.reach;
-      // (The mesh foot reaches about 0.8 m past the last bone: aim the bone that much above the ground.)
-      const h = Math.max(0.5, a.y - groundY - 0.8 - lift);
+      // (The mesh foot reaches a little past the last bone: aim the bone 0.45 m above the ground; measured both ways.)
+      const h = Math.max(0.5, a.y - groundY - 0.45 - lift);
       const R = Math.sqrt(Math.max(L.reach * L.reach - h * h, (0.15 * L.reach) ** 2));
       const dir = _legD.copy(L.dir).applyAxisAngle(up, Math.sin(s) * 0.28 * k);
       const want = _legW.set(dir.x * R, -h, dir.z * R);

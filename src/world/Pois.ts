@@ -131,6 +131,11 @@ export function dressKingdom(api: RealmApi): void {
   api.flora('purple-crystal', [...field(api, 928, 944, -182, -98, 13), ...field(api, 1058, 1074, -182, -98, 13)], { shadows: false });
   for (const [x, z] of [[860, -56], [930, -56], [980, -58]]) { prop(api, 'gothic-lamp', x, z, 0.3, 3); const g = glowSprite(0xc070ff, 2.4, 0.55, true); g.position.set(x, api.h(x, z) + 3.1, z); api.group.add(g); }
   camp(api, 830, -56);
+  // (The bare south slab and the east dunes, empty on the 2026-11-03 walk: a fallen gatehouse, a toadstool ring, a
+  // stand of dead trees.)
+  ruin(api, 990, -160, 0.6);
+  shrooms(api, 1040, 80);
+  api.flora('dead-forest-tree', field(api, 1004, 1062, 62, 96, 13).filter((p) => Math.hypot(p.x - 1040, p.z - 80) > 12 && p.y > 10), { trunk: 0.5 });
   graves(api, 972, 122, 13);
   graves(api, 812, 90, 9);
 }

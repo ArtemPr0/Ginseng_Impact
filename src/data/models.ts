@@ -191,7 +191,9 @@ export const MODELS: Record<string, ModelDef> = {
   'giant-mushroom': stat('giant-mushroom.glb', 5, 'giant mushroom'), mushroom: stat('giant-mushroom.glb', 0.45, 'small glowing mushroom'),
   sunflower: stat('flower.glb', 1.5, 'blue sunflower'), flower: stat('flower.glb', 0.35, 'meadow flower'),
   'giant-flower': stat('giant-flower.glb', 2.4, 'giant cosmos flower'), 'rose-bush': stat('flower.glb', 0.9, 'rose bush'),
-  boulder: stat('floating-rock.glb', 1.2, 'boulder'),
+  // (floating-rock.glb hangs a tapering root under its widest part, at 60-70% of its height: bury the lower half or
+  // every boulder reads as a little island hovering over the ground, 2026-11-03.)
+  boulder: { ...stat('floating-rock.glb', 1.2, 'boulder'), yOffset: -0.6 },
   'pod-tree': { ...stat('dead-forest-tree.glb', 12, 'tree with hanging glowing pods'), tint: 0x2c2632 }, coral: { ...stat('kelp.glb', 1.6, 'coral bush'), tint: 0xc0486e },
   reed: stat('reed.glb', 1.8, 'reed clump'), 'lily-pad': stat('stone-lotus.glb', 0.9, 'lily pad'), lotus: stat('stone-lotus.glb', 0.5, 'lotus flower'),
   'fallen-leaf': stat('fallen-leaf.glb', 0.28, 'fallen leaf'), 'fallen-fruit': stat('fallen-fruit.glb', 0.35, 'fallen fruit'),
