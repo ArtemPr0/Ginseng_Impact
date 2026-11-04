@@ -61,7 +61,9 @@ export function eyeDistance(x: number, z: number): number {
 
 /** The great river: polyline in world xz, flowing west. */
 export const RIVER: ReadonlyArray<readonly [number, number]> = [
-  [129, 4], [102, 13], [77, -2], [50, 4], [26, 10], [4, 16], [-18, 13], [-40, 4], [-58, 12], [-74, 20],
+  // (It rises at (102, 13), in a rounded spring pool: it used to start at (129, 4), past the east cliff, so its
+  // first ten metres were a square slab of water hanging over the void.)
+  [102, 13], [77, -2], [50, 4], [26, 10], [4, 16], [-18, 13], [-40, 4], [-58, 12], [-74, 20],
 ];
 export const RIVER_LEVEL = 0.9;
 export const RIVER_FLOOR = -1.6;

@@ -75,6 +75,8 @@ export interface CausewayBuild {
   landmark: Landmark;
   /** Instances of the `causeway-segment` model (arched bridge span, registry height = span height). */
   spans: Array<{ x: number; y: number; z: number; yaw: number; scale: number }>;
+  /** Piers under the arch feet where the ground falls away: foot (ground or cloud sea) and height to the arches. */
+  piers: Array<{ x: number; y: number; z: number; height: number }>;
   /**
    * Where the `causeway-stairs` model goes: feet on the ground, scaled so its landing meets the deck, and squeezed
    * across (`widthScale`, on top of the uniform scale) to the bridge's own width.
@@ -87,18 +89,21 @@ export interface CausewayBuild {
 /**
  * The raised road: three Meshy bridge spans per collider segment (same stepped deck colliders as before), edge
  * colliders where the balustrade posts stood, and the stairs model at the south end with colliders that follow
- * its steps. Over the chasm the spans need piers; until a pier model exists a plain slab stands in.
+ * its steps. Piers under the arch feet where the ground falls away come back in `piers` (World places models).
  */
 export function causewayWalk(cfg: CausewayConfig, groundAt: HeightAt, spanHeight: number): CausewayBuild {
   const g = new Group();
   const footprints: Footprint[] = [];
   const spans: CausewayBuild['spans'] = [];
+  const piers: CausewayBuild['piers'] = [];
   for (const { zc, len: segLen, top } of causewaySegments(cfg)) {
     for (let k = 0; k < 3; k++) spans.push({ x: cfg.x, y: top - spanHeight * SPAN_DECK, z: zc + (k - 1) * (segLen / 3), yaw: 0, scale: 1 });
     const ground = groundAt(cfg.x, zc);
     if (ground < top - 4) {
-      const pierH = top - spanHeight - Math.max(ground, -95);
-      g.add(slab(cfg.width * 0.55, pierH, segLen * 0.3, cfg.x, top - spanHeight - pierH / 2 + 0.3, zc));
+      // A pier under the arches' meeting point, from the ground (or the cloud sea) up to the arch feet. World turns
+      // these into models (a rock spire over the chasm, a stone pillar on land): plain slabs stood here before.
+      const base = Math.max(ground, -95);
+      piers.push({ x: cfg.x, z: zc, y: base, height: top - spanHeight + 0.3 - base });
     }
     // The deck is overhead: wherever the ground is far enough below, people walk under the arches. Only as wide as
     // the paving (no walking on air beside it).
@@ -134,7 +139,7 @@ export function causewayWalk(cfg: CausewayConfig, groundAt: HeightAt, spanHeight
   };
   const stairs = stairsAt(cfg.zStart, cfg.yStart, 1);
   const northStairs = stairsAt(cfg.zEnd, cfg.yEnd, -1);
-  return { landmark: { object: g, footprints }, spans, stairs, northStairs };
+  return { landmark: { object: g, footprints }, spans, piers, stairs, northStairs };
 }
 
 /** Rope-bridge tile model: width (x) of the file in metres once scaled to its registry height, and its deck height. */

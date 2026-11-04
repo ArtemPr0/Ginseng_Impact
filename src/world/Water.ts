@@ -249,7 +249,19 @@ export function river(heightAt: (x: number, z: number) => number, rnd: () => num
   const pos: number[] = [];
   const uv: number[] = [];
   const idx: number[] = [];
-  samples.forEach((s, i) => {
+  // The ribbon runs a half-width past both ends of the line: the carved bed rounds off there (Terrain.riverAt), so
+  // the sheet's square corners end under the banks instead of showing a straight edge across the channel.
+  const first = samples[0];
+  const lastPt = RIVER[RIVER.length - 1];
+  const tail = samples[samples.length - 1];
+  const endU = tail.u + Math.hypot(lastPt[0] - tail.x, lastPt[1] - tail.z);
+  const ribbon = [
+    { ...first, x: first.x - first.tx * half, z: first.z - first.tz * half, u: -half },
+    ...samples,
+    { ...tail, x: lastPt[0], z: lastPt[1], u: endU },
+    { ...tail, x: lastPt[0] + tail.tx * half, z: lastPt[1] + tail.tz * half, u: endU + half },
+  ];
+  ribbon.forEach((s, i) => {
     const nx = -s.tz;
     const nz = s.tx;
     // Smooth the width at joins by tapering both ends slightly.
@@ -311,6 +323,7 @@ export function river(heightAt: (x: number, z: number) => number, rnd: () => num
   }
   let t = 0;
   let frame = 0;
+  const westX = lastPt[0] + 2;
   return {
     object: g,
     reedSpots,
@@ -324,7 +337,8 @@ export function river(heightAt: (x: number, z: number) => number, rnd: () => num
         const x = sattr.getX(i);
         const z = sattr.getZ(i);
         // Drift west; every 8th frame (per particle, staggered) check it is still over the water, else respawn it.
-        if ((i + frame) % 8 === 0 && riverDistance(x, z) > 9) {
+        // (Past the west end too: they used to drift on over the bank there and pile into a bright clot.)
+        if ((i + frame) % 8 === 0 && (riverDistance(x, z) > 8 || x < westX)) {
           const s = samples[Math.floor(seeds[i] * samples.length)];
           sattr.setXYZ(i, s.x, RIVER_LEVEL + 0.1 + seeds[i] * 0.6, s.z);
         } else {

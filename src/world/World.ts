@@ -370,6 +370,18 @@ export class World {
     const causeway = causewayWalk(LAYOUT.causeway, h, MODELS['causeway-segment'].height);
     this.place(causeway.landmark);
     flora('causeway-segment', causeway.spans);
+    // Piers: over the chasm a rock spire climbs out of the cloud sea to the arch feet (slimmed across, or a 95 m
+    // spire would be 35 m wide); on land, where the deck clears a dip, a stone pillar.
+    for (const p of causeway.piers) {
+      if (p.height > 12) {
+        const lm = modelLandmark('pinnacle', p.x, p.z, p.y, { collider: 'none', scale: p.height / MODELS.pinnacle.height });
+        lm.root.scale.x *= 0.45;
+        lm.root.scale.z *= 0.45;
+        this.place(lm);
+      } else {
+        this.place(modelLandmark('snow-pillar', p.x, p.z, p.y - 0.4, { scale: (p.height + 0.4) / MODELS['snow-pillar'].height }));
+      }
+    }
     // The stairs' colliders come from causewayWalk (the model only shows them).
     // (Squeezed across to the bridge's width: a flight scaled up to meet the high north end would be 27 m wide.)
     for (const [st, yaw] of [[causeway.stairs, 0], [causeway.northStairs, Math.PI]] as const) {
@@ -570,11 +582,9 @@ export class World {
     // --- water ---
     const theRiver = river(h, rnd);
     this.place(theRiver);
-    // (Not inside the face tree's roots, which stand on the bank.)
-    const ft = ISLAND_PORTALS.galaxy.faceTree;
-    // (Nor under the witch bridge's deck, which they would poke through.)
-    const wb = LAYOUT.coven;
-    flora('reed', theRiver.reedSpots.filter((p) => Math.hypot(p.x - ft.x, p.z - ft.z) > 8.5 && !(Math.abs(p.x - wb.streamX) < 13 && Math.abs(p.z - wb.bridgeZ) < 3.5) && !this.heights.blocked(p.x, p.z)), { wind: 0.22, shadows: false });
+    // No reed clumps on the banks: the reed model is a heap of loose shards at any distance (eye-level walk,
+    // 2026-11-04), so the banks keep the grass instead. (reedSpots still draws its randoms, so nothing placed
+    // after it moves.)
     const pond = lilyPond(WORLD.pond.x, WORLD.pond.z, WORLD.pond.r, rnd);
     this.place(pond);
     flora('lily-pad', pond.padSpots, { shadows: false, patch: padMaterial });
