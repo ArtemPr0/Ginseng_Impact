@@ -146,8 +146,9 @@ export function dressSunken(api: RealmApi): void {
   // (Weed round the wrecks, ruins and skulls, never through them.)
   const taken: Array<[number, number, number]> = [[-1070, -60, 7], [-930, -100, 7], [-1078, 58, 7], [-926, 62, 7], [-1000, 112, 7], [-1000, -146, 7], [-1060, -115, 13], [-940, 25, 13], [-1062, 15, 13], [-945, -38, 8], [-1058, 108, 8]];
   const free = (p: Placement) => !taken.some(([x, z, r]) => Math.hypot(p.x - x, p.z - z) < r);
-  api.flora('kelp', [...field(api, -1095, -1045, -130, 120, 15), ...field(api, -955, -908, -130, 120, 15)].filter(free), { wind: 0.3 });
-  api.flora('coral', [...field(api, -1090, -1050, -120, 110, 21), ...field(api, -950, -912, -120, 110, 21), ...field(api, -1040, -960, 84, 125, 17), ...field(api, -1040, -960, -158, -118, 17)].filter(free));
+  // (Beds, not single stalks: the eye-level walk of 2026-11-03 found the outer seabed bare.)
+  api.flora('kelp', [...field(api, -1095, -1045, -130, 120, 10), ...field(api, -955, -904, -130, 120, 10)].filter(free), { wind: 0.3 });
+  api.flora('coral', [...field(api, -1090, -1050, -120, 110, 13), ...field(api, -950, -908, -120, 110, 13), ...field(api, -1040, -960, 84, 125, 17), ...field(api, -1040, -960, -158, -118, 17)].filter(free));
   for (const [x, z, yaw] of [[-1060, -115, 0.4], [-940, 25, 2], [-1062, 15, 1.2]] as const) ruin(api, x, z, yaw);
   prop(api, 'giant-skull', -945, -38, 2.4, 3, 2.2, 1.4);
   prop(api, 'giant-skull', -1058, 108, 2.4, 3, 0.6, 1.2);
@@ -155,5 +156,16 @@ export function dressSunken(api: RealmApi): void {
 
 /** Beyond the alley's walls: the older dead. */
 export function dressGraveyard(api: RealmApi): void {
-  for (const [x, z] of [[-31, -1100], [31, -1040], [-32, -985], [31, -925], [-30, -925], [30, -990]]) graves(api, x, z, 8);
+  // (Two more on the level ground by the walls; past them is only a thin lip over the drop.)
+  for (const [x, z] of [[-31, -1100], [31, -1040], [-32, -985], [31, -925], [-30, -925], [30, -990], [-31, -1045], [31, -958]]) graves(api, x, z, 8);
+}
+
+/** The dream's open fractal floor between its sights: glowing toadstool rings and giant flowers (bare on the 2026-11-03 walk). */
+export function dressDream(realm: RealmApi, floorY: number): void {
+  // (The dream has no sculpted ground: its floor is a flat plane at floorY.)
+  const api: RealmApi = Object.assign(Object.create(realm) as RealmApi, { h: () => floorY });
+  for (const [x, z] of [[-110, 2505], [110, 2500], [-118, 2680], [90, 2700], [-50, 2690]]) {
+    shrooms(api, x, z);
+    api.flora('giant-flower', ring(api, x, z, 15, 6, 11, [0.8, 1.3]), { wind: 0.12 });
+  }
 }

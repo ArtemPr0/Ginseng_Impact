@@ -1199,7 +1199,7 @@ export class Enemy {
         y = Math.abs(Math.sin(ph * 2)) * 0.01 * H * k;
         break;
       case 'hover':
-        y = Math.sin(t * 1.6) * 0.05 * H;
+        y = (Math.sin(t * 1.6) * 0.5 + 0.5) * 0.05 * H; // (rises from its rest height, never sinks into the floor)
         pitch = 0.12 * k;
         roll = Math.sin(t * 0.8) * 0.03 + Math.sin(ph) * 0.03 * k;
         break;

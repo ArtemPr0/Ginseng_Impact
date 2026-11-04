@@ -28,6 +28,7 @@ import { modelLandmark } from './ModelLandmark';
 import type { ModelRig } from '../models/ModelRig';
 import type { RealmApi } from './Realms';
 import { archBridge } from './Walkways';
+import { dressDream } from './Pois';
 import { eyePool } from './Water';
 
 const FLOOR_R = 150;
@@ -159,6 +160,7 @@ function floorMaterial(): ShaderMaterial {
 export function buildDream(api: RealmApi): void {
   const R = DREAM;
   api.realm(R.id);
+  dressDream(api, R.y);
   const sky = new Mesh(new SphereGeometry(380, 48, 24), skyMaterial());
   sky.position.set(R.x, R.y, R.z);
   sky.frustumCulled = false;
