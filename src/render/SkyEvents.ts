@@ -102,17 +102,26 @@ function whale(): CanvasTexture {
 
 /** Aurora curtain strip (used as a sky-sized sprite band). */
 function auroraTex(): CanvasTexture {
+  // Per pixel: a curtain whose lower hem waves across the band, fine vertical rays, fading out at both ends and at the
+  // top (it used to be 40 hard strips over the whole width, a lit rectangle with straight sides in the sky).
   return tex((ctx, w, h) => {
-    for (let i = 0; i < 40; i++) {
-      const x = (i / 40) * w;
-      const g = ctx.createLinearGradient(0, 0, 0, h);
-      g.addColorStop(0, 'rgba(93,255,58,0)');
-      g.addColorStop(0.3 + Math.sin(i) * 0.1, 'rgba(93,255,58,0.35)');
-      g.addColorStop(0.6, 'rgba(55,245,255,0.25)');
-      g.addColorStop(1, 'rgba(139,61,255,0)');
-      ctx.fillStyle = g;
-      ctx.fillRect(x, 0, w / 40 + 2, h);
+    const img = ctx.createImageData(w, h); const d = img.data;
+    for (let x = 0; x < w; x++) {
+      const u = x / (w - 1);
+      const ends = Math.pow(Math.sin(Math.PI * u), 1.6);
+      const hem = 0.72 + 0.1 * Math.sin(u * 9.4) + 0.05 * Math.sin(u * 23 + 1.3);
+      const rays = 0.55 + 0.25 * Math.sin(u * 140) * Math.sin(u * 61 + 0.7) + 0.2 * Math.sin(u * 37 + 2.1);
+      for (let y = 0; y < h; y++) {
+        const v = y / (h - 1);
+        if (v > hem) continue;
+        const k = v / hem;
+        const body = Math.pow(k, 2.2) * Math.min(1, (hem - v) * 14);
+        const a = ends * rays * body;
+        const i = (y * w + x) * 4;
+        d[i] = 60 + 90 * (1 - k); d[i + 1] = 255 - 40 * (1 - k); d[i + 2] = 90 + 140 * (1 - k) * (1 - k); d[i + 3] = Math.round(255 * Math.min(1, a * 0.95));
+      }
     }
+    ctx.putImageData(img, 0, 0);
   }, 512, 256);
 }
 

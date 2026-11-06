@@ -27,7 +27,13 @@ const info = await ev(`(async () => {
   const p = e.pos; const g = p.y;
   e.object.position.set(p.x, p.y, p.z); e.object.rotation.y = 0;
   const cam = G.camera; const d = H * 1.45 + 0.7;
-  G.tpc.update = () => { cam.position.set(p.x + d * 0.75, g + H * 0.62, p.z + d * 0.75); cam.lookAt(p.x, g + H * 0.48, p.z); window.__stageLight.position.set(p.x + 5, g + H + 6, p.z + 8); window.__stageLight.target.position.set(p.x, g, p.z); };
+  // (Pinned in the renderer: the camera rig's update no longer runs last in every frame, so pinning it there let the
+  // game camera stay behind the hero.)
+  const pin = () => { cam.position.set(p.x + d * 0.75, g + H * 0.62, p.z + d * 0.75); cam.lookAt(p.x, g + H * 0.48, p.z); cam.updateMatrixWorld(); window.__stageLight.position.set(p.x + 5, g + H + 6, p.z + 8); window.__stageLight.target.position.set(p.x, g, p.z); };
+  G.tpc.update = pin;
+  if (!window.__stagePinned) { const r = G.renderer; const orig = r.render.bind(r); r.render = (sc, c) => { window.__stagePin?.(); orig(sc, c); }; window.__stagePinned = true; }
+  window.__stagePin = pin;
+  for (const rig of G.rigs ?? []) rig.root.visible = false;
   const names = ${JSON.stringify(keys)}.map((k) => [k, m.clipName(k)]).filter(([, n]) => n);
   const uniq = []; for (const [k, n] of names) if (!uniq.some(([, u]) => u === n)) uniq.push([k, n]);
   window.__clips = uniq;

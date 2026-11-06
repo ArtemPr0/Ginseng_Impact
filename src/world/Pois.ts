@@ -138,6 +138,12 @@ export function dressKingdom(api: RealmApi): void {
   api.flora('dead-forest-tree', field(api, 1004, 1062, 62, 96, 13).filter((p) => Math.hypot(p.x - 1040, p.z - 80) > 12 && p.y > 10), { trunk: 0.5 });
   graves(api, 972, 122, 13);
   graves(api, 812, 90, 9);
+  // (The dunes either side of the Skeleton Court, bare on the 2026-11-04 walk: a burial ground under dead trees west,
+  // a fallen gatehouse east, the trees thinning out to the void.)
+  graves(api, 924, -150, 10);
+  ruin(api, 1082, -128, 2.1);
+  const courtSide = (p: Placement) => p.y > 18 && Math.hypot(p.x - 924, p.z + 150) > 11 && Math.hypot(p.x - 1082, p.z + 128) > 17;
+  api.flora('dead-forest-tree', [...field(api, 906, 936, -184, -96, 11), ...field(api, 1064, 1096, -184, -96, 11)].filter(courtSide), { trunk: 0.5 });
 }
 
 /** The drowned land round the sea king's city: wrecks, weed and old stones. */
@@ -152,6 +158,14 @@ export function dressSunken(api: RealmApi): void {
   for (const [x, z, yaw] of [[-1060, -115, 0.4], [-940, 25, 2], [-1062, 15, 1.2]] as const) ruin(api, x, z, yaw);
   prop(api, 'giant-skull', -945, -38, 2.4, 3, 2.2, 1.4);
   prop(api, 'giant-skull', -1058, 108, 2.4, 3, 0.6, 1.2);
+  // (The outer bands east and west, still bare sand on the 2026-11-04 walk: thinner weed out to the rim, coral and
+  // rocks among it, the odd fallen column.)
+  const rim = (p: Placement) => Math.hypot(p.x + 1000, p.z) < 150 && p.y > -62 && free(p);
+  const outer = [...field(api, -1152, -1098, -140, 140, 12), ...field(api, -902, -848, -140, 140, 12), ...field(api, -1090, -910, 126, 148, 12), ...field(api, -1090, -910, -148, -128, 12)].filter(rim);
+  api.flora('kelp', outer.filter((_, i) => i % 3 !== 2), { wind: 0.3 });
+  api.flora('coral', [...field(api, -1146, -1104, -130, 130, 19), ...field(api, -896, -854, -130, 130, 19)].filter(rim));
+  api.flora('boulder', [...ring(api, -1125, -40, 14, 6, 4, [0.6, 1.4]), ...ring(api, -878, 40, 14, 6, 4, [0.6, 1.4]), ...ring(api, -1118, 70, 12, 5, 3, [0.6, 1.3]), ...ring(api, -884, -70, 12, 5, 3, [0.6, 1.3])].filter(rim));
+  for (const [x, z] of [[-1128, -92], [-1112, 104], [-872, 96], [-886, -12]]) api.place(modelLandmark('ruin-column', x, z, api.h(x, z) - 0.3, { yaw: api.rnd() * 6 }));
 }
 
 /** Beyond the alley's walls: the older dead. */
@@ -167,5 +181,15 @@ export function dressDream(realm: RealmApi, floorY: number): void {
   for (const [x, z] of [[-110, 2505], [110, 2500], [-118, 2680], [90, 2700], [-50, 2690]]) {
     shrooms(api, x, z);
     api.flora('giant-flower', ring(api, x, z, 15, 6, 11, [0.8, 1.3]), { wind: 0.12 });
+  }
+  // (Still wide bare floor on the 2026-11-04 walk: more rings, and groves of crystal and giant flowers, each spot at
+  // least 17 m from anything already standing.)
+  for (const [x, z] of [[120, 2580], [60, 2665], [-130, 2610], [-20, 2470], [-80, 2720]]) {
+    shrooms(api, x, z);
+    api.flora('giant-flower', ring(api, x, z, 15, 5, 11, [0.8, 1.3]), { wind: 0.12 });
+  }
+  for (const [x, z] of [[140, 2620], [110, 2655], [30, 2720], [70, 2470], [0, 2650], [-60, 2640]]) {
+    api.flora('purple-crystal', ring(api, x, z, 7, 7, 2, [0.9, 1.8]), { shadows: false });
+    api.flora('giant-flower', ring(api, x, z, 12, 9, 4, [0.9, 1.5]), { wind: 0.12 });
   }
 }

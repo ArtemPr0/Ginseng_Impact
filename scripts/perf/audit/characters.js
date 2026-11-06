@@ -106,7 +106,10 @@ for (const e of G.combat.enemies) {
   if (gap > bob && !swimming) flag(id, pos, 'pos above surface ' + gap.toFixed(2));
   if (gap < -0.3) flag(id, pos, 'pos below surface ' + gap.toFixed(2));
   const m = bot - pos.y;
-  if (m > 0.25) flag(id, pos, 'model floats ' + m.toFixed(2));
+  // (Floating is the model's lowest point over the ground beyond its hover: measured from pos.y alone, a hovering
+  // body read as floating whenever its bob dipped pos under the feet, the Frog God sitting on the dream floor among them.)
+  const lift = bot - ground - (d.hover ?? 0);
+  if (m > 0.25 && lift > 0.25) flag(id, pos, 'model floats ' + lift.toFixed(2));
   if (m < -0.35) flag(id, pos, 'model sinks ' + m.toFixed(2));
 }
 const SEATED_POSES = new Set(['sit', 'throne', 'sitSword']);

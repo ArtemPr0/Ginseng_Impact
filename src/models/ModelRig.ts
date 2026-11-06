@@ -414,16 +414,17 @@ export class ModelRig {
       if (!flipped && flip.has(clip.name.toLowerCase())) { clip = mirrorClip(clip, scene, holder); flipped = true; }
       this.actions.set(clip.name.toLowerCase(), this.mixer.clipAction(clip));
     }
-    if (def.armDamp) {
-      // Rest pose of the arms, captured before any clip runs (see ModelDef.armDamp).
-      scene.traverse((o) => { if (/(left|right)(shoulder|arm|forearm)$/i.test(o.name)) this.damped.push({ bone: o, rest: o.quaternion.clone() }); });
-      this.armDamp = def.armDamp;
+    if (def.armDamp || def.legDamp) {
+      // Rest pose of the arms and legs, captured before any clip runs (see ModelDef.armDamp, legDamp).
+      scene.traverse((o) => {
+        if (def.armDamp && /(left|right)(shoulder|arm|forearm)$/i.test(o.name)) this.damped.push({ bone: o, rest: o.quaternion.clone(), k: def.armDamp });
+        else if (def.legDamp && /(left|right)(upleg|leg|thigh|calf)$/i.test(o.name)) this.damped.push({ bone: o, rest: o.quaternion.clone(), k: def.legDamp });
+      });
     }
     this.play('idle');
   }
 
-  private readonly damped: Array<{ bone: Object3D; rest: Quaternion }> = [];
-  private armDamp = 0;
+  private readonly damped: Array<{ bone: Object3D; rest: Quaternion; k: number }> = [];
 
   /** Clip key → action, once looked up (play() and has() run for every body every frame). */
   private readonly found = new Map<string, AnimationAction | null>();
@@ -712,7 +713,7 @@ export class ModelRig {
       if (sf.action === this.current) sf.action.timeScale = sf.rate;
       this.strikeFit = null;
     }
-    for (const d of this.damped) d.bone.quaternion.slerp(d.rest, this.armDamp);
+    for (const d of this.damped) d.bone.quaternion.slerp(d.rest, d.k);
   }
 
   get object(): Object3D {

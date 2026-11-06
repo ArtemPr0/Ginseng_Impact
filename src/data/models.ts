@@ -31,6 +31,8 @@ export interface ModelDef {
    * skinned to the arm bones (the Horned Shade, the Gorge Troll), raised arms stretch the mesh into sheets or noodles.
    */
   armDamp?: number;
+  /** 0..1: the same for the legs. A long gown skinned to the thighs flares out flat as a sheet with every stride. */
+  legDamp?: number;
   /**
    * 0..1: how much of the hips' twist about the vertical to keep in every clip. Meshy's combat presets turn the whole
    * body 45° sideways in the stance and ~100° in the Attack swing, so a monster fights side-on; 0.25 keeps a hint.
@@ -172,7 +174,7 @@ export const MODELS: Record<string, ModelDef> = {
   'grave-skeleton': { file: 'skeleton.glb', height: 1.75, label: 'skeletons rising from the graves (the Alley of Graves)', clips: { ...NPC_CLIPS('idle'), idle: 'idle_02|combat_stance|idle', attack: 'attack', hit: 'hit_reaction|hit', stand: 'sit_to_stand|stand', death: 'dying|death' } },
   'skeleton-banner': { file: 'skeleton-banner.glb', height: 1.85, label: 'skeleton standard-bearer with banner and trident (Hollow Jack)', clips: NPC_CLIPS('banner') },
   'witch-cook': { file: 'witch-cook.glb', height: 1.8, label: 'skeleton cook in a chef hat with a spoon (Mother Marrow)', clips: NPC_CLIPS('stir') },
-  bride: { file: 'bride.glb', height: 1.8, label: 'the Pale Bride', clips: NPC_CLIPS('walk') },
+  bride: { file: 'bride.glb', height: 1.8, legDamp: 0.65, label: 'the Pale Bride', clips: NPC_CLIPS('walk') },
   maiden: { file: 'maiden.glb', height: 1.68, label: 'Elowen of the flower garden', clips: NPC_CLIPS('bow') },
   // (The vale's beggar sits: the chair-sit clip borrowed from the knight NPC's rig of the same skeleton, rotations only.)
   wanderer: { file: 'wanderer.glb', clipFiles: { sit: 'npc-sit.glb' }, height: 1.85, label: 'hooded wanderer with a lantern (the Lanternbearer)', clips: NPC_CLIPS('walk') },

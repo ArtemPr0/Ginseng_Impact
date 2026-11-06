@@ -156,7 +156,7 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   // its back his shins sank into it), Sir Cobalt on a stool at his side.
   'skeleton-lord': { x: 1042.15, z: -160, y: 24.53 }, 'court-knight': { x: 1042.3, z: -158.3, dy: 0.02 },
   'potion-brewer': { x: 1026, z: -127 },
-  bartender: { x: 1173.0, z: 10.1 }, 'dock-knight': { x: 1181, z: 7.5, dy: 0.02 },
+  bartender: { x: 1173.0, z: 10.1 }, 'dock-knight': { x: 1181, z: 7.5, dy: 0.06 },
   // On the snow flat at snowY(124.6) ≈ 26.1 (SNOW_FLATS plague-doctor); GroundQuery sets y.
   'plague-doctor': { x: 931, z: 124.6, dy: 0 },
   // Down in the crypt bar (Interiors.ts, CRYPT_ROOM): two along the west counter facing the way in, Knuckles on a
