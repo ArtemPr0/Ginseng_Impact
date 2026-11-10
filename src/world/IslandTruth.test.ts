@@ -119,6 +119,27 @@ describe('the island\'s folk and mobs stand on dry land', () => {
     expect(bad).toEqual([]);
   });
 
+  it('keeps every roaming hostile 30 m from the spawn and 12 m from anyone you talk to', () => {
+    // (The user's rule: nothing hostile near the spawn, and no mob leashed on top of an NPC. Bosses sit where their
+    // quests put them; `exact` spawns are posed scenes: the campfire skeletons round their own fire.)
+    const bad: string[] = [];
+    const folk = Object.entries(ANCHORS).filter(([, a]) => island(a.x, a.z));
+    for (const s of ENEMY_SPAWNS) {
+      const def = ENEMY_DEFS[s.kind];
+      if (!island(s.x, s.z) || s.exact || def?.boss || def?.passive) continue;
+      const pts: Array<readonly [number, number]> = [[s.x, s.z], ...(s.patrol ?? [])];
+      for (const [x, z] of pts) {
+        const ds = Math.hypot(x - LAYOUT.spawn.x, z - LAYOUT.spawn.z);
+        if (ds < 30) bad.push(`${s.kind} (${x},${z}) ${ds.toFixed(0)} m from the spawn`);
+        for (const [id, a] of folk) {
+          const d = Math.hypot(x - a.x, z - a.z);
+          if (d < 12) bad.push(`${s.kind} (${x},${z}) ${d.toFixed(1)} m from ${id}`);
+        }
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+
   it('keeps every mob spawn dry and off the drop, bar the swimmers, the gorge troll and the flyer', () => {
     const bad: string[] = [];
     for (const s of ENEMY_SPAWNS) {

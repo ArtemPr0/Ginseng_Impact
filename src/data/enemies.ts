@@ -365,8 +365,13 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'skeleton', x: -26.4, z: 53.4, yaw: Math.atan2(52 - 53.4, -24 + 26.4), exact: true },
   { kind: 'skeleton', x: -24, z: 49.2, yaw: Math.atan2(52 - 49.2, 0), exact: true },
   // Camps (pairs)
-  { kind: 'croc', x: 108, z: 10 }, { kind: 'croc', x: 110, z: 16 }, { kind: 'croc', x: 100, z: 15 }, // the river's head, east (the one at (118, 6) was left on the cliff when the head moved)
-  { kind: 'beast', x: -62, z: 36 }, { kind: 'beast', x: -58, z: 34 },      // west meadow, by the stream (not in it)
+  { kind: 'croc', x: 108, z: 10 }, { kind: 'croc', x: 100, z: 9 }, { kind: 'croc', x: 100, z: 15 }, // the river's head pool, east (one was left on the cliff when the head moved, one lay on the bank slope)
+  { kind: 'beast', x: -57, z: 44 }, { kind: 'beast', x: -63, z: 47 },      // west meadow, by the stream (not in it, and off Old Moss's bank)
+  // More to meet on the island (2026-11-10: it had ten roaming hostiles): risen dead in the dead wood and by the ruined
+  // nave, fog beasts at the gorge's head, crocodiles along the river and in the Marsh Sovereign's mud (DeJj8CDhL2f).
+  { kind: 'grave-skeleton', x: 4, z: -104 }, { kind: 'grave-skeleton', x: 28, z: -112 }, { kind: 'grave-skeleton', x: -14, z: -108 },
+  { kind: 'beast', x: -61, z: -112 }, { kind: 'beast', x: -71, z: -107 }, // (either side of the gorge-head hoard)
+  { kind: 'croc', x: 46, z: 12 }, { kind: 'croc', x: 84, z: 8 }, { kind: 'croc', x: 110, z: -6 }, { kind: 'croc', x: 100, z: -8 },
   { kind: 'crystalsentry', x: 74, z: 52 }, { kind: 'crystalsentry', x: 70, z: 59 }, // the desert's east end, off the Pale Bride's walk
   // Yung Lean's kingdom: Styro-Ghouls on the lean cups and round the plaza; the Lean-Chucker on the pavilion's throne.
   // (Off the cups: by the Lean-Chucker's pavilion and along the plaza; the cups belong to the lean bubbles.)
@@ -379,6 +384,7 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   // The Frog God waits in the middle of the dream.
   { kind: 'dmt-entity', x: 0, z: 2570, exact: true, yaw: Math.PI / 2 },
   { kind: 'styro-ghoul', x: 978, z: -32 }, { kind: 'styro-ghoul', x: 1022, z: -30 }, { kind: 'styro-ghoul', x: 1045, z: 48 },
+  { kind: 'styro-ghoul', x: 990, z: 52 }, { kind: 'styro-ghoul', x: 1015, z: 44 },
   // On the front of the pavilion's throne: its seat (x 1034.5–1036.5) is 0.82 m above the dais and his hips sit 0.58 m
   // above his feet, so a small imp on a big throne sits with his legs dangling over the edge.
   { kind: 'lean-chucker', x: 1034.3, z: -55, yaw: Math.PI, exact: true, sitY: 24.56 },
@@ -386,7 +392,7 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   // (Up and down the street's ends: the stalls and their keepers stand clear of them.)
   { kind: 'bucket', x: 934, z: 60 }, { kind: 'bucket', x: 918, z: 66 }, { kind: 'bucket', x: 896, z: 58 },
   { kind: 'bucket', x: 884, z: -24 }, { kind: 'bucket', x: 864, z: -28 }, { kind: 'bucket', x: 848, z: 62 },
-  { kind: 'mail-knight', x: 908, z: 52 }, { kind: 'mail-knight', x: 860, z: 52 },
+  { kind: 'mail-knight', x: 908, z: 52 }, { kind: 'mail-knight', x: 860, z: 52 }, { kind: 'mail-knight', x: 876, z: 6 },
   { kind: 'diamond-wizard', x: 900, z: 18, exact: true, yaw: 0 },  // mid-street, where Old Hollowstaff stood
   // The Dragon's Vale's fields (it stood empty): fog beasts roaming the east meadow and the river's far bank, crystal
   // sentries in the stones under the crowned head, a pack by the floating castle's cliff.
@@ -397,6 +403,7 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   // at the fallen gate.
   { kind: 'beast', x: 880, z: 835 }, { kind: 'beast', x: 892, z: 842 }, { kind: 'beast', x: 870, z: 846 },
   { kind: 'beast', x: 1045, z: 822 }, { kind: 'beast', x: 1056, z: 830 },
+  { kind: 'beast', x: 1010, z: 1030 }, { kind: 'beast', x: 985, z: 1035 }, // the vale's bare south meadow
   { kind: 'grave-skeleton', x: 890, z: 860 }, { kind: 'grave-skeleton', x: 874, z: 876 },
   { kind: 'grave-skeleton', x: 915, z: 808 }, { kind: 'grave-skeleton', x: 922, z: 820 }, { kind: 'grave-skeleton', x: 908, z: 820 },
   { kind: 'crystalsentry', x: 1008, z: 838 }, { kind: 'crystalsentry', x: 992, z: 822 },

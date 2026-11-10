@@ -44,7 +44,8 @@ import { fireflies } from '../render/Fireflies';
 
 import { buildRealms, type RealmApi } from './Realms';
 import type { PortalLink } from './Portal';
-import { deadAt, EYE, eyeDistance, frozenAt, pathAt, RIVER_LEVEL, riverAt, riverDistance, sandAt, streamAt, Terrain, WORLD } from './Terrain';
+import { deadAt, EYE, eyeDistance, frozenAt, pathAt, RIVER, RIVER_LEVEL, riverAt, riverDistance, sandAt, streamAt, Terrain, WORLD } from './Terrain';
+import { mistLayers } from '../render/LeanFx';
 import { causewayPostPoints, causewayWalk, chainSpan, witchBridgeDeck } from './Walkways';
 import { lilyPond, mudPool, river } from './Water';
 
@@ -587,6 +588,9 @@ export class World {
 
     // --- water ---
     const theRiver = river(h, rnd);
+    // The river's sink pool at its west end (it bends away from the witches' bridge, 2026-11-10): a low cool mist over
+    // the water where it ends, so the end reads as a pool and not as a sheet cut off.
+    { const [ex, ez] = RIVER[RIVER.length - 1]; this.group.add(mistLayers(ex, ez, 26, 26, RIVER_LEVEL + 0.2, 0x3050ff, 0.16, 2)); }
     this.place(theRiver);
     // No reed clumps on the banks: the reed model is a heap of loose shards at any distance (eye-level walk,
     // 2026-11-04), so the banks keep the grass instead. (reedSpots still draws its randoms, so nothing placed
