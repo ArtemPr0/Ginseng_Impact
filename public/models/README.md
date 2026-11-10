@@ -12,7 +12,7 @@ glb ("All added", "One file") → `node scripts/model-tools.mjs optimize <downlo
 Models should face +X; set `yaw` in the registry if a file faces another way. Clip names match by substring
 with alternatives (`"slam|attack|punch"`).
 
-202 registered, 169 present, 33 files to generate (33 ids).
+208 registered, 208 present, 0 files to generate (0 ids).
 
 | id | file | height (m) | what | status |
 |---|---|---|---|---|
@@ -29,8 +29,8 @@ with alternatives (`"slam|attack|punch"`).
 | `marshdemon` | marsh-demon.glb | 5 |  | present |
 | `hollowking` | hollow-king.glb | 25 |  | present |
 | `rivershade` | river-shade.glb | 3 | hooded river shade with glowing eyes (DeUydbMvKqC, DeWZT3jvPCG) | present |
-| `passbeast` | fog-beast.glb | 2.4 | red-eyed black beast of the mountain pass (DeXeZ7rhGVi) | present |
-| `beast` | fog-beast.glb | 1.5 | red-eyed black beast (DeXeZ7rhGVi) | present |
+| `passbeast` | fog-wolf.glb | 2.4 | black wolf-headed beast of the mountain pass, red-eyed | present |
+| `beast` | fog-wolf.glb | 1.85 | black wolf-headed beast, red-eyed | present |
 | `croc` | crocodile.glb | 0.7 | crocodile in the flooded ruins (DeJj8CDhL2f) | present |
 | `frogking` | frog-king.glb | 2.4 |  | present |
 | `dmt-entity` | frog-king.glb | 7 | the Frog God of the dream (frog-king.glb, trippy shader) | present |
@@ -49,11 +49,11 @@ with alternatives (`"slam|attack|punch"`).
 | `causeway-stairs` | causeway-stairs.glb | 6 | causeway stairs at the south end | present |
 | `chasm-bridge` | chasm-bridge.glb | 1.8 | rope-bridge deck tile, repeated across the chasm (DeWji_1PuKW, DdnJDwBMUoj) | present |
 | `witch-bridge` | witch-bridge.glb | 22 | humpback stone footbridge over the witch stream (DeWji_1PuKW) | present |
-| `nave` | ruined-nave.glb | 18 | ruined nave with columns, arches and a rose window | to generate |
-| `archgate` | arch-gate.glb | 10 | frozen arch gate | to generate |
-| `palmisland` | palm-island.glb | 28 | floating palm island on an inverted rock | to generate |
-| `colossus-statue` | kneeling-colossus.glb | 12 | kneeling horned colossus statue | to generate |
-| `burning-castle` | burning-castle.glb | 40 | burning castle on the far shore | to generate |
+| `nave` | ruined-nave.glb | 18 | ruined nave with columns, arches and a rose window | present |
+| `archgate` | arch-gate.glb | 10 | frozen arch gate | present |
+| `palmisland` | palm-island.glb | 28 | floating palm island on an inverted rock | present |
+| `colossus-statue` | kneeling-colossus.glb | 12 | kneeling horned colossus statue | present |
+| `burning-castle` | burning-castle.glb | 40 | burning castle on the far shore | present |
 | `village-house` | village-house.glb | 5.8 | thatched village house | present |
 | `tavern` | tavern.glb | 7 | tavern with its sign, table and stools | present |
 | `torch-post` | torch-post.glb | 2.4 | torch on a post | present |
@@ -64,13 +64,12 @@ with alternatives (`"slam|attack|punch"`).
 | `cauldron` | cauldron.glb | 1.1 | iron cauldron over coals | present |
 | `lantern-post` | lantern-post.glb | 2.5 | red paper lantern on a pole | present |
 | `candle` | candle.glb | 0.3 | candle | present |
-| `ruin-arch` | ruin-arch.glb | 6.6 | ruined stone arch | to generate |
-| `ruin-column` | ruin-column.glb | 4.5 | broken stone column | to generate |
-| `flooded-ruin` | flooded-ruin.glb | 9 | flooded ruin: ring of columns, wall and arch | to generate |
-| `troll-gorge` | troll-gorge.glb | 15 | rock walls of the troll gorge | to generate |
-| `floating-rock` | floating-rock.glb | 3 | floating boulder | to generate |
-| `pinnacle` | pinnacle.glb | 30 | sea pinnacle rising from the cloud sea | to generate |
-| `mountain` | mountain.glb | 180 | backdrop mountain | to generate |
+| `ruin-arch` | ruin-arch.glb | 6.6 | ruined stone arch | present |
+| `ruin-column` | ruin-column.glb | 4.5 | broken stone column | present |
+| `troll-gorge` | troll-gorge.glb | 15 | rock walls of the troll gorge | present |
+| `floating-rock` | floating-rock.glb | 3 | floating boulder | present |
+| `pinnacle` | pinnacle.glb | 30 | sea pinnacle rising from the cloud sea | present |
+| `mountain` | mountain.glb | 180 | backdrop mountain | present |
 | `boat` | boat.glb | 1.9 | rowing boat with a bow lantern (DdjlyzyOcnK, DdwXCyeSsXn) | present |
 | `horse-rider` | horse-rider.glb | 2.6 | knight on horseback with a lantern (DdmvaMvMvS4) | present |
 | `koi` | flying-koi.glb | 0.6 | flying koi | present |
@@ -79,6 +78,10 @@ with alternatives (`"slam|attack|punch"`).
 | `knight-seated` | knight-seated.glb | 1.95 | caped greatsword knight sitting on the cliff (Sir Halvard) | present |
 | `knight-rose` | knight-rose.glb | 1.95 | black knight offering a rose (Sir Corvin) | present |
 | `skeleton` | skeleton.glb | 1.75 | skeletons at the campfire (DdjlyzyOcnK) | present |
+| `archway-shade` | archway-shade.glb | 2.0 | hooded dark figure with an armoured gauntlet in a gothic archway (DdnJDwBMUoj) | present |
+| `brazier-hermit` | brazier-hermit.glb | 1.9 | brown-robed hooded figure lifting a fire brazier on a ledge (DdyN2PNyIxb) | present |
+| `vale-knight` | vale-knight.glb | 1.9 | red-caped blue-armoured knight on the village street (Dd5Bqt7vQ5T) | present |
+| `grave-skeleton` | skeleton.glb | 1.75 | skeletons rising from the graves (the Alley of Graves) | present |
 | `skeleton-banner` | skeleton-banner.glb | 1.85 | skeleton standard-bearer with banner and trident (Hollow Jack) | present |
 | `witch-cook` | witch-cook.glb | 1.8 | skeleton cook in a chef hat with a spoon (Mother Marrow) | present |
 | `bride` | bride.glb | 1.8 | the Pale Bride | present |
@@ -90,35 +93,38 @@ with alternatives (`"slam|attack|punch"`).
 | `goblin` | goblin.glb | 1.15 | tavern goblin (Snik, Vrak) | present |
 | `ogre` | log-giant.glb | 2.8 | ogre woodhauler (Grub) — reuses the log giant | present |
 | `pine` | pine.glb | 12 | pine tree | present |
-| `snow-pine` | snow-pine.glb | 11 | snow-laden pine | to generate |
-| `birch` | birch.glb | 10 | birch | to generate |
-| `willow` | willow.glb | 8 | willow | to generate |
-| `palm` | palm.glb | 8 | palm | to generate |
-| `gnarled-tree` | gnarled-tree.glb | 6 | gnarled orchard tree | to generate |
+| `snow-pine` | snow-pine.glb | 11 | snow-laden blue pine (DeJj8CDhL2f) | present |
+| `birch` | birch.glb | 10 | white birch with yellow autumn leaves (DeWVz5CvxJJ) | present |
+| `willow` | willow.glb | 8 | weeping willow over the lotus pool (DeWcvKVvHaX) | present |
+| `palm` | palm.glb | 8 | night palm tree (DeDRVZwxJyO) | present |
+| `gnarled-tree` | gnarled-tree.glb | 6 | gnarled twisted orchard tree with glowing red fruit (DdKl7fKMO75) | present |
+| `candle-gate` | candle-gate.glb | 9 | gothic stone gate atop the candle-lined stairway (DeSEl9PvPG_) | present |
+| `spire-castle` | spire-castle.glb | 70 | black castle of needle spires beyond the forest gorge (shot-011636) | present |
 | `dead-forest-tree` | dead-forest-tree.glb | 10 | dead gnarled leafless tree, black bark (world-look-28) | present |
-| `flower-tree` | flower-tree.glb | 7 | glowing flower tree | to generate |
+| `flower-tree` | dead-forest-tree.glb | 7 | glowing flower tree | present |
 | `floating-island` | floating-island.glb | 22 | floating rock island with dead trees and chimney stumps (#28, 01.22.56) | present |
 | `giant-mushroom` | giant-mushroom.glb | 5 | giant mushroom | present |
-| `mushroom` | mushroom.glb | 0.45 | small glowing mushroom | to generate |
-| `sunflower` | sunflower.glb | 1.5 | blue sunflower | to generate |
+| `mushroom` | mushroom.glb | 0.7 | cluster of small glowing blue mushrooms (DdhDILcJXVC) | present |
+| `sunflower` | sunflower.glb | 1.5 | pale blue sunflower (DeWcvKVvHaX) | present |
 | `flower` | flower.glb | 0.35 | meadow flower | present |
-| `giant-flower` | giant-flower.glb | 2.4 | giant cosmos flower | to generate |
-| `rose-bush` | rose-bush.glb | 0.9 | rose bush | to generate |
-| `boulder` | boulder.glb | 1.2 | boulder | to generate |
-| `pod-tree` | pod-tree.glb | 12 | tree with hanging glowing pods | to generate |
-| `coral` | coral.glb | 1.6 | coral bush | to generate |
-| `reed` | reed.glb | 1.8 | reed clump | to generate |
-| `lily-pad` | lily-pad.glb | 0.9 | lily pad | to generate |
-| `lotus` | lotus.glb | 0.5 | lotus flower | to generate |
-| `fallen-leaf` | fallen-leaf.glb | 0.28 | fallen leaf | to generate |
-| `fallen-fruit` | fallen-fruit.glb | 0.35 | fallen fruit | to generate |
-| `cobblestone` | cobblestone.glb | 0.14 | cobblestone | to generate |
-| `cypress` | cypress.glb | 9 | cypress | to generate |
+| `giant-flower` | giant-flower.glb | 2.4 | giant cosmos flower | present |
+| `rose-bush` | rose-bush.glb | 1.0 | rose bush of red and blue roses (DeagbSsuMML) | present |
+| `boulder` | floating-rock.glb | 1.2 | boulder | present |
+| `pod-tree` | dead-forest-tree.glb | 12 | tree with hanging glowing pods | present |
+| `coral` | kelp.glb | 1.6 | coral bush | present |
+| `reed` | reed.glb | 1.8 | reed clump | present |
+| `lily-pad` | lily-pad.glb | 0.5 | lily pad with a pink lotus (Dd93tyxMLB3) | present |
+| `lotus` | lily-pad.glb | 0.5 | lily pad with a pink lotus (Dd93tyxMLB3) | present |
+| `fallen-leaf` | fallen-leaf.glb | 0.28 | fallen leaf | present |
+| `fallen-fruit` | fallen-fruit.glb | 0.35 | fallen fruit | present |
+| `cobblestone` | cobblestone.glb | 0.14 | cobblestone | present |
+| `cypress` | cypress.glb | 9 | tall slim graveyard cypress (DeDRVZwxJyO) | present |
 | `grave` | grave.glb | 1.1 | arched gothic headstone (shot-011654) | present |
 | `cup-gnome` | cup-gnome.glb | 1.25 | gnome with a gold grill, gold chain and a purple cup (frames/cup-gnome.png) | present |
 | `rift-king` | rift-king.glb | 1.85 | Yung Lean in a white puffer coat with an ice crown (frames/rift-king.png) | present |
 | `styro-ghoul` | styro-ghoul.glb | 1.25 | purple imp in baggy streetwear with a double-cup backpack | present |
 | `lean-chucker` | styro-ghoul.glb | 1.9 | the Lean-Chucker, boss of the Styro-Ghouls | present |
+| `tankard` | tankard.glb | 0.21 | wooden beer tankard with iron bands, full of foam | present |
 | `lean-cup` | lean-cup.glb | 0.17 | double white styrofoam cup of glowing purple lean (frames/lean-cup.png) | present |
 | `lean-cup-island` | lean-cup.glb | 22 | giant double cup of lean, an island of the kingdom | present |
 | `gnome-brother` | gnome-brother.glb | 1.2 |  | present |
@@ -168,11 +174,11 @@ with alternatives (`"slam|attack|punch"`).
 | `rune-grave` | rune-grave.glb | 1.6 | pointed gothic headstone (Ddn0A49tnW7, shot-011654) | present |
 | `grave-cross` | grave-cross.glb | 1.8 | celtic cross gravestone (shot-011654) | present |
 | `robed-priest` | robed-priest.glb | 1.9 | robed figure raising its arms to the world tree (Ddn0A49tnW7) | present |
-| `spire-city` | spire-city.glb | 90 | city of spires and aqueduct bridges beyond the cliffs (DdwXCyeSsXn) | to generate |
-| `crystalgolem` | crystal-golem.glb | 2.6 | golem of blue crystal shards (Dd0wR9Jh2lH) | present |
+| `spire-city` | spire-city.glb | 90 | city of spires and aqueduct bridges beyond the cliffs (DdwXCyeSsXn) | present |
+| `crystalsentry` | mail-knight.glb | 1.95 | crystal sentry: knight in faceted blue chain mail and a gold chain with a crystal spear (DeaqHWJBBPw) | present |
 | `emberrider` | ember-rider.glb | 2.7 | red-eyed rider on a black horse with a burning mane (Ddn0A49tnW7) | present |
 | `cyclops` | cyclops.glb | 9 | huge blue one-eyed horned cyclops with claws (shot-011654, world-look-28) | present |
-| `cyclops-lord` | cyclops.glb | 7 | the cyclops at the end of the alley of graves (shot-011654) | present |
+| `cyclops-lord` | grave-cyclops.glb | 7 | the horned cyclops at the end of the alley of graves (shot-011654) | present |
 | `blood-eye` | blood-eye.glb | 6 | giant floating red spiky eyeball with a blue iris (shot-013226) | present |
 | `trip-wizard` | galaxy-wizard.glb | 1.9 | rainbow-robed wizard flying in the dream (shot-013245) | present |
 | `moon-laugh` | moon-laugh.glb | 10 | blue moon with a laughing face (shot-013117, shot-013029) | present |

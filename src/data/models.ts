@@ -171,6 +171,11 @@ export const MODELS: Record<string, ModelDef> = {
   'knight-rose': { file: 'knight-rose.glb', height: 1.95, label: 'black knight offering a rose (Sir Corvin)', clips: NPC_CLIPS('offer') },
   skeleton: { file: 'skeleton.glb', height: 1.75, label: 'skeletons at the campfire (DdjlyzyOcnK)', clips: { ...NPC_CLIPS('sit'), attack: 'attack', hit: 'hit_reaction|hit', stand: 'sit_to_stand|stand', death: 'dying|death' } },
   // The skeletons that climb out of the Alley of Graves (enemy kind = model id): the campfire skeleton's body, standing.
+  // Round 9 mobs (biped rigs with the preset clips).
+  'archway-shade': { file: 'archway-shade.glb', height: 2.0, label: 'hooded dark figure with an armoured gauntlet in a gothic archway (DdnJDwBMUoj)', clips: BOSS_CLIPS },
+  'brazier-hermit': { file: 'brazier-hermit.glb', height: 1.9, label: 'brown-robed hooded figure lifting a fire brazier on a ledge (DdyN2PNyIxb)', clips: BOSS_CLIPS },
+  // (Its rig came out facing +x: turned a quarter so its front is local +z like every other body.)
+  'vale-knight': { file: 'vale-knight.glb', height: 1.9, yaw: -Math.PI / 2, label: 'red-caped blue-armoured knight on the village street (Dd5Bqt7vQ5T)', clips: BOSS_CLIPS },
   'grave-skeleton': { file: 'skeleton.glb', height: 1.75, label: 'skeletons rising from the graves (the Alley of Graves)', clips: { ...NPC_CLIPS('idle'), idle: 'idle_02|combat_stance|idle', attack: 'attack', hit: 'hit_reaction|hit', stand: 'sit_to_stand|stand', death: 'dying|death' } },
   'skeleton-banner': { file: 'skeleton-banner.glb', height: 1.85, label: 'skeleton standard-bearer with banner and trident (Hollow Jack)', clips: NPC_CLIPS('banner') },
   'witch-cook': { file: 'witch-cook.glb', height: 1.8, label: 'skeleton cook in a chef hat with a spoon (Mother Marrow)', clips: NPC_CLIPS('stir') },
@@ -185,21 +190,25 @@ export const MODELS: Record<string, ModelDef> = {
   goblin: { file: 'goblin.glb', height: 1.15, label: 'tavern goblin (Snik, Vrak)', clips: NPC_CLIPS('sit') },
   ogre: { file: 'log-giant.glb', height: 2.8, label: 'ogre woodhauler (Grub) — reuses the log giant', clips: { idle: 'idle|stance', walk: 'carry|walking|walk' } },
   // Flora and decor (one file each, instanced)
-  pine: stat('pine.glb', 12, 'pine tree'), 'snow-pine': stat('pine.glb', 11, 'snow-laden pine'),
-  birch: stat('pine.glb', 10, 'birch'), willow: stat('pine.glb', 8, 'willow'), palm: stat('pine.glb', 8, 'palm'),
-  'gnarled-tree': { ...stat('dead-forest-tree.glb', 6, 'gnarled orchard tree'), tint: 0x33262a },
+  pine: stat('pine.glb', 12, 'pine tree'), 'snow-pine': stat('snow-pine.glb', 11, 'snow-laden blue pine (DeJj8CDhL2f)'),
+  birch: stat('birch.glb', 10, 'white birch with yellow autumn leaves (DeWVz5CvxJJ)'), willow: stat('willow.glb', 8, 'weeping willow over the lotus pool (DeWcvKVvHaX)'), palm: stat('palm.glb', 8, 'night palm tree (DeDRVZwxJyO)'),
+  'gnarled-tree': stat('gnarled-tree.glb', 6, 'gnarled twisted orchard tree with glowing red fruit (DdKl7fKMO75)'),
+  // The gate at the top of the candle-lined stairway toward the eye (round 9): stairs on its +z front, a walk-through arch.
+  'candle-gate': stat('candle-gate.glb', 9, 'gothic stone gate atop the candle-lined stairway (DeSEl9PvPG_)'),
+  'drowned-church': stat('drowned-church.glb', 26, "ruined gothic church tower at the drowned street's end (DeVj-Z8POjl)"),
+  'spire-castle': stat('spire-castle.glb', 70, 'black castle of needle spires beyond the forest gorge (shot-011636)'),
   'dead-forest-tree': { ...stat('dead-forest-tree.glb', 10, 'dead gnarled leafless tree, black bark (world-look-28)'), tint: 0x1c1822 }, 'flower-tree': { ...stat('dead-forest-tree.glb', 7, 'glowing flower tree'), tint: 0x3a2c36 },
   'floating-island': stat('floating-island.glb', 22, 'floating rock island with dead trees and chimney stumps (#28, 01.22.56)'),
-  'giant-mushroom': stat('giant-mushroom.glb', 5, 'giant mushroom'), mushroom: stat('giant-mushroom.glb', 0.45, 'small glowing mushroom'),
-  sunflower: stat('flower.glb', 1.5, 'blue sunflower'), flower: stat('flower.glb', 0.35, 'meadow flower'),
-  'giant-flower': stat('giant-flower.glb', 2.4, 'giant cosmos flower'), 'rose-bush': stat('flower.glb', 0.9, 'rose bush'),
+  'giant-mushroom': stat('giant-mushroom.glb', 5, 'giant mushroom'), mushroom: stat('mushroom.glb', 0.7, 'cluster of small glowing blue mushrooms (DdhDILcJXVC)'),
+  sunflower: stat('sunflower.glb', 1.5, 'pale blue sunflower (DeWcvKVvHaX)'), flower: stat('flower.glb', 0.35, 'meadow flower'),
+  'giant-flower': stat('giant-flower.glb', 2.4, 'giant cosmos flower'), 'rose-bush': stat('rose-bush.glb', 1.0, 'rose bush of red and blue roses (DeagbSsuMML)'),
   // (floating-rock.glb hangs a tapering root under its widest part, at 60-70% of its height: bury the lower half or
   // every boulder reads as a little island hovering over the ground, 2026-11-03.)
   boulder: { ...stat('floating-rock.glb', 1.2, 'boulder'), yOffset: -0.6 },
   'pod-tree': { ...stat('dead-forest-tree.glb', 12, 'tree with hanging glowing pods'), tint: 0x2c2632 }, coral: { ...stat('kelp.glb', 1.6, 'coral bush'), tint: 0xc0486e },
-  reed: stat('reed.glb', 1.8, 'reed clump'), 'lily-pad': stat('stone-lotus.glb', 0.9, 'lily pad'), lotus: stat('stone-lotus.glb', 0.5, 'lotus flower'),
+  reed: stat('reed.glb', 1.8, 'reed clump'), 'lily-pad': stat('lily-pad.glb', 0.5, 'lily pad with a pink lotus (Dd93tyxMLB3)'), lotus: stat('lily-pad.glb', 0.5, 'lily pad with a pink lotus (Dd93tyxMLB3)'),
   'fallen-leaf': stat('fallen-leaf.glb', 0.28, 'fallen leaf'), 'fallen-fruit': stat('fallen-fruit.glb', 0.35, 'fallen fruit'),
-  cobblestone: stat('cobblestone.glb', 0.14, 'cobblestone'), cypress: stat('pine.glb', 9, 'cypress'), grave: { ...stat('grave.glb', 1.1, 'arched gothic headstone (shot-011654)'), tint: 0x5c6270 },
+  cobblestone: stat('cobblestone.glb', 0.14, 'cobblestone'), cypress: stat('cypress.glb', 9, 'tall slim graveyard cypress (DeDRVZwxJyO)'), grave: { ...stat('grave.glb', 1.1, 'arched gothic headstone (shot-011654)'), tint: 0x5c6270 },
 
   // The user's own frames (docs/reference/frames/cup-gnome.png): Meshy 6 Lite draft, Meshy 7 image-guided texture, biped rig.
   'cup-gnome': { file: 'cup-gnome.glb', height: 1.25, label: 'gnome with a gold grill, gold chain and a purple cup (frames/cup-gnome.png)', clips: { idle: 'stand_and_drink|idle_03|idle_02', drink: 'stand_and_drink', talk: 'talk_with_hands_open', walk: 'walking', run: 'running' } },

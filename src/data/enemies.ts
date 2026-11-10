@@ -1,7 +1,7 @@
 import type { BrainParams } from '../combat/EnemyBrain';
 import type { Element } from '../combat/Elements';
 
-export type EnemyKind = 'beast' | 'bucket' | 'crystalsentry' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity' | 'cyclops' | 'cyclops-lord' | 'blood-eye' | 'trip-wizard' | 'galaxy-knight' | 'mail-knight' | 'diamond-wizard' | 'fish-guard' | 'angler' | 'grave-skeleton' | 'koi' | 'jellyfish';
+export type EnemyKind = 'beast' | 'bucket' | 'crystalsentry' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity' | 'cyclops' | 'cyclops-lord' | 'blood-eye' | 'trip-wizard' | 'galaxy-knight' | 'mail-knight' | 'diamond-wizard' | 'fish-guard' | 'angler' | 'grave-skeleton' | 'koi' | 'jellyfish' | 'archway-shade' | 'brazier-hermit' | 'vale-knight';
 
 export type BossAttackKind = 'slam' | 'boulder' | 'roar' | 'volley' | 'summon' | 'blink' | 'roots' | 'sweep' | 'breath' | 'charge' | 'bite' | 'logthrow' | 'punch' | 'grab' | 'cupmortar' | 'cupvolley' | 'snowstorm' | 'web' | 'webdrop' | 'hop' | 'kaleido' | 'eyebeam' | 'mirror' | 'glare' | 'thorns' | 'rainbow' | 'diamond';
 
@@ -181,6 +181,24 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     kind: 'grave-skeleton', name: 'Risen Skeleton', maxHp: 420, def: 18, atk: 64, speed: 3.0, element: 'fog', hover: 0, bodyRadius: 0.45, height: 1.75,
     brain: { aggroRange: 12, attackRange: 1.9, windup: 0.55, recover: 0.9, attackCooldown: 0.7 }, respawn: 120, leash: 22, shards: [3, 7],
     drops: [{ itemId: 'old-bone', chance: 0.4 }], collapse: true,
+  },
+  // Round 9 (2026-11-10), from the reels: the hooded figure with the armoured gauntlet from the gothic archway
+  // (DdnJDwBMUoj) haunting the dead wood and the gorge rim; the brown-robed hermit who lifts a fire brazier
+  // (DdyN2PNyIxb) on the peak's flank and the Frost March; the red-caped knight of the vale's street (Dd5Bqt7vQ5T).
+  'archway-shade': {
+    kind: 'archway-shade', name: 'Archway Shade', maxHp: 720, def: 32, atk: 92, speed: 3.4, element: 'fog', hover: 0, bodyRadius: 0.5, height: 2.0,
+    brain: { aggroRange: 13, attackRange: 2.4, windup: 0.5, recover: 1.0, attackCooldown: 0.7 }, respawn: 90, leash: 22, shards: [10, 18],
+    drops: [{ itemId: 'old-bone', chance: 0.4 }, { itemId: 'moon-dew', chance: 0.25 }],
+  },
+  'brazier-hermit': {
+    kind: 'brazier-hermit', name: 'Brazier Hermit', maxHp: 620, def: 26, atk: 84, speed: 3.0, element: 'blood', hover: 0, bodyRadius: 0.5, height: 1.9,
+    brain: { aggroRange: 12, attackRange: 2.4, windup: 0.55, recover: 1.0, attackCooldown: 0.8 }, respawn: 90, leash: 20, shards: [8, 16],
+    drops: [{ itemId: 'moon-dew', chance: 0.35 }],
+  },
+  'vale-knight': {
+    kind: 'vale-knight', name: 'Vale Knight', maxHp: 950, def: 46, atk: 104, speed: 3.6, element: 'lunar', hover: 0, bodyRadius: 0.5, height: 1.9,
+    brain: { aggroRange: 12, attackRange: 2.4, windup: 0.5, recover: 0.9, attackCooldown: 0.7 }, respawn: 120, leash: 22, shards: [12, 22],
+    drops: [{ itemId: 'beast-fang', chance: 0.3 }, { itemId: 'moon-dew', chance: 0.3 }],
   },
   // The giant who hauls logs on his back: leave him be and he walks his road; hit him and he throws the logs.
   loggiant: {
@@ -372,6 +390,12 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'grave-skeleton', x: 4, z: -104 }, { kind: 'grave-skeleton', x: 28, z: -112 }, { kind: 'grave-skeleton', x: -14, z: -108 },
   { kind: 'beast', x: -61, z: -112 }, { kind: 'beast', x: -71, z: -107 }, // (either side of the gorge-head hoard)
   { kind: 'croc', x: 46, z: 12 }, { kind: 'croc', x: 84, z: 8 }, { kind: 'croc', x: 110, z: -6 }, { kind: 'croc', x: 100, z: -8 },
+  // Round 9: the archway shades in the dead wood and on the gorge's east rim, the brazier hermits in the kingdom, the
+  // vale's knights on its street's far side.
+  { kind: 'archway-shade', x: 20, z: -92 }, { kind: 'archway-shade', x: -50, z: -118 },
+  // (The hermits by the Void Monk's ring portals on the kingdom's plaza: their reel is the galaxy cave, not the island.)
+  { kind: 'brazier-hermit', x: 1030, z: 62 }, { kind: 'brazier-hermit', x: 985, z: 70 },
+  { kind: 'vale-knight', x: 1035, z: 945 }, { kind: 'vale-knight', x: 960, z: 955 },
   { kind: 'crystalsentry', x: 74, z: 52 }, { kind: 'crystalsentry', x: 70, z: 59 }, // the desert's east end, off the Pale Bride's walk
   // Yung Lean's kingdom: Styro-Ghouls on the lean cups and round the plaza; the Lean-Chucker on the pavilion's throne.
   // (Off the cups: by the Lean-Chucker's pavilion and along the plaza; the cups belong to the lean bubbles.)

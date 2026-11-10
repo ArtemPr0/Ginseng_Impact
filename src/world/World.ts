@@ -740,7 +740,8 @@ export class World {
     flora('snow-pine', frozenPick(150, 0.8, 1.2, -0.3), { trunk: 0.035 });
     flora('boulder', frozenPick(70, 0.8, 2.4, -0.2));
     flora('pod-tree', frozenPick(14, 0.9, 1.4, -0.3).filter((p) => p.x > 72 && p.z < -72));
-    flora('mushroom', [...this.scatterDisc(rnd, LAYOUT.frog.x, LAYOUT.frog.z, 22, 70, 0.7, 1.3), ...this.scatterRing(rnd, 66, 114, 80, 0.6, 1.2)], { shadows: false });
+    // The small blue mushroom clusters (DdhDILcJXVC, round 9): their caps glow like the giant ones'.
+    flora('mushroom', [...this.scatterDisc(rnd, LAYOUT.frog.x, LAYOUT.frog.z, 22, 70, 0.7, 1.3), ...this.scatterRing(rnd, 66, 114, 80, 0.6, 1.2)], { shadows: false, patch: (mat, geo) => { const bb = geo.boundingBox!; patchGlowCap(mat, bb.min.y + (bb.max.y - bb.min.y) * 0.5); } });
     // Keep the portal clearing (DeQ-NnpvqF6) and the mushroom tavern (DaIqFavJWbd) open under the sky.
     // ...and the face tree's doorstep (the mushrooms used to crowd its round door).
     const door = FACE_DOOR(h);
@@ -1155,7 +1156,7 @@ function cutDoor(root: Object3D, d: { x: number; z: number; halfWidth: number; f
 
 /** Ground kept clear of trees around the island's landmarks (x, z, radius). */
 // (Read from the layout tables: literal copies went stale when the arch gate and the tree house moved, and pines grew through them.)
-const CLEARING_RADIUS: Record<string, number> = { 'colossus-statue': 11, archgate: 8, nave: 15, observatory: 10 };
+const CLEARING_RADIUS: Record<string, number> = { 'colossus-statue': 11, archgate: 8, nave: 15, observatory: 10, 'candle-gate': 8 };
 const LANDMARK_CLEARINGS = [
   ...LANDMARKS.filter((l) => l.id in CLEARING_RADIUS).map((l) => ({ x: l.x, z: l.z, r: CLEARING_RADIUS[l.id] })),
   { x: LAYOUT.tower.x, z: LAYOUT.tower.z, r: 17 },

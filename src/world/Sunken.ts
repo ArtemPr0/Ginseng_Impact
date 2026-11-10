@@ -182,6 +182,9 @@ export function buildSunken(api: RealmApi, link: (at: Vector3, radius: number, h
   // Coral walls and towers round a courtyard (sea-castle.glb, measured: open floor x -1008..-994, z -62..-72, a narrow
   // lane on behind between the towers); the Fish King keeps his bar there, his coral throne and crown behind him.
   api.place(modelLandmark('sea-castle', X, -80, sy, { yaw: CASTLE_YAW }));
+  // The ruined church tower rising behind the castle, at the drowned street's end (DeVj-Z8POjl @10.2; round 9): its
+  // front toward the street.
+  api.place(modelLandmark('drowned-church', X, -116, sy, { yaw: face(Math.PI / 2) }));
   // (Its back 0.4 m clear of the courtyard's back wall at z -72.)
   const TH = { x: X, z: -70.3 };
   api.place(modelLandmark('coral-throne', TH.x, TH.z, sy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'box', x: TH.x, z: TH.z, hw: 1, hd: 1.3, top: sy + 0.8 }] }));

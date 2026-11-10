@@ -129,6 +129,10 @@ export const LANDMARKS: readonly LandmarkSpot[] = [
   { id: 'cloister', x: 33.5, z: 64.5, at: { x: 33.5, z: 68 } },
   { id: 'observatory', x: LAYOUT.observatory.x, z: LAYOUT.observatory.z, sink: 0.2 },
   { id: 'cauldron', x: 24, z: 77 },
+  // The gothic gate (DeSEl9PvPG_) beside the road to the stone head, a ruined gate into the nave's precinct: its steps
+  // face the road (local +z turned to -x), the arch is walked through. (On the road itself it sat in the 4 m climb to
+  // the head's chin, and its footing made a bank across the path.)
+  { id: 'candle-gate', x: 37, z: -128, yaw: -Math.PI / 2, sink: 0.3 },
 ];
 
 /**
@@ -450,6 +454,7 @@ export const FLATS: {
     // Model slots waiting for their GLB (they render nothing yet): the ruined nave, the frozen arch gate, the colossus
     // statue by the dead wood, and the ruins.
     { x: 18, z: -136, r: 10 },
+    { x: 37, z: -128, r: 6 }, // the candle gate
     { x: 56, z: -84, r: 5 },
     { x: 10, z: -96, r: 6 },
     ...LAYOUT.ruins.map((r) => ({ x: r.x, z: r.z, r: 3.5 })),
@@ -495,5 +500,6 @@ export const FOOTINGS: ReadonlyArray<{ x: number; z: number; r: number; blend: n
   { x: LAYOUT.treehouse.x, z: LAYOUT.treehouse.z, r: 10, blend: 2.5 },
   { x: 10, z: -96, r: 4.6, blend: 2 },   // the colossus statue
   { x: 18, z: -136, r: 11, blend: 3 },   // the ruined nave
+  { x: 37, z: -128, r: 5, blend: 2.5 },  // the candle gate, east of the nave, clear of its footing ring (beside the road it sat in the Ember Rider's pad)
   ...LAYOUT.ruins.map((r) => ({ x: r.x, z: r.z, r: r.arch ? 3.2 : 1.6, blend: r.arch ? 1.8 : 1.2 })),
 ];
