@@ -239,7 +239,8 @@ const VRAK: NpcDialogue = {
     { id: 'gob-b.react.licked', slot: 'react', text: '...hic... ...hic...', when: { flag: 'licked' } },
 
     {
-      id: 'gob-b.topic.cure', slot: 'topic', ask: 'How do we cure the hiccups?', text: '...hic.',
+      // (Not '...hic.': on a first meeting that is also his greeting, and the same line twice in a row reads as a stuck panel.)
+      id: 'gob-b.topic.cure', slot: 'topic', ask: 'How do we cure the hiccups?', text: '...hic. ...hic?',
       choices: [{ label: 'Hold your breath.', to: 'gob-b.topic.held' }, { label: 'Boo.', to: 'gob-b.topic.boo' }, { label: 'Leave him to it.', action: 'close' }],
     },
     { id: 'gob-b.topic.held', slot: 'topic', ask: 'I held my breath', text: '... ... ... ...hic.' },
