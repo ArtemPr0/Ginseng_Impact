@@ -4,7 +4,7 @@
  * Every structure and prop is a Meshy model by id; floors are stone slabs until their floor models exist.
  */
 import { Group, PointLight, Vector3 } from 'three';
-import { GALAXY, ISLAND_PORTALS, LAYOUT, SUNKEN } from '../data/world';
+import { GALAXY, ISLAND_PORTALS, LAYOUT, SUNKEN, SINK } from '../data/world';
 import { glowSprite } from '../render/Glow';
 import { PALETTE } from '../render/palette';
 import { fire } from './Fire';
@@ -66,7 +66,7 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   const P = ISLAND_PORTALS.galaxy;
   const py = api.h(P.x, P.z);
   const ft = P.faceTree;
-  api.place(modelLandmark('face-tree', ft.x, ft.z, api.h(ft.x, ft.z) - 0.3, { yaw: face(Math.atan2(-15, 4)), footprints: [{ kind: 'cyl', x: ft.x, z: ft.z, r: 2.6, top: api.h(ft.x, ft.z) + 8 }] }));
+  api.place(modelLandmark('face-tree', ft.x, ft.z, api.h(ft.x, ft.z) - SINK.faceTree, { yaw: face(Math.atan2(-15, 4)), footprints: [{ kind: 'cyl', x: ft.x, z: ft.z, r: 2.6, top: api.h(ft.x, ft.z) + 8 }] }));
   const stones: Placement[] = [];
   for (let i = 0; i < 9; i++) {
     const t = i / 8;

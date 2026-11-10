@@ -2,7 +2,7 @@ import { FOOTINGS } from '../data/world';
 import { describe, expect, it } from 'vitest';
 import { Noise2D, smoothstep } from './noise';
 import { FLATS, KNOLL, LAYOUT, PADS } from '../data/world';
-import { EYE, RIVER_LEVEL, Terrain, WORLD, knollAt, meadowAt, reliefAt, rimLip, riverAt, riverDistance, streamCentre, terrainHeight } from './Terrain';
+import { EYE, RIVER, RIVER_LEVEL, STREAM_WATER, Terrain, WORLD, knollAt, lowestBed, meadowAt, reliefAt, rimLip, riverAt, riverDistance, streamCentre, terrainHeight, waterLevelAt } from './Terrain';
 
 describe('Noise2D', () => {
   it('is deterministic for a seed and bounded in [-1, 1]', () => {
@@ -208,7 +208,8 @@ describe('island relief', () => {
     // corridor flat 26 m out, the hills at 1 / 1.3 of these) held them to 0.05 / 0.05 m, 0.51 / 0.47, 0.35 / 0.31 and
     // 0.47 / 0.49.
     const regions: Array<[string, (x: number, z: number) => boolean, number, number, number]> = [
-      ['the meadows south of the chasm', (x, z) => meadowAt(x, z, noise) > 0.5 && z > -45, 0.14, 0.12, 0.6],
+      // (Less the village's terrace: three rows of houses on level pads over the coast's bulge are not open ground.)
+      ['the meadows south of the chasm', (x, z) => meadowAt(x, z, noise) > 0.5 && z > -45 && !(x > -62 && x < -2 && z > 55 && z < 102), 0.14, 0.12, 0.6],
       ['the meadows north of it', (x, z) => meadowAt(x, z, noise) > 0.5 && z < -70, 0.52, 0.58, 0.95],
       ['the Frost March', (x, z) => x > 57 && z < -42, 0.45, 0.46, 0.88],
       ['the north', (_x, z) => z < -72, 0.5, 0.55, 0.95],
@@ -309,6 +310,28 @@ describe('Terrain', () => {
     expect(terrain.field.s.roughnessFloor).toBeGreaterThanOrEqual(0.85);
     const mat = (terrain.group.children[0] as unknown as { material: { userData: { roughFloor: { value: number } } } }).material;
     expect(mat.userData.roughFloor.value).toBe(terrain.field.s.roughnessFloor);
+  });
+});
+
+describe('waterLevelAt', () => {
+  const noise = new Noise2D(1337);
+  it('answers every water body of the island with its surface, and null on dry land', () => {
+    // The river (its channel and ribbon) and the eye.
+    expect(waterLevelAt(RIVER[3][0], RIVER[3][1], noise)).toBe(RIVER_LEVEL);
+    expect(waterLevelAt(EYE.x, EYE.z, noise)).toBeGreaterThanOrEqual(RIVER_LEVEL);
+    // The koi tiers and the lily pond.
+    for (const t of LAYOUT.tiers) expect(waterLevelAt(t.x, t.z, noise)).toBe(t.water);
+    expect(waterLevelAt(WORLD.pond.x, WORLD.pond.z, noise)).toBe(1.0);
+    // The mud pool, filled to its brim.
+    expect(waterLevelAt(LAYOUT.floodedRuin.x, LAYOUT.floodedRuin.z, noise)).toBe(LAYOUT.floodedRuin.mud);
+    // The witch stream: a knee's depth over the lowest point of its bed across the ravine.
+    const sz = 0;
+    const cx = streamCentre(sz, noise);
+    const bed = lowestBed((x, z) => terrainHeight(x, z, noise), cx, sz, STREAM_WATER.half);
+    expect(waterLevelAt(cx, sz, noise)).toBeCloseTo(bed + STREAM_WATER.depth, 5);
+    // Dry: the spawn, the head.
+    expect(waterLevelAt(LAYOUT.spawn.x, LAYOUT.spawn.z, noise)).toBeNull();
+    expect(waterLevelAt(LAYOUT.head.x, LAYOUT.head.z, noise)).toBeNull();
   });
 });
 

@@ -64,6 +64,8 @@ const ALLOW = {
   'npc:frogking': { 'pos below': 'squats in his hollow under the footprint of its rim' },
   'enemy:loggiant': { 'model sinks': 'boots in the soft ground' }, 'enemy:yeti': { 'model sinks': 'feet in the snow' },
   'enemy:troll': { 'model sinks': 'feet in the gorge bed' },
+  // It walks the kingdom's snow on driven legs (Enemy.driveLegs lowers the body onto its footholds): on a slope the measure reads the body under the mean snow, by up to half a metre, depending on where it stands when measured (gate 2 passed, gate 3 flagged 0.43).
+  'enemy:spiderchapel': { 'model sinks': 'its body is lowered onto its legs as it walks the snow (driveLegs)' },
   'enemy:cyclops-lord': { 'model sinks': 'its tail tip drags under the alley floor; foot bones measured 0.1-0.4 m above it (2026-11-03)' },
   // Seats that are part of a model with no collider of their own, so the measure reads the floor under them (each one looked at).
   'npc:skeleton-king': { 'hips over': 'on the dragon throne (model seat)', 'model sinks': 'his chair legs hang inside the throne dais' },

@@ -4,7 +4,9 @@ import type { Zone } from '../game/Events';
 export const LAYOUT = {
   spawn: { x: 0, z: 59 },
   /** The rope bridge over the chasm, west of the cathedral: south end on the rim, north end by the dead wood. */
-  chasmBridge: { ax: 26, az: -38, bx: 27, bz: -84 },
+  // (Its south end on the rim at z -32.5: at -38 the last 4 m hung over the chasm; the deck is a chain span, so both
+  // ends sit on their own bank.)
+  chasmBridge: { ax: 26, az: -32.5, bx: 27, bz: -85 },
   /**
    * Footpaths worn into the ground (Terrain colours them; nothing grows on them). They tie the spawn to the village,
    * the tavern, the bridges, the portals and every landmark, and keep clear of the mobs' camps.
@@ -12,7 +14,10 @@ export const LAYOUT = {
   paths: [
     [[0, 64], [-8, 70], [-58, 70]],
     [[2, 64], [14, 69], [32, 70], [46, 62], [56, 58]],
-    [[-4, 60], [-18, 56], [-34, 50], [-48, 40], [-56, 22], [-56, 9]],
+    // From the village corner up the river's south bank to the witches' bridge (it used to ford the channel).
+    [[-4, 60], [-18, 56], [-34, 50], [-48, 40], [-54, 32]],
+    // From the face tree's stepping stones down to the bridge's east foot.
+    [[-53, -8], [-56, 9]],
     [[-78, 9], [-90, -2], [-96, -12]],
     [[6, 58], [16, 44], [34, 34], [52, 32], [66, 30], [80, 36]],
     [[-6, 56], [-6, 46]],
@@ -21,7 +26,7 @@ export const LAYOUT = {
     // From the hamlet on the far bank to the pond and the frog hollow, and east to the rope bridge.
     [[0, -2], [-10, -4], [-14, -6], [-30, -10], [-43, -17]],
     [[2, -5], [6, -10], [18, -18], [30, -24], [34, -24]],
-    [[22, -20], [26, -36]],
+    [[22, -20], [26, -32.5]],
     [[0, -134], [0, -140]],
     [[-2, -112], [-12, -108]],
     [[27, -86], [44, -90], [52, -90]],
@@ -39,7 +44,8 @@ export const LAYOUT = {
    * there is 34 m of ground: at full size its south aisle hung 80 m over the chasm, so it stands at 0.7 (38 m) where
    * all of it is on land (overhang audit), its feet at y (the ground's 5th percentile under it).
    */
-  cathedral: { x: 68, z: -18, yaw: Math.PI / 2, scale: 0.7, y: 3.6 },
+  // (At 0.65 and z -17 its south feet clear the river's bank and its north wall the chasm's lip, which 0.7 did not.)
+  cathedral: { x: 68, z: -17, yaw: Math.PI / 2, scale: 0.65, y: 3.6 },
   /** The mud pool east of the cathedral, home of the Marsh Sovereign: a basin (PADS) filled to `mud` (world y). */
   floodedRuin: { x: 106, z: -13, r: 9, mud: 4.9 },
   forest: { innerRadius: 72, outerRadius: 119, count: 420 },
@@ -55,7 +61,7 @@ export const LAYOUT = {
     { x: -43, z: -19, r: 11, count: 100 },
   ],
   frog: { x: -54, z: -26 },
-  coven: { streamX: -67, zMin: -42, zMax: 48, bridgeZ: 9 },
+  coven: { streamX: -67, zMin: -42, zMax: 40, bridgeZ: 9 },
   /**
    * On the plateau north-west of the chasm, its whole rock base on land (castle.glb is 29 × 31 m: at z = -24 its north
    * wall hung over the chasm's cliff, which begins around z = -34).
@@ -66,7 +72,8 @@ export const LAYOUT = {
   church: { x: -66, z: 57 },
   /** The wizard's lonely tower on the east cliffs, where the Moon Wyrm circles (back from the edge: at (93, 42) a third of its rock hung over the drop). */
   tower: { x: 83, z: 32 },
-  treehouse: { x: -90, z: 30 },
+  /** (4 m in from the west cliff: at -90 its rock hung over the drop.) */
+  treehouse: { x: -86, z: 30 },
   orchard: { x: 60, z: 24 },
   rainZone: { x: 60, z: 24, radius: 30 },
   /** Snow: the Frost March (the island's frozen north-east, see Terrain.frozenAt) and the kingdom's snow chapel. */
@@ -77,12 +84,12 @@ export const LAYOUT = {
   /** The world tree west of the causeway's north end (its roots must not cross the road). */
   worldTree: { x: 44, z: -104 },
   /** Walkers that roam among the buildings without touching them. */
-  logGiantPath: [[-38, 30], [-46, 26], [-52, 32], [-46, 26]] as Array<[number, number]>,
+  logGiantPath: [[-38, 32], [-46, 30], [-52, 36], [-46, 30]] as Array<[number, number]>,
   /** Pim's observatory north of the village, clear of the houses. */
   observatory: { x: -46, z: 48 },
   riderPath: [[8, 48], [24, 48], [40, 42], [24, 48]] as Array<[number, number]>,
   ruins: [
-    { x: -8, z: 43, yaw: 0.3, arch: true }, { x: 20, z: 24, yaw: -0.4, arch: false }, { x: -10, z: -24, yaw: 0.9, arch: false },
+    { x: -8, z: 43, yaw: 0.3, arch: true }, { x: 20, z: 24, yaw: -0.4, arch: false }, { x: -30, z: -30, yaw: 0.9, arch: false },
     { x: 26, z: -102, yaw: 0.2, arch: true }, { x: 31, z: -28, yaw: 1.1, arch: true }, { x: 80, z: -84, yaw: -0.7, arch: false },
     { x: -24, z: 60, yaw: 0.5, arch: false }, { x: 36, z: -78, yaw: 0.0, arch: false },
   ],
@@ -100,6 +107,37 @@ export const LAYOUT = {
   hamlet: [[7, -6, 0], [15, -5, 0.1], [24, -5, -0.08], [8, -18, 0.3], [26, -14, -0.3], [-8, -5, 0]] as ReadonlyArray<readonly [number, number, number]>,
 } as const;
 
+/** How far each kind of island model sinks below the ground it stands on (World.ts, Heart.ts, Realms.ts and the placement guard read one table). */
+export const SINK = { house: 0.2, ruin: 0.3, church: 0.4, throne: 0.05, treehouse: 0.6, tower: 1.5, faceTree: 0.3, head: 3, castle: 0.6 } as const;
+
+/**
+ * A building or prop set on the island's ground (World.ts): its model, where it stands, the way it faces, its scale,
+ * how far its base sinks below the ground (`sink`), the spot the ground is sampled at when not its own centre (`at`:
+ * a building whose feet are set from its doorstep), or a fixed base (`fixedY`). `rockBase` marks a model that brings
+ * its own rock and may sit deep in a hillside (the tower, the tree house). IslandTruth.test.ts measures every entry.
+ */
+export interface LandmarkSpot { id: string; x: number; z: number; yaw?: number; scale?: number; sink?: number; at?: { x: number; z: number }; fixedY?: number; rockBase?: boolean }
+/** The island's free-standing buildings and props that no other table places (the big landmarks live in LAYOUT). */
+export const LANDMARKS: readonly LandmarkSpot[] = [
+  // Beside the stone head on the north half: the last flat open ground there (it once stood over the chasm).
+  { id: 'nave', x: 18, z: -136, sink: 0.4 },
+  // On the Frost March's flat north of the chasm (at (70, -72) it stood on the chasm's north cliff face).
+  { id: 'archgate', x: 56, z: -84, yaw: 0, sink: 0.3 },
+  { id: 'colossus-statue', x: 10, z: -96, yaw: 0.9, sink: 0.5 },
+  // The island tavern by the spawn: its feet set from its doorstep on the street side.
+  { id: 'tavern', x: 20, z: 63, sink: 0.2, at: { x: 20, z: 66 } },
+  { id: 'campfire', x: -24, z: 52 },
+  // The cloister's arches, out to where its height is sampled (z 68).
+  // (1.5 m east of where it stood: the tavern's footing blend reached its west arches.)
+  { id: 'cloister', x: 33.5, z: 64.5, at: { x: 33.5, z: 68 } },
+  { id: 'observatory', x: LAYOUT.observatory.x, z: LAYOUT.observatory.z, sink: 0.2 },
+  { id: 'cauldron', x: 24, z: 77 },
+  // The gothic gate (DeSEl9PvPG_) beside the road to the stone head, a ruined gate into the nave's precinct: its steps
+  // face the road (local +z turned to -x), the arch is walked through. (On the road itself it sat in the 4 m climb to
+  // the head's chin, and its footing made a bank across the path.)
+  { id: 'candle-gate', x: 37, z: -128, yaw: -Math.PI / 2, sink: 0.3 },
+];
+
 /**
  * Village street centre and its house slots: [dx, dz, width, depth, rotY]. The street runs east–west at z = 70;
  * the north row faces south onto it, the south row faces north (the island's edge is just behind it).
@@ -108,7 +146,7 @@ export const VILLAGE = {
   x: -34, z: 70,
   houses: [
     // (Set as they were built, not in a line: along the street, then a second row behind the south side.)
-    [-19, -7.5, 6, 5, 0.2], [-7, -6.5, 5, 5, -0.14], [5, -8.5, 7, 5, 0.26], [18, -6.5, 5, 6, 0.1],
+    [-18, -7.5, 6, 5, 0.2], [-7, -6.5, 5, 5, -0.14], [5, -8.5, 7, 5, 0.26], [18, -6.5, 5, 6, 0.1],
     [-15, 7, 6, 5, Math.PI + 0.22], [-3, 8.5, 5, 5, Math.PI - 0.16], [9, 6.8, 7, 5, Math.PI + 0.1], [23, 8, 5, 5, Math.PI - 0.24],
     [-21, 20, 6, 5, Math.PI + 0.42], [-1, 21, 6, 5, Math.PI - 0.32], [15, 20, 6, 5, Math.PI + 0.18],
   ] as ReadonlyArray<readonly [number, number, number, number, number]>,
@@ -136,7 +174,7 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   croak: { x: -112, z: 2 },
   frogking: { x: -54, z: -26 },
   cook: { x: 25.6, z: 77 },
-  moss: { x: -56, z: 19, dy: 0.38 },
+  moss: { x: -56, z: 30, dy: 0.38 },
   sentry: { x: -40, z: -90, dy: 0.02 },
   standard: { x: -54, z: -93 },
   'rose-knight': { x: 16, z: 34 }, maiden: { x: 18.2, z: 33 },
@@ -352,7 +390,10 @@ export const PADS: ReadonlyArray<{ x: number; z: number; r: number; y: number; b
   { x: 16, z: -122, r: 7, y: 4.6, blend: 5 },     // the Ember Rider
   { x: 106, z: -13, r: 8, y: 3.4, blend: 4 },     // the Marsh Sovereign's mud basin (filled to 4.9)
   { x: -40, z: -90, r: 1.6, y: 28.4, blend: 2.5 }, // Sir Halvard's seat on the cliff
-  { x: -56, z: 19, r: 2, y: 1.5, blend: 2.5 },     // Old Moss fishing from the bank (above the river's waterline)
+  { x: -56, z: 30, r: 2, y: 1.5, blend: 4 },       // Old Moss fishing from the bank (above the river's waterline)
+  // The village's ground: two level pads over the street hollow and the coast's bulge (per-house footings dug pits).
+  { x: -32, z: 75, r: 25, y: 2.8, blend: 2.5 },
+  { x: -50, z: 78, r: 20, y: 2.8, blend: 4 },
   { x: -8, z: -5, r: 4, y: 2.8, blend: 3 },       // the hamlet's west house on the eye's bank
 ];
 
@@ -416,7 +457,8 @@ export const FLATS: {
     // Model slots waiting for their GLB (they render nothing yet): the ruined nave, the frozen arch gate, the colossus
     // statue by the dead wood, and the ruins.
     { x: 18, z: -136, r: 10 },
-    { x: 58, z: -90, r: 5 },
+    { x: 37, z: -128, r: 6 }, // the candle gate
+    { x: 56, z: -84, r: 5 },
     { x: 10, z: -96, r: 6 },
     ...LAYOUT.ruins.map((r) => ({ x: r.x, z: r.z, r: 3.5 })),
     // The bridges' ends: each deck is set from the higher of its two banks (Walkways), so both stay as they were.
@@ -426,12 +468,12 @@ export const FLATS: {
     { x: -64 + 11.3, z: -124, r: 3 },
   ],
   rects: [
-    [-58, -6, 60, 80], // the village: its two rows of houses (6.4 x 5.5 m each) and the street between them
-    [47.8, 88.2, -31.3, -4.7], // the cathedral at 0.7 (38.4 x 24.6 m, its long axis east-west), its feet at a fixed y
+    [-58, -6, 60, 80], // the village: its two street rows of houses (6.4 x 5.5 m each) and the street between them (the back row stands on the village pads)
+    [50.2, 85.8, -28.4, -5.6], // the cathedral at 0.65 (35.6 x 22.8 m, its long axis east-west), its feet at a fixed y
     [-72.2, -59.8, 48.1, 65.9], // the demon church (16.8 x 11.3 m, turned to face east)
     [72.3, 93.7, 16.9, 47.1], // the wizard's tower on its rock (20.4 x 29.2 m)
-    [-100.5, -79.5, 18.4, 41.6], // the tree house (22.2 x 20 m, turned)
-    [26.5, 37.5, 63.5, 68.5], // the cloister's arches, out to where its height is sampled (z 68)
+    [-96.5, -75.5, 18.4, 41.6], // the tree house (22.2 x 20 m, turned)
+    [28, 39, 63.5, 68.5], // the cloister's arches, out to where its height is sampled (z 68)
     [-80, -54, 6, 12], // the witches' bridge over the stream (its 23 m deck, both banks)
   ],
   // Every NPC's spot on the island, 2 m round (realm anchors lie far outside the island's square).
@@ -445,11 +487,22 @@ export const FLATS: {
  */
 export const FOOTINGS: ReadonlyArray<{ x: number; z: number; r: number; blend: number; y?: number }> = [
   // (The big ones first: a house beside one keeps its own level, the later disc wins.)
-  { x: LAYOUT.church.x, z: LAYOUT.church.z, r: 10.5, blend: 3 },
-  { x: LAYOUT.cathedral.x, z: LAYOUT.cathedral.z, r: 14, blend: 6, y: LAYOUT.cathedral.y },
-  ...VILLAGE.houses.map(([dx, dz]) => ({ x: VILLAGE.x + dx, z: VILLAGE.z + dz, r: 4.4, blend: 2.6 })),
-  ...LAYOUT.hamlet.filter(([x]) => x !== -8 && x !== 7).map(([x, z]) => ({ x, z, r: 3.5, blend: 1.2 })), // (tight: terraced on the knoll. The west house has its PAD; the one by the road is cut into the bank)
-  { x: 32, z: 64.5, r: 4.6, blend: 3.6 }, // the cloister
+  { x: LAYOUT.church.x, z: LAYOUT.church.z, r: 8.5, blend: 2 },
+  // The cathedral: two discs along its length (one r 14 disc dammed the river: its channel floor rose 1.8 m under the south aisle).
+  { x: LAYOUT.cathedral.x - 9.5, z: LAYOUT.cathedral.z, r: 11, blend: 3, y: LAYOUT.cathedral.y },
+  { x: LAYOUT.cathedral.x + 9.5, z: LAYOUT.cathedral.z, r: 11, blend: 3, y: LAYOUT.cathedral.y },
+  // (The village houses stand on the village pads, PADS: a footing each dug a pit round every house in the street hollow.)
+  // (Tight: terraced on the knoll. The west house has its PAD; the one by the road, cut into the bank, blends over 2.5 m so the path past it stays walkable.)
+  ...LAYOUT.hamlet.filter(([x]) => x !== -8).map(([x, z]) => ({ x, z, r: 3.5, blend: x === 7 ? 2.5 : 1.2 })),
+  { x: 33.5, z: 64.5, r: 5.2, blend: 5.5 }, // the cloister (before the tavern, whose level wins between them; a long blend keeps the street between them walkable)
   { x: 20, z: 63, r: 5.6, blend: 3 },    // the tavern
   { x: -46, z: 48, r: 5.5, blend: 4 },   // the observatory
+  { x: -24, z: 52, r: 4, blend: 2 },     // the skeletons' campfire and their barrels
+  { x: ISLAND_PORTALS.galaxy.faceTree.x, z: ISLAND_PORTALS.galaxy.faceTree.z, r: 7.5, blend: 2 }, // the face tree
+  { x: 56, z: -84, r: 4.5, blend: 2 },   // the arch gate on the Frost March
+  { x: LAYOUT.treehouse.x, z: LAYOUT.treehouse.z, r: 10, blend: 2.5 },
+  { x: 10, z: -96, r: 4.6, blend: 2 },   // the colossus statue
+  { x: 18, z: -136, r: 11, blend: 3 },   // the ruined nave
+  { x: 37, z: -128, r: 5, blend: 2.5 },  // the candle gate, east of the nave, clear of its footing ring (beside the road it sat in the Ember Rider's pad)
+  ...LAYOUT.ruins.map((r) => ({ x: r.x, z: r.z, r: r.arch ? 3.2 : 1.6, blend: r.arch ? 1.8 : 1.2 })),
 ];

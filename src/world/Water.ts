@@ -7,7 +7,7 @@ import { PALETTE } from '../render/palette';
 import type { Placement } from './Flora';
 import { glowTexture } from '../render/Glow';
 import type { Landmark } from './Landmarks';
-import { EYE, RIVER, RIVER_LEVEL, riverDistance } from './Terrain';
+import { EYE, RIVER, RIVER_LEVEL, riverDistance, RIVER_RIBBON_HALF } from './Terrain';
 
 const WATER_VERT = /* glsl */ `
 varying vec2 vUv; varying vec3 vWorld;
@@ -242,10 +242,13 @@ export function riverPoint(s: number): { x: number; z: number; yaw: number } {
 }
 
 /** The great glowing river: a ribbon mesh along the polyline, sparkles, and reed banks. */
+/** How far the ribbon runs past the river's west end: to the sink pool's water line (its floor reaches 4.8 m, its slope the surface at about 7.6 m). */
+const WEST_CAP = 8;
+
 export function river(heightAt: (x: number, z: number) => number, rnd: () => number): Landmark & { reedSpots: Placement[] } {
   const g = new Group();
   const samples = riverSamples(3);
-  const half = 11.5;
+  const half = RIVER_RIBBON_HALF;
   const pos: number[] = [];
   const uv: number[] = [];
   const idx: number[] = [];
@@ -259,7 +262,8 @@ export function river(heightAt: (x: number, z: number) => number, rnd: () => num
     { ...first, x: first.x - first.tx * half, z: first.z - first.tz * half, u: -half },
     ...samples,
     { ...tail, x: lastPt[0], z: lastPt[1], u: endU },
-    { ...tail, x: lastPt[0] + tail.tx * half, z: lastPt[1] + tail.tz * half, u: endU + half },
+    // (The west end's cap stops at the sink pool's water line: a full half-width ran the sheet into the witch stream's ravine.)
+    { ...tail, x: lastPt[0] + tail.tx * WEST_CAP, z: lastPt[1] + tail.tz * WEST_CAP, u: endU + WEST_CAP },
   ];
   ribbon.forEach((s, i) => {
     const nx = -s.tz;

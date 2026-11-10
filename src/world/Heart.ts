@@ -7,8 +7,9 @@
  * black sun. Everything is placed models and effects; the shapes in the ground come from Terrain.ts.
  */
 import { Color, type Mesh, type MeshStandardMaterial, Vector3 } from 'three';
-import { LAYOUT } from '../data/world';
+import { LAYOUT, SINK } from '../data/world';
 import { MODELS } from '../data/models';
+import { PRESENT_MODELS } from '../data/colliderGrids';
 import { fireflies } from '../render/Fireflies';
 import { glowSprite } from '../render/Glow';
 import { patchGlowCap, patchLitWindows } from '../render/Materials';
@@ -120,7 +121,7 @@ export function buildHeart(api: HeartApi): { eye: ReturnType<typeof eyePool>; bo
 
   // --- the hamlet on the far bank (lit windows, torches by the stairs) ---
   for (const [x, z, yaw] of LAYOUT.hamlet) {
-    api.place(modelLandmark('village-house', x, z, h(x, z) - 0.2, { yaw, onLoad: (m) => restyle(m, (mat) => patchLitWindows(mat)) }));
+    api.place(modelLandmark('village-house', x, z, h(x, z) - SINK.house, { yaw, onLoad: (m) => restyle(m, (mat) => patchLitWindows(mat)) }));
   }
   for (const [x, z] of [[-3, -3.5], [3, -3.5], [12, -11], [-14, -3]] as const) {
     const y = h(x, z);
@@ -205,9 +206,13 @@ export function buildHeart(api: HeartApi): { eye: ReturnType<typeof eyePool>; bo
   api.vfx(fireflies(G.x, h(G.x, -118), -118, 9, 6, 60, new Color(0.5, 0.9, 1.6)));
 
   // --- the spire castle rising out of the cloud sea beyond the gorge (and #28's left spire from the spawn) ---
-  api.place(modelLandmark('cathedral', -150, -170, -40, {
-    collider: 'none', scale: 1.3, yaw: 0.6,
-    onLoad: (m) => restyle(m, (mat) => { mat.color.multiplyScalar(0.32); mat.emissive.set(0x0a1440); mat.emissiveIntensity = 1; patchLitWindows(mat, 1.4); }),
+  // (Its own model since round 9, shot-011636; the darkened cathedral copy stands in until the file exists.)
+  const spire = PRESENT_MODELS.has('spire-castle');
+  api.place(modelLandmark(spire ? 'spire-castle' : 'cathedral', -150, -170, -40, {
+    collider: 'none', scale: spire ? 1 : 1.3, yaw: 0.6,
+    // (The crush to a third and the navy emissive made the cathedral copy read as a black castle; the real model keeps
+    // its texture and only gets its windows lit.)
+    onLoad: (m) => restyle(m, (mat) => { if (!spire) { mat.color.multiplyScalar(0.32); mat.emissive.set(0x0a1440); mat.emissiveIntensity = 1; } patchLitWindows(mat, 1.4); }),
   }));
   void PALETTE;
   return { eye, bouncers };

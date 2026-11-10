@@ -4,7 +4,7 @@
  * the round plank door in the face tree's mouth by the portal (the one people take for his house).
  */
 import { Group, PointLight, Vector3 } from 'three';
-import { TREEHOUSE_ROOM } from '../data/world';
+import { LAYOUT, SINK, TREEHOUSE_ROOM } from '../data/world';
 import { MODELS } from '../data/models';
 import { glowSprite } from '../render/Glow';
 import { PALETTE } from '../render/palette';
@@ -17,7 +17,10 @@ import type { RealmApi } from './Realms';
  * The door opening in tree-house.glb as placed (LAYOUT.treehouse, facing east), measured by ray picks: the plane of
  * the door, its centre line, the threshold and the size of the opening.
  */
-export const TREEHOUSE_DOOR = { x: -86.9, z: 30.08, bottom: 4.0, w: 2.2, h: 3.6 };
+export const TREEHOUSE_DOOR = { x: LAYOUT.treehouse.x + 3.1, z: LAYOUT.treehouse.z + 0.08, w: 2.2, h: 3.6 };
+/** The threshold's height over the model's base (the base is set 0.6 under the ground at LAYOUT.treehouse, World.ts). */
+const DOOR_LIFT = 0.68;
+const TREEHOUSE_SINK = SINK.treehouse;
 /**
  * The room (treehouse-interior.glb, 7 m, at TREEHOUSE_ROOM), measured by downward ray picks: the plank floor 1.0 m
  * above the model's base, about 2.3 m around the table in the middle; its round door is on the west side.
@@ -36,7 +39,7 @@ export interface TreeHouse {
 }
 
 export function buildTreeHouse(api: RealmApi, teleport: Teleport, faceDoor: FaceDoor): TreeHouse {
-  const D = TREEHOUSE_DOOR;
+  const D = { ...TREEHOUSE_DOOR, bottom: api.h(LAYOUT.treehouse.x, LAYOUT.treehouse.z) - TREEHOUSE_SINK + DOOR_LIFT };
   // --- the door: a hinged plank door at the north edge of the opening, swinging inward ---
   const hinge = new Group();
   hinge.position.set(D.x + 0.05, D.bottom, D.z + D.w / 2);
