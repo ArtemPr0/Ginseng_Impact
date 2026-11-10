@@ -84,7 +84,12 @@ export function witchStream(
   for (let i = 0; i <= steps; i++) {
     const z = zMin + ((zMax - zMin) * i) / steps;
     const cx = centreAt(z);
-    const y = heightAt(cx, z) + DEPTH;
+    // Over the lowest point of the bed across the ribbon, not the centre line: where the castle pad's blend lifts the
+    // ravine's west half the centre is up to 4 m above the trough, and the water hung in the air (Terrain.waterLevelAt
+    // answers the same level).
+    let bed = Infinity;
+    for (let dx = -half; dx <= half; dx += 0.5) bed = Math.min(bed, heightAt(cx + dx, z));
+    const y = bed + DEPTH;
     surface.push(y);
     pos.push(cx - half, y, z, cx + half, y, z);
     uv.push(0, i / steps, 1, i / steps);

@@ -339,7 +339,7 @@ export interface EnemySpawn { kind: EnemyKind; x: number; z: number; yaw?: numbe
 export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   // Bosses
   { kind: 'yeti', x: 72, z: -94 },          // frozen grove, north-east
-  { kind: 'shade', x: 68, z: -18, exact: true },  // in the cathedral's nave, under the candles
+  { kind: 'shade', x: 68, z: -17, exact: true },  // in the cathedral's nave, under the candles
   { kind: 'warden', x: 68, z: 38 },         // the clearing in the east forest, under the rain
   { kind: 'wyrm', x: 106, z: 22 },          // circling the lonely wizard tower
   { kind: 'rivershade', x: -67, z: 38 },    // rising from the witch stream, upstream of the bridge and Old Moss
@@ -352,7 +352,7 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'hollowking', x: 36, z: -146 },   // seated on the north shore, east of the head
   { kind: 'emberrider', x: 16, z: -122 },   // the dead wood east of the causeway's end
   // The log giant walks the old haul road by the skeleton camp, minding his own business until someone hits him.
-  { kind: 'loggiant', x: -38, z: 30, patrol: [[-38, 30], [-46, 26], [-52, 32], [-46, 26]] },
+  { kind: 'loggiant', x: -38, z: 32, patrol: [[-38, 32], [-46, 30], [-52, 36], [-46, 30]] },
   // Round 5: the cyclops wading at the eye pool's east tip (#28), the Blood Eye over the chasm (01.32.26), the grave
   // cyclops at the end of the Alley of Graves (01.16.54) and its skeleton guards, the Prism Wizard in the dream.
   { kind: 'cyclops', x: 32, z: 4, exact: true, yaw: Math.PI },
@@ -365,8 +365,8 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'skeleton', x: -26.4, z: 53.4, yaw: Math.atan2(52 - 53.4, -24 + 26.4), exact: true },
   { kind: 'skeleton', x: -24, z: 49.2, yaw: Math.atan2(52 - 49.2, 0), exact: true },
   // Camps (pairs)
-  { kind: 'croc', x: 108, z: 10 }, { kind: 'croc', x: 118, z: 6 }, { kind: 'croc', x: 100, z: 15 }, // the river mouth, east
-  { kind: 'beast', x: -62, z: 36 }, { kind: 'beast', x: -66, z: 30 },      // west meadow, by the stream
+  { kind: 'croc', x: 108, z: 10 }, { kind: 'croc', x: 110, z: 16 }, { kind: 'croc', x: 100, z: 15 }, // the river's head, east (the one at (118, 6) was left on the cliff when the head moved)
+  { kind: 'beast', x: -62, z: 36 }, { kind: 'beast', x: -58, z: 34 },      // west meadow, by the stream (not in it)
   { kind: 'crystalsentry', x: 74, z: 52 }, { kind: 'crystalsentry', x: 70, z: 59 }, // the desert's east end, off the Pale Bride's walk
   // Yung Lean's kingdom: Styro-Ghouls on the lean cups and round the plaza; the Lean-Chucker on the pavilion's throne.
   // (Off the cups: by the Lean-Chucker's pavilion and along the plaza; the cups belong to the lean bubbles.)

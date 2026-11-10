@@ -1,7 +1,7 @@
 import { type BufferGeometry, Color, Group, type Mesh, type MeshStandardMaterial, type Object3D, Vector2, Vector3 } from 'three';
 import { REALM_SCULPTS } from '../data/sculpts';
 import { FOLK } from '../data/folk';
-import { ANCHORS, CRYPT_ROOM, GALAXY, ISLAND_PORTALS, LAYOUT, REALMS, SUNKEN, TAVERN_ROOM, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
+import { ANCHORS, CRYPT_ROOM, GALAXY, ISLAND_PORTALS, LANDMARKS, LAYOUT, REALMS, SUNKEN, TAVERN_ROOM, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
 import type { Events, Zone } from '../game/Events';
 import { PALETTE } from '../render/palette';
@@ -45,7 +45,7 @@ import { fireflies } from '../render/Fireflies';
 import { buildRealms, type RealmApi } from './Realms';
 import type { PortalLink } from './Portal';
 import { deadAt, EYE, eyeDistance, frozenAt, pathAt, RIVER_LEVEL, riverAt, riverDistance, sandAt, streamAt, Terrain, WORLD } from './Terrain';
-import { causewayPostPoints, causewayWalk, chasmBridge, witchBridgeDeck } from './Walkways';
+import { causewayPostPoints, causewayWalk, chainSpan, witchBridgeDeck } from './Walkways';
 import { lilyPond, mudPool, river } from './Water';
 
 /**
@@ -390,7 +390,8 @@ export class World {
       this.place(lm);
     }
     const cb = LAYOUT.chasmBridge;
-    const bridge = chasmBridge(cb.ax, cb.az, cb.bx, cb.bz, Math.max(h(cb.ax, cb.az), h(cb.bx, cb.bz)) + 0.6, MODELS['chasm-bridge'].height);
+    // (A chain span from bank to bank: a flat deck at the higher bank hung the north end 3 m over its ground.)
+    const bridge = chainSpan(cb.ax, cb.az, h(cb.ax, cb.az) + 0.45, cb.bx, cb.bz, h(cb.bx, cb.bz) + 0.45, MODELS['chasm-bridge'].height);
     this.place(bridge);
     flora('chasm-bridge', bridge.tiles);
     const deck = witchBridgeDeck(LAYOUT.coven.streamX, LAYOUT.coven.bridgeZ, h);
@@ -409,10 +410,12 @@ export class World {
     {
       // The east door is the way in: the model's arch is 2.6 m wide and too low for a hero, so a broken gap replaces
       // it, in the collider (carved) and in the mesh (cut away in the shader).
-      const door = { x: 86, z: -17.9, halfWidth: 3.2, floor: 3.75, spring: 2.6 };
-      const cathedral = modelLandmark('cathedral', LAYOUT.cathedral.x, LAYOUT.cathedral.z, cathY, { yaw: LAYOUT.cathedral.yaw, scale: cs, onLoad: (m) => cutDoor(m.root, door) });
+      // (Measured at 0.7 with the model at (68, -18): the door 18 m east of the centre, the carve 15.4..19.4 m east.)
+      const cat = LAYOUT.cathedral;
+      const door = { x: cat.x + (18 / 0.7) * cs, z: cat.z + 0.1, halfWidth: 3.2, floor: 3.75, spring: 2.6 };
+      const cathedral = modelLandmark('cathedral', cat.x, cat.z, cathY, { yaw: cat.yaw, scale: cs, onLoad: (m) => cutDoor(m.root, door) });
       let grid = cathedral.footprints.find((f): f is GridFootprint => f.kind === 'grid');
-      if (grid) { for (const x of [83.4, 84.4, 85.4, 86.4, 87.4]) grid = carveGridOpening(grid, x, door.z, door.halfWidth - 0.4); cathedral.footprints = [grid]; }
+      if (grid) { for (const dx of [15.4, 16.4, 17.4, 18.4, 19.4]) grid = carveGridOpening(grid, cat.x + (dx / 0.7) * cs, door.z, door.halfWidth - 0.4); cathedral.footprints = [grid]; }
       this.place(cathedral);
     }
     // Its nave is open to walk in through the arch at the east end (scripts/collider-grids.mjs): two rows of candles
@@ -491,16 +494,19 @@ export class World {
     }
     const tr = LAYOUT.treehouse;
     this.place(modelLandmark('treehouse', tr.x, tr.z, h(tr.x, tr.z) - 0.6, { yaw: Math.PI / 2 }));
-    // (Beside the stone head on the north half: the last flat open ground there. It once stood over the chasm.)
-    this.place(modelLandmark('nave', 18, -136, h(18, -136) - 0.4, { yaw: 0 }));
-    this.place(modelLandmark('archgate', 70, -72, h(70, -72) - 0.3, { yaw: 0.5 }));
+    // The free-standing buildings and props (data/world.ts LANDMARKS, measured by IslandTruth.test.ts).
+    const spot = (id: string) => {
+      const l = LANDMARKS.find((s) => s.id === id);
+      if (!l) throw new Error(`LANDMARKS has no ${id}`);
+      return { ...l, y: l.fixedY ?? h(l.at?.x ?? l.x, l.at?.z ?? l.z) - (l.sink ?? 0) };
+    };
+    for (const id of ['nave', 'archgate', 'colossus-statue']) { const s = spot(id); this.place(modelLandmark(id, s.x, s.z, s.y, { yaw: s.yaw ?? 0 })); }
     // Things that only make sense once their model exists: the palm island's falls, the burning castle's blaze.
     if (PRESENT_MODELS.has('palmisland')) {
       this.place(modelLandmark('palmisland', 72, 89, 34, { collider: 'none', update: (dt, root) => { root.position.y = 34 + Math.sin(performance.now() * 0.0004) * 0.6; void dt; } }));
       // Two falls off the rock's real rim (measured: 8.2 m out, 13 m up its 28 m), down into the cloud sea.
       for (const [dx, dz, w] of [[7.6, 1.5, 2.6], [-4.5, 6.4, 2]] as const) this.place(waterfall(72 + dx, 89 + dz, 46.6, w, 76, false));
     }
-    this.place(modelLandmark('colossus-statue', WORLD.dead.x - 14, WORLD.dead.z + 6, h(WORLD.dead.x - 14, WORLD.dead.z + 6) - 0.5, { yaw: 0.9 }));
     if (PRESENT_MODELS.has('burning-castle')) {
       this.place(modelLandmark('burning-castle', 0, 180, -14, { color: PALETTE.blood, collider: 'none' }));
       vfx(fire(0, 25, 180, 14, 0));
@@ -652,8 +658,9 @@ export class World {
     }
     flora('torch-post', torchSpots);
     flora('cobblestone', cobbleSpots([[VILLAGE.x - 34, VILLAGE.z + 1], [VILLAGE.x + 34, VILLAGE.z + 1]], 5, h, vrnd).filter((p) => !this.insideBuilding(p.x, p.z)), { shadows: false });
-    const tavernY = h(20, 66) - 0.2;
-    this.place(modelLandmark('tavern', 20, 63, tavernY));
+    const tv = spot('tavern');
+    const tavernY = tv.y;
+    this.place(modelLandmark('tavern', tv.x, tv.z, tavernY));
     // The yard table the regulars sit round on barrel stools (ANCHORS), candles on it.
     {
       const tx = 24.5, tz = 70.8, ty = h(tx, tz);
@@ -666,23 +673,25 @@ export class World {
       flora('tankard', [[-0.45, 0.2], [0.35, 0.22]].map(([dx, dz]) => ({ x: tx + dx, y: ty + 0.97, z: tz + dz, yaw: dx * 4, scale: 1 })), { shadows: false });
       flora('lean-cup', [[0.5, -0.2], [-0.3, -0.22]].map(([dx, dz]) => ({ x: tx + dx, y: ty + 0.97, z: tz + dz, yaw: 0, scale: 1 })), { shadows: false });
     }
-    const campY = h(-24, 52);
-    this.place(modelLandmark('campfire', -24, 52, campY));
-    vfx(fire(-24, campY + 0.25, 52, 1.5, 34));
+    const cf = spot('campfire');
+    const campY = cf.y;
+    this.place(modelLandmark('campfire', cf.x, cf.z, campY));
+    vfx(fire(cf.x, campY + 0.25, cf.z, 1.5, 34));
     const steam = glowSprite(0x8fa2ff, 1.6, 0.18, true);
-    steam.position.set(-24, campY + 2.5, 52);
+    steam.position.set(cf.x, campY + 2.5, cf.z);
     this.group.add(steam);
     this.extras.push({ update: (dt) => { steamT += dt; steam.position.y = campY + 2.4 + Math.sin(steamT) * 0.2; steam.scale.setScalar(1.6 + Math.sin(steamT * 0.7) * 0.4); } });
     let steamT = 0;
-    const cloY = h(32, 68);
+    const cl = spot('cloister');
     // The baked grid keeps the columns solid and the arches open to walk through.
-    this.place(modelLandmark('cloister', 32, 64.5, cloY));
+    this.place(modelLandmark('cloister', cl.x, cl.z, cl.y));
     flora('cobblestone', cobbleSpots([[23, 68], [41, 68]], 7, h, rng(55)).filter((p) => !this.insideBuilding(p.x, p.z)), { shadows: false });
-    const ob = LAYOUT.observatory;
-    this.place(modelLandmark('observatory', ob.x, ob.z, h(ob.x, ob.z) - 0.2));
-    const potY = h(24, 77);
-    this.place(modelLandmark('cauldron', 24, 77, potY, { color: PALETTE.witch }));
-    vfx(fire(24, potY - 0.1, 77, 0.7, 14));
+    const ob = spot('observatory');
+    this.place(modelLandmark('observatory', ob.x, ob.z, ob.y));
+    const pot = spot('cauldron');
+    const potY = pot.y;
+    this.place(modelLandmark('cauldron', pot.x, pot.z, potY, { color: PALETTE.witch }));
+    vfx(fire(pot.x, potY - 0.1, pot.z, 0.7, 14));
     // Lanterns and candles along the causeway.
     const posts = causewayPostPoints(LAYOUT.causeway, MODELS['causeway-segment'].height);
     const lanternSpots: Placement[] = [];
@@ -1141,7 +1150,12 @@ function cutDoor(root: Object3D, d: { x: number; z: number; halfWidth: number; f
 }
 
 /** Ground kept clear of trees around the island's landmarks (x, z, radius). */
+// (Read from the layout tables: literal copies went stale when the arch gate and the tree house moved, and pines grew through them.)
+const CLEARING_RADIUS: Record<string, number> = { 'colossus-statue': 11, archgate: 8, nave: 15, observatory: 10 };
 const LANDMARK_CLEARINGS = [
-  { x: 10, z: -96, r: 11 }, { x: 70, z: -72, r: 8 }, { x: 18, z: -136, r: 15 }, { x: 83, z: 32, r: 17 },
-  { x: 88, z: -103, r: 12 }, { x: 44, z: -104, r: 23 }, { x: -46, z: 48, r: 10 }, { x: -66, z: 57, r: 17 }, { x: -90, z: 30, r: 13 }, { x: 68, z: -18, r: 34 }, { x: 106, z: -13, r: 11 },
+  ...LANDMARKS.filter((l) => l.id in CLEARING_RADIUS).map((l) => ({ x: l.x, z: l.z, r: CLEARING_RADIUS[l.id] })),
+  { x: LAYOUT.tower.x, z: LAYOUT.tower.z, r: 17 },
+  { x: 88, z: -103, r: 12 }, // the colossus's shore walk
+  { x: LAYOUT.worldTree.x, z: LAYOUT.worldTree.z, r: 23 }, { x: LAYOUT.church.x, z: LAYOUT.church.z, r: 17 }, { x: LAYOUT.treehouse.x, z: LAYOUT.treehouse.z, r: 13 },
+  { x: LAYOUT.cathedral.x, z: LAYOUT.cathedral.z, r: 34 }, { x: LAYOUT.floodedRuin.x, z: LAYOUT.floodedRuin.z, r: 11 },
 ];

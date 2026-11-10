@@ -26,7 +26,8 @@ export const WORLD = {
   corridorZ: { min: -123, max: 69 },
   /** Glowing green stream ravine (witch bridge) along x ≈ streamX. */
   streamX: -67,
-  streamZ: { min: -42, max: 48 },
+  // (It ends at 40: run to 48 its ravine climbed into the demon church's footing.)
+  streamZ: { min: -42, max: 40 },
   /** Climbable peak for the lone-knight vantage. */
   peak: { x: -54, z: -93, height: 58, radius: 36 },
   /** Frozen realm: north-east quadrant. */
@@ -63,7 +64,10 @@ export function eyeDistance(x: number, z: number): number {
 export const RIVER: ReadonlyArray<readonly [number, number]> = [
   // (It rises at (102, 13), in a rounded spring pool: it used to start at (129, 4), past the east cliff, so its
   // first ten metres were a square slab of water hanging over the void.)
-  [102, 13], [77, -2], [50, 4], [26, 10], [4, 16], [-18, 13], [-40, 4], [-58, 12], [-74, 20],
+  // The east reach keeps south of the cathedral's feet; the west reach bends south of the face tree and ends in a
+  // round sink pool 7 m short of the witch stream, so the witches' bridge crosses the stream alone (it used to end at
+  // (-74, 20), right under the bridge's east half: 2026-11-10 playtest).
+  [102, 13], [76, 6], [50, 4], [26, 10], [4, 16], [-18, 13], [-40, 15], [-56, 22], [-62, 25],
 ];
 export const RIVER_LEVEL = 0.9;
 export const RIVER_FLOOR = -1.6;
@@ -241,11 +245,18 @@ const NO_LAND_BEYOND = WORLD.islandRadius + WORLD.cliffWidth + 2 * COAST_WOBBLE;
 /** The pads that are land even past the cliff (only the castle's). */
 const SOLID_PADS = PADS.filter((p) => p.solid);
 
+/**
+ * The coast bulges out behind the village (metres): the back row of houses stood on footing shelves past the cliff
+ * (island radius 119–138 at (-55..-19, 90)); the bulge keeps all of it, and 10 m of ground behind, on the island.
+ */
+export const SOUTH_BULGE = { x: -50, z: 90, r: 55, depth: 30 };
+
 /** The island's radius term at (x, z): distance from the centre plus the coastline's wobble (the cliff begins past WORLD.islandRadius). */
 export function islandRadius(x: number, z: number, noise: Noise2D): number {
   const dx = x - WORLD.islandCentre.x;
   const dz = z - WORLD.islandCentre.z;
-  return Math.hypot(dx, dz) + noise.fbm(x * 0.0134 + 9, z * 0.0134 + 9, 3) * COAST_WOBBLE;
+  const bulge = SOUTH_BULGE.depth * (1 - smoothstep(0, SOUTH_BULGE.r, Math.hypot(x - SOUTH_BULGE.x, z - SOUTH_BULGE.z)));
+  return Math.hypot(dx, dz) + noise.fbm(x * 0.0134 + 9, z * 0.0134 + 9, 3) * COAST_WOBBLE - bulge;
 }
 
 /** The rock rim at the island's edge: +1.2 m rising from radius 110 to 118 and gone by 124, where the cliff falls. */
@@ -403,6 +414,36 @@ export function terrainHeight(x: number, z: number, noise: Noise2D, relief = tru
     padLand = Math.max(padLand, t);
   }
   return lerp(WORLD.abyssY, plateau, Math.max(land, padLand));
+}
+
+/** Half-width of the witch stream's water ribbon (Stream.ts) and its depth over the lowest point of the bed. */
+export const STREAM_WATER = { half: 4.2, depth: 0.75 } as const;
+/** Half-width of the great river's water ribbon (Water.ts river()). */
+export const RIVER_RIBBON_HALF = 11.5;
+
+/**
+ * The surface of whatever water lies at (x, z) in world y, or null on dry land: the great river and the eye, the koi
+ * tiers, the lily pond, the mud pool and the witch stream (a knee's depth over the lowest point of its bed across the
+ * ravine, as Stream.ts lays its ribbon). Ground below this level is under water. (`HeightWorld.water` is only what the
+ * hero can swim in; this is every body of water, for the audits.)
+ */
+export function waterLevelAt(x: number, z: number, noise: Noise2D): number | null {
+  let level: number | null = null;
+  const lift = (y: number) => { level = level === null ? y : Math.max(level, y); };
+  if (riverDistance(x, z) < RIVER_RIBBON_HALF || eyeDistance(x, z) < 0.5) lift(RIVER_LEVEL);
+  for (const t of LAYOUT.tiers) if (Math.hypot(x - t.x, z - t.z) < t.r) lift(t.water);
+  if (Math.hypot(x - WORLD.pond.x, z - WORLD.pond.z) < WORLD.pond.r) lift(1.0);
+  const mud = LAYOUT.floodedRuin;
+  if (Math.hypot(x - mud.x, z - mud.z) < mud.r) lift(mud.mud);
+  if (z > WORLD.streamZ.min && z < WORLD.streamZ.max) {
+    const cx = streamCentre(z, noise);
+    if (Math.abs(x - cx) < STREAM_WATER.half) {
+      let bed = Infinity;
+      for (let dx = -STREAM_WATER.half; dx <= STREAM_WATER.half; dx += 0.5) bed = Math.min(bed, terrainHeight(cx + dx, z, noise));
+      lift(bed + STREAM_WATER.depth);
+    }
+  }
+  return level;
 }
 
 // ---- The island's surface: layer weights and the far tint ----
