@@ -22,7 +22,7 @@ remaining Meshy credits go to reel subjects that fill the map, and a real play p
 
 | Thing | Before | After |
 |---|---|---|
-| River west reach | (-40,4)→(-58,12)→(-74,20), under the witches' bridge | (-40,15)→(-56,22)→(-62,25), a round sink pool 7 m short of the stream, low mist over it |
+| River west reach | (-40,4)→(-58,12)→(-74,20), under the witches' bridge | (-40,15)→(-54,21), a round sink pool whose carve and 8 m ribbon cap stop short of the stream ravine (an end at (-62,25) flattened the ravine under the stream), low mist over it |
 | Witches' bridge | east half in the riverbed | crosses the witch stream alone, both feet on ground ≥ 2.9 |
 | Witch stream | ribbon on the centre line, up to 4 m above the trough; ran to z 48 into the church footing | ribbon on the lowest bed across the ravine; ends at z 40 |
 | Face tree | 39 % of its cells over river water | dry, on a footing r 7.5 |
@@ -57,5 +57,9 @@ Vale's bare south meadow. No snow-yeti variant: a texture tint cannot whiten the
 
 ## Phase C (Meshy round 9)
 
-See the plan's table; the Agent path (concept image 9 + image-to-3D 30 per model), rigs free. Installed models get
-a registry label ending with the reel code, `lod-pass` budgets for repeated flora, `npm run colliders`.
+Made (balance 746 → 77): snow pine, birch, willow, palm, cypress, orchard tree, rose bush, sunflower, lotus pad,
+blue mushroom cluster; the archway shade, the brazier hermit and the vale knight (rigged, six clips each, armatures
+flattened from cm); the candle gate (beside the nave: on the road it sat in the climb to the head), the ruined church
+tower behind the sea castle, the needle-spire castle beyond the gorge. Skipped: the chest wagon (its crop holds the
+plague doctor, who already exists with his chest) and the treasure chest (budget). The Agent remeshed the three
+characters before rigging at 30 each, which the plan's 39 per model did not foresee.

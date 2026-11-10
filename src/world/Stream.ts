@@ -15,6 +15,7 @@ import { glowSprite, glowTexture } from '../render/Glow';
 import { GLSL_HASH, GLSL_VNOISE } from '../render/glsl';
 import { PALETTE } from '../render/palette';
 import type { HostileShot } from '../combat/CombatSystem';
+import { STREAM_WATER, lowestBed } from './Terrain';
 import type { Landmark } from './Landmarks';
 
 const STREAM_VERT = /* glsl */ `
@@ -55,7 +56,7 @@ void main() {
 }`;
 
 /** How deep the toxic water stands over the ravine bed (it reaches the knees). */
-const DEPTH = 0.75;
+const DEPTH = STREAM_WATER.depth;
 /** Wading in it: a burn every this many seconds, and the poison it leaves. */
 const BURN_EVERY = 0.7;
 const BURN = { atk: 45, poison: { dps: 26, seconds: 4 } };
@@ -76,7 +77,7 @@ export function witchStream(
   const g = new Group();
   // --- the water: a ribbon down the ravine, its surface a knee's depth over the bed at every step ---
   const steps = Math.ceil((zMax - zMin) / 1.5);
-  const half = 4.2;
+  const half = STREAM_WATER.half;
   const pos: number[] = [];
   const uv: number[] = [];
   const idx: number[] = [];
@@ -87,9 +88,7 @@ export function witchStream(
     // Over the lowest point of the bed across the ribbon, not the centre line: where the castle pad's blend lifts the
     // ravine's west half the centre is up to 4 m above the trough, and the water hung in the air (Terrain.waterLevelAt
     // answers the same level).
-    let bed = Infinity;
-    for (let dx = -half; dx <= half; dx += 0.5) bed = Math.min(bed, heightAt(cx + dx, z));
-    const y = bed + DEPTH;
+    const y = lowestBed(heightAt, cx, z, half) + DEPTH;
     surface.push(y);
     pos.push(cx - half, y, z, cx + half, y, z);
     uv.push(0, i / steps, 1, i / steps);

@@ -388,7 +388,7 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   // More to meet on the island (2026-11-10: it had ten roaming hostiles): risen dead in the dead wood and by the ruined
   // nave, fog beasts at the gorge's head, crocodiles along the river and in the Marsh Sovereign's mud (DeJj8CDhL2f).
   { kind: 'grave-skeleton', x: 4, z: -104 }, { kind: 'grave-skeleton', x: 28, z: -112 }, { kind: 'grave-skeleton', x: -14, z: -108 },
-  { kind: 'beast', x: -61, z: -112 }, { kind: 'beast', x: -71, z: -107 }, // (either side of the gorge-head hoard)
+  { kind: 'beast', x: -61, z: -112 }, { kind: 'beast', x: -65, z: -115 }, // (on the gorge floor below the gorge-head hoard; the head's step and the west wall are cliffs)
   { kind: 'croc', x: 46, z: 12 }, { kind: 'croc', x: 84, z: 8 }, { kind: 'croc', x: 110, z: -6 }, { kind: 'croc', x: 100, z: -8 },
   // Round 9: the archway shades in the dead wood and on the gorge's east rim, the brazier hermits in the kingdom, the
   // vale's knights on its street's far side.

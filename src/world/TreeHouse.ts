@@ -4,7 +4,7 @@
  * the round plank door in the face tree's mouth by the portal (the one people take for his house).
  */
 import { Group, PointLight, Vector3 } from 'three';
-import { LAYOUT, TREEHOUSE_ROOM } from '../data/world';
+import { LAYOUT, SINK, TREEHOUSE_ROOM } from '../data/world';
 import { MODELS } from '../data/models';
 import { glowSprite } from '../render/Glow';
 import { PALETTE } from '../render/palette';
@@ -20,7 +20,7 @@ import type { RealmApi } from './Realms';
 export const TREEHOUSE_DOOR = { x: LAYOUT.treehouse.x + 3.1, z: LAYOUT.treehouse.z + 0.08, w: 2.2, h: 3.6 };
 /** The threshold's height over the model's base (the base is set 0.6 under the ground at LAYOUT.treehouse, World.ts). */
 const DOOR_LIFT = 0.68;
-const TREEHOUSE_SINK = 0.6;
+const TREEHOUSE_SINK = SINK.treehouse;
 /**
  * The room (treehouse-interior.glb, 7 m, at TREEHOUSE_ROOM), measured by downward ray picks: the plank floor 1.0 m
  * above the model's base, about 2.3 m around the table in the middle; its round door is on the west side.

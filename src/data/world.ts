@@ -107,6 +107,9 @@ export const LAYOUT = {
   hamlet: [[7, -6, 0], [15, -5, 0.1], [24, -5, -0.08], [8, -18, 0.3], [26, -14, -0.3], [-8, -5, 0]] as ReadonlyArray<readonly [number, number, number]>,
 } as const;
 
+/** How far each kind of island model sinks below the ground it stands on (World.ts, Heart.ts, Realms.ts and the placement guard read one table). */
+export const SINK = { house: 0.2, ruin: 0.3, church: 0.4, throne: 0.05, treehouse: 0.6, tower: 1.5, faceTree: 0.3, head: 3, castle: 0.6 } as const;
+
 /**
  * A building or prop set on the island's ground (World.ts): its model, where it stands, the way it faces, its scale,
  * how far its base sinks below the ground (`sink`), the spot the ground is sampled at when not its own centre (`at`:

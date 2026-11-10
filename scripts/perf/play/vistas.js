@@ -22,6 +22,7 @@ const VISTAS = window.VISTAS ?? [
 const out = [];
 const cam = G.camera;
 const origUpdate = G.tpc.update;
+try {
 for (const v of VISTAS) {
   await tp(v.at[0], v.at[1]);
   G.tpc.update = () => { cam.position.set(v.cam[0], v.cam[1], v.cam[2]); cam.lookAt(v.look[0], v.look[1], v.look[2]); };
@@ -29,5 +30,5 @@ for (const v of VISTAS) {
   const p = await shot(v.name);
   out.push({ name: v.name, shot: p, hero: [Math.round(hero().x), +hero().y.toFixed(2), Math.round(hero().z)] });
 }
-G.tpc.update = origUpdate;
+} finally { G.tpc.update = origUpdate; }
 return JSON.stringify({ shots: out, errors: consoleErrors.slice(0, 10) });

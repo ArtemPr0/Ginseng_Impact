@@ -2,7 +2,7 @@ import { FOOTINGS } from '../data/world';
 import { describe, expect, it } from 'vitest';
 import { Noise2D, smoothstep } from './noise';
 import { FLATS, KNOLL, LAYOUT, PADS } from '../data/world';
-import { EYE, RIVER, RIVER_LEVEL, Terrain, WORLD, knollAt, meadowAt, reliefAt, rimLip, riverAt, riverDistance, streamCentre, terrainHeight, waterLevelAt } from './Terrain';
+import { EYE, RIVER, RIVER_LEVEL, STREAM_WATER, Terrain, WORLD, knollAt, lowestBed, meadowAt, reliefAt, rimLip, riverAt, riverDistance, streamCentre, terrainHeight, waterLevelAt } from './Terrain';
 
 describe('Noise2D', () => {
   it('is deterministic for a seed and bounded in [-1, 1]', () => {
@@ -327,9 +327,8 @@ describe('waterLevelAt', () => {
     // The witch stream: a knee's depth over the lowest point of its bed across the ravine.
     const sz = 0;
     const cx = streamCentre(sz, noise);
-    let bed = Infinity;
-    for (let dx = -4.2; dx <= 4.2; dx += 0.5) bed = Math.min(bed, terrainHeight(cx + dx, sz, noise));
-    expect(waterLevelAt(cx, sz, noise)).toBeCloseTo(bed + 0.75, 5);
+    const bed = lowestBed((x, z) => terrainHeight(x, z, noise), cx, sz, STREAM_WATER.half);
+    expect(waterLevelAt(cx, sz, noise)).toBeCloseTo(bed + STREAM_WATER.depth, 5);
     // Dry: the spawn, the head.
     expect(waterLevelAt(LAYOUT.spawn.x, LAYOUT.spawn.z, noise)).toBeNull();
     expect(waterLevelAt(LAYOUT.head.x, LAYOUT.head.z, noise)).toBeNull();

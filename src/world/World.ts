@@ -1,7 +1,7 @@
-import { type BufferGeometry, Color, Group, type Mesh, type MeshStandardMaterial, type Object3D, Vector2, Vector3 } from 'three';
+import { Color, Group, type Mesh, type MeshStandardMaterial, type Object3D, Vector3 } from 'three';
 import { REALM_SCULPTS } from '../data/sculpts';
 import { FOLK } from '../data/folk';
-import { ANCHORS, CRYPT_ROOM, GALAXY, ISLAND_PORTALS, LANDMARKS, LAYOUT, REALMS, SUNKEN, TAVERN_ROOM, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
+import { ANCHORS, CRYPT_ROOM, GALAXY, ISLAND_PORTALS, LANDMARKS, LAYOUT, REALMS, SINK, SUNKEN, TAVERN_ROOM, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
 import type { Events, Zone } from '../game/Events';
 import { PALETTE } from '../render/palette';
@@ -403,7 +403,7 @@ export class World {
 
     // --- the skyline ---
     // Every building below collides exactly as its model looks (baked grids, see Colliders.ts).
-    const headY = h(LAYOUT.head.x, LAYOUT.head.z) - 3;
+    const headY = h(LAYOUT.head.x, LAYOUT.head.z) - SINK.head;
     this.place(modelLandmark('head', LAYOUT.head.x, LAYOUT.head.z, headY, { color: PALETTE.blood }));
     this.place(stoneHeadEyes());
     const cathY = LAYOUT.cathedral.y;
@@ -442,7 +442,7 @@ export class World {
         this.group.add(glow);
       }
     }
-    const castleY = h(LAYOUT.castle.x, LAYOUT.castle.z) - 0.6;
+    const castleY = h(LAYOUT.castle.x, LAYOUT.castle.z) - SINK.castle;
     this.place(modelLandmark('castle', LAYOUT.castle.x, LAYOUT.castle.z, castleY, { yaw: LAYOUT.castle.yaw }));
     // Its open courtyard is walkable through the south gate (scripts/collider-grids.mjs): candles along both curtain
     // walls and two cold lights above the yard, like the cathedral's nave.
@@ -468,17 +468,17 @@ export class World {
     }
     // Antler throne (DedGUYetKjP) on its dais in front of the castle gate, facing +z (the road).
     const th = LAYOUT.throne;
-    const thY = h(th.x, th.z) - 0.05;
+    const thY = h(th.x, th.z) - SINK.throne;
     this.place(modelLandmark('throne', th.x, th.z, thY));
     const thS = MODELS.throne.height / 4.5;
     for (const side of [-1, 1]) vfx(fire(th.x + side * 2.6 * thS, thY + 2.85 * thS, th.z + 0.4 * thS, 0.3, 8));
     // Horned facade faces east (local +z → world +x), toward the road from the spawn.
     const ch = LAYOUT.church;
-    const churchY = h(ch.x, ch.z) - 0.4;
+    const churchY = h(ch.x, ch.z) - SINK.church;
     this.place(modelLandmark('church', ch.x, ch.z, churchY, { yaw: Math.PI / 2, update: churchGlow(this.group, ch.x + MODELS.church.height * 0.4, churchY, ch.z) }));
     this.auroraCentre.set(ch.x, 0, ch.z);
     const tw = LAYOUT.tower;
-    const towerY = h(tw.x, tw.z) - 1.5;
+    const towerY = h(tw.x, tw.z) - SINK.tower;
     // Cave mouth on the east flank of the rock base (glow + walkable opening through the baked shell).
     const caveX = tw.x + 7.7, caveZ = tw.z + 4.7;
     {
@@ -494,14 +494,19 @@ export class World {
       this.group.add(caveLight);
     }
     const tr = LAYOUT.treehouse;
-    this.place(modelLandmark('treehouse', tr.x, tr.z, h(tr.x, tr.z) - 0.6, { yaw: Math.PI / 2 }));
+    this.place(modelLandmark('treehouse', tr.x, tr.z, h(tr.x, tr.z) - SINK.treehouse, { yaw: Math.PI / 2 }));
     // The free-standing buildings and props (data/world.ts LANDMARKS, measured by IslandTruth.test.ts).
+    const spotted = new Set<string>();
     const spot = (id: string) => {
       const l = LANDMARKS.find((s) => s.id === id);
       if (!l) throw new Error(`LANDMARKS has no ${id}`);
+      spotted.add(id);
       return { ...l, y: l.fixedY ?? h(l.at?.x ?? l.x, l.at?.z ?? l.z) - (l.sink ?? 0) };
     };
-    for (const id of ['nave', 'archgate', 'colossus-statue']) { const s = spot(id); this.place(modelLandmark(id, s.x, s.z, s.y, { yaw: s.yaw ?? 0 })); }
+    // Every LANDMARKS entry is placed: the plain ones here, the ones with props and fires (PROPPED) below by name; a spot
+    // never asked for is reported, so a new entry cannot stand in the data and not in the game.
+    const PROPPED = new Set(['tavern', 'campfire', 'cloister', 'observatory', 'cauldron']);
+    for (const l of LANDMARKS) if (!PROPPED.has(l.id)) { const s = spot(l.id); this.place(modelLandmark(l.id, s.x, s.z, s.y, { yaw: s.yaw ?? 0, scale: s.scale })); }
     // Things that only make sense once their model exists: the palm island's falls, the burning castle's blaze.
     if (PRESENT_MODELS.has('palmisland')) {
       this.place(modelLandmark('palmisland', 72, 89, 34, { collider: 'none', update: (dt, root) => { root.position.y = 34 + Math.sin(performance.now() * 0.0004) * 0.6; void dt; } }));
@@ -512,7 +517,7 @@ export class World {
       this.place(modelLandmark('burning-castle', 0, 180, -14, { color: PALETTE.blood, collider: 'none' }));
       vfx(fire(0, 25, 180, 14, 0));
     }
-    for (const r of LAYOUT.ruins) this.place(modelLandmark(r.arch ? 'ruin-arch' : 'ruin-column', r.x, r.z, h(r.x, r.z) - 0.3, { yaw: r.yaw }));
+    for (const r of LAYOUT.ruins) this.place(modelLandmark(r.arch ? 'ruin-arch' : 'ruin-column', r.x, r.z, h(r.x, r.z) - SINK.ruin, { yaw: r.yaw }));
     // Rainy orchard (DdKl7fKMO75): rows of twisted trees; each trunk is solid once the tree model exists.
     const orng = rng(321);
     // (Not in the river: the orchard's south row reaches its channel.)
@@ -597,8 +602,9 @@ export class World {
     // after it moves.)
     const pond = lilyPond(WORLD.pond.x, WORLD.pond.z, WORLD.pond.r, rnd);
     this.place(pond);
-    flora('lily-pad', pond.padSpots, { shadows: false, patch: padMaterial });
-    flora('lotus', pond.lotusSpots, { shadows: false, patch: lotusMaterial });
+    // The lily pads with their pink lotus (Dd93tyxMLB3, round 9), as modelled: the stone stand-in was pressed flat and
+    // painted, with a second copy recoloured as the flower on top; the model carries its own flower.
+    flora('lily-pad', pond.padSpots, { shadows: false });
     // Two armoured knights row each boat (DdjlyzyOcnK), facing the stern as rowers do.
     for (const [start, speed] of [[0, 2.4], [108, 2.0]] as const) {
       const boat = riverDrifter('boat', start, speed);
@@ -650,7 +656,7 @@ export class World {
     for (const [dx, dz, , , rot] of VILLAGE.houses) {
       const x = VILLAGE.x + dx;
       const z = VILLAGE.z + dz;
-      this.place(modelLandmark('village-house', x, z, h(x, z) - 0.2, { yaw: rot, onLoad: (m) => litWindows(m) }));
+      this.place(modelLandmark('village-house', x, z, h(x, z) - SINK.house, { yaw: rot, onLoad: (m) => litWindows(m) }));
     }
     const torchSpots: Placement[] = [];
     const torchH = MODELS['torch-post'].height;
@@ -696,6 +702,7 @@ export class World {
     const potY = pot.y;
     this.place(modelLandmark('cauldron', pot.x, pot.z, potY, { color: PALETTE.witch }));
     vfx(fire(pot.x, potY - 0.1, pot.z, 0.7, 14));
+    for (const l of LANDMARKS) if (!spotted.has(l.id)) console.error(`LANDMARKS entry ${l.id} was never placed`);
     // Lanterns and candles along the causeway.
     const posts = causewayPostPoints(LAYOUT.causeway, MODELS['causeway-segment'].height);
     const lanternSpots: Placement[] = [];
@@ -1112,29 +1119,6 @@ function churchGlow(scene: Group, x: number, y: number, z: number): (dt: number)
   scene.add(glow, light);
   let t = 0;
   return (dt) => { t += dt; glow.material.opacity = 0.45 + Math.sin(t * 3) * 0.1; light.intensity = 110 + Math.sin(t * 5) * 20; };
-}
-
-/** Pond flowers: the model is a carved lotus, so colour climbs its height: gold heart, white, pink tips. */
-function lotusMaterial(m: MeshStandardMaterial, geo: BufferGeometry): void {
-  const b = geo.boundingBox!;
-  m.color.set(0xffffff); m.roughness = 0.75; m.emissive.set(0x5a1f48); m.emissiveIntensity = 0.45;
-  m.onBeforeCompile = (sh) => {
-    sh.uniforms.uY = { value: new Vector2(b.min.y, b.max.y - b.min.y) };
-    sh.vertexShader = 'varying float vLotus; uniform vec2 uY;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vLotus = (position.y - uY.x) / uY.y;');
-    sh.fragmentShader = 'varying float vLotus;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
-      vec3 lot = mix(vec3(1.0, 0.72, 0.28), vec3(1.0, 0.92, 0.96), smoothstep(0.1, 0.45, vLotus));
-      diffuseColor.rgb = mix(lot, vec3(1.0, 0.38, 0.72), smoothstep(0.5, 0.95, vLotus));`);
-  };
-  m.customProgramCacheKey = () => 'lotus-flower';
-}
-
-/** Lily pads: the same model pressed nearly flat, in two greens. */
-function padMaterial(m: MeshStandardMaterial): void {
-  m.color.set(0x1f7a4a); m.roughness = 0.6; m.emissive.set(0x0a2a1c); m.emissiveIntensity = 0.5;
-  m.onBeforeCompile = (sh) => {
-    sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n transformed.y *= 0.06;');
-  };
-  m.customProgramCacheKey = () => 'lily-pad-flat';
 }
 
 /** Cuts a round-headed door out of a model in world space, on its own copy of the materials. */

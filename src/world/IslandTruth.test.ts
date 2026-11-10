@@ -6,7 +6,7 @@
  * (waterLevelAt), exactly as World.ts places it (LANDMARKS, LAYOUT, VILLAGE, ANCHORS, ENEMY_SPAWNS).
  */
 import { describe, expect, it } from 'vitest';
-import { ANCHORS, ISLAND_PORTALS, LANDMARKS, LAYOUT, VILLAGE, type LandmarkSpot } from '../data/world';
+import { ANCHORS, ISLAND_PORTALS, LANDMARKS, LAYOUT, SINK, VILLAGE, type LandmarkSpot } from '../data/world';
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
 import { MODELS } from '../data/models';
 import { gridFootprint, type GridFootprint } from './Colliders';
@@ -39,15 +39,15 @@ function placed(): Placed[] {
   for (const l of LANDMARKS) put(l);
   const L = LAYOUT;
   put({ id: 'cathedral', x: L.cathedral.x, z: L.cathedral.z, yaw: L.cathedral.yaw, scale: L.cathedral.scale, fixedY: L.cathedral.y });
-  put({ id: 'church', x: L.church.x, z: L.church.z, yaw: Math.PI / 2, sink: 0.4 });
-  put({ id: 'throne', x: L.throne.x, z: L.throne.z, sink: 0.05 });
-  put({ id: 'treehouse', x: L.treehouse.x, z: L.treehouse.z, yaw: Math.PI / 2, sink: 0.6, rockBase: true });
-  put({ id: 'tower', x: L.tower.x, z: L.tower.z, sink: 1.5, rockBase: true });
-  for (const r of L.ruins) put({ id: r.arch ? 'ruin-arch' : 'ruin-column', x: r.x, z: r.z, yaw: r.yaw, sink: 0.3 });
-  for (const [x, z, yaw] of L.hamlet) put({ id: 'village-house', x, z, yaw, sink: 0.2 });
-  for (const [dx, dz, , , yaw] of VILLAGE.houses) put({ id: 'village-house', x: VILLAGE.x + dx, z: VILLAGE.z + dz, yaw, sink: 0.2 });
+  put({ id: 'church', x: L.church.x, z: L.church.z, yaw: Math.PI / 2, sink: SINK.church });
+  put({ id: 'throne', x: L.throne.x, z: L.throne.z, sink: SINK.throne });
+  put({ id: 'treehouse', x: L.treehouse.x, z: L.treehouse.z, yaw: Math.PI / 2, sink: SINK.treehouse, rockBase: true });
+  put({ id: 'tower', x: L.tower.x, z: L.tower.z, sink: SINK.tower, rockBase: true });
+  for (const r of L.ruins) put({ id: r.arch ? 'ruin-arch' : 'ruin-column', x: r.x, z: r.z, yaw: r.yaw, sink: SINK.ruin });
+  for (const [x, z, yaw] of L.hamlet) put({ id: 'village-house', x, z, yaw, sink: SINK.house });
+  for (const [dx, dz, , , yaw] of VILLAGE.houses) put({ id: 'village-house', x: VILLAGE.x + dx, z: VILLAGE.z + dz, yaw, sink: SINK.house });
   const ft = ISLAND_PORTALS.galaxy.faceTree;
-  put({ id: 'face-tree', x: ft.x, z: ft.z, sink: 0.3 });
+  put({ id: 'face-tree', x: ft.x, z: ft.z, sink: SINK.faceTree });
   return out.map((p) => (p.fixedY !== undefined ? { ...p, base: p.fixedY } : p));
 }
 
@@ -150,6 +150,10 @@ describe('the island\'s folk and mobs stand on dry land', () => {
         const w = waterLevelAt(x, z, noise);
         if (w !== null && g < w) bad.push(`${s.kind} (${x},${z}) in water ${(w - g).toFixed(2)} deep`);
         if (g < VOID) bad.push(`${s.kind} (${x},${z}) over the void`);
+        // A spawn on a wall (the gorge's cut, the peak's flank) slides or hangs: the ground within a metre may rise no
+        // more than it runs.
+        const slope = Math.max(Math.abs(h(x + 1, z) - h(x - 1, z)), Math.abs(h(x, z + 1) - h(x, z - 1))) / 2;
+        if (!s.exact && slope > 1) bad.push(`${s.kind} (${x},${z}) on a ${Math.round((Math.atan(slope) * 180) / Math.PI)}-degree slope`);
       }
     }
     expect(bad).toEqual([]);
