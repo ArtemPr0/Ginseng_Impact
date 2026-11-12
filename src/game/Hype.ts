@@ -32,9 +32,12 @@ export const OVERKILL_QUIPS = [
   'Ow.', 'Absolutely deleted', 'Return to sender', 'No refunds', 'Gravity disagrees',
 ];
 
-/** A killing blow that carries on past dead by 40 % of the body's whole health or more (not any finish on a sliver). */
+/**
+ * A big killing blow: 30 % of the body's whole health or more, and twice what it had left (a heavy or a skill finishing
+ * a worn-down mob; not a light tap on a sliver, which is just a finish).
+ */
 export function isOverkill(damage: number, hpBefore: number, maxHp: number): boolean {
-  return hpBefore > 0 && damage - hpBefore >= 0.4 * maxHp;
+  return hpBefore > 0 && damage >= 2 * hpBefore && damage >= 0.3 * maxHp;
 }
 
 export class Hype {

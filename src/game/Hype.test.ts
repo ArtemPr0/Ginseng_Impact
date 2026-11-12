@@ -44,12 +44,14 @@ describe('Hype: multi-kills', () => {
 });
 
 describe('isOverkill', () => {
-  it('is a killing blow that goes past dead by 40 % of the body\'s whole health, or more', () => {
-    expect(isOverkill(600, 100, 1200)).toBe(true); // 500 past dead, 480 needed
-    expect(isOverkill(300, 90, 1200)).toBe(false); // an ordinary finishing swing on a worn-down beast
-    expect(isOverkill(579, 100, 1200)).toBe(false);
-    expect(isOverkill(50, 0, 1200)).toBe(false); // already dead
-    expect(isOverkill(50, 100, 1200)).toBe(false); // not even a kill
+  // (Measured at level 1 against a 650-HP beast: light hits 47-76, heavies 199-252, skills up to 303.)
+  it('is a big blow (30 % of the body\'s whole health) that is also twice what it had left', () => {
+    expect(isOverkill(227, 100, 650)).toBe(true); // a heavy finishing a worn-down beast
+    expect(isOverkill(303, 150, 650)).toBe(true); // a skill
+    expect(isOverkill(76, 20, 650)).toBe(false); // a light tap on a sliver: an ordinary finish
+    expect(isOverkill(300, 200, 650)).toBe(false); // big, but only just enough
+    expect(isOverkill(50, 0, 650)).toBe(false); // already dead
+    expect(isOverkill(50, 100, 650)).toBe(false); // not even a kill
   });
 });
 
