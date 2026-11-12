@@ -118,3 +118,17 @@ describe('Audio.voice', () => {
     expect(lines()[0].src.stopped).toHaveLength(0);
   });
 });
+
+describe('Audio.absorb', () => {
+  it('rings higher and with more shimmer the rarer the item taken', () => {
+    const notes = (rarity: number) => {
+      const a = new Audio();
+      const tone = vi.spyOn(a as unknown as { tone: (...args: unknown[]) => void }, 'tone').mockImplementation(() => {});
+      a.absorb(rarity);
+      return tone.mock.calls.map((c) => c[1] as number);
+    };
+    const common = notes(1), mythic = notes(4);
+    expect(mythic.length).toBeGreaterThan(common.length);
+    expect(Math.max(...mythic)).toBeGreaterThan(Math.max(...common));
+  });
+});

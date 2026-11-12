@@ -846,15 +846,15 @@ export class Enemy {
     this.model?.play('idle');
   }
 
-  /**
-   * Killed by an overkill (game/Hype.isOverkill): launched up and away along (dirX, dirZ), spinning, to land on its
-   * side and burn away there. Bosses, flyers, the rooted and the seated stay put.
-   */
   /** A hero fell in front of it: it dances a few seconds (a biped with the shared emotes; others take no notice). */
   taunt(seconds: number): void {
     if (this.alive && !this.def.boss) this.tauntT = seconds;
   }
 
+  /**
+   * Killed by an overkill (game/Hype.isOverkill): launched up and away along (dirX, dirZ), spinning, to land on its
+   * side and burn away there. Bosses, flyers, the rooted and the seated stay put.
+   */
   launchFrom(dirX: number, dirZ: number): boolean {
     const d = this.def;
     if (this.alive || d.boss || d.flying || this.seatedNow || d.speed <= 0 || d.body || d.eye || d.floatAt !== undefined) return false;

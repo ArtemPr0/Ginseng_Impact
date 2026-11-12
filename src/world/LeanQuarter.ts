@@ -34,6 +34,7 @@ import type { Interactable } from './Interact';
 import type { ModelRig } from '../models/ModelRig';
 import { modelLandmark } from './ModelLandmark';
 import { PRESENT_MODELS } from '../data/colliderGrids';
+import { gridFootprint, type Footprint } from './Colliders';
 import type { RealmApi } from './Realms';
 import { witchBridgeDeck } from './Walkways';
 import { waterSheet } from './Water';
@@ -69,12 +70,16 @@ const LEAN_DRAGON_LOOK = Math.PI * 0.15;
 function watchfulDragon(api: RealmApi, x: number, z: number, y: number, home: number, scale: number, extra?: (dt: number, root: Group, m: ModelRig | null, neck: number) => void): void {
   const turn = { value: 0 };
   let g: Gaze = { body: home, neck: 0 };
-  const r = 3.2 * scale;
-  api.place(modelLandmark('lean-dragon', x, z, y, { yaw: face(home), scale, collider: 'manual', footprints: [{ kind: 'cyl', x, z, r, top: y + 2.6 * scale }],
+  // Its baked collider, turned with the body each frame (a cylinder round its middle let you walk through head and tail).
+  const grid = gridFootprint('lean-dragon', x, y, z, face(home), scale);
+  const footprints: Footprint[] = grid && api.moving ? [] : [{ kind: 'cyl', x, z, r: 3.2 * scale, top: y + 2.6 * scale }];
+  if (grid && api.moving) api.moving(grid);
+  api.place(modelLandmark('lean-dragon', x, z, y, { yaw: face(home), scale, collider: 'manual', footprints,
     onLoad: (m) => restyle(m, (mat) => patchNeckTurn(mat, { ...LEAN_DRAGON_NECK, turn })),
     update: (dt, root, m, player) => {
       g = gazeStep(g, { x, z }, player, dt, { home, look: LEAN_DRAGON_LOOK, reach: 28, body: 0.6, neck: 0.7 });
       root.rotation.y = face(g.body);
+      if (grid) grid.rotY = root.rotation.y;
       turn.value = g.neck;
       extra?.(dt, root, m, g.neck);
     } }));

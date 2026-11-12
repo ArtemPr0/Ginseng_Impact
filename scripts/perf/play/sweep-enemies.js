@@ -42,7 +42,8 @@ for (const e of enemies) {
 }
 
 // Bosses that should exist among spawns.
-const wantBosses = ['hollowking', 'warden', 'wyrm', 'yeti', 'shade', 'marshdemon', 'dmt-entity', 'cyclops-lord', 'lean-chucker'];
+// (Not the Grave Cyclops: the candle ring raises him on demand, which sweep-story drives.)
+const wantBosses = ['hollowking', 'warden', 'wyrm', 'yeti', 'shade', 'marshdemon', 'dmt-entity', 'lean-chucker'];
 for (const k of wantBosses) {
   if (![...seenKinds].includes(k) && !enemies.some((e) => e.def.kind === k)) {
     // May be gated (Hollow King used to be); still flag if totally missing from combat list.

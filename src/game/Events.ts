@@ -23,7 +23,7 @@ export type GameEvent =
   | { kind: 'loot'; item: string; rarity: number }
   | { kind: 'trade'; what: 'buy' | 'sell' | 'equip' | 'hire' | 'dismiss'; item: string }
   | { kind: 'quest'; id: string; stage: string }
-  | { kind: 'feat'; what: Feat; at?: { x: number; y: number; z: number } };
+  | { kind: 'feat'; what: Feat; at?: { x: number; y: number; z: number }; /** The level reached (levelup). */ level?: number };
 
 export type EventKind = GameEvent['kind'];
 export type EventOf<K extends EventKind> = Extract<GameEvent, { kind: K }>;

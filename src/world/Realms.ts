@@ -3,6 +3,7 @@
  * and the new sites on the island (the portal clearing, the mushroom tavern, the world tree, the spire-city view).
  * Every structure and prop is a Meshy model by id; floors are stone slabs until their floor models exist.
  */
+import type { Footprint } from './Colliders';
 import { Group, PointLight, Vector3 } from 'three';
 import { GALAXY, ISLAND_PORTALS, LAYOUT, SUNKEN, SINK } from '../data/world';
 import { glowSprite } from '../render/Glow';
@@ -27,6 +28,8 @@ export interface RealmApi {
   /** Builds what follows into a realm's own group (shown only while the player is inside it); null = the island. */
   realm(id: string | null): void;
   place(l: Landmark): void;
+  /** A collider that moves with its object (mutate its x/z/rotY): checked everywhere, not bucketed. */
+  moving?(f: Footprint): void;
   /** `trunk`: solid at the trunk, a cylinder of this fraction of the tree's height in radius (0.035 a pine, 0.05 a dead tree). */
   flora(id: string, placements: Placement[], opts?: FloraOptions & { trunk?: number }): void;
   vfx(f: { group: Group; update(dt: number): void }): void;

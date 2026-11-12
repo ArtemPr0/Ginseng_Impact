@@ -682,7 +682,7 @@ export class World {
 
     // --- the island's heart (#28) and the forest gorge (01.16.36) ---
     const heart = buildHeart({
-      get group() { return world0.target; }, realm: (id) => this.enterZone(id), place: (l) => this.place(l), flora, vfx, h, rnd,
+      get group() { return world0.target; }, realm: (id) => this.enterZone(id), place: (l) => this.place(l), moving: (f) => { this.heights.moving.push(f); }, flora, vfx, h, rnd,
       shoot: (from, sh) => this.hooks.shoot?.(from, sh), heights: this.heights,
     });
     this.eye = heart.eye;
@@ -856,7 +856,7 @@ export class World {
     const realmApi: RealmApi = {
       get group() { return world.target; },
       realm: (id) => this.enterZone(id),
-      place: (l) => this.place(l), flora, vfx, h: gh, rnd: rrnd,
+      place: (l) => this.place(l), moving: (f) => { this.heights.moving.push(f); }, flora, vfx, h: gh, rnd: rrnd,
       water: (x0, x1, z0, z1, level) => { this.waterZones.push({ x0, x1, z0, z1, level }); },
       shoot: (from, s) => this.hooks.shoot?.(from, s),
       bounce: (b) => { this.heights.bouncers.push(b); },
@@ -949,10 +949,11 @@ export class World {
     const diver = this.npcs.find((n) => n.def.id === 'diver');
     if (diver) { this.enterZone(SUNKEN.id); vfx(helmetGlow(diver)); }
     // The crypt bar's skeletons: green eyes, and gold grills catching the candlelight.
+    // (Each effect goes into the group of the realm its body is in: vfx() builds into the zone entered last.)
     this.enterZone(CRYPT_ROOM.id);
+    for (const n of this.npcs) if (n.def.id.startsWith('crypt-')) { vfx(skullEyes(n)); if (n.def.id !== 'crypt-bones') vfx(grillSparkle(n)); }
     const skeletonLord = this.npcs.find((n) => n.def.id === 'skeleton-lord');
     if (skeletonLord) { this.enterZone(GALAXY.id); vfx(bluntInHand(skeletonLord)); }
-    for (const n of this.npcs) if (n.def.id.startsWith('crypt-')) { vfx(skullEyes(n)); if (n.def.id !== 'crypt-bones') vfx(grillSparkle(n)); }
     CARRIAGE.passenger = this.npcs.find((n) => n.def.id === 'carriage-count') ?? null;
     const waxwick = this.npcs.find((n) => n.def.id === 'waxwick');
     if (waxwick) { this.enterZone(TAVERN_ROOM.id); vfx(candleCrown(waxwick)); }

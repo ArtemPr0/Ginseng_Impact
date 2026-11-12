@@ -36,7 +36,7 @@ import { World } from './world/World';
 import { Adventures } from './game/Adventures';
 import { Ending } from './game/Ending';
 import { Events, type HeroId, type Zone } from './game/Events';
-import { Progress, xpFor, xpForKill } from './game/Progress';
+import { MAX_LEVEL, Progress, xpFor, xpForKill } from './game/Progress';
 import { Titles } from './game/Hype';
 import { questNode } from './data/quests';
 import { Save, type SaveV1 } from './game/Save';
@@ -237,7 +237,7 @@ const combat = new CombatSystem({
       combatFx.shock(at, 0xffc23a, 9);
       combatFx.sparks(at.clone().setY(at.y + 1), new Vector3(0, 1, 0), 40, 0xffd870, 8, 1.4);
       renderer.pulse(0.45);
-      events.emit({ kind: 'feat', what: 'levelup' });
+      events.emit({ kind: 'feat', what: 'levelup', level: progress.level });
     }
     showXp();
     save.markDirty();
@@ -269,7 +269,7 @@ function teleport(x: number, y: number, z: number, yaw: number, name?: string): 
   audio.cast();
   portalCooldown = 1.5;
 }
-combat.loot.onAbsorbed = () => audio.absorb();
+combat.loot.onAbsorbed = (rarity) => audio.absorb(rarity);
 const adventures = new Adventures({
   controller, world: area, hud, audio, inventory, teleport, events, activeRig: () => rigs[party.activeIndex], debuffs: () => combat.debuffs,
   trip: (strength, seconds) => renderer.trip(strength, seconds),
@@ -437,13 +437,14 @@ function snapshot(): SaveV1 {
     flags: worldState.snapshot().flags, state: worldState.snapshot(), progress: { xp: progress.xp, level: progress.level },
     bosses: { ...bosses }, chests: [...openedChests], companions: companions.map((c) => c.def.id), newGamePlus,
     titles: titles.snapshot(),
+    titleProgress: titles.progress(),
   };
 }
 let newGamePlus = false;
 /** Silly titles earned (game/Hype.ts): restored from the save. */
 let titles = new Titles();
 /** The experience bar: how far into this level. */
-function showXp(): void { hud.setXp(progress.level >= 30 ? 1 : progress.xp / xpFor(progress.level)); }
+function showXp(): void { hud.setXp(progress.level >= MAX_LEVEL ? 1 : progress.xp / xpFor(progress.level)); }
 /** What each hero wields shows in the hand: the blade takes the item's colour. */
 function weaponGlows(): void {
   ROSTER.forEach((c, i) => {
@@ -460,7 +461,7 @@ function applySave(s: SaveV1): void {
   if (s.state && typeof s.state === 'object') worldState.restore(s.state as Parameters<WorldState['restore']>[0]);
   progress.xp = s.progress.xp;
   progress.level = s.progress.level;
-  titles = new Titles(s.titles ?? []);
+  titles = new Titles(s.titles ?? [], s.titleProgress ?? {});
   showXp();
   openedChests.clear();
   for (const id of s.chests) openedChests.add(id);
@@ -492,21 +493,22 @@ function chestReady(id: string): boolean {
   if (prop) prop.visible = true;
   return true;
 }
-function openChest(c: ChestDef): void {
+/** Opens a chest where its prop stands (`at`: levelSpot may have moved it up to 4 m off the table's spot). */
+function openChest(c: ChestDef, at: { x: number; y: number; z: number }): void {
   if (!chestReady(c.id)) return;
   openedChests.add(c.id);
   openedAt.set(c.id, playTime);
-  const y = world.heightAt(c.x, c.z);
+  const { x, y, z } = at;
   // Its moment: the creak, the lid, the coins; a gold burst and a little shake.
   audio.chest();
-  combatFx.sparks(new Vector3(c.x, y + 0.8, c.z), new Vector3(0, 1, 0), 34, 0xffc23a, 7, 1.2);
-  combatFx.flash(new Vector3(c.x, y + 0.8, c.z), 0xffd870, 2.2);
+  combatFx.sparks(new Vector3(x, y + 0.8, z), new Vector3(0, 1, 0), 34, 0xffc23a, 7, 1.2);
+  combatFx.flash(new Vector3(x, y + 0.8, z), 0xffd870, 2.2);
   tpc.shake(0.25);
   if (c.kind === 'mimic') {
-    combat.wake('bucket', c.x, c.z);
+    combat.wake('bucket', x, z);
     hud.announce('The hoard stands up');
   } else {
-    combat.loot.spawn(rollDrops(c.table.map((d) => ({ itemId: d.itemId, chance: d.chance })), c.shards), new Vector3(c.x, y + 0.6, c.z));
+    combat.loot.spawn(rollDrops(c.table.map((d) => ({ itemId: d.itemId, chance: d.chance })), c.shards), new Vector3(x, y + 0.6, z));
     hud.announce(c.kind === 'cache' ? 'A cache' : 'A hoard');
   }
   chestProps.get(c.id)!.visible = false;
@@ -524,7 +526,7 @@ for (const c of CHESTS) {
   area.interactables.push({
     pos: placed.root.position, range: 2.6, zone: c.zone === 'island' ? null : c.zone,
     label: () => chestReady(c.id) ? (c.kind === 'cache' ? 'Open the cache' : 'Open the hoard') : null,
-    act: () => openChest(c),
+    act: () => openChest(c, spot),
   });
 }
 const hoardGlints = new Glints(16, 8);

@@ -4,7 +4,7 @@ import type { CausewayConfig } from './Landmarks';
 
 // A chasm between two banks at 3.2 m, like the island's (rims at z -34 and -79, the cloud sea at -90 below).
 const ground = (_x: number, z: number) => (z < -34 && z > -79 ? -90 : 3.2);
-const cfg: CausewayConfig = { x: 0, zStart: -30, zEnd: -82, width: 6, yStart: 3.45, yEnd: 3.45, postSpacing: 8, segmentLength: SPAN_LENGTH };
+const cfg: CausewayConfig = { x: 0, zStart: -30, zEnd: -82, width: 6, yStart: 3.45, yEnd: 3.45 };
 const SPAN_H = 1.89;
 
 describe('the causeway is one bridge, bank to bank', () => {

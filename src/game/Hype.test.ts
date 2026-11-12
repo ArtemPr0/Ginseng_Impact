@@ -44,10 +44,12 @@ describe('Hype: multi-kills', () => {
 });
 
 describe('isOverkill', () => {
-  it('is a blow of three times what the body had left, or more', () => {
-    expect(isOverkill(300, 100)).toBe(true);
-    expect(isOverkill(299, 100)).toBe(false);
-    expect(isOverkill(50, 0)).toBe(false);
+  it('is a killing blow that goes past dead by 40 % of the body\'s whole health, or more', () => {
+    expect(isOverkill(600, 100, 1200)).toBe(true); // 500 past dead, 480 needed
+    expect(isOverkill(300, 90, 1200)).toBe(false); // an ordinary finishing swing on a worn-down beast
+    expect(isOverkill(579, 100, 1200)).toBe(false);
+    expect(isOverkill(50, 0, 1200)).toBe(false); // already dead
+    expect(isOverkill(50, 100, 1200)).toBe(false); // not even a kill
   });
 });
 
@@ -73,6 +75,24 @@ describe('Titles', () => {
     const u = new Titles(t.snapshot());
     expect(u.on({ kind: 'wipe' })).toBeNull();
     expect(u.earned()).toContain('skill-issue');
+  });
+
+  it('keeps its progress across a save: forty kills, a reload, ten more earns the fifty', () => {
+    const k = { kind: 'kill', enemy: 'beast', boss: false, at: { x: 0, y: 0, z: 0 } } as const;
+    const t = new Titles();
+    for (let i = 0; i < 40; i++) t.on(k);
+    const u = new Titles(t.snapshot(), t.progress());
+    const won: string[] = [];
+    for (let i = 0; i < 10; i++) { const w = u.on(k); if (w) won.push(w.id); }
+    expect(won).toEqual(['hr-concerns']);
+  });
+
+  it('gives "Level ten" on reaching level ten, whenever the levels were gained', () => {
+    const t = new Titles();
+    expect(t.on({ kind: 'feat', what: 'levelup', level: 9 })).toBeNull();
+    expect(t.on({ kind: 'feat', what: 'levelup', level: 10 })?.id).toBe('overleveled');
+    const u = new Titles();
+    for (let level = 2; level < 10; level++) expect(u.on({ kind: 'feat', what: 'levelup', level })?.id).not.toBe('overleveled'); // nine level-ups, still below ten
   });
 
   it('keeps every title short and gives it a quip', () => {

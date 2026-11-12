@@ -9,7 +9,7 @@ import { voiceUrl, VOICES } from '../data/voices';
 import { type Moment, reactionFor } from '../models/Emotes';
 
 /** Poses that keep an NPC in a seat (their reactions stay seated: Emotes.reactionFor). */
-const SEATED_POSES = new Set<string>(['sit', 'read', 'throne', 'sitSword', 'fish', 'row', 'ride']);
+const SEATED_POSES = new Set<string>(['sit', 'read', 'throne', 'sitSword', 'fish', 'row', 'ride', 'kneel', 'pray']);
 
 export type NpcBehaviour =
   | { kind: 'stand'; pose?: RigPose['pose']; yaw: number }
@@ -489,7 +489,6 @@ export class Npc {
    * written line `line` in a bubble instead (his first, the one the talk panel opens on, unless another is asked for),
    * his pose kept (a seated one stays seated).
    */
-  /** Sets out along a new path at `speed` m/s (the loop restarts from its first leg): the Pale Bride's walk to the shore. */
   /** Seated (or riding, rowing, enthroned): reacts from the seat (models/Emotes.reactionFor). */
   get seated(): boolean {
     const b = this.def.behaviour;
@@ -520,6 +519,7 @@ export class Npc {
     this.flinchT = 2.25;
   }
 
+  /** Sets out along a new path at `speed` m/s (the loop restarts from its first leg): the Pale Bride's walk to the shore. */
   walk(path: Array<[number, number]>, speed: number): void {
     this.def.behaviour = { kind: 'loop', path, speed };
     this.seg = 0;

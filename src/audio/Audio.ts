@@ -260,11 +260,14 @@ export class Audio {
     if (rarity >= 3) { this.tone('sine', base * 2.5, base * 2.5, 0.6, 0.2, 0.27, 0.005, 0.4); this.noise(0.4, 'highpass', 6000, 9000, 0.5, 0.12, 0.2); }
   }
 
-  /** Something flying into you: a quick rising whoosh with a glint at the top. */
-  absorb(): void {
+  /** Something flying into you: a quick rising whoosh with a glint at the top, a note higher and a shimmer more the rarer it is (0 shards .. 4). */
+  absorb(rarity = 1): void {
+    const r = Math.max(0, Math.min(4, rarity));
     this.noise(0.28, 'bandpass', 500, 3200, 2.5, 0.16, 0, 0.02);
     this.tone('sine', 420, 1600, 0.26, 0.08, 0, 0.01, 0.06);
-    this.tone('sine', 2093, 2093, 0.25, 0.07, 0.24, 0.003, 0.2);
+    const glint = 2093 * Math.pow(2, Math.max(0, r - 1) * 4 / 12);
+    this.tone('sine', glint, glint, 0.25, 0.07, 0.24, 0.003, 0.2);
+    for (let i = 1; i < r; i++) this.tone('sine', glint * (1 + i * 0.5), glint * (1 + i * 0.5), 0.2, 0.04, 0.24 + i * 0.06, 0.003, 0.18);
   }
 
   /** A skeleton falling apart: dry bones clattering down, a couple of hollow knocks. */
@@ -383,7 +386,6 @@ export class Audio {
     return o;
   }
 
-  /** Coin clinks. */
   /** A coin of a streak: a bright two-note bling a semitone higher for each coin close behind the last (step 0..12). */
   coinStep(step: number): void {
     const f = 1318.5 * Math.pow(2, step / 12);
@@ -392,6 +394,7 @@ export class Audio {
     this.tone('sine', f * 2, f * 2, 0.16, 0.06, 0.06, 0.002, 0.14);
   }
 
+  /** Coin clinks. */
   coins(n = 3): void {
     for (let i = 0; i < n; i++) {
       const f = 2400 + Math.random() * 1400;
@@ -448,7 +451,6 @@ export class Audio {
     this.tone('square', 1800, 1400, 0.03, 0.12, 0, 0.002, 0.03);
   }
 
-  /** Hired a companion / bought something. */
   /** A combo tier reached (game/Hype.ts): a quick rising arpeggio, higher and longer the higher the tier. */
   comboUp(tier: number): void {
     const root = 523 * Math.pow(1.122, tier - 1);
@@ -498,6 +500,7 @@ export class Audio {
     this.tone('sawtooth', 703, 692, 0.45, 0.04, 0.16, 0.01, 0.25);
   }
 
+  /** Hired a companion / bought something. */
   fanfare(): void {
     [659, 784, 1046].forEach((f, i) => this.tone('triangle', f, f, 0.3, 0.3, i * 0.1, 0.005, 0.2));
     this.coins(2);

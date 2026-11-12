@@ -2354,7 +2354,7 @@ export class CombatSystem {
     if (reaction) { this.applyReaction(e, reaction, dmg, at, pierceStop(REACTION_STOP, nth)); this.d.audio.reaction(); }
     if (died) {
       // Blown far past dead: launched off its feet, tumbling (Yeet.ts), with a bonk and a quip.
-      if (own && isOverkill(dmg, hpBefore) && e.launchFrom(kb.x, kb.z)) {
+      if (own && isOverkill(dmg, hpBefore, e.def.maxHp) && e.launchFrom(kb.x, kb.z)) {
         const q = this.hype.overkill();
         this.d.hud.hype(q.text, q.tier);
         this.d.audio.overkill();

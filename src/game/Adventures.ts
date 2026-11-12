@@ -221,22 +221,26 @@ export class Adventures {
   /** The Grave Cyclops the candle ring raised (null when none), and whether the ring waits for you to step out first. */
   private graveFight: { e: Enemy; beatenFor: number } | null = null;
   private ringSpent = false;
+  /** Seconds before the ring can raise him again after he was beaten (his old spawn's respawn: 300 s). */
+  private ringRest = 0;
 
   /** The candle ring in the Alley of Graves: step in and the Grave Cyclops climbs out of the ground ahead of you. */
   private updateGraveRing(dt: number): void {
     const c = this.d.controller;
     const inRing = Math.hypot(c.pos.x - GRAVE_RING.x, c.pos.z - GRAVE_RING.z) < GRAVE_RING.r;
     if (!inRing) this.ringSpent = false;
+    this.ringRest = Math.max(0, this.ringRest - dt);
     const f = this.graveFight;
     if (f) {
       const left = Math.hypot(c.pos.x - GRAVEYARD.x, c.pos.z - GRAVEYARD.z) > GRAVEYARD.radius;
       if (f.e.alive && !left) return;
       if (!f.e.alive && !left) { f.beatenFor += dt; if (f.beatenFor < 2.5) return; }
+      if (!f.e.alive) this.ringRest = 300;
       this.d.fight.despawn(f.e);
       this.graveFight = null;
       return;
     }
-    if (!inRing || this.ringSpent) return;
+    if (!inRing || this.ringSpent || this.ringRest > 0) return;
     this.ringSpent = true;
     const R = GRAVE_RING.rise;
     const e = this.d.fight.spawnBoss('cyclops-lord', R.x, R.z, R.yaw);

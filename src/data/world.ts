@@ -39,7 +39,7 @@ export const LAYOUT = {
     [[-77, -124], [-86, -116]],
   ] as Array<Array<[number, number]>>,
   /** The causeway: one stone bridge over the chasm, rim to rim (z -34 and -79), its deck 0.25 m over the ground at each end. */
-  causeway: { x: 0, zStart: -30, zEnd: -82, width: 6, yStart: 4.45, yEnd: 3.45, postSpacing: 8, segmentLength: 8.27 },
+  causeway: { x: 0, zStart: -30, zEnd: -82, width: 6, yStart: 4.45, yEnd: 3.45 },
   head: { x: 0, z: -146, height: 26 },
   /**
    * The cathedral's long axis runs east–west; its west front faces the river road. Between the chasm and the river
@@ -119,13 +119,13 @@ export const SINK = { house: 0.2, ruin: 0.3, church: 0.4, throne: 0.05, treehous
  * its own rock and may sit deep in a hillside (the tower, the tree house). IslandTruth.test.ts measures every entry.
  */
 export interface LandmarkSpot { id: string; x: number; z: number; yaw?: number; scale?: number; sink?: number; at?: { x: number; z: number }; fixedY?: number; rockBase?: boolean }
-/** The island's free-standing buildings and props that no other table places (the big landmarks live in LAYOUT). */
 /** The island's watching eyes in the sky (render/SkyEyes): they glare when shot. None hangs over the Blood Eye's chasm patrol. */
 export const SKY_EYES: readonly { x: number; y: number; z: number; size: number }[] = [
   { x: -56, y: 36, z: -14, size: 9 }, { x: 52, y: 42, z: -104, size: 11 }, { x: -92, y: 44, z: -122, size: 10 },
   { x: 74, y: 46, z: 8, size: 10 }, { x: -62, y: 40, z: 28, size: 8 }, { x: 8, y: 56, z: -120, size: 13 },
 ];
 
+/** The island's free-standing buildings and props that no other table places (the big landmarks live in LAYOUT). */
 export const LANDMARKS: readonly LandmarkSpot[] = [
   // (The ruined nave stood beside the stone head at (18, -136), inside the Hollow King's body: it is in the Sunken City now.)
   // On the Frost March's flat north of the chasm (at (70, -72) it stood on the chasm's north cliff face).

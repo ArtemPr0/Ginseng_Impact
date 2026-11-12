@@ -37,6 +37,8 @@ export interface SaveV1 {
   newGamePlus: boolean;
   /** Silly titles earned (game/Hype.ts Titles); missing in older saves. */
   titles?: string[];
+  /** Progress toward the titles not earned yet (counts by id); missing in older saves. */
+  titleProgress?: Record<string, number>;
 }
 
 export interface StorageLike {

@@ -183,7 +183,7 @@ export const MODELS: Record<string, ModelDef> = {
   'skeleton-banner': { file: 'skeleton-banner.glb', height: 1.85, label: 'skeleton standard-bearer with banner and trident (Hollow Jack)', clips: NPC_CLIPS('banner') },
   'witch-cook': { file: 'witch-cook.glb', height: 1.8, label: 'skeleton cook in a chef hat with a spoon (Mother Marrow)', clips: NPC_CLIPS('stir') },
   bride: { file: 'bride.glb', height: 1.8, legDamp: 0.65, label: 'the Pale Bride', clips: NPC_CLIPS('walk') },
-  maiden: { file: 'maiden.glb', height: 1.68, label: 'Elowen of the flower garden', clips: NPC_CLIPS('bow') },
+  maiden: { file: 'maiden.glb', height: 1.68, legDamp: 0.6, label: 'Elowen of the flower garden', clips: NPC_CLIPS('bow') },
   // (The vale's beggar sits: the chair-sit clip borrowed from the knight NPC's rig of the same skeleton, rotations only.)
   wanderer: { file: 'wanderer.glb', clipFiles: { sit: 'npc-sit.glb' }, height: 1.85, label: 'hooded wanderer with a lantern (the Lanternbearer)', clips: NPC_CLIPS('walk') },
   'wizard-npc': { file: 'wizard-npc.glb', height: 1.8, label: 'wizard NPC (Mirren, Sel)', clips: NPC_CLIPS('idle') },

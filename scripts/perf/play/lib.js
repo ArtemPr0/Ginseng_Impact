@@ -168,7 +168,12 @@ async function fight(e, { ms = 20000, range = 2.2, kind = 'light' } = {}) {
     if (d > range + (e.def.bodyRadius ?? 1) + 6) {
       const a = Math.atan2(p.z - e.pos.z, p.x - e.pos.x);
       const R = range + (e.def.bodyRadius ?? 1) * 0.8;
-      await tp(e.pos.x + Math.cos(a) * R, e.pos.z + Math.sin(a) * R, e.pos.y + 2, e.pos.x, e.pos.z);
+      // (Stepped over, not teleported: the game's teleport is a portal and calls every mob off, and a boss standing on
+      // its own spot then "walks home" in no steps and heals to full.)
+      const nx = e.pos.x + Math.cos(a) * R, nz = e.pos.z + Math.sin(a) * R;
+      G.controller.pos = { x: nx, y: G.world.heightAt(nx, nz, e.pos.y + 2) + 0.05, z: nz };
+      G.controller.vel = { x: 0, y: 0, z: 0 };
+      await frames(3);
     }
     face(e.pos.x, e.pos.z);
     if (kind === 'light') await clickMouse(0, 40);

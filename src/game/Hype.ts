@@ -32,9 +32,9 @@ export const OVERKILL_QUIPS = [
   'Ow.', 'Absolutely deleted', 'Return to sender', 'No refunds', 'Gravity disagrees',
 ];
 
-/** A blow of three times what the body had left, or more. */
-export function isOverkill(damage: number, hpBefore: number): boolean {
-  return hpBefore > 0 && damage >= hpBefore * 3;
+/** A killing blow that carries on past dead by 40 % of the body's whole health or more (not any finish on a sliver). */
+export function isOverkill(damage: number, hpBefore: number, maxHp: number): boolean {
+  return hpBefore > 0 && damage - hpBefore >= 0.4 * maxHp;
 }
 
 export class Hype {
@@ -95,7 +95,7 @@ export const TITLES: readonly TitleDef[] = [
   { id: 'moist', title: 'Moist', quip: 'You will be damp for days.', count: feat('swim'), need: 1 },
   { id: 'boing', title: 'Boing Enthusiast', quip: 'Mushrooms: 1. Dignity: 0.', count: feat('bounce'), need: 3 },
   { id: 'untouchable', title: 'Untouchable-ish', quip: 'Twenty dodges. Mostly on purpose.', count: feat('dodge'), need: 20 },
-  { id: 'overleveled', title: 'Probably Overleveled', quip: 'Level ten. Mobs are whispering.', count: feat('levelup'), need: 9 },
+  { id: 'overleveled', title: 'Probably Overleveled', quip: 'Level ten. Mobs are whispering.', count: (e) => e.kind === 'feat' && e.what === 'levelup' && (e.level ?? 0) >= 10, need: 1 },
   { id: 'social', title: 'Social Butterfly', quip: 'You talk to everyone. Everyone.', count: (e) => e.kind === 'talk', need: 12 },
   { id: 'shiny', title: 'Shiny Hoarder', quip: 'Ooh. Shiny.', count: (e) => e.kind === 'loot' && e.rarity >= 3, need: 1 },
   { id: 'middle-management', title: 'Middle Management', quip: 'You hired someone to hit things for you.', count: (e) => e.kind === 'trade' && e.what === 'hire', need: 1 },
@@ -108,8 +108,10 @@ export class Titles {
   private readonly got = new Set<string>();
   private readonly counts = new Map<string, number>();
 
-  constructor(earned: readonly string[] = []) {
+  /** `earned` and `progress` as the save keeps them (snapshot(), progress()). */
+  constructor(earned: readonly string[] = [], progress: Readonly<Record<string, number>> = {}) {
     for (const id of earned) this.got.add(id);
+    for (const [id, n] of Object.entries(progress)) if (Number.isFinite(n) && n > 0) this.counts.set(id, n);
   }
 
   /** Counts the event toward every title; the one it completes, if any (at most one per event). */
@@ -130,6 +132,13 @@ export class Titles {
 
   snapshot(): string[] {
     return this.earned();
+  }
+
+  /** How far along the titles not earned yet are (for the save). */
+  progress(): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const [id, n] of this.counts) if (!this.got.has(id)) out[id] = n;
+    return out;
   }
 }
 

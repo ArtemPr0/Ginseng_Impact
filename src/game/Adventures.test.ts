@@ -258,7 +258,7 @@ describe('What the adventures announce', () => {
       expect(fight.spawnBoss).toHaveBeenCalledTimes(1);
     });
 
-    it('takes him back once he is beaten, and the ring can raise him again after you step out and back in', () => {
+    it('takes him back once he is beaten, and the ring raises him again only after he has rested five minutes', () => {
       const { a, fight, boss } = setup([]);
       into(a, GRAVE_RING.x, GRAVE_RING.z);
       boss.alive = false;
@@ -268,6 +268,18 @@ describe('What the adventures announce', () => {
       expect(fight.spawnBoss).toHaveBeenCalledTimes(1);
       into(a, GRAVE_RING.x + 6, GRAVE_RING.z);
       boss.alive = true;
+      into(a, GRAVE_RING.x, GRAVE_RING.z); // straight back in: the candles are still cold
+      expect(fight.spawnBoss).toHaveBeenCalledTimes(1);
+      into(a, GRAVE_RING.x + 6, GRAVE_RING.z);
+      a.update(300);
+      into(a, GRAVE_RING.x, GRAVE_RING.z);
+      expect(fight.spawnBoss).toHaveBeenCalledTimes(2);
+    });
+
+    it('rises again at once if you left before beating him', () => {
+      const { a, fight } = setup([]);
+      into(a, GRAVE_RING.x, GRAVE_RING.z);
+      into(a, 0, 0);
       into(a, GRAVE_RING.x, GRAVE_RING.z);
       expect(fight.spawnBoss).toHaveBeenCalledTimes(2);
     });
