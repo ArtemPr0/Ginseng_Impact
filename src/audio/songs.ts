@@ -49,7 +49,7 @@ export const REGISTER: Record<Part, number> = { kick: 0, snare: 0, hats: 0, bass
 /** Which song each zone plays (every quarter of the kingdom shares the Lean Quarter's beat; the tree house keeps the island's). */
 export const SONG_FOR_ZONE: Record<Zone, SongId> = {
   island: 'island', galaxy: 'lean', sunken: 'sunken', vale: 'vale', graveyard: 'graveyard', dream: 'dream',
-  treehouse: 'island', 'tavern-room': 'tavern', 'crypt-room': 'tavern',
+  treehouse: 'island', 'tavern-room': 'tavern', 'crypt-room': 'tavern', 'castle-hall': 'island',
 };
 
 export const SCALES = {

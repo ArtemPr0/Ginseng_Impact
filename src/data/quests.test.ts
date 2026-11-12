@@ -19,7 +19,7 @@ import { REALMS } from './world';
 
 /** Keyed by the type, so the compiler insists on every member and allows no other. */
 const ZONES: Record<Zone, true> = {
-  island: true, galaxy: true, sunken: true, treehouse: true, dream: true, graveyard: true, vale: true, 'tavern-room': true, 'crypt-room': true,
+  island: true, galaxy: true, sunken: true, treehouse: true, dream: true, graveyard: true, vale: true, 'tavern-room': true, 'crypt-room': true, 'castle-hall': true,
 };
 const FEATS: Record<Feat, true> = {
   lick: true, ale: true, fountain: true, skyeye: true, carriage: true, bounce: true, fly: true, swim: true, dodge: true, crit: true,

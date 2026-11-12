@@ -31,6 +31,7 @@ import { Noise2D } from './noise';
 import { witchStream } from './Stream';
 import { stoneHeadEyes } from './StoneHead';
 import { buildCryptRoom, buildTavernRoom } from './Interiors';
+import { buildCastleHall } from './CastleHall';
 import { landableIsland } from './Islands';
 import { CARRIAGE } from './Carriage';
 import { buildTreeHouse } from './TreeHouse';
@@ -865,6 +866,8 @@ export class World {
     ANCHORS.brother = { ...treeHouse.brotherAt, y: treeHouse.floorY };
     // The vale tavern's taproom behind its front door.
     this.interactables.push(...buildTavernRoom(realmApi, (x, y, z, yaw, name) => this.hooks.teleport?.(x, y, z, yaw, name)));
+    // Inside the island castle, by its gate: the Moon Throne Hall.
+    this.interactables.push(...buildCastleHall(realmApi, (x, y, z, yaw, name) => this.hooks.teleport?.(x, y, z, yaw, name), (what) => this.hooks.reward?.(what), h));
     // The crypt bar under the Lean Quarter's snow chapel.
     this.interactables.push(...buildCryptRoom(realmApi, (x, y, z, yaw, name) => this.hooks.teleport?.(x, y, z, yaw, name)));
     buildDream(realmApi);

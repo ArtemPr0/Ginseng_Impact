@@ -311,6 +311,8 @@ export const ZONE_LIGHT: Record<string, ZoneLight> = {
   // Indoors: no moon; the hearth and the candles light the room (their own point lights), a dim warm fill for faces.
   'tavern-room': { sky: 0x6a3a1c, ground: 0x180a04, hemi: 0.7, moon: 0, fill: 0.85, fillColor: 0xffb878, cameraFill: 1 },
   'crypt-room': { sky: 0x3a3048, ground: 0x0a0806, hemi: 0.6, moon: 0, fill: 0.7, fillColor: 0xffc890, cameraFill: 1 },
+  // The castle hall: cobalt under its captive moon (its own light), blue flames between the pillars.
+  'castle-hall': { sky: 0x2a3a9a, ground: 0x0a0c1e, hemi: 0.75, moon: 0, fill: 0.8, fillColor: 0xb8c8ff, cameraFill: 1 },
 };
 /** The sunken city under the lake (DeVj-Z8POjl). */
 export const SUNKEN: RealmDef = { id: 'sunken', name: 'The Sunken City', x: -1000, z: 0, y: -48, radius: 160, fog: { color: 0x0a3a4e, density: 0.024 }, underwater: true };
@@ -345,7 +347,12 @@ export const TAVERN_ROOM: RealmDef = { id: 'tavern-room', name: 'The Candle Tave
  * and melting candles, Sir Gilt toasting the dead. Its own dark, no sky.
  */
 export const CRYPT_ROOM: RealmDef = { id: 'crypt-room', name: 'The Crypt Bar', x: -1000, z: 1300, y: 0, radius: 30, fog: { color: 0x0b0a10, density: 0.04 }, ownSky: true, indoors: true };
-export const REALMS: readonly RealmDef[] = [GALAXY, SUNKEN, TREEHOUSE_ROOM, DREAM, GRAVEYARD, VALE, TAVERN_ROOM, CRYPT_ROOM];
+/**
+ * Inside the island castle (the playtest of 2026-11-12: "press F and enter the castle, put something cool there"):
+ * the Moon Throne Hall (world/CastleHall.ts), a pillared vault with an empty throne under a captive moon.
+ */
+export const CASTLE_HALL: RealmDef = { id: 'castle-hall', name: 'The Moon Throne Hall', x: -1000, z: 1600, y: 0, radius: 40, fog: { color: 0x070a1e, density: 0.028 }, ownSky: true, indoors: true };
+export const REALMS: readonly RealmDef[] = [GALAXY, SUNKEN, TREEHOUSE_ROOM, DREAM, GRAVEYARD, VALE, TAVERN_ROOM, CRYPT_ROOM, CASTLE_HALL];
 
 /**
  * The cloud sea's top layer in each place (world y; CloudSea lays its other two layers 9 and 22 m under it), or null
@@ -354,7 +361,7 @@ export const REALMS: readonly RealmDef[] = [GALAXY, SUNKEN, TREEHOUSE_ROOM, DREA
  */
 export const CLOUD_LEVEL: Record<Zone, number | null> = {
   island: LAYOUT.cloudSea.y, galaxy: -16, vale: -30, graveyard: -30, dream: -40,
-  sunken: null, treehouse: null, 'tavern-room': null, 'crypt-room': null,
+  sunken: null, treehouse: null, 'tavern-room': null, 'crypt-room': null, 'castle-hall': null,
 };
 
 /** A sky as reflected in water and polished ground (SKY_SHARED's horizon, mid, zenith and cloud colours). */
@@ -374,6 +381,7 @@ export const REALM_SKY: Partial<Record<Zone, RealmSky>> = {
   treehouse: { horizon: 0x1e1236, mid: 0x120a26, zenith: 0x06040e, cloud: 0x3a2a5a },
   'tavern-room': { horizon: 0x2a1408, mid: 0x180a04, zenith: 0x0a0402, cloud: 0x6a3a1c },
   'crypt-room': { horizon: 0x1c1824, mid: 0x100c14, zenith: 0x060508, cloud: 0x3a3048 },
+  'castle-hall': { horizon: 0x141c48, mid: 0x0a1030, zenith: 0x04060f, cloud: 0x3a4a9a },
 };
 
 /** Portal ends on the island. */

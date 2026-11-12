@@ -275,6 +275,14 @@ area.hooks.mire = (seconds) => combat.mire(seconds);
 // Shootable things in the world (sky eyes, the eye pool), and the prize for shooting every sky eye.
 combat.targets.push(...area.shotTargets);
 area.hooks.reward = (what) => {
+  if (what === 'throne') {
+    // The Moon Throne Hall's empty throne (CastleHall.ts): the hall takes you for its king for a moment.
+    combat.healActive(1e6);
+    renderer.trip(0.4, 4);
+    audio.cast();
+    hud.announce('The castle knows its king tonight');
+    return;
+  }
   if (what !== 'eyes') return;
   events.emit({ kind: 'feat', what: 'skyeye' });
   combat.loot.spawn([{ kind: 'shards', amount: 60 }, { kind: 'item', itemId: 'moon-dew', count: 2 }], new Vector3(controller.pos.x, controller.pos.y + 1, controller.pos.z));

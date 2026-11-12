@@ -3,7 +3,7 @@
  * trade, a quest step, a feat), so NPC minds, the world state, the journal and the save can react without the
  * systems knowing about each other. Pure: no three.js, no DOM.
  */
-export type Zone = 'island' | 'galaxy' | 'sunken' | 'treehouse' | 'dream' | 'graveyard' | 'vale' | 'tavern-room' | 'crypt-room';
+export type Zone = 'island' | 'galaxy' | 'sunken' | 'treehouse' | 'dream' | 'graveyard' | 'vale' | 'tavern-room' | 'crypt-room' | 'castle-hall';
 
 export type HeroId = 'knight' | 'archer' | 'wizard';
 

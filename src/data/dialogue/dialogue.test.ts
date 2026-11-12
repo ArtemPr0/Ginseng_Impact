@@ -14,7 +14,7 @@ import type { Cond, Flag, LineDef, NpcDialogue, Slot } from './types';
 
 /** Keyed by the type, so the compiler insists on every member and allows no other. */
 const ZONES: Record<Zone, true> = {
-  island: true, galaxy: true, sunken: true, treehouse: true, dream: true, graveyard: true, vale: true, 'tavern-room': true, 'crypt-room': true,
+  island: true, galaxy: true, sunken: true, treehouse: true, dream: true, graveyard: true, vale: true, 'tavern-room': true, 'crypt-room': true, 'castle-hall': true,
 };
 const FLAGS: Record<Flag, true> = {
   licked: true, ale: true, fountain: true, skyeyes: true, carriage: true, bounce: true, flew: true, swam: true, climbed: true,
