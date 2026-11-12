@@ -25,7 +25,7 @@ import { Quests, type QuestWallet } from './Quests';
 import type { Story } from './Story';
 
 /** Seconds in the frog's dream, and of the rowers' ale. */
-/** Four minutes: long enough to walk the whole dream (the stair path, the canal village, the corridor of eyes). */
+/** Four minutes: long enough to walk the whole dream (the stair path, the mushroom grove, the corridor of eyes). */
 const DREAM_SECONDS = 240;
 const ALE_SECONDS = 180;
 /** Croak is home when the sack is put down this close to his father. */

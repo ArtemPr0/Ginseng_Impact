@@ -856,6 +856,7 @@ export class World {
       place: (l) => this.place(l), flora, vfx, h: gh, rnd: rrnd,
       water: (x0, x1, z0, z1, level) => { this.waterZones.push({ x0, x1, z0, z1, level }); },
       shoot: (from, s) => this.hooks.shoot?.(from, s),
+      bounce: (b) => { this.heights.bouncers.push(b); },
     };
     this.portals.push(...buildRealms(realmApi));
     // The tree house's round door and the room behind it; the frog's dream.
