@@ -1,4 +1,5 @@
-import { Color, Group, type Mesh, type MeshStandardMaterial, type Object3D, Vector3 } from 'three';
+import { type Bone, Color, Group, Matrix4, type Mesh, type MeshStandardMaterial, type Object3D, type SkinnedMesh, Vector3 } from 'three';
+import { socketsInBone } from '../characters/SkullEyes';
 import { REALM_SCULPTS } from '../data/sculpts';
 import { FOLK } from '../data/folk';
 import { ANCHORS, CRYPT_ROOM, GALAXY, ISLAND_PORTALS, LANDMARKS, LAYOUT, REALMS, SINK, SKY_EYES, SUNKEN, TAVERN_ROOM, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
@@ -122,22 +123,37 @@ function grillSparkle(npc: Npc): { group: Group; update(dt: number): void } {
   };
 }
 
-/** The crypt skeletons' eyes burn green in their sockets (DeldocTvFiB), a little in front of and above the head joint. */
+/**
+ * The crypt skeletons' eyes burn green in their sockets (DeldocTvFiB): two small points carried by the head bone
+ * (SkullEyes), placed from the bind pose. (They were set from the body's yaw off the head joint, so a turned or bowed
+ * head left a green blob hanging beside the skull: the playtest of 2026-11-12.)
+ */
 function skullEyes(npc: Npc): { group: Group; update(dt: number): void } {
   const group = new Group();
-  const eyes = [-1, 1].map((side) => { const s = glowSprite(PALETTE.witch, 0.13, 0.9, true); group.add(s); return { s, side }; });
+  const eyes = [0, 1].map(() => { const s = glowSprite(PALETTE.witch, 0.06, 0.95, true); group.add(s); return s; });
   let head: Object3D | null = null;
+  let local: Vector3[] | null = null;
   const at = new Vector3();
   return {
     group,
     update: () => {
       if (!head && npc.rig.model) head = npc.rig.model.bone(/head$/i);
-      group.visible = !!head;
-      if (!head) return;
-      head.getWorldPosition(at);
-      for (const { s, side } of eyes) {
-        s.position.set(at.x + Math.cos(npc.yaw) * 0.1 + Math.sin(npc.yaw) * side * 0.035, at.y + 0.09, at.z + Math.sin(npc.yaw) * 0.1 - Math.cos(npc.yaw) * side * 0.035);
+      if (head && !local) {
+        // The head's world matrix at bind, from the skinned mesh that it drives.
+        let skinned: SkinnedMesh | null = null;
+        npc.rig.model!.root.traverse((o) => { if (!skinned && (o as SkinnedMesh).isSkinnedMesh && (o as SkinnedMesh).skeleton.bones.includes(head as Bone)) skinned = o as SkinnedMesh; });
+        const sm = skinned as SkinnedMesh | null;
+        if (sm) {
+          sm.updateWorldMatrix(true, false);
+          const i = sm.skeleton.bones.indexOf(head as Bone);
+          const bind = new Matrix4().multiplyMatrices(sm.matrixWorld, sm.bindMatrix).multiply(sm.skeleton.boneInverses[i].clone().invert());
+          local = socketsInBone(bind, npc.yaw);
+        }
       }
+      group.visible = !!local;
+      if (!head || !local) return;
+      head.updateWorldMatrix(true, false);
+      local.forEach((l, k) => eyes[k].position.copy(at.copy(l).applyMatrix4(head!.matrixWorld)));
     },
   };
 }
