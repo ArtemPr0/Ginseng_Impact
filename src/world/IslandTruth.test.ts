@@ -167,3 +167,12 @@ describe('one eye at a time', () => {
     for (const e of SKY_EYES) for (const [x, z] of path) expect(Math.hypot(e.x - x, e.z - z), `sky eye at (${e.x},${e.z})`).toBeGreaterThan(30);
   });
 });
+
+describe('the causeway', () => {
+  it('meets the ground at both rims (walked straight onto, no stairs) and crosses the whole chasm', () => {
+    const c = LAYOUT.causeway;
+    expect(Math.abs(c.yStart - 0.25 - terrainHeight(c.x, c.zStart, noise))).toBeLessThan(0.4);
+    expect(Math.abs(c.yEnd - 0.25 - terrainHeight(c.x, c.zEnd, noise))).toBeLessThan(0.4);
+    for (const z of [c.zStart + 2, c.zEnd - 2]) expect(terrainHeight(c.x, z, noise), `rim beyond z ${z}`).toBeGreaterThan(1);
+  });
+});

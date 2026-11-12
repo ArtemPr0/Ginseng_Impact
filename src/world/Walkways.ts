@@ -29,21 +29,24 @@ function slab(w: number, h: number, d: number, x: number, y: number, z: number, 
  */
 export function causewayPostPoints(cfg: CausewayConfig, spanHeight: number): Array<{ x: number; z: number; y: number }> {
   const out: Array<{ x: number; z: number; y: number }> = [];
-  for (const s of causewaySegments(cfg)) {
-    for (let k = 0; k < 3; k++) {
-      const z = s.zc + (k - 1) * (s.len / 3);
-      for (const side of [-1, 1]) out.push({ x: cfg.x + side * SPAN_POST.x, z, y: s.top + spanHeight * SPAN_POST.rise });
-    }
+  for (const s of causewaySpans(cfg)) {
+    for (const side of [-1, 1]) out.push({ x: cfg.x + side * SPAN_POST.x * s.scale, z: s.zc, y: s.top + spanHeight * s.scale * SPAN_POST.rise });
   }
   return out;
 }
 
-/** The causeway's collider segments: centre z, length and deck top of each. */
-function causewaySegments(cfg: CausewayConfig): Array<{ zc: number; len: number; top: number }> {
+/** Span model length once scaled to its registry height (causeway-segment.glb is 1.362 × 0.434 × 1.900, long along z). */
+export const SPAN_LENGTH = 5.93 * (1.9 / 1.362);
+
+/**
+ * The causeway's spans, end to end from zStart to zEnd: centre z, length, deck top at the centre and the scale that
+ * makes the model exactly that long (every span the same, so no copy overlaps the next).
+ */
+function causewaySpans(cfg: CausewayConfig): Array<{ zc: number; len: number; top: number; scale: number }> {
   const length = cfg.zStart - cfg.zEnd;
-  const n = Math.ceil(length / cfg.segmentLength);
+  const n = Math.max(1, Math.round(length / SPAN_LENGTH));
   const len = length / n;
-  return Array.from({ length: n }, (_, i) => ({ zc: cfg.zStart - (i + 0.5) * len, len, top: cfg.yStart + ((cfg.yEnd - cfg.yStart) * (i + 0.5)) / n }));
+  return Array.from({ length: n }, (_, i) => ({ zc: cfg.zStart - (i + 0.5) * len, len, top: cfg.yStart + ((cfg.yEnd - cfg.yStart) * (i + 0.5)) / n, scale: len / SPAN_LENGTH }));
 }
 
 /** How far below the walk surface a deck's underside is (arch crown and paving). */
@@ -57,89 +60,59 @@ const DECK_DEPTH = 0.9;
  */
 const SPAN_DECK = 0.861;
 const SPAN_HALF = 2.3;
-const SPAN_WIDTH = 5.93;
 const SPAN_POST = { x: 2.1, rise: (0.985 - SPAN_DECK) };
-/**
- * Stairs model (causeway-stairs.glb, scripts/model-profile.mjs): the landing's walk surface at 0.825 of the height
- * over the first 27% of the length, steps down to 87% of it; length = 2.07 × height, width = 1.98 × height before the
- * width is fitted to the bridge.
- */
-const STAIRS_LANDING = 0.825;
-const STAIRS_LENGTH = 1.899 / 0.918;
-const STAIRS_FLAT = 0.27;
-const STAIRS_END = 0.87;
-const STAIRS_WIDE = 1.818 / 0.918;
 
 export interface CausewayBuild {
-  /** Colliders and the stand-in piers over the chasm. */
+  /** Colliders: the deck (fine steps along its slope) and the edge stones. */
   landmark: Landmark;
-  /** Instances of the `causeway-segment` model (arched bridge span, registry height = span height). */
+  /** Instances of the `causeway-segment` model (arched bridge span, registry height = span height), end to end. */
   spans: Array<{ x: number; y: number; z: number; yaw: number; scale: number }>;
-  /** Piers under the arch feet where the ground falls away: foot (ground or cloud sea) and height to the arches. */
+  /** Piers under the joints where the bridge crosses the chasm: foot (the cloud sea or the chasm wall) and height to the arch feet. */
   piers: Array<{ x: number; y: number; z: number; height: number }>;
-  /**
-   * Where the `causeway-stairs` model goes: feet on the ground, scaled so its landing meets the deck, and squeezed
-   * across (`widthScale`, on top of the uniform scale) to the bridge's own width.
-   */
-  stairs: { x: number; y: number; z: number; height: number; widthScale: number };
-  /** The same stairs at the north end, turned around, down to the head's plaza. */
-  northStairs: { x: number; y: number; z: number; height: number; widthScale: number };
 }
 
+/** How long a piece of the deck collider is: its tops follow the slope in steps a walker never notices. */
+const DECK_STEP = 2;
+
 /**
- * The raised road: three Meshy bridge spans per collider segment (same stepped deck colliders as before), edge
- * colliders where the balustrade posts stood, and the stairs model at the south end with colliders that follow
- * its steps. Piers under the arch feet where the ground falls away come back in `piers` (World places models).
+ * The raised road over the chasm: one bridge from rim to rim. The arched spans lie end to end on one even slope (three
+ * overlapping copies per segment, each segment a step higher, read as bridges stacked on bridges), the deck meets the
+ * ground at both ends (no stairs, no pillar stubs under the approaches), and a pier stands under every joint over the
+ * chasm, all alike. The approaches beyond the rims are ground road.
  */
 export function causewayWalk(cfg: CausewayConfig, groundAt: HeightAt, spanHeight: number): CausewayBuild {
   const g = new Group();
   const footprints: Footprint[] = [];
   const spans: CausewayBuild['spans'] = [];
   const piers: CausewayBuild['piers'] = [];
-  for (const { zc, len: segLen, top } of causewaySegments(cfg)) {
-    for (let k = 0; k < 3; k++) spans.push({ x: cfg.x, y: top - spanHeight * SPAN_DECK, z: zc + (k - 1) * (segLen / 3), yaw: 0, scale: 1 });
-    const ground = groundAt(cfg.x, zc);
-    if (ground < top - 4) {
-      // A pier under the arches' meeting point, from the ground (or the cloud sea) up to the arch feet. World turns
-      // these into models (a rock spire over the chasm, a stone pillar on land): plain slabs stood here before.
-      const base = Math.max(ground, -95);
-      piers.push({ x: cfg.x, z: zc, y: base, height: top - spanHeight + 0.3 - base });
+  const all = causewaySpans(cfg);
+  const slope = (cfg.yEnd - cfg.yStart) / (cfg.zStart - cfg.zEnd);
+  for (const [i, { zc, len, top, scale }] of all.entries()) {
+    spans.push({ x: cfg.x, y: top - spanHeight * scale * SPAN_DECK, z: zc, yaw: 0, scale });
+    // The deck, in short pieces whose tops follow the slope; only as wide as the paving (no walking on air beside it).
+    const pieces = Math.max(1, Math.round(len / DECK_STEP));
+    for (let k = 0; k < pieces; k++) {
+      const z = zc + len / 2 - ((k + 0.5) * len) / pieces;
+      const y = cfg.yStart + (cfg.zStart - z) * slope;
+      footprints.push({ kind: 'box', x: cfg.x, z, hw: SPAN_HALF * scale, hd: len / pieces / 2, top: y, bottom: y - DECK_DEPTH });
     }
-    // The deck is overhead: wherever the ground is far enough below, people walk under the arches. Only as wide as
-    // the paving (no walking on air beside it).
-    footprints.push({ kind: 'box', x: cfg.x, z: zc, hw: SPAN_HALF, hd: segLen / 2, top, bottom: top - DECK_DEPTH });
-    // The raised edge stones at the middle of each span.
-    for (let k = 0; k < 3; k++) for (const side of [-1, 1]) {
-      footprints.push({ kind: 'box', x: cfg.x + side * SPAN_POST.x, z: zc + (k - 1) * (segLen / 3), hw: 0.3, hd: 0.7, top: top + spanHeight * SPAN_POST.rise, bottom: top - DECK_DEPTH });
+    // The raised edge stones at the middle of the span.
+    for (const side of [-1, 1]) {
+      footprints.push({ kind: 'box', x: cfg.x + side * SPAN_POST.x * scale, z: zc, hw: 0.3, hd: 0.7, top: top + spanHeight * scale * SPAN_POST.rise, bottom: top - DECK_DEPTH });
+    }
+    // A pier under the joint at the span's north end, where the bridge is over the chasm (the last joint is the north
+    // rim). A rock spire climbs out of the cloud sea (or the chasm wall) to the arch feet.
+    if (i < all.length - 1) {
+      const z = zc - len / 2;
+      const ground = groundAt(cfg.x, z);
+      const feet = cfg.yStart + (cfg.zStart - z) * slope - spanHeight * scale + 0.3;
+      if (ground < feet - 12) {
+        const base = Math.max(ground, -95);
+        piers.push({ x: cfg.x, z, y: base, height: feet - base });
+      }
     }
   }
-  // Stairs at both ends: a landing flush with the deck, then steps down to the ground (south end falls south,
-  // north end falls north).
-  const stairsAt = (zEdge: number, deckY: number, dir: 1 | -1) => {
-    const z0 = zEdge - dir * 0.5;
-    // The foot of the flight lands where the ground is; its length depends on the rise, so settle the two together.
-    let ground = groundAt(cfg.x, zEdge + dir * 6);
-    for (let k = 0; k < 3; k++) ground = groundAt(cfg.x, z0 + dir * ((Math.max(0.5, deckY - ground) / STAIRS_LANDING) * STAIRS_LENGTH * STAIRS_END));
-    const rise = Math.max(0.5, deckY - ground);
-    const height = rise / STAIRS_LANDING;
-    const len = height * STAIRS_LENGTH;
-    const flat = len * STAIRS_FLAT;
-    const hw = SPAN_WIDTH / 2 - 0.35;
-    // The landing, the steps, and the balustrade either side (solid all the way down: no walking into the flight).
-    footprints.push({ kind: 'box', x: cfg.x, z: z0 + dir * flat / 2, hw, hd: flat / 2, top: deckY });
-    for (const side of [-1, 1]) footprints.push({ kind: 'box', x: cfg.x + side * (SPAN_WIDTH / 2 - 0.17), z: z0 + dir * (len * STAIRS_END) / 2, hw: 0.17, hd: (len * STAIRS_END) / 2, top: deckY + 1 });
-    const steps = Math.max(1, Math.ceil(rise / 0.45));
-    const run = (len * STAIRS_END - flat) / steps;
-    for (let i = 1; i <= steps; i++) {
-      const top = deckY - i * (rise / steps);
-      const zc = z0 + dir * (flat + (i - 0.5) * run);
-      footprints.push({ kind: 'box', x: cfg.x, z: zc, hw, hd: run / 2, top });
-    }
-    return { x: cfg.x, y: ground - 0.05, z: z0 + dir * len / 2, height, widthScale: SPAN_WIDTH / (height * STAIRS_WIDE) };
-  };
-  const stairs = stairsAt(cfg.zStart, cfg.yStart, 1);
-  const northStairs = stairsAt(cfg.zEnd, cfg.yEnd, -1);
-  return { landmark: { object: g, footprints }, spans, piers, stairs, northStairs };
+  return { landmark: { object: g, footprints }, spans, piers };
 }
 
 /** Rope-bridge tile model: width (x) of the file in metres once scaled to its registry height, and its deck height. */

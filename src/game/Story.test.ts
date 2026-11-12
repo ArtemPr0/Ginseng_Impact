@@ -588,11 +588,12 @@ describe('Npc.bubble: what the barks show', () => {
     const head = def('stone-head');
     expect(head).toMatchObject({ invisible: true, talkRange: 30 });
     // Where the player stands before the face: on the causeway's line, short of the chin (the head's collider reaches
-    // about 6 m in front of its centre), with the causeway's end within talking range.
+    // about 6 m in front of its centre), with the road from the causeway's north rim ending within talking range.
     const at = ANCHORS['stone-head'];
     expect(at.x).toBe(LAYOUT.head.x);
     expect(at.z).toBeGreaterThan(LAYOUT.head.z + 6);
-    expect(LAYOUT.causeway.zEnd - at.z).toBeLessThan(head.talkRange!);
+    const roadEnds = LAYOUT.paths.flatMap((p) => [p[0], p[p.length - 1]]);
+    expect(Math.min(...roadEnds.map(([x, z]) => Math.hypot(x - at.x, z - at.z)))).toBeLessThan(head.talkRange!);
     const group = new Group();
     // (The rise before the face is ~7.6 m high there.)
     const n = new Npc(head, at, () => 7.6);

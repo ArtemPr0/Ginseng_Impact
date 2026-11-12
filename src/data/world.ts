@@ -27,6 +27,9 @@ export const LAYOUT = {
     [[0, -2], [-10, -4], [-14, -6], [-30, -10], [-43, -17]],
     [[2, -5], [6, -10], [18, -18], [30, -24], [34, -24]],
     [[22, -20], [26, -32.5]],
+    // The road over the chasm: up from the hamlet to the causeway's south rim, and on from its north rim to the head.
+    [[0, -4], [0, -30]],
+    [[0, -82], [0, -92], [-4, -96]],
     [[0, -134], [0, -140]],
     [[-2, -112], [-12, -108]],
     [[27, -86], [44, -90], [52, -90]],
@@ -35,9 +38,8 @@ export const LAYOUT = {
     [[-4, -114], [-24, -116], [-42, -120], [-51, -124]],
     [[-77, -124], [-86, -116]],
   ] as Array<Array<[number, number]>>,
-  /** The raised road starts on the eye's north bank (its stairs climb from the hamlet) and runs over the chasm. */
-  // (yEnd: four 0.45 m risers between its spans, each low enough to walk up; 1 m ledges stopped the hero.)
-  causeway: { x: 0, zStart: -10, zEnd: -115, width: 6, yStart: 6, yEnd: 7.8, postSpacing: 8, segmentLength: 24.7 },
+  /** The causeway: one stone bridge over the chasm, rim to rim (z -34 and -79), its deck 0.25 m over the ground at each end. */
+  causeway: { x: 0, zStart: -30, zEnd: -82, width: 6, yStart: 4.45, yEnd: 3.45, postSpacing: 8, segmentLength: 8.27 },
   head: { x: 0, z: -146, height: 26 },
   /**
    * The cathedral's long axis runs east–west; its west front faces the river road. Between the chasm and the river

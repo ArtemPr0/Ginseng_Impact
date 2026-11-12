@@ -371,23 +371,12 @@ export class World {
     const causeway = causewayWalk(LAYOUT.causeway, h, MODELS['causeway-segment'].height);
     this.place(causeway.landmark);
     flora('causeway-segment', causeway.spans);
-    // Piers: over the chasm a rock spire climbs out of the cloud sea to the arch feet (slimmed across, or a 95 m
-    // spire would be 35 m wide); on land, where the deck clears a dip, a stone pillar.
+    // Piers: under every joint over the chasm a rock spire climbs out of the cloud sea to the arch feet, all alike
+    // (slimmed across, or a 95 m spire would be 35 m wide).
     for (const p of causeway.piers) {
-      if (p.height > 12) {
-        const lm = modelLandmark('pinnacle', p.x, p.z, p.y, { collider: 'none', scale: p.height / MODELS.pinnacle.height });
-        lm.root.scale.x *= 0.45;
-        lm.root.scale.z *= 0.45;
-        this.place(lm);
-      } else {
-        this.place(modelLandmark('snow-pillar', p.x, p.z, p.y - 0.4, { scale: (p.height + 0.4) / MODELS['snow-pillar'].height }));
-      }
-    }
-    // The stairs' colliders come from causewayWalk (the model only shows them).
-    // (Squeezed across to the bridge's width: a flight scaled up to meet the high north end would be 27 m wide.)
-    for (const [st, yaw] of [[causeway.stairs, 0], [causeway.northStairs, Math.PI]] as const) {
-      const lm = modelLandmark('causeway-stairs', st.x, st.z, st.y, { collider: 'none', yaw, scale: st.height / MODELS['causeway-stairs'].height });
-      lm.root.scale.x *= st.widthScale;
+      const lm = modelLandmark('pinnacle', p.x, p.z, p.y, { collider: 'none', scale: p.height / MODELS.pinnacle.height });
+      lm.root.scale.x *= 0.3;
+      lm.root.scale.z *= 0.3;
       this.place(lm);
     }
     const cb = LAYOUT.chasmBridge;
