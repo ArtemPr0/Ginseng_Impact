@@ -173,7 +173,9 @@ function bluntInHand(npc: Npc): { group: Group; update(dt: number): void } {
   holder.add(b.object);
   const tip = new Object3D();
   tip.position.copy(b.ember);
-  b.object.add(tip, Object.assign(glowSprite(0xff7a2a, 0.09, 0.8, true), { position: b.ember.clone() }));
+  const emberGlow = glowSprite(0xff7a2a, 0.09, 0.8, true);
+  emberGlow.position.copy(b.ember);
+  b.object.add(tip, emberGlow);
   const smoke = new PipeSmoke(0xb36bff);
   tip.add(smoke.emitter);
   group.add(smoke.particles);

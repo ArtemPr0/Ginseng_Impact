@@ -1,7 +1,8 @@
 import { Color, DirectionalLight, FogExp2, HemisphereLight, type Object3D, PerspectiveCamera, Scene, Vector3 } from 'three';
 import { Bubbles } from './world/Portal';
 import { LightBudget } from './render/LightBudget';
-import { yawToRotation } from './models/ModelRig';
+import { loadModel, ModelRig, yawToRotation } from './models/ModelRig';
+import { MODELS } from './data/models';
 import { Audio } from './audio/Audio';
 import { Rig } from './characters/Rig';
 import { ROSTER } from './characters/roster';
@@ -1000,7 +1001,9 @@ declare global {
       realms: typeof REALMS;
       /** Headless play checks: the game's own move (portals, doors and the dream use it), the carriage, the world state, the story. */
       teleport: typeof teleport; carriage: typeof CARRIAGE; worldState: WorldState; story: Story;
+      /** The model loader, for the headless character lineup (scripts/perf/anim/lineup.mjs). */
+      models: { load: typeof loadModel; ModelRig: typeof ModelRig; MODELS: typeof MODELS };
     };
   }
 }
-window.__ginseng = { groundOnly: (x: number, z: number) => area.ground.heightAt(x, z), loadSave: () => { const s = save.load(); if (s) applySave(s); return !!s; }, snapshot, scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, fx: combatFx, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs, events, ending, save, progress, realms: REALMS, teleport, carriage: CARRIAGE, worldState, story };
+window.__ginseng = { models: { load: loadModel, ModelRig, MODELS }, groundOnly: (x: number, z: number) => area.ground.heightAt(x, z), loadSave: () => { const s = save.load(); if (s) applySave(s); return !!s; }, snapshot, scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, fx: combatFx, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs, events, ending, save, progress, realms: REALMS, teleport, carriage: CARRIAGE, worldState, story };
