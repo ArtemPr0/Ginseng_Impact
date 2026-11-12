@@ -101,9 +101,9 @@ export function garden(api: RealmApi, x: number, z: number, w: number, d: number
   api.place(modelLandmark('stone-wall', x, z - d / 2 - 1.2, y - 0.1, { yaw: 0 }));
 }
 
-/** A landing on the bank: a moored boat, barrels waiting, a lamp. */
-export function pier(api: RealmApi, x: number, z: number, wx: number, y: number): void {
-  api.place(modelLandmark('boat', wx, z, y, { yaw: Math.PI / 2, collider: 'none' }));
+/** A landing on the bank: a moored boat (unless its boat is out on the water: `moored` false), barrels waiting, a lamp. */
+export function pier(api: RealmApi, x: number, z: number, wx: number, y: number, moored = true): void {
+  if (moored) api.place(modelLandmark('boat', wx, z, y, { yaw: Math.PI / 2, collider: 'none' }));
   for (const [dx, dz] of [[0, -2], [1.1, -2.6], [0.4, 2.2]]) prop(api, 'barrel', x + dx, z + dz, 0.45, 1);
   prop(api, 'lantern-post', x + 1.6, z, 0.2, 2.5);
   const g = glowSprite(LANTERN, 1.8, 0.6, true); g.position.set(x + 1.6, api.h(x, z) + 2.3, z); api.group.add(g);
@@ -121,7 +121,8 @@ export function wreck(api: RealmApi, x: number, z: number, yaw: number): void {
 export function dressVale(api: RealmApi): void {
   garden(api, 973, 1011, 13, 6);
   garden(api, 1034, 1000, 11, 8);
-  pier(api, 958, 985, 951, -0.35);
+  // (Its boat is the gnomes' ferry, out on the river: Vale.ts.)
+  pier(api, 958, 985, 951, -0.35, false);
   ruin(api, 1000, 830, 0.3);
   camp(api, 915, 815);
   graves(api, 882, 868);

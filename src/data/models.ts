@@ -211,7 +211,7 @@ export const MODELS: Record<string, ModelDef> = {
   cobblestone: stat('cobblestone.glb', 0.14, 'cobblestone'), cypress: stat('cypress.glb', 9, 'tall slim graveyard cypress (DeDRVZwxJyO)'), grave: { ...stat('grave.glb', 1.1, 'arched gothic headstone (shot-011654)'), tint: 0x5c6270 },
 
   // The user's own frames (docs/reference/frames/cup-gnome.png): Meshy 6 Lite draft, Meshy 7 image-guided texture, biped rig.
-  'cup-gnome': { file: 'cup-gnome.glb', height: 1.25, label: 'gnome with a gold grill, gold chain and a purple cup (frames/cup-gnome.png)', clips: { idle: 'stand_and_drink|idle_03|idle_02', drink: 'stand_and_drink', talk: 'talk_with_hands_open', walk: 'walking', run: 'running' } },
+  'cup-gnome': { file: 'cup-gnome.glb', clipFiles: { sit: 'npc-sit.glb' }, height: 1.25, label: 'gnome with a gold grill, gold chain and a purple cup (frames/cup-gnome.png)', clips: { idle: 'stand_and_drink|idle_03|idle_02', drink: 'stand_and_drink', talk: 'talk_with_hands_open', walk: 'walking', run: 'running', sit: 'chair_sit|sit' } },
 
   // --- Round 3 (2026-10-15): the user's own images and descriptions ---
   // Yung Lean, king of the realm beyond the portal (frames/rift-king.png): sits on the throne, stands to fight.
@@ -224,7 +224,7 @@ export const MODELS: Record<string, ModelDef> = {
   'lean-cup': stat('lean-cup.glb', 0.17, 'double white styrofoam cup of glowing purple lean (frames/lean-cup.png)'),
   'lean-cup-island': stat('lean-cup.glb', 22, 'giant double cup of lean, an island of the kingdom'),
   // Goldgrin's brother in the tree house: diamond grills, a job for the player.
-  'gnome-brother': { file: 'gnome-brother.glb', height: 1.2, label: "Goldgrin's diamond-grilled brother", clips: { idle: 'idle_03|idle', talk: 'talk_with_hands_open|talk', offer: 'scheming_hand_rub|hand_rub', walk: 'walking|walk', run: 'running|run' } },
+  'gnome-brother': { file: 'gnome-brother.glb', clipFiles: { sit: 'npc-sit.glb' }, height: 1.2, label: "Goldgrin's diamond-grilled brother", clips: { idle: 'idle_03|idle', talk: 'talk_with_hands_open|talk', offer: 'scheming_hand_rub|hand_rub', walk: 'walking|walk', run: 'running|run', sit: 'chair_sit|sit' } },
   'croak-bag': stat('croak-bag.glb', 1.1, 'burlap sack with Brother Croak inside'),
   'treehouse-door': { ...stat('treehouse-door.glb', 2.3, 'round plank door of the tree house'), tint: 0x5a3c26 },
   'treehouse-interior': stat('treehouse-interior.glb', 7, 'round room inside the tree house trunk'),
