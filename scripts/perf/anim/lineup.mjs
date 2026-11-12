@@ -36,7 +36,7 @@ const setup = await ev(`(async () => {
 if (typeof setup !== "string" || setup.startsWith("ERR")) { console.log("setup", JSON.stringify(setup).slice(0, 600)); process.exit(1); }
 const ids = JSON.parse(setup);
 console.log('models', ids.length);
-const KEYS = ['idle', 'walk', 'run', 'attack', 'heavy', 'hit', 'death', 'talk', 'sit', 'drink', 'cast', 'roar', 'throw', 'fly', 'swim'];
+const KEYS = (process.env.KEYS ?? 'idle,walk,run,attack,heavy,hit,death,talk,sit,drink,cast,roar,throw,fly,swim').split(',');
 for (const mid of ids) {
   const info = await ev(`(async () => {
     const G = window.__ginseng; const S = window.__studio; const p = S.at;

@@ -13,6 +13,8 @@ export interface ModelDef {
    * Key = clip key the game plays, value = file under `public/models/`. Missing files are skipped.
    */
   clipFiles?: Partial<Record<ClipName, string>>;
+  /** false: no shared emotes (models/Emotes.ts) even though it is a Meshy biped. */
+  emotes?: boolean;
   /** Size the model should be scaled to, metres: its height, or the extent along `fit` when set. */
   height: number;
   /** Which bounding-box axis `height` measures (default y). Walkway segments fit their length. */

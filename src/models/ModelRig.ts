@@ -4,6 +4,7 @@ import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { MODELS, type ModelDef } from '../data/models';
 import type { ClipCut } from '../characters/heroClips';
+import { emotesFor } from './Emotes';
 
 const loader = new GLTFLoader();
 const files = new Map<string, Promise<GLTF | null>>();
@@ -39,8 +40,9 @@ export function loadModel(id: string): Promise<GLTF | null> {
   if (!p) {
     p = fetchGlb(def.file).then(async (base) => {
       if (!base) return null;
-      if (def.clipFiles) {
-        const extra = await Promise.all(Object.entries(def.clipFiles).map(([key, file]) => fetchGlb(file as string).then((g) => ({ key, g }))));
+      const files = { ...emotesFor(def, base.animations.map((a) => a.name)), ...(def.clipFiles ?? {}) };
+      if (Object.keys(files).length) {
+        const extra = await Promise.all(Object.entries(files).map(([key, file]) => fetchGlb(file as string).then((g) => ({ key, g }))));
         for (const { key, g } of extra) {
           if (!g) continue;
           for (const clip of g.animations) { const c = clip.clone(); c.name = key; base.animations.push(c); }
