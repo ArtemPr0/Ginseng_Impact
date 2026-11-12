@@ -174,8 +174,9 @@ export const MODELS: Record<string, ModelDef> = {
   // Round 9 mobs (biped rigs with the preset clips).
   'archway-shade': { file: 'archway-shade.glb', height: 2.0, label: 'hooded dark figure with an armoured gauntlet in a gothic archway (DdnJDwBMUoj)', clips: BOSS_CLIPS },
   'brazier-hermit': { file: 'brazier-hermit.glb', height: 1.9, label: 'brown-robed hooded figure lifting a fire brazier on a ledge (DdyN2PNyIxb)', clips: BOSS_CLIPS },
-  // (Its rig came out facing +x: turned a quarter so its front is local +z like every other body.)
-  'vale-knight': { file: 'vale-knight.glb', height: 1.9, yaw: -Math.PI / 2, label: 'red-caped blue-armoured knight on the village street (Dd5Bqt7vQ5T)', clips: BOSS_CLIPS },
+  // (Its rig came out facing -x: turned a quarter so its front is local +z like every other body. The toe test reads
+  // +x because the cape drags the centre back; the lineup shot, anim/lineup.mjs, shows its face.)
+  'vale-knight': { file: 'vale-knight.glb', height: 1.9, yaw: Math.PI / 2, label: 'red-caped blue-armoured knight on the village street (Dd5Bqt7vQ5T)', clips: BOSS_CLIPS },
   'grave-skeleton': { file: 'skeleton.glb', height: 1.75, label: 'skeletons rising from the graves (the Alley of Graves)', clips: { ...NPC_CLIPS('idle'), idle: 'idle_02|combat_stance|idle', attack: 'attack', hit: 'hit_reaction|hit', stand: 'sit_to_stand|stand', death: 'dying|death' } },
   'skeleton-banner': { file: 'skeleton-banner.glb', height: 1.85, label: 'skeleton standard-bearer with banner and trident (Hollow Jack)', clips: NPC_CLIPS('banner') },
   'witch-cook': { file: 'witch-cook.glb', height: 1.8, label: 'skeleton cook in a chef hat with a spoon (Mother Marrow)', clips: NPC_CLIPS('stir') },

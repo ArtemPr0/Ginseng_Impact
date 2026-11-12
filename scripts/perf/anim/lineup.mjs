@@ -12,7 +12,7 @@ await new Promise((r) => (ws.onopen = r));
 let id = 0; const pending = new Map();
 ws.onmessage = (m) => { const d = JSON.parse(m.data); if (d.id && pending.has(d.id)) { pending.get(d.id)(d); pending.delete(d.id); } };
 const send = (method, params = {}) => new Promise((r) => { const i = ++id; pending.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
-const ev = async (expression) => { const r = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }); return r.result?.result?.value ?? ('ERR ' + JSON.stringify(r.result?.exceptionDetails ?? r).slice(0, 400)); };
+const ev = async (expression) => { const r = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }); if (r.result?.exceptionDetails) return 'ERR ' + (r.result.exceptionDetails.exception?.description ?? JSON.stringify(r.result.exceptionDetails)).slice(0, 400); return r.result?.result?.value ?? 'ERR ' + JSON.stringify(r).slice(0, 400); };
 await send('Emulation.setDeviceMetricsOverride', { width: 480, height: 480, deviceScaleFactor: 1, mobile: false });
 const setup = await ev(`(async () => {
   const G = window.__ginseng; const hud = document.getElementById('hud'); if (hud) hud.style.display = 'none';
@@ -29,10 +29,11 @@ const setup = await ev(`(async () => {
   }
   const S = window.__studio; const p = S.at;
   if (!window.__lineupPinned) { const r = G.renderer; const orig = r.render.bind(r); r.render = (sc, c) => { window.__lineupPin?.(); orig(sc, c); }; window.__lineupPinned = true; }
-  G.controller.pos.set(p.x + 40, p.y + 200, p.z + 40); G.controller.vel.set(0, 0, 0);
+  G.game.paused = false;
   const ids = ${JSON.stringify(idsArg ? idsArg.split(',') : null)} ?? Object.keys(G.models.MODELS).filter((k) => G.models.MODELS[k].clips);
   return JSON.stringify(ids);
 })()`);
+if (typeof setup !== "string" || setup.startsWith("ERR")) { console.log("setup", JSON.stringify(setup).slice(0, 600)); process.exit(1); }
 const ids = JSON.parse(setup);
 console.log('models', ids.length);
 const KEYS = ['idle', 'walk', 'run', 'attack', 'heavy', 'hit', 'death', 'talk', 'sit', 'drink', 'cast', 'roar', 'throw', 'fly', 'swim'];
@@ -43,7 +44,7 @@ for (const mid of ids) {
     const g = await G.models.load('${mid}'); if (!g) return 'none';
     const m = new G.models.ModelRig('${mid}', g); G.scene.add(m.root); m.root.position.set(p.x, p.y, p.z); m.root.updateMatrixWorld(true);
     window.__lineup = m; m.root.frustumCulled = false; m.root.traverse((o) => { o.frustumCulled = false; });
-    const H = m.height; const d = H * 1.55 + 0.8; const cam = G.camera;
+    const H = m.height; const d = H * 1.0 + 0.4; const cam = G.camera;
     window.__lineupPin = () => { cam.position.set(p.x + d * 0.62, p.y + H * 0.62, p.z + d * 0.8); cam.lookAt(p.x, p.y + H * 0.5, p.z); cam.updateMatrixWorld(); S.key.position.set(p.x + 4, p.y + H + 6, p.z + 7); S.key.target.position.set(p.x, p.y, p.z); S.rim.position.set(p.x - 6, p.y + H, p.z - 5); S.rim.target.position.set(p.x, p.y + H * 0.5, p.z); };
     const names = ${JSON.stringify(KEYS)}.map((k) => [k, m.clipName(k)]).filter(([, n]) => n);
     const uniq = []; for (const [k, n] of names) if (!uniq.some(([, u]) => u === n)) uniq.push([k, n]);
