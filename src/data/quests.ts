@@ -37,7 +37,7 @@
  */
 import type { GameEvent, Zone } from '../game/Events';
 import { ENEMY_SPAWNS } from './enemies';
-import { ANCHORS, LAYOUT, TREEHOUSE_ROOM } from './world';
+import { ANCHORS, GRAVE_RING, LAYOUT, TREEHOUSE_ROOM } from './world';
 
 export type QuestId = 'silence' | 'throne' | 'croak' | 'trip' | 'crown' | 'lean' | 'sound' | 'bell' | 'grave' | 'penny' | 'books' | 'rose' | 'bride';
 
@@ -155,7 +155,7 @@ const AT = {
   fishKing: mark(anchor('fish-king'), 'sunken'),
   /** The lane behind the Fish King's throne, past his two anglers (data/enemies.ts), where the bell glows. */
   bellLane: mark({ x: -1000, z: -92 }, 'sunken'),
-  graveCyclops: mark(spawn('cyclops-lord'), 'graveyard'),
+  graveCyclops: mark(GRAVE_RING, 'graveyard'),
   penny: mark(anchor('vale-beggar'), 'vale'),
   reader: mark(anchor('dragon-reader'), 'vale'),
   rattlebones: mark(anchor('crypt-red'), 'crypt-room'),
@@ -258,7 +258,7 @@ export const QUEST_GRAPH: Record<QuestId, QuestNode> = {
     order: ['none', 'active', 'slain', 'done'],
     stages: {
       none: { objective: 'The Skeleton King wants his old crown back, off a cyclops.', marker: AT.skeletonKing },
-      active: { objective: 'Slay the Grave Cyclops at the end of the Alley of Graves.', marker: AT.graveCyclops },
+      active: { objective: 'Step into the candle ring in the Alley of Graves and slay the Grave Cyclops it raises.', marker: AT.graveCyclops },
       // The crown stays with the hero ("Keep it; two crowns on one skull looks desperate").
       slain: { objective: "The crown is yours. Collect the Skeleton King's nine hundred.", marker: AT.skeletonKing, reward: { give: ['grave-crown'] } },
       done: { objective: 'Nine hundred coins, counted twice. The crown stays on your head.', terminal: true, reward: { shards: 900 } },

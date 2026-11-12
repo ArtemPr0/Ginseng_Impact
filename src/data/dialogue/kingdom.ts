@@ -145,7 +145,7 @@ export const KINGDOM: DialogueBook = {
       { id: 'skeleton-king.react.levelup', slot: 'react', text: "Growing costs nothing. Everything else here does. I'm looking into charging for it.", when: { event: 'feat', feat: 'levelup' } },
 
       // The quest 'grave': none -> active (here) -> slain (the Grave Cyclops dies) -> done (here; the graph pays 900).
-      { id: 'skeleton-king.topic.grave-ask', slot: 'topic', ask: 'Kill the Grave Cyclops?', text: "A cyclops at the end of the Alley of Graves wears a crown that was mine. Kill him. Nine hundred coins, counted, not promised.", when: { quest: ['grave', 'none'] }, weight: 8, choices: [
+      { id: 'skeleton-king.topic.grave-ask', slot: 'topic', ask: 'Kill the Grave Cyclops?', text: "A cyclops sleeps under the Alley of Graves in a crown that was mine. Stand in the candle ring and he wakes. Kill him. Nine hundred coins, counted, not promised.", when: { quest: ['grave', 'none'] }, weight: 8, choices: [
         { label: "I'll take his head.", action: 'quest:grave:active', to: 'skeleton-king.topic.grave-go' },
         { label: "What does it pay, again?", to: 'skeleton-king.topic.grave-pay' },
         { label: "Not now.", action: 'close' },

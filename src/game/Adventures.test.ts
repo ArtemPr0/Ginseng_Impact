@@ -1,6 +1,7 @@
 import { Group, Vector3 } from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { ENEMY_DEFS } from '../data/enemies';
+import { GRAVE_RING, GRAVEYARD } from '../data/world';
 import { VOICES } from '../data/voices';
 import type { Npc } from '../world/NPCs';
 import { Adventures, type AdventureDeps } from './Adventures';
@@ -17,7 +18,7 @@ function npc(id: string, x: number, z: number, talkRange = 4.2): Npc {
 }
 
 /** Yung Lean off his throne, as the fight hands him back: alive until the test says otherwise. */
-interface FakeBoss { alive: boolean; returning: boolean }
+interface FakeBoss { alive: boolean; returning: boolean; riseFromGrave: (s: number) => void }
 
 /** The hero at the origin, among `npcs` and doors (`range` 3 m) in their zones. */
 function setup(npcs: Npc[], doors: Array<{ x: number; z: number; zone: string | null; label: string }> = [], events?: Events) {
@@ -38,7 +39,7 @@ function setup(npcs: Npc[], doors: Array<{ x: number; z: number; zone: string | 
     remove: (id: string) => { const i = bag.indexOf(id); if (i >= 0) bag.splice(i, 1); return i >= 0; },
     spend: (n: number) => { if (inventory.shards < n) return false; inventory.shards -= n; return true; },
   };
-  const boss: FakeBoss = { alive: true, returning: false };
+  const boss: FakeBoss = { alive: true, returning: false, riseFromGrave: vi.fn() };
   const fight = { spawnBoss: vi.fn(() => boss), despawn: vi.fn() };
   const deps = {
     controller: { pos: new Vector3(0, 0, 0), yaw: 0, vel: new Vector3(), mode: 'ground', drainScale: 1 },
@@ -236,5 +237,46 @@ describe('What the adventures announce', () => {
     expect(() => a.talk('rowers')!.choices.find((c) => c.label === 'Hell yeah!')!.run!()).not.toThrow();
     expect(() => { a.dw.lick(); a.wake(); }).not.toThrow();
     expect(a.aleLeft).toBeGreaterThan(0);
+  });
+
+  describe('the candle ring in the Alley of Graves', () => {
+    const into = (a: Adventures, x: number, z: number) => { (a as unknown as { d: { controller: { pos: Vector3 } } }).d.controller.pos.set(x, 0, z); a.update(0.1); };
+
+    it('raises the Grave Cyclops out of the ground when you step into it, once while he lives', () => {
+      const { a, fight, boss } = setup([]);
+      into(a, GRAVE_RING.x + 20, GRAVE_RING.z); // elsewhere in the alley: nothing
+      expect(fight.spawnBoss).not.toHaveBeenCalled();
+      into(a, GRAVE_RING.x + 0.5, GRAVE_RING.z);
+      expect(fight.spawnBoss).toHaveBeenCalledTimes(1);
+      const [kind, x, z] = fight.spawnBoss.mock.calls[0] as unknown as [string, number, number];
+      expect(kind).toBe('cyclops-lord');
+      // Up the alley ahead of the ring, clear of it and of his own reach (he is 7 m tall).
+      expect(Math.hypot(x - GRAVE_RING.x, z - GRAVE_RING.z)).toBeGreaterThan(10);
+      expect(Math.hypot(x - GRAVEYARD.x, z - GRAVEYARD.z)).toBeLessThan(GRAVEYARD.radius - 20);
+      expect(boss.riseFromGrave).toHaveBeenCalled();
+      into(a, GRAVE_RING.x, GRAVE_RING.z);
+      expect(fight.spawnBoss).toHaveBeenCalledTimes(1);
+    });
+
+    it('takes him back once he is beaten, and the ring can raise him again after you step out and back in', () => {
+      const { a, fight, boss } = setup([]);
+      into(a, GRAVE_RING.x, GRAVE_RING.z);
+      boss.alive = false;
+      a.update(3);
+      expect(fight.despawn).toHaveBeenCalledTimes(1);
+      into(a, GRAVE_RING.x, GRAVE_RING.z); // still standing in it: no second cyclops
+      expect(fight.spawnBoss).toHaveBeenCalledTimes(1);
+      into(a, GRAVE_RING.x + 6, GRAVE_RING.z);
+      boss.alive = true;
+      into(a, GRAVE_RING.x, GRAVE_RING.z);
+      expect(fight.spawnBoss).toHaveBeenCalledTimes(2);
+    });
+
+    it('sends him back under when you leave the alley', () => {
+      const { a, fight } = setup([]);
+      into(a, GRAVE_RING.x, GRAVE_RING.z);
+      into(a, 0, 0); // home on the island
+      expect(fight.despawn).toHaveBeenCalledTimes(1);
+    });
   });
 });

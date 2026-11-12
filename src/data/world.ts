@@ -325,6 +325,11 @@ export const DREAM: RealmDef = { id: 'dream', name: "The Frog King's Dream", x: 
  */
 export const GRAVEYARD: RealmDef = { id: 'graveyard', name: 'The Alley of Graves', x: 0, z: -1000, y: 0, radius: 125, fog: { color: 0x2a1446, density: 0.014 } };
 /**
+ * The candle ring on the alley's floor between two braziers (Graveyard.ts): step into it and the Grave Cyclops climbs
+ * out of the ground up the alley ahead of you (Adventures; he no longer waits at the alley's end). `rise` is where.
+ */
+export const GRAVE_RING = { x: 0, z: -980, r: 1.6, rise: { x: 0, z: -998, yaw: Math.PI / 2 } } as const;
+/**
  * The Dragon's Vale (reel Dd5Bqt7vQ5T), through the lantern arch at the east end of the island's village street: a
  * village street with a tavern yard, a green dragon lying at its end, a crowned stone head on a hill by a river under
  * the aurora, and a castle floating over the clouds beyond. The island's sky shows over it (the VALE preset).

@@ -380,7 +380,7 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   // cyclops at the end of the Alley of Graves (01.16.54) and its skeleton guards, the Prism Wizard in the dream.
   { kind: 'cyclops', x: 32, z: 4, exact: true, yaw: Math.PI },
   { kind: 'blood-eye', x: -14, z: -56, exact: true, patrol: [[-40, -56], [-14, -54], [12, -60], [-14, -54]] },
-  { kind: 'cyclops-lord', x: 0, z: -1068, exact: true, yaw: Math.PI / 2 },
+  // (The Grave Cyclops no longer waits at the alley's end: the candle ring raises him, Adventures / GRAVE_RING.)
   { kind: 'skeleton', x: -6, z: -945, yaw: -Math.PI / 2 }, { kind: 'skeleton', x: 6, z: -945, yaw: -Math.PI / 2 },
   { kind: 'trip-wizard', x: 62, z: 2628, exact: true },   // over the canal village's edge, east of where you wake
   // The skeletons around the campfire by the village (DdjlyzyOcnK): seated on their barrels, facing the fire at (-24, 52).

@@ -4,7 +4,7 @@
  * F does before the usual targets (loot, talk). The conversations come from the Story once main.ts attaches one.
  */
 import { Group, Vector3 } from 'three';
-import { DREAM, GALAXY, LAYOUT } from '../data/world';
+import { DREAM, GALAXY, GRAVE_RING, GRAVEYARD, LAYOUT } from '../data/world';
 import type { EnemyKind } from '../data/enemies';
 import type { Enemy } from '../combat/Enemy';
 import { MODELS } from '../data/models';
@@ -218,6 +218,34 @@ export class Adventures {
     this.d.hud.announce('Yung Lean rises from the throne');
   }
 
+  /** The Grave Cyclops the candle ring raised (null when none), and whether the ring waits for you to step out first. */
+  private graveFight: { e: Enemy; beatenFor: number } | null = null;
+  private ringSpent = false;
+
+  /** The candle ring in the Alley of Graves: step in and the Grave Cyclops climbs out of the ground ahead of you. */
+  private updateGraveRing(dt: number): void {
+    const c = this.d.controller;
+    const inRing = Math.hypot(c.pos.x - GRAVE_RING.x, c.pos.z - GRAVE_RING.z) < GRAVE_RING.r;
+    if (!inRing) this.ringSpent = false;
+    const f = this.graveFight;
+    if (f) {
+      const left = Math.hypot(c.pos.x - GRAVEYARD.x, c.pos.z - GRAVEYARD.z) > GRAVEYARD.radius;
+      if (f.e.alive && !left) return;
+      if (!f.e.alive && !left) { f.beatenFor += dt; if (f.beatenFor < 2.5) return; }
+      this.d.fight.despawn(f.e);
+      this.graveFight = null;
+      return;
+    }
+    if (!inRing || this.ringSpent) return;
+    this.ringSpent = true;
+    const R = GRAVE_RING.rise;
+    const e = this.d.fight.spawnBoss('cyclops-lord', R.x, R.z, R.yaw);
+    e.riseFromGrave(3);
+    this.graveFight = { e, beatenFor: 0 };
+    this.d.audio.cast();
+    this.d.hud.announce('The Grave Cyclops rises');
+  }
+
   private updateKingFight(dt: number): void {
     const f = this.kingFight;
     if (!f) return;
@@ -312,6 +340,7 @@ export class Adventures {
     }
     if (this.aleLeft > 0) this.aleLeft = Math.max(0, this.aleLeft - dt);
     this.updateKingFight(dt);
+    this.updateGraveRing(dt);
     this.d.controller.drainScale = this.aleLeft > 0 ? 0.5 : 1;
     this.pinToBoat();
     // The sack rides on whoever is in front, swaying with the walk.

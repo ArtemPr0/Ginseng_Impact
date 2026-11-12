@@ -184,7 +184,7 @@ const CRYPT_WITCH: LineDef[] = [
   { id: 'crypt-witch.topic.rattle', slot: 'topic', ask: 'Does Rattlebones read?', when: { metMin: 1 }, text: 'Rattlebones reads. Do not let him tell you he does not. He has been on the same page since the coat was red.',
     choices: [{ label: 'Noted.', action: 'close' }] },
   { id: 'crypt-witch.topic.court', slot: 'topic', ask: 'The Skeleton King\'s bounty', when: { quest: ['grave', ['none', 'active']] },
-    text: 'The Skeleton King wants the cyclops at the end of the Alley of Graves dead. He pays better than the antlered one, he says. He does. He counts it twice.',
+    text: 'The Skeleton King wants the Grave Cyclops dead. Stand in the candle ring in the Alley and it climbs out to meet you. He pays well. He counts it twice.',
     choices: [{ label: 'Noted.', action: 'close' }] },
   { id: 'crypt-witch.topic.silence', slot: 'topic', ask: 'About the five voices', when: { quest: ['silence', ['told', 'five', 'open']] },
     text: 'Five voices, swallowed? A lady does not shout. The kingdom could have asked me how to be quiet properly.',
