@@ -1,4 +1,5 @@
 import { BoxGeometry, IcosahedronGeometry, BufferGeometry, CircleGeometry, Color, Float32BufferAttribute, Group, LineBasicMaterial, LineSegments, Mesh, PerspectiveCamera, Scene, Vector3, ConeGeometry, CylinderGeometry, TorusGeometry, MeshBasicMaterial, AdditiveBlending, DoubleSide, Sprite, SpriteMaterial } from 'three';
+import { Hype, isOverkill } from '../game/Hype';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Audio } from '../audio/Audio';
 import { CombatSfx, hitMaterial } from '../audio/CombatSfx';
@@ -366,6 +367,8 @@ export class CombatSystem {
   private readonly rnd: () => number;
   /** The combo counter (hits in a row, 1.2 s apart at most). */
   private readonly streak = new HitStreak(1.2);
+  /** The hype man: combo tiers, multi-kills, overkills (game/Hype.ts). */
+  private readonly hype = new Hype();
   /** Tab's lock-on (Combat.ts LockOn): the camera keeps its target framed, swings turn to it, shots and spells go for it. */
   private readonly lock = new LockOn<Enemy>();
   /** Whether the boss layer of the score is on (a boss has the hero in its sights). */
@@ -2278,6 +2281,7 @@ export class CombatSystem {
     const kl = Math.hypot(kdx, kdz) || 1;
     const kb = { x: kdx / kl, z: kdz / kl };
     const bossKb = e.def.boss ? 0.15 : 1;
+    const hpBefore = e.hp;
     const died = e.takeDamage(dmg, kb, (knockback + (reaction ? REACTIONS[reaction].knockback : 0)) * bossKb);
     // Enough punishment in a short time breaks a boss's stance: it reels, and that is the opening.
     if (!died && e.def.boss && e.def.kind !== 'hollowking') {
@@ -2330,6 +2334,8 @@ export class CombatSystem {
       if (heavy || crit) this.feel.punch = true;
       if (heavy) this.feel.boom = true;
       this.streak.hit();
+      const call = this.hype.hit(this.streak.count);
+      if (call) { this.d.hud.hype(call.text, call.tier); this.d.audio.comboUp(call.tier); }
     }
     this.sfx.hit(hitMaterial(e.def.kind), heavy, element !== null);
     if (crit) {
@@ -2339,10 +2345,23 @@ export class CombatSystem {
     // The burst: a blow's worth a hit, or through a many-shot cast, once a body (o.cast).
     if (o.energy ?? true) this.burstEnergy = Math.min(BURST_MAX, this.burstEnergy + (o.cast ? o.cast.take(e.id) : HIT_ENERGY));
     if (reaction) { this.applyReaction(e, reaction, dmg, at, pierceStop(REACTION_STOP, nth)); this.d.audio.reaction(); }
-    if (died) this.onEnemyDeath(e, at);
+    if (died) {
+      // Blown far past dead: launched off its feet, tumbling (Yeet.ts), with a bonk and a quip.
+      if (own && isOverkill(dmg, hpBefore) && e.launchFrom(kb.x, kb.z)) {
+        const q = this.hype.overkill();
+        this.d.hud.hype(q.text, q.tier);
+        this.d.audio.overkill();
+        this.d.game.hitStop = Math.max(this.d.game.hitStop, 0.09);
+      }
+      this.onEnemyDeath(e, at);
+    }
   }
 
   private onEnemyDeath(e: Enemy, at: Vector3): void {
+    // The killing blow lands a beat harder; kills close together are named (Hype.kill).
+    this.d.game.hitStop = Math.max(this.d.game.hitStop, e.def.boss ? 0.3 : 0.05);
+    const chain = this.hype.kill(this.time);
+    if (chain) { this.d.hud.hype(chain.text, chain.tier + 1); this.d.audio.multiKill(chain.tier); }
     this.fx.sparks(at, UP, 24, PALETTE.moon, 7, 1.1);
     this.fx.shock(_v.set(e.pos.x, e.pos.y, e.pos.z), ELEMENT_COLOR[e.def.element], e.def.boss ? 14 : 5);
     this.d.hud.removeEnemyBar(e.id);
@@ -2804,6 +2823,8 @@ export class CombatSystem {
     const c = this.d.controller;
     const gloat = this.enemies.find((e) => e.alive && e.aggro && e.def.voices && Math.hypot(e.pos.x - c.pos.x, e.pos.z - c.pos.z) < 25);
     if (gloat) { this.voiceClock = 0; this.say(gloat, gloat.def.voices!.win); }
+    // And everything nearby that was fighting dances on the spot.
+    for (const e of this.enemies) if (e.alive && e.aggro && Math.hypot(e.pos.x - c.pos.x, e.pos.z - c.pos.z) < 20) e.taunt(3.5);
   }
 
   /** After the fall's hold: the next hero takes over, or, with nobody left, the fog takes the party. */

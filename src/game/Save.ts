@@ -35,6 +35,8 @@ export interface SaveV1 {
   /** Companion NPC ids hired. */
   companions: string[];
   newGamePlus: boolean;
+  /** Silly titles earned (game/Hype.ts Titles); missing in older saves. */
+  titles?: string[];
 }
 
 export interface StorageLike {

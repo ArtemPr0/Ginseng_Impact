@@ -239,6 +239,9 @@ export class Hud {
       <div class="hud-crosshair" id="hud-crosshair"></div>
       <div class="hud-lock" id="hud-lock">${LOCK_SVG}</div>
       <div class="hud-combo" id="hud-combo"></div>
+      <div class="hud-hype" id="hud-hype"></div>
+      <div class="hud-toast panel" id="hud-toast"></div>
+      <div class="hud-xp" id="hud-xp"><div class="hud-xp-fill" id="hud-xp-fill"></div></div>
       <div class="hud-banner" id="hud-banner"></div>
       <div class="hud-curtain" id="hud-curtain"></div>
       <div class="hud-hint">LMB attack · RMB heavy · E skill · Q burst · R dodge · TAB lock · F interact · I bag</div>
@@ -442,6 +445,43 @@ export class Hud {
   flashDamage(): void {
     this.root.classList.add('hurt');
     window.setTimeout(() => this.root.classList.remove('hurt'), 160);
+  }
+
+  /** The hype man's callout (game/Hype.ts: a combo tier, a multi-kill, an overkill quip), popped beside the combo. */
+  hype(text: string, tier: number): void {
+    const el = this.q('#hud-hype');
+    el.textContent = text;
+    for (let t = 1; t <= 6; t++) el.classList.remove(`tier-${t}`);
+    el.classList.remove('show');
+    void el.offsetWidth;
+    el.classList.add(`tier-${Math.max(1, Math.min(6, Math.round(tier)))}`);
+    el.classList.add('show');
+  }
+
+  private toasts: Array<{ title: string; quip: string }> = [];
+  private toastTimer = 0;
+
+  /** A silly title earned (game/Hype.ts Titles): a toast for four seconds; titles earned together wait their turn. */
+  titleEarned(title: string, quip: string): void {
+    this.toasts.push({ title, quip });
+    if (!this.toastTimer) this.nextToast();
+  }
+
+  private nextToast(): void {
+    const el = this.q('#hud-toast');
+    const t = this.toasts.shift();
+    if (!t) { this.toastTimer = 0; return; }
+    el.innerHTML = `<div class="hud-toast-head">Title earned</div><div class="hud-toast-name">${t.title}</div><div class="hud-toast-quip">${t.quip}</div>`;
+    el.classList.add('show');
+    this.toastTimer = window.setTimeout(() => {
+      el.classList.remove('show');
+      this.toastTimer = window.setTimeout(() => this.nextToast(), 400);
+    }, 4000);
+  }
+
+  /** The experience bar under the hero card (0..1 of the way to the next level). */
+  setXp(fraction: number): void {
+    this.q('#hud-xp-fill').style.width = `${Math.round(Math.max(0, Math.min(1, fraction)) * 100)}%`;
   }
 
   /** A line across the screen for `seconds` (2.2 by default); later calls wait their turn, a higher `priority` cuts in (see BannerQueue). */

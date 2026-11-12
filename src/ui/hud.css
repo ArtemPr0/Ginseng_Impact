@@ -182,3 +182,25 @@ body { font-family: var(--font-body); color: var(--moon); }
   text-transform: uppercase; color: var(--moon); background: var(--panel); border: 1px solid var(--panel-border); border-radius: 2px;
 }
 #hud-credits button:hover { border-color: var(--rune); }
+
+/* ---------- the hype man (game/Hype.ts): combo tiers, multi-kills, overkill quips ---------- */
+.hud-hype { position: absolute; left: calc(50% + 70px); bottom: 196px; font-family: var(--font-title); font-weight: 700; font-size: 26px; letter-spacing: 0.04em; white-space: nowrap; color: var(--moon); text-shadow: 0 0 2px var(--void), 2px 2px 0 var(--void), 0 0 14px currentColor; opacity: 0; pointer-events: none; transform-origin: left center; }
+.hud-hype.show { animation: hypepop 1500ms cubic-bezier(.2,1.6,.4,1) forwards; }
+.hud-hype.tier-2 { color: #6ff3ff; font-size: 30px; }
+.hud-hype.tier-3 { color: #b98cff; font-size: 34px; }
+.hud-hype.tier-4 { color: #ffc23a; font-size: 38px; }
+.hud-hype.tier-5 { color: #ff5fd2; font-size: 42px; }
+.hud-hype.tier-6 { font-size: 48px; background: linear-gradient(90deg, #ff5f5f, #ffc23a, #6fff9a, #6ff3ff, #b98cff, #ff5fd2); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; filter: drop-shadow(2px 2px 0 var(--void)); }
+.hud-hype.tier-5.show, .hud-hype.tier-6.show { animation: hypepop 1500ms cubic-bezier(.2,1.6,.4,1) forwards, hypewobble 160ms steps(2, end) 6; }
+@keyframes hypepop { 0% { opacity: 0; transform: rotate(-8deg) scale(2.4); } 12% { opacity: 1; transform: rotate(-6deg) scale(0.92); } 20% { transform: rotate(-6deg) scale(1.06); } 28% { transform: rotate(-6deg) scale(1); } 80% { opacity: 1; transform: rotate(-6deg) translateY(-6px); } 100% { opacity: 0; transform: rotate(-6deg) translateY(-22px); } }
+@keyframes hypewobble { 50% { margin-left: 4px; } }
+#hud.panel-open .hud-hype { visibility: hidden; }
+/* An earned title: a gold-edged toast top-right, slid in, held four seconds. */
+.hud-toast { position: absolute; right: 24px; top: 96px; min-width: 220px; max-width: 320px; padding: 10px 14px 12px; border-left: 3px solid #ffc23a; opacity: 0; transform: translateX(40px); transition: opacity 180ms, transform 220ms cubic-bezier(.2,1.4,.4,1); pointer-events: none; }
+.hud-toast.show { opacity: 1; transform: translateX(0); }
+.hud-toast-head { font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase; color: #ffc23a; }
+.hud-toast-name { font-family: var(--font-title); font-weight: 700; font-size: 20px; letter-spacing: 0.06em; color: var(--moon); margin-top: 2px; }
+.hud-toast-quip { font-size: 12px; color: var(--cloth); margin-top: 3px; font-style: italic; }
+/* The experience bar along the bottom of the hero card. */
+.hud-xp { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); width: 292px; height: 3px; background: var(--void); border: 1px solid rgba(223,230,255,0.18); }
+.hud-xp-fill { height: 100%; width: 0; background: linear-gradient(90deg, #ffc23a, #fff2b0); box-shadow: 0 0 6px rgba(255,194,58,0.6); transition: width 400ms cubic-bezier(.2,1.2,.4,1); }

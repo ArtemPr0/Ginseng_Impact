@@ -441,6 +441,55 @@ export class Audio {
   }
 
   /** Hired a companion / bought something. */
+  /** A combo tier reached (game/Hype.ts): a quick rising arpeggio, higher and longer the higher the tier. */
+  comboUp(tier: number): void {
+    const root = 523 * Math.pow(1.122, tier - 1);
+    [1, 1.26, 1.5, 2].slice(0, 2 + Math.min(2, tier)).forEach((m, i) => this.tone('square', root * m, root * m, 0.09, 0.09, i * 0.05, 0.002, 0.06));
+    if (tier >= 4) this.noise(0.25, 'highpass', 5000, 9000, 0.4, 0.1, 0.12);
+  }
+
+  /** Kills in a row (Hype.kill): one chime per kill, climbing, over a thump. */
+  multiKill(n: number): void {
+    this.tone('sine', 90, 45, 0.25, 0.5, 0, 0.004, 0.15);
+    for (let i = 0; i < Math.min(6, n); i++) { const f = 784 * Math.pow(1.19, i); this.tone('triangle', f, f, 0.14, 0.2, 0.04 + i * 0.07, 0.002, 0.1); }
+  }
+
+  /** An overkill: a cartoon bonk, then a slide whistle as the body flies off. */
+  overkill(): void {
+    this.tone('sine', 900, 110, 0.16, 0.5, 0, 0.002, 0.08);
+    this.noise(0.06, 'bandpass', 1800, 900, 2, 0.35);
+    this.tone('sine', 420, 1900, 0.42, 0.16, 0.1, 0.02, 0.1);
+  }
+
+  /** A chest opening: a creak of old wood, the lid's knock, a shower of coins and a sparkle. */
+  chest(): void {
+    this.tone('sawtooth', 210, 140, 0.35, 0.06, 0, 0.03, 0.1);
+    this.noise(0.08, 'lowpass', 600, 200, 1, 0.4, 0.32);
+    this.coins(7);
+    [1046, 1318, 1568, 2093].forEach((f, i) => this.tone('sine', f, f, 0.4, 0.12, 0.38 + i * 0.06, 0.004, 0.3));
+  }
+
+  /** A level gained: a bright fanfare (C E G C, then the chord) and a shimmer. */
+  levelUp(): void {
+    [523, 659, 784, 1046].forEach((f, i) => this.tone('square', f, f, 0.12, 0.14, i * 0.09, 0.004, 0.08));
+    [523, 659, 784, 1046].forEach((f) => this.tone('triangle', f, f, 0.9, 0.12, 0.38, 0.01, 0.6));
+    this.noise(0.9, 'highpass', 6000, 10000, 0.4, 0.1, 0.38, 0.05);
+  }
+
+  /** A rare drop (rarity 3+): a slot machine's rattle and the payout chord. */
+  jackpot(): void {
+    for (let i = 0; i < 12; i++) this.tone('square', i % 2 ? 1568 : 1318, i % 2 ? 1568 : 1318, 0.05, 0.08, i * 0.045, 0.002, 0.03);
+    [784, 988, 1175, 1568].forEach((f) => this.tone('triangle', f, f, 0.9, 0.14, 0.56, 0.01, 0.6));
+    this.coins(8);
+  }
+
+  /** A silly title earned (Hype.Titles): a kazoo's ta-da. */
+  tada(): void {
+    this.tone('sawtooth', 466, 470, 0.14, 0.09, 0, 0.01, 0.05);
+    this.tone('sawtooth', 698, 704, 0.45, 0.1, 0.16, 0.01, 0.25);
+    this.tone('sawtooth', 703, 692, 0.45, 0.04, 0.16, 0.01, 0.25);
+  }
+
   fanfare(): void {
     [659, 784, 1046].forEach((f, i) => this.tone('triangle', f, f, 0.3, 0.3, i * 0.1, 0.005, 0.2));
     this.coins(2);

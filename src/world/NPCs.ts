@@ -6,6 +6,10 @@ import { MODELS } from '../data/models';
 import { PALETTE } from '../render/palette';
 import { SpeechBubble } from './SpeechBubble';
 import { voiceUrl, VOICES } from '../data/voices';
+import { type Moment, reactionFor } from '../models/Emotes';
+
+/** Poses that keep an NPC in a seat (their reactions stay seated: Emotes.reactionFor). */
+const SEATED_POSES = new Set<string>(['sit', 'read', 'throne', 'sitSword', 'fish', 'row', 'ride']);
 
 export type NpcBehaviour =
   | { kind: 'stand'; pose?: RigPose['pose']; yaw: number }
@@ -428,6 +432,10 @@ export class Npc {
   private flinchT = 0;
   private flinchX = 0;
   private flinchZ = 0;
+  /** The emote it is playing (react) and how long is left. */
+  private emote: { key: NonNullable<RigPose['pose']>; left: number } | null = null;
+  /** Waved at the hero on this approach (reset once the hero is 20 m off). */
+  private waved = false;
   readonly rig: Rig;
   readonly object: Group;
   readonly pos = new Vector3();
@@ -480,6 +488,26 @@ export class Npc {
    * his pose kept (a seated one stays seated).
    */
   /** Sets out along a new path at `speed` m/s (the loop restarts from its first leg): the Pale Bride's walk to the shore. */
+  /** Seated (or riding, rowing, enthroned): reacts from the seat (models/Emotes.reactionFor). */
+  get seated(): boolean {
+    const b = this.def.behaviour;
+    const p = b.kind === 'stand' || b.kind === 'loop' ? b.pose : undefined;
+    if (p === 'drink') return /sit/.test(MODELS[this.def.model ?? '']?.clips?.drink ?? 'sit');
+    return p !== undefined && SEATED_POSES.has(p);
+  }
+
+  /**
+   * A bystander's reaction to a moment (a kill nearby, a boss down, the party falling, the hero walking up, a level):
+   * a shared emote held for a few seconds. Talking, walking or busy with one already, it lets the moment pass.
+   */
+  react(moment: Moment): boolean {
+    if (this.gone || this.def.invisible || this.emote) return false;
+    const r = reactionFor(moment, this.seated);
+    if (!r) return false;
+    this.emote = { key: r.key as NonNullable<RigPose['pose']>, left: r.seconds };
+    return true;
+  }
+
   /** Swung at within two metres: a standing NPC steps a metre back (seated, walking and scripted ones hold). */
   startle(from: { x: number; z: number }): void {
     const b = this.def.behaviour;
@@ -650,7 +678,12 @@ export class Npc {
     } else this.object.position.copy(this.pos);
     this.object.rotation.y = yawToRotation(this.yaw);
     this.sounds(dt, Math.hypot(player.x - this.pos.x, player.z - this.pos.z));
-    const pose = b.kind === 'guard' && moving ? undefined : this.speaking > 0 ? 'talk' : talking ? (this.def.voice ? b.kind === 'stand' ? b.pose : undefined : undefined) : b.kind === 'stand' || b.kind === 'guard' || b.kind === 'loop' ? b.pose : undefined;
+    // A wave the first time the hero walks up (once per approach); the emote held while it lasts.
+    const far = Math.hypot(player.x - this.pos.x, player.z - this.pos.z);
+    if (far > 20) this.waved = false;
+    else if (far < 6 && !this.waved && !talking && !moving) { this.waved = true; this.react('wave'); }
+    if (this.emote) { this.emote.left -= dt; if (this.emote.left <= 0 || talking || moving) this.emote = null; }
+    const pose = this.emote ? this.emote.key : b.kind === 'guard' && moving ? undefined : this.speaking > 0 ? 'talk' : talking ? (this.def.voice ? b.kind === 'stand' ? b.pose : undefined : undefined) : b.kind === 'stand' || b.kind === 'guard' || b.kind === 'loop' ? b.pose : undefined;
     // The hero within ten metres, ahead of it: the head follows, the pose stays.
     const dx = player.x - this.pos.x, dz = player.z - this.pos.z, near = Math.hypot(dx, dz);
     let want = 0;

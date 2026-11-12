@@ -365,3 +365,53 @@ describe('Hud banner', () => {
     expect(banner.classList.contains('show')).toBe(false);
   });
 });
+
+describe('Hud hype', () => {
+  beforeEach(() => { vi.useFakeTimers(); (globalThis as { window?: unknown }).window = globalThis; });
+  afterEach(() => { vi.useRealTimers(); delete (globalThis as { window?: unknown }).window; });
+
+  it('pops a callout sized by its tier', () => {
+    const root = stubContainer();
+    const hud = new Hud(root as unknown as HTMLElement);
+    hud.hype('Saucy!!', 2);
+    const el = root.querySelector('#hud-hype');
+    expect(el.textContent).toBe('Saucy!!');
+    expect(el.classList.contains('show')).toBe(true);
+    expect(el.classList.contains('tier-2')).toBe(true);
+    hud.hype('Triple Sip!', 3);
+    expect(el.classList.contains('tier-2')).toBe(false);
+    expect(el.classList.contains('tier-3')).toBe(true);
+  });
+
+  it('shows an earned title with its quip, then hides it', () => {
+    const root = stubContainer();
+    const hud = new Hud(root as unknown as HTMLElement);
+    hud.titleEarned('Skill Issue', 'The floor was very comfortable.');
+    const el = root.querySelector('#hud-toast');
+    expect(el.innerHTML).toContain('Skill Issue');
+    expect(el.innerHTML).toContain('The floor was very comfortable.');
+    expect(el.classList.contains('show')).toBe(true);
+    vi.advanceTimersByTime(4200);
+    expect(el.classList.contains('show')).toBe(false);
+  });
+
+  it('queues titles earned together, one after the other', () => {
+    const root = stubContainer();
+    const hud = new Hud(root as unknown as HTMLElement);
+    hud.titleEarned('Murderhobo', 'a');
+    hud.titleEarned('Moist', 'b');
+    const el = root.querySelector('#hud-toast');
+    expect(el.innerHTML).toContain('Murderhobo');
+    vi.advanceTimersByTime(4600);
+    expect(el.innerHTML).toContain('Moist');
+  });
+
+  it('fills the experience bar', () => {
+    const root = stubContainer();
+    const hud = new Hud(root as unknown as HTMLElement);
+    hud.setXp(0.4);
+    expect(root.querySelector('#hud-xp-fill').style.width).toBe('40%');
+    hud.setXp(2);
+    expect(root.querySelector('#hud-xp-fill').style.width).toBe('100%');
+  });
+});

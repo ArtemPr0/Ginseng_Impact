@@ -6,6 +6,7 @@ import { MODELS, type ModelDef } from '../data/models';
 import { glowSprite } from '../render/Glow';
 import { leanDisc } from '../render/LeanCup';
 import { pickGait } from './Gait';
+import { launch, type Yeet, yeetStep } from './Yeet';
 import { LeanBubble } from '../render/LeanBubble';
 import { patchTrippy } from '../render/Materials';
 import { patchDissolve } from '../render/CombatFx';
@@ -222,6 +223,10 @@ export class Enemy {
   private heap: { t: number; bones: Array<{ b: Object3D; from: Quaternion; to: Quaternion; delay: number }>; tipAxis: Vector3; drop: number } | null = null;
   /** Death without a death clip (see topplePose): seconds into the topple, or -1. */
   private toppleT = -1;
+  /** Blown off its feet by an overkill (Yeet.ts): the flight, until it lands. */
+  private yeet: Yeet | null = null;
+  /** Dancing over a fallen hero (taunt), seconds left. */
+  private tauntT = 0;
   /** The locomotion clip key it is walking or running in (Gait.pickGait holds it). */
   private gait = '';
   /** Whom it fights: a companion's place (the object it was handed in `marks`), or null for the hero (marks[0]). */
@@ -809,6 +814,9 @@ export class Enemy {
     if (this.heap) for (const x of this.heap.bones) x.b.quaternion.copy(x.from);
     this.heap = null;
     this.toppleT = -1;
+    this.yeet = null;
+    this.tauntT = 0;
+    this.object.rotation.x = 0;
     this.oneShot = null;
     this.wantFlinch = false;
     this.lunge = this.flinch = 0;
@@ -838,11 +846,34 @@ export class Enemy {
     this.model?.play('idle');
   }
 
+  /**
+   * Killed by an overkill (game/Hype.isOverkill): launched up and away along (dirX, dirZ), spinning, to land on its
+   * side and burn away there. Bosses, flyers, the rooted and the seated stay put.
+   */
+  /** A hero fell in front of it: it dances a few seconds (a biped with the shared emotes; others take no notice). */
+  taunt(seconds: number): void {
+    if (this.alive && !this.def.boss) this.tauntT = seconds;
+  }
+
+  launchFrom(dirX: number, dirZ: number): boolean {
+    const d = this.def;
+    if (this.alive || d.boss || d.flying || this.seatedNow || d.speed <= 0 || d.body || d.eye || d.floatAt !== undefined) return false;
+    this.yeet = launch(dirX, dirZ, Math.max(1, d.height * (d.scale ?? 1) / 2));
+    return true;
+  }
+
   /** Per-frame visuals. */
   /** `far`: beyond animation range, so the skeleton holds its pose (state, position and shrink still update). */
   animate(dt: number, far = false): void {
     if (this.hopT >= 0) { this.hopT += dt; if (this.hopT >= this.hopLen) this.hopT = -1; }
+    if (this.tauntT > 0) this.tauntT = Math.max(0, this.tauntT - dt);
     this.animateGems(dt);
+    // Blown away by an overkill: the arc, tumbling, until it lands (Yeet.ts).
+    if (this.yeet && !this.alive) {
+      yeetStep(this.yeet, this.pos, dt, (x, z) => this.world.heightAt(x, z, this.pos.y + 1));
+      // In the air it tumbles; landed, it lies on its back or front, whichever way it was turning.
+      this.object.rotation.x = this.yeet.landed ? Math.sign(this.yeet.spin) * Math.PI / 2 : this.yeet.angle;
+    }
     // Out of the grave: up through the ground fast at first, slowing as the feet come out.
     const sink = this.graveRise > 0 ? -1.9 * Math.pow(this.graveRise / this.graveRiseLen, 1.6) : 0;
     this.object.position.set(this.pos.x, this.pos.y + this.hopLift + sink, this.pos.z);
@@ -1036,7 +1067,7 @@ export class Enemy {
    */
   private driveClips(m: ModelRig, st: EnemyState, entered: boolean): void {
     if (entered && st === 'dead') {
-      if (this.def.collapse) { this.startHeap(m); return; }
+      if (this.def.collapse && !this.yeet) { this.startHeap(m); return; }
       // No death clip (the log giant): the pose freezes where it is and the whole frame topples over (toppleOver).
       if (!m.play('death', true)) { m.holdAt(0); this.toppleT = 0; }
       this.oneShot = 'death';
@@ -1045,6 +1076,8 @@ export class Enemy {
     if (st === 'dead') return;
     if (this.status.stun > 0) { m.play('idle', false, 0.35); this.oneShot = null; return; }
     if (this.seatedNow) { m.play('sit'); return; }
+    // Gloating over a fallen hero: a little dance, when it is not swinging or on the move (models/Emotes.ts).
+    if (this.tauntT > 0 && st !== 'windup' && st !== 'attack' && this.groundSpeed < 0.6 && m.play('dance')) return;
     if (this.rising > 0) { if (m.playing !== 'stand' && !m.play('stand', true, 1, STAND_UP)) m.play('idle'); return; }
     if (entered && st === 'windup') {
       const windup = this.brain.p.windup;

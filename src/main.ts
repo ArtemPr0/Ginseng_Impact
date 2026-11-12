@@ -36,7 +36,9 @@ import { World } from './world/World';
 import { Adventures } from './game/Adventures';
 import { Ending } from './game/Ending';
 import { Events, type HeroId, type Zone } from './game/Events';
-import { Progress, xpForKill } from './game/Progress';
+import { Progress, xpFor, xpForKill } from './game/Progress';
+import { Titles } from './game/Hype';
+import { questNode } from './data/quests';
 import { Save, type SaveV1 } from './game/Save';
 import { Story } from './game/Story';
 import { WorldState } from './game/WorldState';
@@ -228,8 +230,16 @@ const combat = new CombatSystem({
       combat.level = progress.level;
       hud.setParty(ROSTER, party.activeIndex, fallen(), progress.level);
       hud.announce(`Level ${progress.level}`);
+      // The level's moment: a fanfare, a gold ring and a shower of sparks round the hero, the hype man shouting it.
+      audio.levelUp();
+      hud.hype(`LEVEL UP!`, 6);
+      const at = new Vector3(controller.pos.x, controller.pos.y + 0.2, controller.pos.z);
+      combatFx.shock(at, 0xffc23a, 9);
+      combatFx.sparks(at.clone().setY(at.y + 1), new Vector3(0, 1, 0), 40, 0xffd870, 8, 1.4);
+      renderer.pulse(0.45);
       events.emit({ kind: 'feat', what: 'levelup' });
     }
+    showXp();
     save.markDirty();
   },
   muzzle: () => rigs[party.activeIndex].muzzle(new Vector3()),
@@ -426,9 +436,14 @@ function snapshot(): SaveV1 {
     quests: adventures.quests.snapshot(), slain: adventures.quests.slain(),
     flags: worldState.snapshot().flags, state: worldState.snapshot(), progress: { xp: progress.xp, level: progress.level },
     bosses: { ...bosses }, chests: [...openedChests], companions: companions.map((c) => c.def.id), newGamePlus,
+    titles: titles.snapshot(),
   };
 }
 let newGamePlus = false;
+/** Silly titles earned (game/Hype.ts): restored from the save. */
+let titles = new Titles();
+/** The experience bar: how far into this level. */
+function showXp(): void { hud.setXp(progress.level >= 30 ? 1 : progress.xp / xpFor(progress.level)); }
 /** What each hero wields shows in the hand: the blade takes the item's colour. */
 function weaponGlows(): void {
   ROSTER.forEach((c, i) => {
@@ -445,6 +460,8 @@ function applySave(s: SaveV1): void {
   if (s.state && typeof s.state === 'object') worldState.restore(s.state as Parameters<WorldState['restore']>[0]);
   progress.xp = s.progress.xp;
   progress.level = s.progress.level;
+  titles = new Titles(s.titles ?? []);
+  showXp();
   openedChests.clear();
   for (const id of s.chests) openedChests.add(id);
   for (const [id, n] of Object.entries(s.hp)) combat.hp.set(id, n);
@@ -480,6 +497,11 @@ function openChest(c: ChestDef): void {
   openedChests.add(c.id);
   openedAt.set(c.id, playTime);
   const y = world.heightAt(c.x, c.z);
+  // Its moment: the creak, the lid, the coins; a gold burst and a little shake.
+  audio.chest();
+  combatFx.sparks(new Vector3(c.x, y + 0.8, c.z), new Vector3(0, 1, 0), 34, 0xffc23a, 7, 1.2);
+  combatFx.flash(new Vector3(c.x, y + 0.8, c.z), 0xffd870, 2.2);
+  tpc.shake(0.25);
   if (c.kind === 'mimic') {
     combat.wake('bucket', c.x, c.z);
     hud.announce('The hoard stands up');
@@ -582,6 +604,22 @@ hud.setSavePresent(save.has());
 // (Never before the player has entered: the zone event at startup would overwrite the save with a blank game.)
 // Swung at within reach, an NPC steps back.
 events.on('feat', (e) => { if (e.what === 'attack') for (const n of area.npcs) if (!n.def.invisible) n.startle(controller.pos); });
+// Bystanders react (models/Emotes.ts): a cheer or a dance at a kill near them, the YMCA for a boss, a shrug when the
+// party falls, a cheer for a level.
+const bystanders = (at: { x: number; z: number }, r: number) => area.npcs.filter((n) => !n.hidden && Math.hypot(n.pos.x - at.x, n.pos.z - at.z) < r);
+events.on('kill', (e) => { for (const n of bystanders(e.at, e.boss ? 80 : 18)) n.react(e.boss ? 'boss' : 'kill'); });
+events.on('wipe', () => { for (const n of bystanders(controller.pos, 30)) n.react('wipe'); });
+events.on('feat', (e) => { if (e.what === 'levelup') for (const n of bystanders(controller.pos, 30)) n.react('levelup'); });
+// A quest finished: the fanfare and a shout (the banner is Story's).
+events.on('quest', (e) => { if (questNode(e.id)?.stages[e.stage]?.terminal) { audio.fanfare(); hud.hype('Quest complete!', 4); } });
+// Silly titles (game/Hype.ts): a toast and a kazoo.
+events.onAny((e) => {
+  const t = titles.on(e);
+  if (!t) return;
+  hud.titleEarned(t.title, t.quip);
+  audio.tada();
+  save.markDirty();
+});
 events.on('zone', () => { if (resumed) save.write(snapshot()); });
 events.on('quest', () => { if (resumed) save.write(snapshot()); });
 
@@ -639,7 +677,7 @@ function interactTarget(): { kind: 'loot'; take: () => void; label: string } | {
   const pickup = combat.loot.nearest(p, 2.8);
   if (pickup && pickup.drop.kind === 'item') {
     const def = ITEMS[pickup.drop.itemId];
-    return { kind: 'loot', label: `Take ${def.name}`, take: () => { combat.loot.take(pickup); inventory.add(def.id, 1); audio.loot(def.rarity); hud.announce(`${def.name}`); events.emit({ kind: 'loot', item: def.id, rarity: def.rarity }); } };
+    return { kind: 'loot', label: `Take ${def.name}`, take: () => { combat.loot.take(pickup); inventory.add(def.id, 1); if (def.rarity >= 3) { audio.jackpot(); hud.hype(def.rarity >= 4 ? 'JACKPOT' : 'Ooh, shiny', def.rarity + 1); renderer.pulse(0.35); } else audio.loot(def.rarity); hud.announce(`${def.name}`); events.emit({ kind: 'loot', item: def.id, rarity: def.rarity }); } };
   }
   const zone = REALMS.find((r) => Math.hypot(p.x - r.x, p.z - r.z) < r.radius)?.id ?? null;
   const use = adventures.interact(zone);

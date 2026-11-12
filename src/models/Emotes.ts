@@ -17,3 +17,23 @@ export function emotesFor(def: { clipFiles?: Partial<Record<string, string>>; em
   for (const [k, f] of Object.entries(EMOTE_FILES)) if (!def.clipFiles?.[k]) out[k] = f;
   return out;
 }
+
+export type Moment = 'kill' | 'boss' | 'wipe' | 'wave' | 'levelup';
+
+const KILL = ['cheer', 'dance', 'ymca', 'jacks'];
+
+/**
+ * What a bystander does at a moment: cheers or dances at a kill nearby, the YMCA for a boss, a shrug when the party
+ * falls, a wave hello, a cheer for a level. Seated bodies clap from the seat or keep still (a standing clip on a seated
+ * NPC would lift it off its chair).
+ */
+export function reactionFor(moment: Moment, seated: boolean, rand: () => number = Math.random): { key: string; seconds: number } | null {
+  if (seated) return moment === 'wave' ? null : { key: 'clap', seconds: 3 };
+  switch (moment) {
+    case 'kill': return { key: KILL[Math.min(KILL.length - 1, Math.floor(rand() * KILL.length))], seconds: 3 };
+    case 'boss': return { key: 'ymca', seconds: 7 };
+    case 'wipe': return { key: 'shrug', seconds: 2.5 };
+    case 'wave': return { key: 'wave', seconds: 2.2 };
+    case 'levelup': return { key: 'cheer', seconds: 3 };
+  }
+}
