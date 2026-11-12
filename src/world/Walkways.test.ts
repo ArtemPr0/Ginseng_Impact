@@ -48,3 +48,19 @@ describe('the causeway is one bridge, bank to bank', () => {
     expect(posts.length).toBe(b.spans.length * 2);
   });
 });
+
+describe('a humpback footbridge sized to its crossing', () => {
+  it('lands both ends on the banks and arches over the water between, at any length', async () => {
+    const { witchBridgeDeck } = await import('./Walkways');
+    const bank = 20;
+    const d = witchBridgeDeck(822, 18, () => bank, 18);
+    const deck = d.footprints.filter((f) => f.kind === 'box' && Math.abs(f.z - 18) < 0.01).map((f) => f as { x: number; top: number; hd: number });
+    const xs = deck.map((f) => f.x);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(16.5);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeLessThan(18);
+    const ends = deck.filter((f) => Math.abs(f.x - 822) > 8.5);
+    for (const e of ends) expect(Math.abs(e.top - bank)).toBeLessThan(0.45);
+    expect(d.deckY - bank).toBeGreaterThan(1.2);
+    expect(deck[0].hd).toBeCloseTo(2.3 * 18 / 22, 6);
+  });
+});

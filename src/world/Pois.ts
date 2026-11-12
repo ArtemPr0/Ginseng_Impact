@@ -50,18 +50,32 @@ export function camp(api: RealmApi, x: number, z: number): void {
   api.vfx(fire(x - 5, api.h(x - 5, z - 3) + 2.1, z - 3, 0.4, 6));
 }
 
-/** A fallen gatehouse: an arch still standing, columns, a run of wall. */
-export function ruin(api: RealmApi, x: number, z: number, yaw: number): void {
+/**
+ * Where a fallen gatehouse's pieces lie round its arch at (x, z) turned by `yaw`: its four columns and two runs of wall,
+ * less any that would stand within `avoid` ([x, z, radius] each) of something already there.
+ */
+export function ruinPieces(x: number, z: number, yaw: number, avoid: ReadonlyArray<readonly [number, number, number]> = []): { columns: Array<[number, number]>; walls: Array<[number, number]> } {
   const c = Math.cos(yaw), s = Math.sin(yaw);
+  const clear = ([px, pz]: [number, number]) => !avoid.some(([ax, az, r]) => Math.hypot(px - ax, pz - az) < r);
+  const columns = ([[-9, 2], [8, -3], [-6, -8], [5, 7]] as const).map(([dx, dz]): [number, number] => [x + dx * c - dz * s, z + dx * s + dz * c]).filter(clear);
+  const walls = [-11, -7.5].map((d): [number, number] => [x + d * c + 6 * s, z + d * s - 6 * c]).filter(clear);
+  return { columns, walls };
+}
+
+/** A fallen gatehouse: an arch still standing, columns, a run of wall (none of them inside `avoid`, see ruinPieces). */
+export function ruin(api: RealmApi, x: number, z: number, yaw: number, avoid: ReadonlyArray<readonly [number, number, number]> = []): void {
   const y = api.h(x, z);
   api.place(modelLandmark('ruin-arch', x, z, y - 0.3, { yaw }));
-  for (const [dx, dz] of [[-9, 2], [8, -3], [-6, -8], [5, 7]]) {
-    const px = x + dx * c - dz * s, pz = z + dx * s + dz * c;
-    api.place(modelLandmark('ruin-column', px, pz, api.h(px, pz) - 0.2, { yaw: api.rnd() * 6 }));
-  }
-  for (const d of [-11, -7.5]) { const px = x + d * c + 6 * s, pz = z + d * s - 6 * c; api.place(modelLandmark('stone-wall', px, pz, api.h(px, pz) - 0.1, { yaw })); }
-  api.flora('boulder', ring(api, x, z, 16, 5, 11, [0.7, 1.6]));
+  const { columns, walls } = ruinPieces(x, z, yaw, avoid);
+  for (const [px, pz] of columns) api.place(modelLandmark('ruin-column', px, pz, api.h(px, pz) - 0.2, { yaw: api.rnd() * 6 }));
+  for (const [px, pz] of walls) api.place(modelLandmark('stone-wall', px, pz, api.h(px, pz) - 0.1, { yaw }));
+  api.flora('boulder', ring(api, x, z, 16, 5, 11, [0.7, 1.6]).filter((p) => !avoid.some(([ax, az, r]) => Math.hypot(p.x - ax, p.z - az) < r)));
 }
+
+/** The throne dragons' ground in the Skeleton Court (LeanQuarter: 8.5 m either side of (1000, -172), 5.5 m long). */
+export const COURT_DRAGONS: ReadonlyArray<readonly [number, number, number]> = [[991.5, -172, 5.5], [1008.5, -172, 5.5]];
+/** The court's fallen gatehouse. */
+export const COURT_RUIN = { x: 990, z: -160, yaw: 0.6 } as const;
 
 /** A little graveyard under a dead tree. */
 export function graves(api: RealmApi, x: number, z: number, r = 11): void {
@@ -133,7 +147,8 @@ export function dressKingdom(api: RealmApi): void {
   camp(api, 830, -56);
   // (The bare south slab and the east dunes, empty on the 2026-11-03 walk: a fallen gatehouse, a toadstool ring, a
   // stand of dead trees.)
-  ruin(api, 990, -160, 0.6);
+  // (Its pieces keep off the throne dragons: a column stood in the west one's claw.)
+  ruin(api, COURT_RUIN.x, COURT_RUIN.z, COURT_RUIN.yaw, COURT_DRAGONS);
   shrooms(api, 1040, 80);
   api.flora('dead-forest-tree', field(api, 1004, 1062, 62, 96, 13).filter((p) => Math.hypot(p.x - 1040, p.z - 80) > 12 && p.y > 10), { trunk: 0.05 });
   graves(api, 972, 122, 13);
