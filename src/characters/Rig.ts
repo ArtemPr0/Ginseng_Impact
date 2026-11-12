@@ -34,7 +34,9 @@ export interface RigPose {
   /** Which combo hit (0..2), 'skill', 'heavy' (charged) or 'burst'. Drives the swing shape. */
   attackKind?: number | 'skill' | 'heavy' | 'burst';
   /** Static NPC poses. */
-  pose?: 'sit' | 'kneel' | 'row' | 'ride' | 'carry' | 'drink' | 'fish' | 'telescope' | 'read' | 'pray' | 'stir' | 'offer' | 'bow' | 'banner' | 'sitSword' | 'lantern' | 'throne' | 'watch' | 'talk';
+  pose?: 'sit' | 'kneel' | 'row' | 'ride' | 'carry' | 'drink' | 'fish' | 'telescope' | 'read' | 'pray' | 'stir' | 'offer' | 'bow' | 'banner' | 'sitSword' | 'lantern' | 'throne' | 'watch' | 'talk'
+    /** The shared emotes (models/Emotes.ts): a bystander's reaction. */
+    | 'cheer' | 'wave' | 'dance' | 'ymca' | 'shrug' | 'stomp' | 'jacks' | 'clap';
   /** Turns the head alone this far (radians, to the body's left), the pose kept: an NPC watching someone pass. */
   look?: number;
   /** Seconds since landing, for the landing crouch. */

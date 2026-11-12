@@ -11,7 +11,7 @@ export interface Landmark {
 }
 
 export interface CausewayConfig {
-  x: number; zStart: number; zEnd: number; width: number; yStart: number; yEnd: number; postSpacing: number; segmentLength: number;
+  x: number; zStart: number; zEnd: number; width: number; yStart: number; yEnd: number;
 }
 
 export { glowSprite, glowTexture } from '../render/Glow';

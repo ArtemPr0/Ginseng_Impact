@@ -32,8 +32,8 @@ const COOK: NpcDialogue = {
     { id: 'cook.react.warden', slot: 'react', text: 'The Antlered Warden, in the rain. Antler boils to glue. The King wants it back; the King is not the one with a pot.', when: { event: 'kill', enemy: 'warden' } },
     { id: 'cook.react.skeleton', slot: 'react', text: 'The campfire three. I knew them. Their kettle was never on anything. Bring the bone; it still has a warm side.', when: { event: 'kill', enemy: 'skeleton' } },
     { id: 'cook.react.boss', slot: 'react', text: '{lastBoss}. A whole winter of stew, walking about, and you dropped it where I cannot reach. Bring what you can carry.', when: { event: 'kill', boss: true } },
-    { id: 'cook.react.hurt', slot: 'react', text: 'You are bleeding into my sand. Rot salve, thirty shards. It smells like the pot and works like the pot.', when: { event: 'hurt' } },
-    { id: 'cook.react.down', slot: 'react', text: 'You lay down out there, I hear. Thirty shards of salve would have been cheaper than the lying down.', when: { event: 'down' } },
+    { id: 'cook.react.hurt', slot: 'react', text: 'You are bleeding into my sand. Rot salve, thirty coins. It smells like the pot and works like the pot.', when: { event: 'hurt' } },
+    { id: 'cook.react.down', slot: 'react', text: 'You lay down out there, I hear. Thirty coins of salve would have been cheaper than the lying down.', when: { event: 'down' } },
     { id: 'cook.react.swim', slot: 'react', text: 'You swam past the cauldron. Whatever you swallowed out there, it was not soup.', when: { event: 'feat', feat: 'swim' } },
     { id: 'cook.react.sip', slot: 'react', text: 'Sipping on my shore. Purple. I would ask what is in it, but I never ask the pot either.', when: { event: 'feat', feat: 'sip' } },
     { id: 'cook.react.chest', slot: 'react', text: 'You opened a chest. If there was a spoon in it, the spoon is mine.', when: { event: 'feat', feat: 'chest' } },
@@ -49,7 +49,7 @@ const COOK: NpcDialogue = {
     },
     { id: 'cook.topic.buy', slot: 'topic', ask: 'What do you buy?', text: 'Anything the fog drops. The pot is not fussy. I am. We argue; it wins by volume.' },
     { id: 'cook.topic.castle', slot: 'topic', ask: 'About the castle out there', text: 'A castle stood on a rock out there. I cooked for them once; they did not come back for seconds. You cannot see it from here. Take my word; it is all I give.' },
-    { id: 'cook.topic.salve', slot: 'topic', ask: 'About your rot salve', text: 'Rot salve. Nine hundred of blood back for thirty shards. It smells like the pot. It works like the pot. Those are the same sentence.' },
+    { id: 'cook.topic.salve', slot: 'topic', ask: 'About your rot salve', text: 'Rot salve. Nine hundred of blood back for thirty coins. It smells like the pot. It works like the pot. Those are the same sentence.' },
 
     { id: 'cook.bye.sand', slot: 'bye', text: 'Mind the sand. It is mostly bones.' },
     { id: 'cook.bye.busy', slot: 'bye', text: 'Go. The pot and I were in the middle of something.' },
@@ -69,7 +69,7 @@ const ALDOUS: NpcDialogue = {
   persona: {
     id: 'aldous', district: 'island', knows: ['vale', 'galaxy'], rumourDelay: 120, tone: 'warm',
     gag: 'The ale in his cup is the only witness he trusts: every deed is rated by whether it moved. He never leaves the chair.',
-    about: 'A knight in the tavern yard with a cold ale, a greatsword and a patient moon, who walks any road for a hundred and twenty shards and judges every deed by whether the ale moved.',
+    about: 'A knight in the tavern yard with a cold ale, a greatsword and a patient moon, who walks any road for a hundred and twenty coins and judges every deed by whether the ale moved.',
   },
   lines: [
     { id: 'aldous.greet.first', slot: 'greet', text: 'Sit. The ale is cold, the moon is patient, my rate is a hundred and twenty. One of those is negotiable, and it is not the rate.', when: { metMax: 0 }, once: true },
@@ -131,7 +131,7 @@ const MIRREN: NpcDialogue = {
     { id: 'mirren.react.shade', slot: 'react', text: 'The Horned Shade, in the cathedral. Astral. It will come back as a draught, and draughts are free.', when: { event: 'kill', enemy: 'shade' } },
     { id: 'mirren.react.skeleton', slot: 'react', text: 'The campfire three. A hundred years round a kettle with nothing in it. You ended the meeting.', when: { event: 'kill', enemy: 'skeleton' } },
     { id: 'mirren.react.boss', slot: 'react', text: '{lastBoss}. The stars noticed. They did not care, but they noticed; that is the most they do for anyone.', when: { event: 'kill', boss: true } },
-    { id: 'mirren.react.hurt', slot: 'react', text: 'You are hurt. Dew heals. Six hundred. Thirty-five shards. Three facts; pick the one you can afford.', when: { event: 'hurt' } },
+    { id: 'mirren.react.hurt', slot: 'react', text: 'You are hurt. Dew heals. Six hundred. Thirty-five coins. Three facts; pick the one you can afford.', when: { event: 'hurt' } },
     { id: 'mirren.react.down', slot: 'react', text: 'You fell out there. Dew does not work on the lying down. Drink it standing; drink it sooner.', when: { event: 'down' } },
     { id: 'mirren.react.level', slot: 'react', text: 'A notch up. Strength is a ruin that has not happened yet. Charms sharpen it anyway.', when: { event: 'feat', feat: 'levelup' } },
     { id: 'mirren.react.chest', slot: 'react', text: 'A chest. Whatever was in it was in a kingdom once, then in a chest, now in you. Things move downhill.', when: { event: 'feat', feat: 'chest' } },
@@ -146,7 +146,7 @@ const MIRREN: NpcDialogue = {
     { id: 'mirren.topic.wares', slot: 'topic', ask: 'What are you selling?', text: 'Dew for the blood, charms for the blade, charts for the road. The sword is for people who bought the other three and did not listen.' },
     { id: 'mirren.topic.stars', slot: 'topic', ask: 'Where are the stars?', text: 'The stars are not above us. They are behind the fog, the fog is behind the ruins, the ruins are behind the next kingdom. A chart knows the order.' },
     { id: 'mirren.topic.ruin', slot: 'topic', ask: 'About the ruins here', text: 'Every ruin here was a kingdom. The arches, the nave, the castle on the plateau. The tavern is not a ruin yet. I sit here to watch the yet.' },
-    { id: 'mirren.topic.chart', slot: 'topic', ask: 'Who draws your charts?', text: 'Pim draws the charts at his telescope; I sell them. He gets the sky, I get the shards, you get where the great ones sleep. A fair deal, which is rare.' },
+    { id: 'mirren.topic.chart', slot: 'topic', ask: 'Who draws your charts?', text: 'Pim draws the charts at his telescope; I sell them. He gets the sky, I get the coins, you get where the great ones sleep. A fair deal, which is rare.' },
 
     { id: 'mirren.bye.night', slot: 'bye', text: 'Go. The night is long; it is in my title.' },
     { id: 'mirren.bye.back', slot: 'bye', text: 'Buy on the way back. There is always a way back, until there is not.' },
@@ -197,7 +197,7 @@ const SNIK: NpcDialogue = {
 
     { id: 'gob-a.bye.cup', slot: 'bye', text: 'Go! Leave the cup. Just the cup. And the chair.' },
     { id: 'gob-a.bye.next', slot: 'bye', text: "Bye bye. Whatever you kill next is Snik's." },
-    { id: 'gob-a.bye.shards', slot: 'bye', text: 'Come back with shards. Shards are mine; you can carry them.' },
+    { id: 'gob-a.bye.shards', slot: 'bye', text: 'Come back with coins. Coins are mine; you can carry them.' },
 
     { id: 'gob-a.bark.mine', slot: 'bark', text: 'Mine!' },
     { id: 'gob-a.bark.grk', slot: 'bark', text: 'Grk.' },

@@ -98,3 +98,20 @@ describe('the wire computers', () => {
     expect(WIRE_FADE[1]).toBeLessThanOrEqual(320);
   });
 });
+
+describe('props on the Lean Quarter tables', () => {
+  it('stand on the table top (tavern-table.glb: 2.0 m long, 1.75 m wide), not beside it', async () => {
+    const { TABLE_TOP, BOTTLE_TABLE, DOCK_TABLE } = await import('./LeanQuarter');
+    for (const dx of BOTTLE_TABLE.bottles) expect(Math.abs(dx) + 0.12, `bottle at ${dx}`).toBeLessThanOrEqual(TABLE_TOP.hx);
+    for (const [dx, dz] of BOTTLE_TABLE.candles) { expect(Math.abs(dx) + 0.08).toBeLessThanOrEqual(TABLE_TOP.hx); expect(Math.abs(dz) + 0.08).toBeLessThanOrEqual(TABLE_TOP.hz); }
+    for (const k of [...DOCK_TABLE.cups, ...DOCK_TABLE.gems]) expect(Math.abs(k) + 0.12, `dock prop at ${k}`).toBeLessThanOrEqual(TABLE_TOP.hx);
+  });
+});
+
+describe('the dragon fountains', () => {
+  it('pour from the jaws into the basin under them', async () => {
+    const { DRAGON_FOUNTAIN: F } = await import('./LeanQuarter');
+    expect(Math.abs(F.jaw.z - F.basin.z)).toBeLessThan(F.basin.r - 0.2);
+    expect(F.jaw.y).toBeGreaterThan(F.basin.y);
+  });
+});

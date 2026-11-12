@@ -132,14 +132,14 @@ export const ISLAND_A: DialogueBook = {
       { id: 'king.react.loggiant', slot: 'react', text: 'You killed the log giant. He was carrying my firewood. He carried it for eleven years and never arrived, so: even.', when: kill('loggiant') },
       { id: 'king.react.spider', slot: 'react', text: 'The chapel on legs fell over in the snow past the kingdom graves. I had a bet with the witch that it would land on her. I lost the bet; I won the view.', when: kill('spiderchapel') },
       { id: 'king.react.hurt', slot: 'react', text: 'You are bleeding on my floor. Bleed on the candles; they like it.', when: HURT },
-      { id: 'king.react.down', slot: 'react', text: 'You went down by the stream, I am told. The fog brings back what it finds. Not the shards. Never the shards.', when: DOWN },
+      { id: 'king.react.down', slot: 'react', text: 'You went down by the stream, I am told. The fog brings back what it finds. Not the coins. Never the coins.', when: DOWN },
       { id: 'king.react.lick', slot: 'react', text: 'You licked the frog. The frog is my neighbour. We do not speak; now I know why.', when: feat('lick') },
       { id: 'king.react.chest', slot: 'react', text: 'You opened a chest. If it was mine, I pay generously for its return. If it was not mine, it is now.', when: feat('chest') },
       { id: 'king.react.sip', slot: 'react', text: 'Sip while I speak and I will charge you for the air.', when: feat('sip', { hero: 'knight' }) },
       { id: 'king.react.float', slot: 'react', text: 'The floating. Stop the floating. A king should be the tallest thing in the room.', when: { hero: 'wizard', metMin: 1 } },
-      { id: 'king.react.bucket', slot: 'react', text: 'I hear you broke a bucket in the skeleton\'s street. He pays you for that? I pay better. I pay in shards and in silence; he only has coins.', when: kill('bucket') },
+      { id: 'king.react.bucket', slot: 'react', text: 'I hear you broke a bucket in the skeleton\'s street. He pays you for that? I pay better. I pay in coins and in silence; he only has coins.', when: kill('bucket') },
       { id: 'king.react.leanking', slot: 'react', text: 'The sad king lost his throne for a minute, I heard. Mine was lost for a year. We are not the same.', when: kill('rift-king') },
-      { id: 'king.react.gravelord', slot: 'react', text: 'The counter of coins sent you after a cyclops, and it died. He will call that a crown. I call it nine hundred shards he could have spent here.', when: kill('cyclops-lord') },
+      { id: 'king.react.gravelord', slot: 'react', text: 'The counter of coins sent you after a cyclops, and it died. He will call that a crown. I call it nine hundred coins he could have spent here.', when: kill('cyclops-lord') },
       { id: 'king.react.mythic', slot: 'react', text: 'That thing you carry is mythic. I can tell from here; the candles leaned toward it.', when: { flag: 'equipped-mythic' }, once: true },
       { id: 'king.react.boss', slot: 'react', text: '{lastBoss}. Dead. Whatever it dropped, bring it here first. The skeleton will only count it.', when: BOSS },
 
@@ -148,7 +148,7 @@ export const ISLAND_A: DialogueBook = {
         { label: 'What would I get?', to: 'king.topic.offer' },
         { label: 'Not now.', action: 'close' },
       ] },
-      { id: 'king.topic.offer', slot: 'topic', ask: 'What would I get?', text: 'Shards. A great many. And my signet, which makes any blade hungrier. Very generous, as I said.', when: { quest: ['throne', 'none'] }, choices: [
+      { id: 'king.topic.offer', slot: 'topic', ask: 'What would I get?', text: 'Coins. A great many. And my signet, which makes any blade hungrier. Very generous, as I said.', when: { quest: ['throne', 'none'] }, choices: [
         { label: "I'll do it.", action: 'quest:throne:active', to: 'king.topic.go' },
         { label: 'Not now.', action: 'close' },
       ] },
@@ -157,8 +157,8 @@ export const ISLAND_A: DialogueBook = {
       { id: 'king.topic.thanks', slot: 'topic', ask: 'The Warden is dead', text: 'It is dead? Then the castle is mine again. Take it, all of it. I said generously, and I meant it.', voice: 'king-thanks', when: { quest: ['throne', 'slain'] }, weight: 4, choices: [
         { label: 'Take the reward', action: 'quest:throne:done', to: 'king.topic.purse' },
       ] },
-      { id: 'king.topic.purse', slot: 'topic', ask: 'Is the reward all here?', text: 'Fifteen hundred Moon Shards. Count them if you like; I did, twice, and it hurt both times.', when: { quest: ['throne', 'done'] }, once: true, choices: [
-        { label: 'Take the shards', to: 'king.topic.signet' },
+      { id: 'king.topic.purse', slot: 'topic', ask: 'Is the reward all here?', text: 'Fifteen hundred Gold Coins. Count them if you like; I did, twice, and it hurt both times.', when: { quest: ['throne', 'done'] }, once: true, choices: [
+        { label: 'Take the coins', to: 'king.topic.signet' },
       ] },
       { id: 'king.topic.signet', slot: 'topic', ask: 'About the signet', text: 'The signet. My own seal. Any blade that carries it bites deeper. Wear it, sell it; I am past caring, which is what generosity is.', when: { quest: ['throne', 'done'] }, once: true, choices: [
         { label: 'Take the signet', to: 'king.topic.sealed' },
@@ -166,7 +166,7 @@ export const ISLAND_A: DialogueBook = {
       { id: 'king.topic.sealed', slot: 'topic', ask: 'What now?', text: 'Now go and tell the skeleton beyond the portal what I paid. Slowly. He counts slowly.', when: { quest: ['throne', 'done'] }, choices: [{ label: 'Leave', action: 'close' }] },
       { id: 'king.topic.crown', slot: 'topic', ask: 'About your crown', text: 'My crown was antlers before it was gold. Everything here was something else first. The Warden was my gardener.', choices: [{ label: 'Leave', action: 'close' }] },
       { id: 'king.topic.buys', slot: 'topic', ask: 'What do you buy?', text: 'I buy what the great ones drop. Fangs, horns, scales, ribs. Bring them to the throne; I do not get up.', choices: [{ label: 'Leave', action: 'close' }] },
-      { id: 'king.topic.rival', slot: 'topic', ask: 'The Skeleton King', text: 'The skeleton beyond the portal says he pays better. He pays in coins he took from people crossing his bridge. I pay in shards I took from nobody.', when: { metMin: 2 }, choices: [{ label: 'Leave', action: 'close' }] },
+      { id: 'king.topic.rival', slot: 'topic', ask: 'The Skeleton King', text: 'The skeleton beyond the portal says he pays better. He pays in coins he took from people crossing his bridge. I pay in coins I took from nobody.', when: { metMin: 2 }, choices: [{ label: 'Leave', action: 'close' }] },
 
       { id: 'king.bye.gen', slot: 'bye', text: 'Go. Generously.' },
       { id: 'king.bye.candles', slot: 'bye', text: 'The candles will show you out. They have no other duties.' },
@@ -185,7 +185,7 @@ export const ISLAND_A: DialogueBook = {
     persona: {
       id: 'vigil', district: 'island', knows: ['sunken', 'graveyard'], rumourDelay: 150, tone: 'warm',
       gag: 'He hears everything and gets up for nothing.',
-      about: 'The knight who knelt in the cloister when the last bell rang and has been listening since; two hundred shards and he walks beside you.',
+      about: 'The knight who knelt in the cloister when the last bell rang and has been listening since; two hundred coins and he walks beside you.',
     },
     lines: [
       { id: 'vigil.greet.first', slot: 'greet', text: 'I knelt here when the last bell rang. I am still listening. Walk toward the head, {hero}; it heard more than I did.', when: { metMax: 0 } },
@@ -213,7 +213,7 @@ export const ISLAND_A: DialogueBook = {
 
       { id: 'vigil.topic.head', slot: 'topic', ask: 'About the stone head', text: 'The head at the end of the causeway was a king\'s voice before it was stone. It is still a voice. Walk toward it; it will speak first.', when: { quest: ['silence', 'none'] }, weight: 2, choices: [{ label: 'Leave', action: 'close' }] },
       { id: 'vigil.topic.bell', slot: 'topic', ask: 'About the last bell', text: 'The last bell rang the day the giant sat down on the north shore. One note. I have been waiting for the second. Bells come in twos.', choices: [{ label: 'Leave', action: 'close' }] },
-      { id: 'vigil.topic.hire', slot: 'topic', ask: 'About hiring your sword', text: 'My oath is cheap. My sword is not. Two hundred shards and I walk beside you; the oath can listen on its own for a while.', choices: [{ label: 'Leave', action: 'close' }] },
+      { id: 'vigil.topic.hire', slot: 'topic', ask: 'About hiring your sword', text: 'My oath is cheap. My sword is not. Two hundred coins and I walk beside you; the oath can listen on its own for a while.', choices: [{ label: 'Leave', action: 'close' }] },
       { id: 'vigil.topic.cloister', slot: 'topic', ask: 'About this cloister', text: 'The cloister was a chapel once. The roof left. The arches stayed; arches are stubborn, like knees.', when: { metMin: 2 }, choices: [{ label: 'Leave', action: 'close' }] },
 
       { id: 'vigil.bye.quiet', slot: 'bye', text: 'Go quietly.' },
@@ -247,7 +247,7 @@ export const ISLAND_A: DialogueBook = {
       { id: 'croak.react.beast', slot: 'react', text: 'The fog beasts by the stream. They never bothered me. We had an arrangement. The arrangement was tea.', when: kill('beast') },
       { id: 'croak.react.spider', slot: 'react', text: 'The walking chapel came down. It crossed the castle every evening; I set my reading by it. Now I read when I like, which is always.', when: kill('spiderchapel') },
       { id: 'croak.react.warden', slot: 'react', text: 'You killed the antlered one in the east. The king will be insufferable. Was insufferable. Will remain.', when: kill('warden') },
-      { id: 'croak.react.hurt', slot: 'react', text: 'Bleeding, by the look of it. Lotus tea, thirty shards. It does not stop the bleeding, but you stop minding.', when: HURT },
+      { id: 'croak.react.hurt', slot: 'react', text: 'Bleeding, by the look of it. Lotus tea, thirty coins. It does not stop the bleeding, but you stop minding.', when: HURT },
       { id: 'croak.react.down', slot: 'react', text: 'Down, by my wall. The fog brought you back and left you by my tea. The fog does not charge; it is bad for business.', when: DOWN },
       { id: 'croak.react.lick', slot: 'react', text: 'You licked my father. Everyone does, eventually. He calls it respect.', when: feat('lick') },
       { id: 'croak.react.ale', slot: 'react', text: 'The rowers\' beer. I sold them the yeast. Do not tell them what it was.', when: feat('ale') },
@@ -257,7 +257,7 @@ export const ISLAND_A: DialogueBook = {
       { id: 'croak.react.god', slot: 'react', text: 'You killed the Frog God in my father\'s dream, I hear. He is going to wake up so loud.', when: kill('dmt-entity') },
       { id: 'croak.react.bubble', slot: 'react', text: 'Lean bubbles popped in the dream, they say. Not mine. Nothing in there is mine. Most things out here are not mine either.', when: kill('lean-bubble') },
       { id: 'croak.react.ghoul', slot: 'react', text: 'Word from beyond the portal: you popped a styro-ghoul. Their cups are purple. Mine is tea. I would like that noted somewhere.', when: kill('styro-ghoul') },
-      { id: 'croak.react.boss', slot: 'react', text: '{lastBoss}, dead. Tea afterwards. Thirty shards. The price is the same; the need is not.', when: BOSS },
+      { id: 'croak.react.boss', slot: 'react', text: '{lastBoss}, dead. Tea afterwards. Thirty coins. The price is the same; the need is not.', when: BOSS },
 
       { id: 'croak.topic.busted', slot: 'topic', ask: 'Your father sent me', text: "Ribbit. Whatever my dad told you, it's not mine.", voice: 'croak-busted', when: { quest: ['croak', 'active'] }, weight: 4, choices: [
         { label: 'Your father wants you home.', to: 'croak.topic.moved' },
@@ -272,7 +272,7 @@ export const ISLAND_A: DialogueBook = {
         { label: 'In you go.', action: 'bag-croak' },
       ] },
       { id: 'croak.topic.king', slot: 'topic', ask: 'Your father the Frog King', text: 'The Frog King dreams in the hollow. Do not wake him with iron. Wake him with your tongue, like everyone else.', choices: [{ label: 'Leave', action: 'close' }] },
-      { id: 'croak.topic.tea', slot: 'topic', ask: 'About lotus tea', text: 'Lotus tea steadies the blade hand. Thirty shards. Moon dew, forty. I do not haggle; haggling is loud.', choices: [{ label: 'Leave', action: 'close' }] },
+      { id: 'croak.topic.tea', slot: 'topic', ask: 'About lotus tea', text: 'Lotus tea steadies the blade hand. Thirty coins. Moon dew, forty. I do not haggle; haggling is loud.', choices: [{ label: 'Leave', action: 'close' }] },
       { id: 'croak.topic.shade', slot: 'topic', ask: 'Why hide here?', text: 'Why here? The castle wall has the best shade on the island. The king has never once looked at his own wall. Kings look out.', when: { metMin: 1 }, choices: [{ label: 'Leave', action: 'close' }] },
 
       { id: 'croak.bye.unseen', slot: 'bye', text: 'Ribbit. You did not see me.' },
@@ -328,8 +328,8 @@ export const ISLAND_A: DialogueBook = {
         { label: 'No, you must be sick or something', action: 'quest:croak:done', to: 'frogking.topic.declined' },
         { label: 'Uhh... sure', to: 'frogking.topic.licked' },
       ] },
-      { id: 'frogking.topic.declined', slot: 'topic', ask: "I'd rather not lick you.", text: 'Suit yourself. Here, take some shards instead.', voice: 'frog-declined', when: { quest: ['croak', 'done'], notFlag: 'licked' }, once: true, weight: 3, choices: [
-        { label: 'Take the shards', action: 'close' },
+      { id: 'frogking.topic.declined', slot: 'topic', ask: "I'd rather not lick you.", text: 'Suit yourself. Here, take some coins instead.', voice: 'frog-declined', when: { quest: ['croak', 'done'], notFlag: 'licked' }, once: true, weight: 3, choices: [
+        { label: 'Take the coins', action: 'close' },
       ] },
       { id: 'frogking.topic.licked', slot: 'topic', ask: 'May I lick you?', text: 'Hold still. This will only take about two minutes.', voice: 'frog-licked', when: { quest: ['croak', 'returned'] }, choices: [
         { label: '*lick*', action: 'lick' },
@@ -362,13 +362,13 @@ export const ISLAND_A: DialogueBook = {
   sentry: {
     persona: {
       id: 'sentry', district: 'island', knows: ['galaxy', 'crypt-room'], rumourDelay: 200, tone: 'grim',
-      gag: 'For three hundred shards he will stand. Everything else he does sitting down.',
-      about: 'The knight who has sat on the cliff edge for a hundred years watching a castle whose windows are lit and whose doors never open; three hundred shards and he stands.',
+      gag: 'For three hundred coins he will stand. Everything else he does sitting down.',
+      about: 'The knight who has sat on the cliff edge for a hundred years watching a castle whose windows are lit and whose doors never open; three hundred coins and he stands.',
     },
     lines: [
       { id: 'sentry.greet.first', slot: 'greet', text: 'Those windows have been lit for a hundred years. No one has come out. Sit, if you must; the cliff has room.', when: { metMax: 0 } },
       { id: 'sentry.greet.again', slot: 'greet', text: 'Back. I did not stand. That costs three hundred.', when: { metMin: 1, metMax: 2 } },
-      { id: 'sentry.greet.old', slot: 'greet', text: '{hero}. {met} visits and no shards. I am starting to think you like the view.', when: { metMin: 3 } },
+      { id: 'sentry.greet.old', slot: 'greet', text: '{hero}. {met} visits and no coins. I am starting to think you like the view.', when: { metMin: 3 } },
       { id: 'sentry.greet.knight', slot: 'greet', text: 'A sentinel. Weary, by the cup. I am weary by the cliff. Between us we could manage one whole knight.', when: { hero: 'knight', metMin: 1 }, weight: 1.2 },
       { id: 'sentry.greet.wizard', slot: 'greet', text: 'Over a cliff, floating. The cliff has waited a hundred years for someone to do that. It is unimpressed.', when: { hero: 'wizard', metMin: 1 }, weight: 1.2 },
 
@@ -378,7 +378,7 @@ export const ISLAND_A: DialogueBook = {
       { id: 'sentry.react.hollowking', slot: 'react', text: 'The giant on the shore is dead. I did not stand for it. I have stood for nothing in a hundred years. Well. I shifted.', when: kill('hollowking'), weight: 3 },
       { id: 'sentry.react.hurt', slot: 'react', text: 'You are bleeding on my cliff. Sit. It is the one thing I can recommend from experience.', when: HURT },
       { id: 'sentry.react.down', slot: 'react', text: 'Down in the pass. From up here it looked brief. Everything does, from up here; it is the cliff\'s one kindness.', when: DOWN },
-      { id: 'sentry.react.fly', slot: 'react', text: 'You flew. Off a cliff. On purpose. Three hundred shards says I will not try it.', when: feat('fly') },
+      { id: 'sentry.react.fly', slot: 'react', text: 'You flew. Off a cliff. On purpose. Three hundred coins says I will not try it.', when: feat('fly') },
       { id: 'sentry.react.climb', slot: 'react', text: 'You climbed the cliff. There are stairs. I have watched people not find the stairs for a century.', when: feat('climb') },
       { id: 'sentry.react.skyeye', slot: 'react', text: 'Eyes in the sky, and you shot one. The sky has had eyes since the giant sat down. Nobody asked them to leave until you.', when: feat('skyeye') },
       { id: 'sentry.react.archer', slot: 'react', text: 'Wren. You ride a bow. I ride a cliff. Mine goes nowhere, but it has never dropped me.', when: { hero: 'archer', metMin: 1 } },
@@ -388,7 +388,7 @@ export const ISLAND_A: DialogueBook = {
       { id: 'sentry.react.hired', slot: 'react', text: 'You hired someone. Not me. I noticed; I notice everything from this rock. It is the rock\'s one gift.', when: { flag: 'hired', companions: 1 }, once: true },
       { id: 'sentry.react.boss', slot: 'react', text: '{lastBoss} is dead, I hear. The windows did not flicker. They never do.', when: BOSS },
 
-      { id: 'sentry.topic.hire', slot: 'topic', ask: 'About hiring you', text: 'I sit. I watch. For three hundred shards I will stand. Standing is where it gets expensive.', choices: [{ label: 'Leave', action: 'close' }] },
+      { id: 'sentry.topic.hire', slot: 'topic', ask: 'About hiring you', text: 'I sit. I watch. For three hundred coins I will stand. Standing is where it gets expensive.', choices: [{ label: 'Leave', action: 'close' }] },
       { id: 'sentry.topic.windows', slot: 'topic', ask: 'Those lit windows', text: 'A hundred years lit and no one has come out. Either they are very happy in there, or the candles are. I lean toward the candles.', choices: [{ label: 'Leave', action: 'close' }] },
       { id: 'sentry.topic.pass', slot: 'topic', ask: 'The pass beast', text: 'The pass below is the beast\'s. Go around, or go with me. Through is also a choice; it is the beast\'s favourite.', when: { bossAlive: 'passbeast' }, weight: 2, choices: [{ label: 'Leave', action: 'close' }] },
       { id: 'sentry.topic.sword', slot: 'topic', ask: 'Your greatsword', text: 'The sword is point-down because that is how you rest a sword, and because it has been a hundred years and the point has gone in a little.', when: { metMin: 2 }, choices: [{ label: 'Leave', action: 'close' }] },
@@ -399,7 +399,7 @@ export const ISLAND_A: DialogueBook = {
 
       { id: 'sentry.bark.lit', slot: 'bark', text: 'Still lit.' },
       { id: 'sentry.bark.out', slot: 'bark', text: 'No one has come out.' },
-      { id: 'sentry.bark.price', slot: 'bark', text: 'Three hundred shards.' },
+      { id: 'sentry.bark.price', slot: 'bark', text: 'Three hundred coins.' },
       { id: 'sentry.bark.sitting', slot: 'bark', text: 'Sitting.' },
     ],
   },
@@ -434,7 +434,7 @@ export const ISLAND_A: DialogueBook = {
       { id: 'standard.react.galaxyknight', slot: 'react', text: 'A galaxy knight fell in the skeleton king\'s court, so they say. He has knights. I have a banner. We each got something.', when: kill('galaxy-knight') },
       { id: 'standard.react.boss', slot: 'react', text: '{lastBoss} fell. The aurora rippled. It does that for the great ones and for nothing else; it has taste.', when: BOSS },
 
-      { id: 'standard.topic.wind', slot: 'topic', ask: 'The wind and aurora', text: 'Wind up here never stops. Neither does the aurora. Neither do I. One of us will stop eventually. My shards are on the aurora.', choices: [{ label: 'Leave', action: 'close' }] },
+      { id: 'standard.topic.wind', slot: 'topic', ask: 'The wind and aurora', text: 'Wind up here never stops. Neither does the aurora. Neither do I. One of us will stop eventually. My coins are on the aurora.', choices: [{ label: 'Leave', action: 'close' }] },
       { id: 'standard.topic.enlist', slot: 'topic', ask: 'Enlist with you', text: 'Enlist. There is no pay, no food, no orders, and the ridge is cold. The banner, however, is magnificent.', weight: 2, choices: [
         { label: 'I enlist.', action: 'journal:Enlisted in Hollow Jack\'s army of one, on the windy peak.', to: 'standard.topic.enlisted' },
         { label: 'I will think about it.', action: 'close' },

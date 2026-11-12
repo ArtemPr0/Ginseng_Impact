@@ -30,6 +30,11 @@ import { chainSpan, witchBridgeDeck } from './Walkways';
 import { waterRibbon } from './Water';
 import { VALE_MEANDER_AMP, VALE_STREET, valeMeander } from '../data/sculpts';
 import { dressVale } from './Pois';
+import { ferryAt, type FerryRun } from './Ferry';
+import { Rig } from '../characters/Rig';
+import { yawToRotation } from '../models/ModelRig';
+
+const PALETTE_GOLD = 0xffc23a;
 
 /** Rotation that turns a model's front (local +z) toward world direction `yaw` (cos, sin). */
 const face = (yaw: number) => Math.PI / 2 - yaw;
@@ -195,6 +200,33 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
   }
   api.water?.(riverX - 5 - VALE_MEANDER_AMP, riverX + 5 + VALE_MEANDER_AMP, z0, z1, vy - 0.35);
   const bridgeZ = Z + 40;
+  // The gnomes' ferry: two gnomes rowing a boat up and down the river below the bridge, past the landing (Pois pier),
+  // turning round at each end (Ferry.ts). (It lay moored there doing nothing: the playtest of 2026-11-12.)
+  {
+    const run: FerryRun = { z0: bridgeZ + 12, z1: Math.min(z1 - 8, bridgeZ + 78), x: (z) => riverX + valeMeander(z), speed: 1.4, turn: 4 };
+    const start = ferryAt(0, run);
+    const rowers: Rig[] = [];
+    let t = 0;
+    api.place(modelLandmark('boat', start.x, start.z, vy - 0.3, { collider: 'none',
+      onLoad: (m) => {
+        for (const [dz, model] of [[0.55, 'cup-gnome'], [-0.45, 'gnome-brother']] as const) {
+          const rig = new Rig({ id: 'ferry-gnome', name: 'Gnome', title: '', element: 'fog', weapon: 'staff', maxHp: 1, atk: 1, accent: PALETTE_GOLD }, model);
+          rig.root.position.set(0, 0.32, dz);
+          // Facing the stern, as rowers do.
+          rig.root.rotation.y = yawToRotation(-Math.PI / 2);
+          m.root.parent?.add(rig.root);
+          rowers.push(rig);
+        }
+      },
+      update: (dt, root) => {
+        t += dt;
+        const f = ferryAt(t, run);
+        root.position.set(f.x, vy - 0.3 + Math.sin(t * 1.4) * 0.05, f.z);
+        root.rotation.y = yawToRotation(f.heading);
+        root.rotation.z = Math.sin(t * 1.1) * 0.025;
+        for (const r of rowers) r.animate({ mode: 'ground', speed: 0, pose: 'row' }, dt);
+      } }));
+  }
   // Bank to bank across the current, its deck following the arch (its 22 m span lands on the flat banks either side).
   const deck = witchBridgeDeck(riverX, bridgeZ, api.h);
   api.place(deck);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CONTROLLER, createControllerState, startDash, stepController, type ControllerInput, type WorldQuery } from './CharacterController';
+import { CONTROLLER, createControllerState, haltController, startDash, stepController, type ControllerInput, type WorldQuery } from './CharacterController';
 
 const flat: WorldQuery = { heightAt: () => 0 };
 const idle = (): ControllerInput => ({ move: { x: 0, z: 0 }, sprint: false, jump: false, jumpHeld: false, fly: false });
@@ -375,5 +375,14 @@ describe('stepController — dash (the dodge roll)', () => {
     expect(s.mode).toBe('air');
     expect(s.dashLeft).toBe(0);
     expect(Math.hypot(s.vel.x, s.vel.z)).toBeLessThanOrEqual(CONTROLLER.walkSpeed + 1e-9);
+  });
+});
+
+describe('haltController — a panel opens mid-stride', () => {
+  it('stops the stride so the run clip does not play on the spot behind the dialogue', () => {
+    const s = run({ ...idle(), move: { x: 0, z: 1 }, sprint: true }, 60);
+    expect(Math.hypot(s.vel.x, s.vel.z)).toBeGreaterThan(1);
+    haltController(s);
+    expect(Math.hypot(s.vel.x, s.vel.z)).toBe(0);
   });
 });

@@ -35,6 +35,10 @@ export interface SaveV1 {
   /** Companion NPC ids hired. */
   companions: string[];
   newGamePlus: boolean;
+  /** Silly titles earned (game/Hype.ts Titles); missing in older saves. */
+  titles?: string[];
+  /** Progress toward the titles not earned yet (counts by id); missing in older saves. */
+  titleProgress?: Record<string, number>;
 }
 
 export interface StorageLike {
@@ -47,7 +51,7 @@ export const SAVE_KEY = 'ginseng.save.v1';
 /** Seconds between autosaves. */
 export const SAVE_INTERVAL = 60;
 
-const ZONES: Record<Zone, true> = { island: true, galaxy: true, sunken: true, treehouse: true, dream: true, graveyard: true, vale: true, 'tavern-room': true, 'crypt-room': true };
+const ZONES: Record<Zone, true> = { island: true, galaxy: true, sunken: true, treehouse: true, dream: true, graveyard: true, vale: true, 'tavern-room': true, 'crypt-room': true, 'castle-hall': true };
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const isStr = (v: unknown): v is string => typeof v === 'string';

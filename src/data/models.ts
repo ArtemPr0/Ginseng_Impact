@@ -13,6 +13,8 @@ export interface ModelDef {
    * Key = clip key the game plays, value = file under `public/models/`. Missing files are skipped.
    */
   clipFiles?: Partial<Record<ClipName, string>>;
+  /** false: no shared emotes (models/Emotes.ts) even though it is a Meshy biped. */
+  emotes?: boolean;
   /** Size the model should be scaled to, metres: its height, or the extent along `fit` when set. */
   height: number;
   /** Which bounding-box axis `height` measures (default y). Walkway segments fit their length. */
@@ -174,13 +176,14 @@ export const MODELS: Record<string, ModelDef> = {
   // Round 9 mobs (biped rigs with the preset clips).
   'archway-shade': { file: 'archway-shade.glb', height: 2.0, label: 'hooded dark figure with an armoured gauntlet in a gothic archway (DdnJDwBMUoj)', clips: BOSS_CLIPS },
   'brazier-hermit': { file: 'brazier-hermit.glb', height: 1.9, label: 'brown-robed hooded figure lifting a fire brazier on a ledge (DdyN2PNyIxb)', clips: BOSS_CLIPS },
-  // (Its rig came out facing +x: turned a quarter so its front is local +z like every other body.)
-  'vale-knight': { file: 'vale-knight.glb', height: 1.9, yaw: -Math.PI / 2, label: 'red-caped blue-armoured knight on the village street (Dd5Bqt7vQ5T)', clips: BOSS_CLIPS },
+  // (Its rig came out facing -x: turned a quarter so its front is local +z like every other body. The toe test reads
+  // +x because the cape drags the centre back; the lineup shot, anim/lineup.mjs, shows its face.)
+  'vale-knight': { file: 'vale-knight.glb', height: 1.9, yaw: Math.PI / 2, label: 'red-caped blue-armoured knight on the village street (Dd5Bqt7vQ5T)', clips: BOSS_CLIPS },
   'grave-skeleton': { file: 'skeleton.glb', height: 1.75, label: 'skeletons rising from the graves (the Alley of Graves)', clips: { ...NPC_CLIPS('idle'), idle: 'idle_02|combat_stance|idle', attack: 'attack', hit: 'hit_reaction|hit', stand: 'sit_to_stand|stand', death: 'dying|death' } },
   'skeleton-banner': { file: 'skeleton-banner.glb', height: 1.85, label: 'skeleton standard-bearer with banner and trident (Hollow Jack)', clips: NPC_CLIPS('banner') },
   'witch-cook': { file: 'witch-cook.glb', height: 1.8, label: 'skeleton cook in a chef hat with a spoon (Mother Marrow)', clips: NPC_CLIPS('stir') },
   bride: { file: 'bride.glb', height: 1.8, legDamp: 0.65, label: 'the Pale Bride', clips: NPC_CLIPS('walk') },
-  maiden: { file: 'maiden.glb', height: 1.68, label: 'Elowen of the flower garden', clips: NPC_CLIPS('bow') },
+  maiden: { file: 'maiden.glb', height: 1.68, legDamp: 0.6, label: 'Elowen of the flower garden', clips: NPC_CLIPS('bow') },
   // (The vale's beggar sits: the chair-sit clip borrowed from the knight NPC's rig of the same skeleton, rotations only.)
   wanderer: { file: 'wanderer.glb', clipFiles: { sit: 'npc-sit.glb' }, height: 1.85, label: 'hooded wanderer with a lantern (the Lanternbearer)', clips: NPC_CLIPS('walk') },
   'wizard-npc': { file: 'wizard-npc.glb', height: 1.8, label: 'wizard NPC (Mirren, Sel)', clips: NPC_CLIPS('idle') },
@@ -211,7 +214,7 @@ export const MODELS: Record<string, ModelDef> = {
   cobblestone: stat('cobblestone.glb', 0.14, 'cobblestone'), cypress: stat('cypress.glb', 9, 'tall slim graveyard cypress (DeDRVZwxJyO)'), grave: { ...stat('grave.glb', 1.1, 'arched gothic headstone (shot-011654)'), tint: 0x5c6270 },
 
   // The user's own frames (docs/reference/frames/cup-gnome.png): Meshy 6 Lite draft, Meshy 7 image-guided texture, biped rig.
-  'cup-gnome': { file: 'cup-gnome.glb', height: 1.25, label: 'gnome with a gold grill, gold chain and a purple cup (frames/cup-gnome.png)', clips: { idle: 'stand_and_drink|idle_03|idle_02', drink: 'stand_and_drink', talk: 'talk_with_hands_open', walk: 'walking', run: 'running' } },
+  'cup-gnome': { file: 'cup-gnome.glb', clipFiles: { sit: 'npc-sit.glb' }, height: 1.25, label: 'gnome with a gold grill, gold chain and a purple cup (frames/cup-gnome.png)', clips: { idle: 'stand_and_drink|idle_03|idle_02', drink: 'stand_and_drink', talk: 'talk_with_hands_open', walk: 'walking', run: 'running', sit: 'chair_sit|sit' } },
 
   // --- Round 3 (2026-10-15): the user's own images and descriptions ---
   // Yung Lean, king of the realm beyond the portal (frames/rift-king.png): sits on the throne, stands to fight.
@@ -224,7 +227,7 @@ export const MODELS: Record<string, ModelDef> = {
   'lean-cup': stat('lean-cup.glb', 0.17, 'double white styrofoam cup of glowing purple lean (frames/lean-cup.png)'),
   'lean-cup-island': stat('lean-cup.glb', 22, 'giant double cup of lean, an island of the kingdom'),
   // Goldgrin's brother in the tree house: diamond grills, a job for the player.
-  'gnome-brother': { file: 'gnome-brother.glb', height: 1.2, label: "Goldgrin's diamond-grilled brother", clips: { idle: 'idle_03|idle', talk: 'talk_with_hands_open|talk', offer: 'scheming_hand_rub|hand_rub', walk: 'walking|walk', run: 'running|run' } },
+  'gnome-brother': { file: 'gnome-brother.glb', clipFiles: { sit: 'npc-sit.glb' }, height: 1.2, label: "Goldgrin's diamond-grilled brother", clips: { idle: 'idle_03|idle', talk: 'talk_with_hands_open|talk', offer: 'scheming_hand_rub|hand_rub', walk: 'walking|walk', run: 'running|run', sit: 'chair_sit|sit' } },
   'croak-bag': stat('croak-bag.glb', 1.1, 'burlap sack with Brother Croak inside'),
   'treehouse-door': { ...stat('treehouse-door.glb', 2.3, 'round plank door of the tree house'), tint: 0x5a3c26 },
   'treehouse-interior': stat('treehouse-interior.glb', 7, 'round room inside the tree house trunk'),

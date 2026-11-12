@@ -4,10 +4,13 @@ import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { MODELS, type ModelDef } from '../data/models';
 import type { ClipCut } from '../characters/heroClips';
+import { emotesFor } from './Emotes';
 
 const loader = new GLTFLoader();
 const files = new Map<string, Promise<GLTF | null>>();
 const models = new Map<string, Promise<GLTF | null>>();
+/** The shared emote clips still on their way per model id: they land in the model's animations when this resolves. */
+const lateClips = new Map<string, Promise<void>>();
 
 /** Fetches one GLB once; null when it is missing (the dev server answers 404 or an HTML fallback). */
 function fetchGlb(file: string): Promise<GLTF | null> {
@@ -39,13 +42,19 @@ export function loadModel(id: string): Promise<GLTF | null> {
   if (!p) {
     p = fetchGlb(def.file).then(async (base) => {
       if (!base) return null;
-      if (def.clipFiles) {
-        const extra = await Promise.all(Object.entries(def.clipFiles).map(([key, file]) => fetchGlb(file as string).then((g) => ({ key, g }))));
+      const fetchClips = (byKey: Record<string, string>) => Promise.all(Object.entries(byKey).map(([key, file]) => fetchGlb(file).then((g) => ({ key, g }))));
+      const append = (extra: Array<{ key: string; g: GLTF | null }>) => {
         for (const { key, g } of extra) {
           if (!g) continue;
           for (const clip of g.animations) { const c = clip.clone(); c.name = key; base.animations.push(c); }
         }
-      }
+      };
+      // The model's own extra clips (a borrowed sit) come with it; the shared emotes (~7 MB, played only on rare
+      // moments) follow when they arrive, so no body waits for them (ModelRig adds them to rigs already built).
+      const own = (def.clipFiles ?? {}) as Record<string, string>;
+      if (Object.keys(own).length) append(await fetchClips(own));
+      const emotes = emotesFor(def, base.animations.map((a) => a.name));
+      if (Object.keys(emotes).length) lateClips.set(id, fetchClips(emotes).then(append));
       return base;
     });
     models.set(id, p);
@@ -414,6 +423,15 @@ export class ModelRig {
       if (!flipped && flip.has(clip.name.toLowerCase())) { clip = mirrorClip(clip, scene, holder); flipped = true; }
       this.actions.set(clip.name.toLowerCase(), this.mixer.clipAction(clip));
     }
+    // The shared emotes, once they arrive (loadModel appends them to the model's animations).
+    lateClips.get(id)?.then(() => {
+      for (const clip of gltf.animations) {
+        const key = clip.name.toLowerCase();
+        if (this.actions.has(key)) continue;
+        clip.tracks = clip.tracks.filter((t) => nodes.has(t.name.slice(0, t.name.lastIndexOf('.'))));
+        this.actions.set(key, this.mixer.clipAction(clip));
+      }
+    });
     if (def.armDamp || def.legDamp) {
       // Rest pose of the arms and legs, captured before any clip runs (see ModelDef.armDamp, legDamp).
       scene.traverse((o) => {

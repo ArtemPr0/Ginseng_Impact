@@ -27,6 +27,9 @@ export const LAYOUT = {
     [[0, -2], [-10, -4], [-14, -6], [-30, -10], [-43, -17]],
     [[2, -5], [6, -10], [18, -18], [30, -24], [34, -24]],
     [[22, -20], [26, -32.5]],
+    // The road over the chasm: up from the hamlet to the causeway's south rim, and on from its north rim to the head.
+    [[0, -4], [0, -30]],
+    [[0, -82], [0, -92], [-4, -96]],
     [[0, -134], [0, -140]],
     [[-2, -112], [-12, -108]],
     [[27, -86], [44, -90], [52, -90]],
@@ -35,9 +38,8 @@ export const LAYOUT = {
     [[-4, -114], [-24, -116], [-42, -120], [-51, -124]],
     [[-77, -124], [-86, -116]],
   ] as Array<Array<[number, number]>>,
-  /** The raised road starts on the eye's north bank (its stairs climb from the hamlet) and runs over the chasm. */
-  // (yEnd: four 0.45 m risers between its spans, each low enough to walk up; 1 m ledges stopped the hero.)
-  causeway: { x: 0, zStart: -10, zEnd: -115, width: 6, yStart: 6, yEnd: 7.8, postSpacing: 8, segmentLength: 24.7 },
+  /** The causeway: one stone bridge over the chasm, rim to rim (z -34 and -79), its deck 0.25 m over the ground at each end. */
+  causeway: { x: 0, zStart: -30, zEnd: -82, width: 6, yStart: 4.45, yEnd: 3.45 },
   head: { x: 0, z: -146, height: 26 },
   /**
    * The cathedral's long axis runs east–west; its west front faces the river road. Between the chasm and the river
@@ -47,7 +49,7 @@ export const LAYOUT = {
   // (At 0.65 and z -17 its south feet clear the river's bank and its north wall the chasm's lip, which 0.7 did not.)
   cathedral: { x: 68, z: -17, yaw: Math.PI / 2, scale: 0.65, y: 3.6 },
   /** The mud pool east of the cathedral, home of the Marsh Sovereign: a basin (PADS) filled to `mud` (world y). */
-  floodedRuin: { x: 106, z: -13, r: 9, mud: 4.9 },
+  floodedRuin: { x: 106, z: -13, r: 8, mud: 3.3 },
   forest: { innerRadius: 72, outerRadius: 119, count: 420 },
   flowerMeadows: [
     // The white meadow the horse rider crosses (the whale reel's field of white flowers, DeSEl9PvPG_).
@@ -117,10 +119,15 @@ export const SINK = { house: 0.2, ruin: 0.3, church: 0.4, throne: 0.05, treehous
  * its own rock and may sit deep in a hillside (the tower, the tree house). IslandTruth.test.ts measures every entry.
  */
 export interface LandmarkSpot { id: string; x: number; z: number; yaw?: number; scale?: number; sink?: number; at?: { x: number; z: number }; fixedY?: number; rockBase?: boolean }
+/** The island's watching eyes in the sky (render/SkyEyes): they glare when shot. None hangs over the Blood Eye's chasm patrol. */
+export const SKY_EYES: readonly { x: number; y: number; z: number; size: number }[] = [
+  { x: -56, y: 36, z: -14, size: 9 }, { x: 52, y: 42, z: -104, size: 11 }, { x: -92, y: 44, z: -122, size: 10 },
+  { x: 74, y: 46, z: 8, size: 10 }, { x: -62, y: 40, z: 28, size: 8 }, { x: 8, y: 56, z: -120, size: 13 },
+];
+
 /** The island's free-standing buildings and props that no other table places (the big landmarks live in LAYOUT). */
 export const LANDMARKS: readonly LandmarkSpot[] = [
-  // Beside the stone head on the north half: the last flat open ground there (it once stood over the chasm).
-  { id: 'nave', x: 18, z: -136, sink: 0.4 },
+  // (The ruined nave stood beside the stone head at (18, -136), inside the Hollow King's body: it is in the Sunken City now.)
   // On the Frost March's flat north of the chasm (at (70, -72) it stood on the chasm's north cliff face).
   { id: 'archgate', x: 56, z: -84, yaw: 0, sink: 0.3 },
   { id: 'colossus-statue', x: 10, z: -96, yaw: 0.9, sink: 0.5 },
@@ -132,7 +139,7 @@ export const LANDMARKS: readonly LandmarkSpot[] = [
   { id: 'cloister', x: 33.5, z: 64.5, at: { x: 33.5, z: 68 } },
   { id: 'observatory', x: LAYOUT.observatory.x, z: LAYOUT.observatory.z, sink: 0.2 },
   { id: 'cauldron', x: 24, z: 77 },
-  // The gothic gate (DeSEl9PvPG_) beside the road to the stone head, a ruined gate into the nave's precinct: its steps
+  // The gothic gate (DeSEl9PvPG_) beside the road to the stone head, a ruined gate into the old precinct: its steps
   // face the road (local +z turned to -x), the arch is walked through. (On the road itself it sat in the 4 m climb to
   // the head's chin, and its footing made a bank across the path.)
   { id: 'candle-gate', x: 37, z: -128, yaw: -Math.PI / 2, sink: 0.3 },
@@ -304,6 +311,8 @@ export const ZONE_LIGHT: Record<string, ZoneLight> = {
   // Indoors: no moon; the hearth and the candles light the room (their own point lights), a dim warm fill for faces.
   'tavern-room': { sky: 0x6a3a1c, ground: 0x180a04, hemi: 0.7, moon: 0, fill: 0.85, fillColor: 0xffb878, cameraFill: 1 },
   'crypt-room': { sky: 0x3a3048, ground: 0x0a0806, hemi: 0.6, moon: 0, fill: 0.7, fillColor: 0xffc890, cameraFill: 1 },
+  // The castle hall: cobalt under its captive moon (its own light), blue flames between the pillars.
+  'castle-hall': { sky: 0x2a3a9a, ground: 0x0a0c1e, hemi: 0.75, moon: 0, fill: 0.8, fillColor: 0xb8c8ff, cameraFill: 1 },
 };
 /** The sunken city under the lake (DeVj-Z8POjl). */
 export const SUNKEN: RealmDef = { id: 'sunken', name: 'The Sunken City', x: -1000, z: 0, y: -48, radius: 160, fog: { color: 0x0a3a4e, density: 0.024 }, underwater: true };
@@ -317,6 +326,11 @@ export const DREAM: RealmDef = { id: 'dream', name: "The Frog King's Dream", x: 
  * 'graveyard' preset, so not its own dome), the cyclops at the far end.
  */
 export const GRAVEYARD: RealmDef = { id: 'graveyard', name: 'The Alley of Graves', x: 0, z: -1000, y: 0, radius: 125, fog: { color: 0x2a1446, density: 0.014 } };
+/**
+ * The candle ring on the alley's floor between two braziers (Graveyard.ts): step into it and the Grave Cyclops climbs
+ * out of the ground up the alley ahead of you (Adventures; he no longer waits at the alley's end). `rise` is where.
+ */
+export const GRAVE_RING = { x: 0, z: -980, r: 1.6, rise: { x: 0, z: -998, yaw: Math.PI / 2 } } as const;
 /**
  * The Dragon's Vale (reel Dd5Bqt7vQ5T), through the lantern arch at the east end of the island's village street: a
  * village street with a tavern yard, a green dragon lying at its end, a crowned stone head on a hill by a river under
@@ -333,7 +347,12 @@ export const TAVERN_ROOM: RealmDef = { id: 'tavern-room', name: 'The Candle Tave
  * and melting candles, Sir Gilt toasting the dead. Its own dark, no sky.
  */
 export const CRYPT_ROOM: RealmDef = { id: 'crypt-room', name: 'The Crypt Bar', x: -1000, z: 1300, y: 0, radius: 30, fog: { color: 0x0b0a10, density: 0.04 }, ownSky: true, indoors: true };
-export const REALMS: readonly RealmDef[] = [GALAXY, SUNKEN, TREEHOUSE_ROOM, DREAM, GRAVEYARD, VALE, TAVERN_ROOM, CRYPT_ROOM];
+/**
+ * Inside the island castle (the playtest of 2026-11-12: "press F and enter the castle, put something cool there"):
+ * the Moon Throne Hall (world/CastleHall.ts), a pillared vault with an empty throne under a captive moon.
+ */
+export const CASTLE_HALL: RealmDef = { id: 'castle-hall', name: 'The Moon Throne Hall', x: -1000, z: 1600, y: 0, radius: 40, fog: { color: 0x070a1e, density: 0.028 }, ownSky: true, indoors: true };
+export const REALMS: readonly RealmDef[] = [GALAXY, SUNKEN, TREEHOUSE_ROOM, DREAM, GRAVEYARD, VALE, TAVERN_ROOM, CRYPT_ROOM, CASTLE_HALL];
 
 /**
  * The cloud sea's top layer in each place (world y; CloudSea lays its other two layers 9 and 22 m under it), or null
@@ -342,7 +361,7 @@ export const REALMS: readonly RealmDef[] = [GALAXY, SUNKEN, TREEHOUSE_ROOM, DREA
  */
 export const CLOUD_LEVEL: Record<Zone, number | null> = {
   island: LAYOUT.cloudSea.y, galaxy: -16, vale: -30, graveyard: -30, dream: -40,
-  sunken: null, treehouse: null, 'tavern-room': null, 'crypt-room': null,
+  sunken: null, treehouse: null, 'tavern-room': null, 'crypt-room': null, 'castle-hall': null,
 };
 
 /** A sky as reflected in water and polished ground (SKY_SHARED's horizon, mid, zenith and cloud colours). */
@@ -362,6 +381,7 @@ export const REALM_SKY: Partial<Record<Zone, RealmSky>> = {
   treehouse: { horizon: 0x1e1236, mid: 0x120a26, zenith: 0x06040e, cloud: 0x3a2a5a },
   'tavern-room': { horizon: 0x2a1408, mid: 0x180a04, zenith: 0x0a0402, cloud: 0x6a3a1c },
   'crypt-room': { horizon: 0x1c1824, mid: 0x100c14, zenith: 0x060508, cloud: 0x3a3048 },
+  'castle-hall': { horizon: 0x141c48, mid: 0x0a1030, zenith: 0x04060f, cloud: 0x3a4a9a },
 };
 
 /** Portal ends on the island. */
@@ -388,7 +408,7 @@ export const PADS: ReadonlyArray<{ x: number; z: number; r: number; y: number; b
   { x: -112, z: 2, r: 3, y: 4.4, blend: 4 },      // Brother Croak hiding in the castle's shadow
   { x: -54, z: -93, r: 2.2, y: 61.0, blend: 3 },  // Hollow Jack on the peak's summit, his banner over the island
   { x: 16, z: -122, r: 7, y: 4.6, blend: 5 },     // the Ember Rider
-  { x: 106, z: -13, r: 8, y: 3.4, blend: 4 },     // the Marsh Sovereign's mud basin (filled to 4.9)
+  { x: 106, z: -13, r: 6, y: 1.8, blend: 2 },     // the Marsh Sovereign's mud basin (filled to 3.3, under its banks all round)
   { x: -40, z: -90, r: 1.6, y: 28.4, blend: 2.5 }, // Sir Halvard's seat on the cliff
   { x: -56, z: 30, r: 2, y: 1.5, blend: 4 },       // Old Moss fishing from the bank (above the river's waterline)
   // The village's ground: two level pads over the street hollow and the coast's bulge (per-house footings dug pits).
@@ -454,9 +474,8 @@ export const FLATS: {
     { x: 0, z: -146, r: 8.5 }, // the stone head (10.3 x 12.4 m, sunk 3 m)
     // The hamlet knoll's top and its houses (the farthest, at (26, -14), reaches 18.9 m out).
     { x: KNOLL.x, z: KNOLL.z, r: KNOLL.r + 2 },
-    // Model slots waiting for their GLB (they render nothing yet): the ruined nave, the frozen arch gate, the colossus
-    // statue by the dead wood, and the ruins.
-    { x: 18, z: -136, r: 10 },
+    // Model slots waiting for their GLB (they render nothing yet): the frozen arch gate, the colossus statue by the dead
+    // wood, and the ruins.
     { x: 37, z: -128, r: 6 }, // the candle gate
     { x: 56, z: -84, r: 5 },
     { x: 10, z: -96, r: 6 },
@@ -502,7 +521,6 @@ export const FOOTINGS: ReadonlyArray<{ x: number; z: number; r: number; blend: n
   { x: 56, z: -84, r: 4.5, blend: 2 },   // the arch gate on the Frost March
   { x: LAYOUT.treehouse.x, z: LAYOUT.treehouse.z, r: 10, blend: 2.5 },
   { x: 10, z: -96, r: 4.6, blend: 2 },   // the colossus statue
-  { x: 18, z: -136, r: 11, blend: 3 },   // the ruined nave
-  { x: 37, z: -128, r: 5, blend: 2.5 },  // the candle gate, east of the nave, clear of its footing ring (beside the road it sat in the Ember Rider's pad)
+  { x: 37, z: -128, r: 5, blend: 2.5 },  // the candle gate (beside the road it sat in the Ember Rider's pad)
   ...LAYOUT.ruins.map((r) => ({ x: r.x, z: r.z, r: r.arch ? 3.2 : 1.6, blend: r.arch ? 1.8 : 1.2 })),
 ];

@@ -4,7 +4,7 @@
  * three places around the Frog God in the middle —
  *  - west: a stair path of floating stones up to a terrace among floating skull islands with burning castles and
  *    giant sunflowers;
- *  - east: a canal village of crooked houses around an eye-shaped vortex, candle-lit wooden bridges over it, and a
+ *  - east: a grove of mushrooms of every kind and colour round an eye-shaped vortex (bounce cap to cap), and a
  *    giant face tree;
  *  - north-west: an endless checkerboard corridor between hooded stone statues under a column of stacked giant eyes,
  *    ending at a giant skull with a snake coiled round it, lit by coloured flames.
@@ -16,7 +16,8 @@ import { DREAM } from '../data/world';
 import { MODELS } from '../data/models';
 import { fireflies } from '../render/Fireflies';
 import { glowSprite } from '../render/Glow';
-import { patchLitWindows, patchStone, WIND } from '../render/Materials';
+import { patchRetint, patchStone, WIND } from '../render/Materials';
+import { BOUNCE_V, dreamGrove, EYE, TINTS } from './DreamGrove';
 import { SkyEyes } from '../render/SkyEyes';
 import type { Footprint } from './Colliders';
 import { cascade } from './Falls';
@@ -27,7 +28,6 @@ import { landableIsland } from './Islands';
 import { modelLandmark } from './ModelLandmark';
 import type { ModelRig } from '../models/ModelRig';
 import type { RealmApi } from './Realms';
-import { archBridge } from './Walkways';
 import { dressDream } from './Pois';
 import { eyePool } from './Water';
 
@@ -156,6 +156,9 @@ function floorMaterial(): ShaderMaterial {
       }`,
   });
 }
+
+/** The dream mushrooms' colours (DreamGrove TINTS of them): magenta, cyan, acid green, orange, violet, gold. */
+const SHROOM_TINTS: Color[] = [new Color(1.2, 0.25, 0.9), new Color(0.2, 1.0, 1.2), new Color(0.55, 1.2, 0.2), new Color(1.25, 0.55, 0.15), new Color(0.6, 0.3, 1.3), new Color(1.2, 0.95, 0.25)].slice(0, TINTS);
 
 export function buildDream(api: RealmApi): void {
   const R = DREAM;
@@ -311,26 +314,35 @@ export function buildDream(api: RealmApi): void {
   // (Off its rim, 7.5 m from its middle, on the side away from the skull and the castle.)
   api.place(cascade({ x: C.x - 58 + Math.cos(2.1 + Math.PI / 2) * 7.9, z: C.z - 94 + Math.sin(2.1 + Math.PI / 2) * 7.9, top: skullTops[1] - 0.6, height: skullTops[1] + 30, width: 4, yaw: Math.PI / 2 - (2.1 + Math.PI / 2), color: new Color(1.2, 0.4, 1.4) }));
 
-  // --- east: the canal village round the eye, candle-lit bridges, the giant face tree ---
+  // --- east: the eye pool in a grove of mushrooms, the giant face tree ---
+  // (The canal village's houses and its two candle-lit bridges stood here: the playtest of 2026-11-12 asked for
+  // mushrooms instead, every kind, some you bounce on cap to cap: DreamGrove.)
   const V = { x: C.x + 64, z: C.z - 14 };
-  const eye = eyePool(V.x, V.z, y0 + 0.02, 22, 15);
+  const eye = eyePool(V.x, V.z, y0 + 0.02, EYE.rx, EYE.rz);
   api.place(eye);
-  for (let i = 0; i < 9; i++) {
-    const a = (i / 9) * Math.PI * 2 + 0.2;
-    if (Math.abs(Math.cos(a)) > 0.92) continue;
-    const x = V.x + Math.cos(a) * 33;
-    const z = V.z + Math.sin(a) * 25;
-    api.place(modelLandmark('village-house', x, z, y0, { yaw: Math.atan2(V.x - x, V.z - z), scale: 1 + rnd() * 0.3, onLoad: (m) => restyle(m, (mat) => { patchLitWindows(mat, 2.6); }) }));
+  const grove = dreamGrove(api.rnd);
+  const sets = new Map<string, Placement[]>();
+  const shroomFoot: Footprint[] = [];
+  for (const m of [...grove.chain, ...grove.scatter]) {
+    const x = V.x + m.dx, z = V.z + m.dz;
+    const key = `${m.kind}|${m.tint}`;
+    if (!sets.has(key)) sets.set(key, []);
+    sets.get(key)!.push({ x, y: y0, z, yaw: m.yaw, scale: m.scale });
+    const top = y0 + m.top;
+    if (m.kind === 'giant-mushroom') {
+      // The cap is solid to land on (an overhang: you walk under it), the stalk solid to bump into.
+      shroomFoot.push({ kind: 'cyl', x, z, r: m.r, top, bottom: top - 0.9 * m.scale }, { kind: 'cyl', x, z, r: Math.max(0.25, m.r * 0.22), top: top - 0.9 * m.scale });
+      const g = glowSprite(SHROOM_TINTS[m.tint].getHex(), 4.5 * m.scale, 0.3, true);
+      g.position.set(x, top - 0.6 * m.scale, z);
+      api.group.add(g);
+    } else if (m.bouncy || m.kind === 'purple-mushroom') shroomFoot.push({ kind: 'cyl', x, z, r: m.bouncy ? m.r * 0.8 : Math.max(0.15, m.r * 0.25), top });
+    if (m.bouncy) api.bounce?.({ x, z, r: m.r * 0.9, top, v: BOUNCE_V });
   }
-  for (const bx of [V.x - 9, V.x + 9]) {
-    const zA = V.z + 17;
-    const zB = V.z - 17;
-    const b = archBridge(bx, zA, zB, y0 + 0.1, y0 + 3.6, 1.3, MODELS['chasm-bridge'].height);
-    api.place(b);
-    api.flora('chasm-bridge', b.tiles);
-    const candles: Placement[] = [];
-    b.posts.forEach((p, i) => { if (i % 2 === 0) { candles.push({ x: p.x, y: p.y + 0.9, z: p.z, yaw: 0, scale: 1.2 }); api.vfx(fire(p.x, p.y + 1.25, p.z, 0.12, 1)); } });
-    api.flora('candle', candles, { shadows: false });
+  api.place({ object: new Group(), footprints: shroomFoot });
+  for (const [key, list] of sets) {
+    const [kind, tint] = key.split('|');
+    const c = SHROOM_TINTS[Number(tint)];
+    api.flora(kind, list, { shadows: kind === 'giant-mushroom', patch: (mat) => { patchRetint(mat, c); mat.roughness = 0.9; mat.metalness = 0; if (mat.map) mat.emissiveMap = mat.map; mat.emissive.copy(c).multiplyScalar(0.35); mat.emissiveIntensity = 1; } });
   }
   api.place(modelLandmark('face-tree', C.x + 104, C.z + 34, y0, { scale: 2.6, yaw: Math.atan2(V.x - (C.x + 104), V.z - (C.z + 34)) }));
   api.vfx(fireflies(V.x, y0, V.z, 30, 8, 120, new Color(1.2, 0.8, 0.3)));

@@ -1,7 +1,8 @@
 import { Color, DirectionalLight, FogExp2, HemisphereLight, type Object3D, PerspectiveCamera, Scene, Vector3 } from 'three';
 import { Bubbles } from './world/Portal';
 import { LightBudget } from './render/LightBudget';
-import { yawToRotation } from './models/ModelRig';
+import { loadModel, ModelRig, yawToRotation } from './models/ModelRig';
+import { MODELS } from './data/models';
 import { Audio } from './audio/Audio';
 import { Rig } from './characters/Rig';
 import { ROSTER } from './characters/roster';
@@ -13,7 +14,7 @@ import { kingdomNight, kingdomSkyColors } from './world/Kingdom';
 import { Inventory } from './items/Inventory';
 import { riverAt, WORLD } from './world/Terrain';
 import { ITEMS } from './items/Items';
-import { CONTROLLER, createControllerState, startDash, stepController } from './player/CharacterController';
+import { CONTROLLER, createControllerState, haltController, startDash, stepController } from './player/CharacterController';
 import { Party } from './player/Party';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera';
 import { Atmosphere } from './render/Atmosphere';
@@ -35,7 +36,9 @@ import { World } from './world/World';
 import { Adventures } from './game/Adventures';
 import { Ending } from './game/Ending';
 import { Events, type HeroId, type Zone } from './game/Events';
-import { Progress, xpForKill } from './game/Progress';
+import { MAX_LEVEL, Progress, xpFor, xpForKill } from './game/Progress';
+import { Titles } from './game/Hype';
+import { questNode } from './data/quests';
 import { Save, type SaveV1 } from './game/Save';
 import { Story } from './game/Story';
 import { WorldState } from './game/WorldState';
@@ -48,6 +51,7 @@ import { HEAD_LIT } from './world/StoneHead';
 import { CHESTS, CHEST_RESPAWN, type ChestDef } from './data/chests';
 import { ENEMY_DEFS } from './data/enemies';
 import { rollDrops } from './combat/Loot';
+import { levelSpot } from './world/LevelSpot';
 import { modelLandmark } from './world/ModelLandmark';
 import { type NpcDef } from './world/NPCs';
 
@@ -226,8 +230,16 @@ const combat = new CombatSystem({
       combat.level = progress.level;
       hud.setParty(ROSTER, party.activeIndex, fallen(), progress.level);
       hud.announce(`Level ${progress.level}`);
-      events.emit({ kind: 'feat', what: 'levelup' });
+      // The level's moment: a fanfare, a gold ring and a shower of sparks round the hero, the hype man shouting it.
+      audio.levelUp();
+      hud.hype(`LEVEL UP!`, 6);
+      const at = new Vector3(controller.pos.x, controller.pos.y + 0.2, controller.pos.z);
+      combatFx.shock(at, 0xffc23a, 9);
+      combatFx.sparks(at.clone().setY(at.y + 1), new Vector3(0, 1, 0), 40, 0xffd870, 8, 1.4);
+      renderer.pulse(0.45);
+      events.emit({ kind: 'feat', what: 'levelup', level: progress.level });
     }
+    showXp();
     save.markDirty();
   },
   muzzle: () => rigs[party.activeIndex].muzzle(new Vector3()),
@@ -257,7 +269,7 @@ function teleport(x: number, y: number, z: number, yaw: number, name?: string): 
   audio.cast();
   portalCooldown = 1.5;
 }
-combat.loot.onAbsorbed = () => audio.absorb();
+combat.loot.onAbsorbed = (rarity) => audio.absorb(rarity);
 const adventures = new Adventures({
   controller, world: area, hud, audio, inventory, teleport, events, activeRig: () => rigs[party.activeIndex], debuffs: () => combat.debuffs,
   trip: (strength, seconds) => renderer.trip(strength, seconds),
@@ -274,10 +286,18 @@ area.hooks.mire = (seconds) => combat.mire(seconds);
 // Shootable things in the world (sky eyes, the eye pool), and the prize for shooting every sky eye.
 combat.targets.push(...area.shotTargets);
 area.hooks.reward = (what) => {
+  if (what === 'throne') {
+    // The Moon Throne Hall's empty throne (CastleHall.ts): the hall takes you for its king for a moment.
+    combat.healActive(1e6);
+    renderer.trip(0.4, 4);
+    audio.cast();
+    hud.announce('The castle knows its king tonight');
+    return;
+  }
   if (what !== 'eyes') return;
   events.emit({ kind: 'feat', what: 'skyeye' });
   combat.loot.spawn([{ kind: 'shards', amount: 60 }, { kind: 'item', itemId: 'moon-dew', count: 2 }], new Vector3(controller.pos.x, controller.pos.y + 1, controller.pos.z));
-  hud.announce('The sky blinks first · 60 shards');
+  hud.announce('The sky blinks first · 60 coins');
   audio.loot(4);
 };
 area.hooks.board = (boat) => { adventures.riding = boat; audio.footstep(); hud.announce('Aboard · F talk · SPACE jump off'); };
@@ -290,6 +310,7 @@ adventures.openRowers = () => {
 function openPanel(fn: () => void): void {
   input.unlock();
   input.uiOpen = true;
+  haltController(controller);
   fn();
   hud.setLocked(false);
 }
@@ -415,9 +436,15 @@ function snapshot(): SaveV1 {
     quests: adventures.quests.snapshot(), slain: adventures.quests.slain(),
     flags: worldState.snapshot().flags, state: worldState.snapshot(), progress: { xp: progress.xp, level: progress.level },
     bosses: { ...bosses }, chests: [...openedChests], companions: companions.map((c) => c.def.id), newGamePlus,
+    titles: titles.snapshot(),
+    titleProgress: titles.progress(),
   };
 }
 let newGamePlus = false;
+/** Silly titles earned (game/Hype.ts): restored from the save. */
+let titles = new Titles();
+/** The experience bar: how far into this level. */
+function showXp(): void { hud.setXp(progress.level >= MAX_LEVEL ? 1 : progress.xp / xpFor(progress.level)); }
 /** What each hero wields shows in the hand: the blade takes the item's colour. */
 function weaponGlows(): void {
   ROSTER.forEach((c, i) => {
@@ -434,6 +461,8 @@ function applySave(s: SaveV1): void {
   if (s.state && typeof s.state === 'object') worldState.restore(s.state as Parameters<WorldState['restore']>[0]);
   progress.xp = s.progress.xp;
   progress.level = s.progress.level;
+  titles = new Titles(s.titles ?? [], s.titleProgress ?? {});
+  showXp();
   openedChests.clear();
   for (const id of s.chests) openedChests.add(id);
   for (const [id, n] of Object.entries(s.hp)) combat.hp.set(id, n);
@@ -464,16 +493,22 @@ function chestReady(id: string): boolean {
   if (prop) prop.visible = true;
   return true;
 }
-function openChest(c: ChestDef): void {
+/** Opens a chest where its prop stands (`at`: levelSpot may have moved it up to 4 m off the table's spot). */
+function openChest(c: ChestDef, at: { x: number; y: number; z: number }): void {
   if (!chestReady(c.id)) return;
   openedChests.add(c.id);
   openedAt.set(c.id, playTime);
-  const y = world.heightAt(c.x, c.z);
+  const { x, y, z } = at;
+  // Its moment: the creak, the lid, the coins; a gold burst and a little shake.
+  audio.chest();
+  combatFx.sparks(new Vector3(x, y + 0.8, z), new Vector3(0, 1, 0), 34, 0xffc23a, 7, 1.2);
+  combatFx.flash(new Vector3(x, y + 0.8, z), 0xffd870, 2.2);
+  tpc.shake(0.25);
   if (c.kind === 'mimic') {
-    combat.wake('bucket', c.x, c.z);
+    combat.wake('bucket', x, z);
     hud.announce('The hoard stands up');
   } else {
-    combat.loot.spawn(rollDrops(c.table.map((d) => ({ itemId: d.itemId, chance: d.chance })), c.shards), new Vector3(c.x, y + 0.6, c.z));
+    combat.loot.spawn(rollDrops(c.table.map((d) => ({ itemId: d.itemId, chance: d.chance })), c.shards), new Vector3(x, y + 0.6, z));
     hud.announce(c.kind === 'cache' ? 'A cache' : 'A hoard');
   }
   chestProps.get(c.id)!.visible = false;
@@ -481,16 +516,17 @@ function openChest(c: ChestDef): void {
   save.write(snapshot());
 }
 for (const c of CHESTS) {
-  const y = world.heightAt(c.x, c.z);
   const id = c.kind === 'cache' ? 'barrel' : 'coin-block';
-  const placed = modelLandmark(id, c.x, c.z, y, { yaw: 0.4 });
+  // On level ground all under it (it sat on a post's top on the Vale castle's shelf), moved up to 4 m to find it.
+  const spot = levelSpot((x, z) => world.heightAt(x, z), c.x, c.z, c.kind === 'cache' ? 0.5 : 0.8, 4);
+  const placed = modelLandmark(id, spot.x, spot.z, spot.y, { yaw: 0.4 });
   area.adopt(c.zone === 'island' ? null : c.zone, placed.object);
   chestProps.set(c.id, placed.object);
   area.heights.add(...placed.footprints);
   area.interactables.push({
     pos: placed.root.position, range: 2.6, zone: c.zone === 'island' ? null : c.zone,
     label: () => chestReady(c.id) ? (c.kind === 'cache' ? 'Open the cache' : 'Open the hoard') : null,
-    act: () => openChest(c),
+    act: () => openChest(c, spot),
   });
 }
 const hoardGlints = new Glints(16, 8);
@@ -570,6 +606,22 @@ hud.setSavePresent(save.has());
 // (Never before the player has entered: the zone event at startup would overwrite the save with a blank game.)
 // Swung at within reach, an NPC steps back.
 events.on('feat', (e) => { if (e.what === 'attack') for (const n of area.npcs) if (!n.def.invisible) n.startle(controller.pos); });
+// Bystanders react (models/Emotes.ts): a cheer or a dance at a kill near them, the YMCA for a boss, a shrug when the
+// party falls, a cheer for a level.
+const bystanders = (at: { x: number; z: number }, r: number) => area.npcs.filter((n) => !n.hidden && Math.hypot(n.pos.x - at.x, n.pos.z - at.z) < r);
+events.on('kill', (e) => { for (const n of bystanders(e.at, e.boss ? 80 : 18)) n.react(e.boss ? 'boss' : 'kill'); });
+events.on('wipe', () => { for (const n of bystanders(controller.pos, 30)) n.react('wipe'); });
+events.on('feat', (e) => { if (e.what === 'levelup') for (const n of bystanders(controller.pos, 30)) n.react('levelup'); });
+// A quest finished: the fanfare and a shout (the banner is Story's).
+events.on('quest', (e) => { if (questNode(e.id)?.stages[e.stage]?.terminal) { audio.fanfare(); hud.hype('Quest complete!', 4); } });
+// Silly titles (game/Hype.ts): a toast and a kazoo.
+events.onAny((e) => {
+  const t = titles.on(e);
+  if (!t) return;
+  hud.titleEarned(t.title, t.quip);
+  audio.tada();
+  save.markDirty();
+});
 events.on('zone', () => { if (resumed) save.write(snapshot()); });
 events.on('quest', () => { if (resumed) save.write(snapshot()); });
 
@@ -627,7 +679,7 @@ function interactTarget(): { kind: 'loot'; take: () => void; label: string } | {
   const pickup = combat.loot.nearest(p, 2.8);
   if (pickup && pickup.drop.kind === 'item') {
     const def = ITEMS[pickup.drop.itemId];
-    return { kind: 'loot', label: `Take ${def.name}`, take: () => { combat.loot.take(pickup); inventory.add(def.id, 1); audio.loot(def.rarity); hud.announce(`${def.name}`); events.emit({ kind: 'loot', item: def.id, rarity: def.rarity }); } };
+    return { kind: 'loot', label: `Take ${def.name}`, take: () => { combat.loot.take(pickup); inventory.add(def.id, 1); if (def.rarity >= 3) { audio.jackpot(); hud.hype(def.rarity >= 4 ? 'JACKPOT' : 'Ooh, shiny', def.rarity + 1); renderer.pulse(0.35); } else audio.loot(def.rarity); hud.announce(`${def.name}`); events.emit({ kind: 'loot', item: def.id, rarity: def.rarity }); } };
   }
   const zone = REALMS.find((r) => Math.hypot(p.x - r.x, p.z - r.z) < r.radius)?.id ?? null;
   const use = adventures.interact(zone);
@@ -989,7 +1041,9 @@ declare global {
       realms: typeof REALMS;
       /** Headless play checks: the game's own move (portals, doors and the dream use it), the carriage, the world state, the story. */
       teleport: typeof teleport; carriage: typeof CARRIAGE; worldState: WorldState; story: Story;
+      /** The model loader, for the headless character lineup (scripts/perf/anim/lineup.mjs). */
+      models: { load: typeof loadModel; ModelRig: typeof ModelRig; MODELS: typeof MODELS };
     };
   }
 }
-window.__ginseng = { groundOnly: (x: number, z: number) => area.ground.heightAt(x, z), loadSave: () => { const s = save.load(); if (s) applySave(s); return !!s; }, snapshot, scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, fx: combatFx, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs, events, ending, save, progress, realms: REALMS, teleport, carriage: CARRIAGE, worldState, story };
+window.__ginseng = { models: { load: loadModel, ModelRig, MODELS }, groundOnly: (x: number, z: number) => area.ground.heightAt(x, z), loadSave: () => { const s = save.load(); if (s) applySave(s); return !!s; }, snapshot, scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, fx: combatFx, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs, events, ending, save, progress, realms: REALMS, teleport, carriage: CARRIAGE, worldState, story };

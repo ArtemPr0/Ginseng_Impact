@@ -69,3 +69,14 @@ describe('the bubble', () => {
     expect(bubbleOf(n).position.y).toBeCloseTo(d.bubbleAbove!);
   });
 });
+
+describe('reactions keep a kneeling or praying NPC down', () => {
+  it('the kneeling knight and the praying priest clap from where they are instead of jumping up to dance', () => {
+    for (const id of ['vigil', 'priest']) {
+      const n = make(id);
+      expect(n.seated, `${id} counts as down`).toBe(true);
+      n.react('kill');
+      expect((n as unknown as { emote: { key: string } | null }).emote?.key).toBe('clap');
+    }
+  });
+});

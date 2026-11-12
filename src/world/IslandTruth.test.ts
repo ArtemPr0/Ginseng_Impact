@@ -6,7 +6,7 @@
  * (waterLevelAt), exactly as World.ts places it (LANDMARKS, LAYOUT, VILLAGE, ANCHORS, ENEMY_SPAWNS).
  */
 import { describe, expect, it } from 'vitest';
-import { ANCHORS, ISLAND_PORTALS, LANDMARKS, LAYOUT, SINK, VILLAGE, type LandmarkSpot } from '../data/world';
+import { ANCHORS, ISLAND_PORTALS, LANDMARKS, LAYOUT, SINK, SKY_EYES, VILLAGE, type LandmarkSpot } from '../data/world';
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
 import { MODELS } from '../data/models';
 import { gridFootprint, type GridFootprint } from './Colliders';
@@ -157,5 +157,42 @@ describe('the island\'s folk and mobs stand on dry land', () => {
       }
     }
     expect(bad).toEqual([]);
+  });
+});
+
+describe('one eye at a time', () => {
+  it('no watching sky eye hangs over the Blood Eye\'s patrol (side by side they read as one eye with two pupils)', () => {
+    const spawn = ENEMY_SPAWNS.find((s) => s.kind === 'blood-eye')!;
+    const path = [[spawn.x, spawn.z], ...(spawn.patrol ?? [])];
+    for (const e of SKY_EYES) for (const [x, z] of path) expect(Math.hypot(e.x - x, e.z - z), `sky eye at (${e.x},${e.z})`).toBeGreaterThan(30);
+  });
+});
+
+describe('the causeway', () => {
+  it('meets the ground at both rims (walked straight onto, no stairs) and crosses the whole chasm', () => {
+    const c = LAYOUT.causeway;
+    expect(Math.abs(c.yStart - 0.25 - terrainHeight(c.x, c.zStart, noise))).toBeLessThan(0.4);
+    expect(Math.abs(c.yEnd - 0.25 - terrainHeight(c.x, c.zEnd, noise))).toBeLessThan(0.4);
+    for (const z of [c.zStart + 2, c.zEnd - 2]) expect(terrainHeight(c.x, z, noise), `rim beyond z ${z}`).toBeGreaterThan(1);
+  });
+});
+
+describe('the Marsh Sovereign\'s mud pool', () => {
+  it('lies in its basin: the bank stands over the mud all round its edge (no sheet hanging over the ground to see under), deep enough to wade', () => {
+    const m = LAYOUT.floodedRuin;
+    let low = Infinity;
+    for (let k = 0; k < 48; k++) for (const r of [m.r, m.r + 0.5, m.r + 1, m.r + 1.4]) {
+      const a = (k / 48) * Math.PI * 2;
+      low = Math.min(low, terrainHeight(m.x + r * Math.cos(a), m.z + r * Math.sin(a), noise));
+    }
+    expect(low, 'lowest bank at the edge').toBeGreaterThanOrEqual(m.mud);
+    expect(m.mud - terrainHeight(m.x, m.z, noise), 'depth at the middle').toBeGreaterThan(1.2);
+  });
+});
+
+describe('the Hollow King', () => {
+  it('has his ground to himself: no island building inside his body (48 m across at 25 m tall)', () => {
+    const king = ENEMY_SPAWNS.find((s) => s.kind === 'hollowking')!;
+    for (const l of LANDMARKS) expect(Math.hypot(l.x - king.x, l.z - king.z), l.id).toBeGreaterThan(17);
   });
 });

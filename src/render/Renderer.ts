@@ -82,6 +82,7 @@ export const LOOKS: Record<string, Look> = {
   // Indoors by firelight (Dd5Bqt7vQ5T's tavern): candles bloom, the shadows lift warm, the corners close in.
   'tavern-room': { bloom: 0.85, radius: 0.7, threshold: 0.7, saturation: 1.15, contrast: 1.1, vignette: 0.65, exposure: 1.0, lift: [0.025, 0.01, 0.0] },
   // The crypt bar (DeldocTvFiB): cold stone, candle pools, green eyes that bloom.
+  'castle-hall': { bloom: 0.8, radius: 0.7, threshold: 0.72, saturation: 1.15, contrast: 1.1, vignette: 0.66, exposure: 1.0, lift: [0.004, 0.008, 0.03] },
   'crypt-room': { bloom: 0.85, radius: 0.7, threshold: 0.68, saturation: 1.15, contrast: 1.14, vignette: 0.68, exposure: 0.98, lift: [0.012, 0.008, 0.02] },
 };
 

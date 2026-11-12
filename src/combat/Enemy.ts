@@ -4,12 +4,15 @@ import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { Box3, Color, Group, type HSL, type Mesh, type MeshStandardMaterial, type Object3D, Quaternion, type Sprite, SRGBColorSpace, Vector3 } from 'three';
 import { MODELS, type ModelDef } from '../data/models';
 import { glowSprite } from '../render/Glow';
+import { leanDisc } from '../render/LeanCup';
+import { pickGait } from './Gait';
+import { launch, type Yeet, yeetStep } from './Yeet';
 import { LeanBubble } from '../render/LeanBubble';
 import { patchTrippy } from '../render/Materials';
 import { patchDissolve } from '../render/CombatFx';
 import { EyeIris } from '../render/EyeIris';
 import { easeLean, slopeTarget, type Lean } from '../characters/SlopeLean';
-import type { EnemyDef } from '../data/enemies';
+import type { EnemyDef, OrbitModel } from '../data/enemies';
 import { PALETTE } from '../render/palette';
 import type { WorldQuery } from '../player/CharacterController';
 import { type AttackTokens, EnemyBrain, type EnemyState } from './EnemyBrain';
@@ -220,6 +223,12 @@ export class Enemy {
   private heap: { t: number; bones: Array<{ b: Object3D; from: Quaternion; to: Quaternion; delay: number }>; tipAxis: Vector3; drop: number } | null = null;
   /** Death without a death clip (see topplePose): seconds into the topple, or -1. */
   private toppleT = -1;
+  /** Blown off its feet by an overkill (Yeet.ts): the flight, until it lands. */
+  private yeet: Yeet | null = null;
+  /** Dancing over a fallen hero (taunt), seconds left. */
+  private tauntT = 0;
+  /** The locomotion clip key it is walking or running in (Gait.pickGait holds it). */
+  private gait = '';
   /** Whom it fights: a companion's place (the object it was handed in `marks`), or null for the hero (marks[0]). */
   private markRef: Mark | null = null;
   /**
@@ -315,7 +324,8 @@ export class Enemy {
     if (!this.alive) this.model.play('death', true);
     const held = MODELS[id]?.held;
     if (held) void loadModelOrWarn(held.model, MODELS[held.model]?.label).then((g) => { if (g) this.hold(held, g); });
-    if (this.def.orbitGems && !this.gems) void loadModelOrWarn('gem', MODELS.gem?.label).then((g) => { if (g) this.buildGems(g, this.def.orbitGems!); });
+    const orbit = this.def.orbit;
+    if (orbit && !this.gems) void loadModelOrWarn(orbit.model, MODELS[orbit.model]?.label).then((g) => { if (g) this.buildGems(g, orbit.model, orbit.count); });
   }
 
   /** Climbs out of the ground over `seconds` (standing up as it comes), then fights. */
@@ -326,27 +336,36 @@ export class Enemy {
     this.brain.stateTime = 0;
   }
 
-  /** The diamonds circling the body (EnemyDef.orbitGems), each with its glint, and when each grows back. */
-  private gems: { group: Group; list: Array<{ obj: Group; back: number }>; t: number } | null = null;
+  /** What circles the body (EnemyDef.orbit: diamonds or double cups), each with its glow, and when each grows back. */
+  private gems: { group: Group; list: Array<{ obj: Group; back: number }>; t: number; spin: boolean } | null = null;
 
-  private buildGems(gltf: GLTF, n: number): void {
+  private buildGems(gltf: GLTF, model: OrbitModel, n: number): void {
     const group = new Group();
     const list: Array<{ obj: Group; back: number }> = [];
     for (let i = 0; i < n; i++) {
-      const rig = new ModelRig('gem', gltf, { cloneMaterials: true });
-      for (const m of rig.materials) { m.color.set(0xe9f2ff); m.emissive.set(0x6a8cff); m.emissiveIntensity = 0.5; }
+      const rig = new ModelRig(model, gltf, { cloneMaterials: true });
       const obj = new Group();
-      rig.root.scale.setScalar(0.5 + (i % 3) * 0.15);
-      obj.add(rig.root, glowSprite(0xdff2ff, 0.7, 0.45, true));
+      if (model === 'lean-cup') {
+        // A double cup brimming with lean, upright (it turns about its own axis, nothing spills), glowing purple.
+        rig.root.scale.setScalar(2.4);
+        rig.root.position.y = -0.2;
+        const lean = leanDisc(0.17);
+        lean.position.y = 0.15;
+        obj.add(rig.root, lean, glowSprite(0xb36bff, 0.8, 0.45, true));
+      } else {
+        for (const m of rig.materials) { m.color.set(0xe9f2ff); m.emissive.set(0x6a8cff); m.emissiveIntensity = 0.5; }
+        rig.root.scale.setScalar(0.5 + (i % 3) * 0.15);
+        obj.add(rig.root, glowSprite(0xdff2ff, 0.7, 0.45, true));
+      }
       group.add(obj);
       list.push({ obj, back: 0 });
     }
-    this.gems = { group, list, t: Math.random() * 10 };
+    this.gems = { group, list, t: Math.random() * 10, spin: model === 'gem' };
     // (In the scene, not on the body: the body's turn and scale would carry them.)
     this.object.parent?.add(group);
   }
 
-  /** Circles the diamonds round the body: a slow ring at chest height, bobbing; a thrown one grows back in. */
+  /** Circles them round the body: a slow ring at chest height, bobbing; a thrown one grows back in. */
   private animateGems(dt: number): void {
     const g = this.gems;
     if (!g) return;
@@ -357,13 +376,13 @@ export class Enemy {
     g.list.forEach((d, i) => {
       const a = g.t * 0.7 + (i / n) * Math.PI * 2;
       d.obj.position.set(this.pos.x + Math.cos(a) * 1.6, this.pos.y + 1.5 + Math.sin(g.t * 1.3 + i) * 0.45, this.pos.z + Math.sin(a) * 1.6);
-      d.obj.rotation.y = g.t * 2 + i;
+      d.obj.rotation.y = g.t * (g.spin ? 2 : 0.6) + i;
       d.back = Math.max(0, d.back - dt);
       d.obj.scale.setScalar(d.back > 0 ? Math.max(0.001, 1 - d.back / 4) ** 3 : 1);
     });
   }
 
-  /** Takes the circling diamond nearest `to` (it grows back in 4 s): where it was, or null when all are gone. */
+  /** Takes the circling one nearest `to` (it grows back in 4 s): where it was, or null when all are gone. */
   takeGem(to: { x: number; y: number; z: number }): Vector3 | null {
     const g = this.gems;
     if (!g) return null;
@@ -795,6 +814,9 @@ export class Enemy {
     if (this.heap) for (const x of this.heap.bones) x.b.quaternion.copy(x.from);
     this.heap = null;
     this.toppleT = -1;
+    this.yeet = null;
+    this.tauntT = 0;
+    this.object.rotation.x = 0;
     this.oneShot = null;
     this.wantFlinch = false;
     this.lunge = this.flinch = 0;
@@ -824,11 +846,34 @@ export class Enemy {
     this.model?.play('idle');
   }
 
+  /** A hero fell in front of it: it dances a few seconds (a biped with the shared emotes; others take no notice). */
+  taunt(seconds: number): void {
+    if (this.alive && !this.def.boss) this.tauntT = seconds;
+  }
+
+  /**
+   * Killed by an overkill (game/Hype.isOverkill): launched up and away along (dirX, dirZ), spinning, to land on its
+   * side and burn away there. Bosses, flyers, the rooted and the seated stay put.
+   */
+  launchFrom(dirX: number, dirZ: number): boolean {
+    const d = this.def;
+    if (this.alive || d.boss || d.flying || this.seatedNow || d.speed <= 0 || d.body || d.eye || d.floatAt !== undefined) return false;
+    this.yeet = launch(dirX, dirZ, Math.max(1, d.height * (d.scale ?? 1) / 2));
+    return true;
+  }
+
   /** Per-frame visuals. */
   /** `far`: beyond animation range, so the skeleton holds its pose (state, position and shrink still update). */
   animate(dt: number, far = false): void {
     if (this.hopT >= 0) { this.hopT += dt; if (this.hopT >= this.hopLen) this.hopT = -1; }
+    if (this.tauntT > 0) this.tauntT = Math.max(0, this.tauntT - dt);
     this.animateGems(dt);
+    // Blown away by an overkill: the arc, tumbling, until it lands (Yeet.ts).
+    if (this.yeet && !this.alive) {
+      yeetStep(this.yeet, this.pos, dt, (x, z) => this.world.heightAt(x, z, this.pos.y + 1));
+      // In the air it tumbles; landed, it lies on its back or front, whichever way it was turning.
+      this.object.rotation.x = this.yeet.landed ? Math.sign(this.yeet.spin) * Math.PI / 2 : this.yeet.angle;
+    }
     // Out of the grave: up through the ground fast at first, slowing as the feet come out.
     const sink = this.graveRise > 0 ? -1.9 * Math.pow(this.graveRise / this.graveRiseLen, 1.6) : 0;
     this.object.position.set(this.pos.x, this.pos.y + this.hopLift + sink, this.pos.z);
@@ -1022,7 +1067,7 @@ export class Enemy {
    */
   private driveClips(m: ModelRig, st: EnemyState, entered: boolean): void {
     if (entered && st === 'dead') {
-      if (this.def.collapse) { this.startHeap(m); return; }
+      if (this.def.collapse && !this.yeet) { this.startHeap(m); return; }
       // No death clip (the log giant): the pose freezes where it is and the whole frame topples over (toppleOver).
       if (!m.play('death', true)) { m.holdAt(0); this.toppleT = 0; }
       this.oneShot = 'death';
@@ -1031,6 +1076,8 @@ export class Enemy {
     if (st === 'dead') return;
     if (this.status.stun > 0) { m.play('idle', false, 0.35); this.oneShot = null; return; }
     if (this.seatedNow) { m.play('sit'); return; }
+    // Gloating over a fallen hero: a little dance, when it is not swinging or on the move (models/Emotes.ts).
+    if (this.tauntT > 0 && st !== 'windup' && st !== 'attack' && this.groundSpeed < 0.6 && m.play('dance')) return;
     if (this.rising > 0) { if (m.playing !== 'stand' && !m.play('stand', true, 1, STAND_UP)) m.play('idle'); return; }
     if (entered && st === 'windup') {
       const windup = this.brain.p.windup;
@@ -1054,18 +1101,12 @@ export class Enemy {
       if (!(st === 'idle' && !this.returning && m.has('idle_02') && m.play('idle_02'))) m.play('idle');
       return;
     }
-    // Pick the gait whose natural pace is nearest the real one, then match it exactly.
-    let best = '';
-    let bestScale = 1;
-    let bestErr = Infinity;
-    for (const key of ['walk', 'run', 'walking', 'running']) {
-      const rate = m.strideSpeed(key);
-      if (rate <= 0) continue;
-      const scale = v / rate;
-      const err = Math.abs(Math.log(scale));
-      if (err < bestErr) { bestErr = err; best = key; bestScale = scale; }
-    }
-    if (!best) { m.play('idle'); return; }
+    // The gait whose natural pace is nearest the real one, matched exactly; the one it is in is held (Gait.ts).
+    const gait = pickGait(['walk', 'run', 'walking', 'running'].map((key) => ({ key, rate: m.strideSpeed(key) })), v, this.gait);
+    if (!gait) { m.play('idle'); return; }
+    this.gait = gait.key;
+    const best = gait.key;
+    const bestScale = gait.scale;
     const fx = Math.cos(this.yaw);
     const fz = Math.sin(this.yaw);
     const len = Math.hypot(this.moveDirX, this.moveDirZ) || 1;

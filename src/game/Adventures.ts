@@ -4,7 +4,7 @@
  * F does before the usual targets (loot, talk). The conversations come from the Story once main.ts attaches one.
  */
 import { Group, Vector3 } from 'three';
-import { DREAM, GALAXY, LAYOUT } from '../data/world';
+import { DREAM, GALAXY, GRAVE_RING, GRAVEYARD, LAYOUT } from '../data/world';
 import type { EnemyKind } from '../data/enemies';
 import type { Enemy } from '../combat/Enemy';
 import { MODELS } from '../data/models';
@@ -25,7 +25,7 @@ import { Quests, type QuestWallet } from './Quests';
 import type { Story } from './Story';
 
 /** Seconds in the frog's dream, and of the rowers' ale. */
-/** Four minutes: long enough to walk the whole dream (the stair path, the canal village, the corridor of eyes). */
+/** Four minutes: long enough to walk the whole dream (the stair path, the mushroom grove, the corridor of eyes). */
 const DREAM_SECONDS = 240;
 const ALE_SECONDS = 180;
 /** Croak is home when the sack is put down this close to his father. */
@@ -78,7 +78,7 @@ export class Adventures {
       spend: (n) => d.inventory.spend(n),
       take: (id) => d.inventory.remove(id, 1),
       give: (id) => { d.inventory.add(id, 1); d.audio.loot(itemDef(id)?.rarity ?? 4); d.hud.announce(itemDef(id)?.name ?? id); },
-      pay: (n) => { d.inventory.shards += n; d.audio.coins(6); d.hud.announce(`+${n} Moon Shards`); },
+      pay: (n) => { d.inventory.shards += n; d.audio.coins(6); d.hud.announce(`+${n} Gold Coins`); },
     };
     // A kill's reward (the Third Eye, the Grave Crown, Yung Lean's purse) is paid into the same purse.
     this.quests.wallet = this.wallet;
@@ -218,6 +218,38 @@ export class Adventures {
     this.d.hud.announce('Yung Lean rises from the throne');
   }
 
+  /** The Grave Cyclops the candle ring raised (null when none), and whether the ring waits for you to step out first. */
+  private graveFight: { e: Enemy; beatenFor: number } | null = null;
+  private ringSpent = false;
+  /** Seconds before the ring can raise him again after he was beaten (his old spawn's respawn: 300 s). */
+  private ringRest = 0;
+
+  /** The candle ring in the Alley of Graves: step in and the Grave Cyclops climbs out of the ground ahead of you. */
+  private updateGraveRing(dt: number): void {
+    const c = this.d.controller;
+    const inRing = Math.hypot(c.pos.x - GRAVE_RING.x, c.pos.z - GRAVE_RING.z) < GRAVE_RING.r;
+    if (!inRing) this.ringSpent = false;
+    this.ringRest = Math.max(0, this.ringRest - dt);
+    const f = this.graveFight;
+    if (f) {
+      const left = Math.hypot(c.pos.x - GRAVEYARD.x, c.pos.z - GRAVEYARD.z) > GRAVEYARD.radius;
+      if (f.e.alive && !left) return;
+      if (!f.e.alive && !left) { f.beatenFor += dt; if (f.beatenFor < 2.5) return; }
+      if (!f.e.alive) this.ringRest = 300;
+      this.d.fight.despawn(f.e);
+      this.graveFight = null;
+      return;
+    }
+    if (!inRing || this.ringSpent || this.ringRest > 0) return;
+    this.ringSpent = true;
+    const R = GRAVE_RING.rise;
+    const e = this.d.fight.spawnBoss('cyclops-lord', R.x, R.z, R.yaw);
+    e.riseFromGrave(3);
+    this.graveFight = { e, beatenFor: 0 };
+    this.d.audio.cast();
+    this.d.hud.announce('The Grave Cyclops rises');
+  }
+
   private updateKingFight(dt: number): void {
     const f = this.kingFight;
     if (!f) return;
@@ -312,6 +344,7 @@ export class Adventures {
     }
     if (this.aleLeft > 0) this.aleLeft = Math.max(0, this.aleLeft - dt);
     this.updateKingFight(dt);
+    this.updateGraveRing(dt);
     this.d.controller.drainScale = this.aleLeft > 0 ? 0.5 : 1;
     this.pinToBoat();
     // The sack rides on whoever is in front, swaying with the walk.

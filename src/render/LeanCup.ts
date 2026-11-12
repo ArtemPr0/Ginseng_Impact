@@ -164,3 +164,10 @@ export class LeanCup {
     pivot.quaternion.premultiply(_inv.copy(_q).invert().multiply(_q2).multiply(_q));
   }
 }
+
+/** The lean's surface in a double cup (a flat purple disc `r` across the radius, lying level), for cups held or flying. */
+export function leanDisc(r: number): Mesh {
+  const lean = new Mesh(new CircleGeometry(r, 12), new MeshBasicMaterial({ color: 0x9b3dff, toneMapped: false }));
+  lean.rotation.x = -Math.PI / 2;
+  return lean;
+}

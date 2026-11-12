@@ -21,6 +21,7 @@ export const AIR: Record<string, Air> = {
   dream: { filter: 'bandpass', hz: 640, q: 2, gain: 0.025 },
   treehouse: { filter: 'lowpass', hz: 260, q: 0.4, gain: 0.025 },
   'tavern-room': { filter: 'lowpass', hz: 300, q: 0.4, gain: 0.03 },
+  'castle-hall': { filter: 'lowpass', hz: 240, q: 0.5, gain: 0.03 },
   'crypt-room': { filter: 'lowpass', hz: 220, q: 0.6, gain: 0.04, tick: { hz: 1500, every: 2.8, gain: 0.03, seconds: 0.09 } },
 };
 

@@ -10,7 +10,7 @@
  * loses nothing and nothing can be farmed); the quest graph pays the shards and hands over the items (below).
  */
 // QUEST GRAPH EXPECTATIONS (data/quests.ts pays these; lines only move stages):
-// grave: none→active (talk: Skeleton King, "I'll take his head" / "Fine. I'll do it") ; active→slain (kill cyclops-lord; the Grave Crown 'grave-crown' drops from it and stays with the hero) ; slain→done (talk: "Take the shards"): +900 shards
+// grave: none→active (talk: Skeleton King, "I'll take his head" / "Fine. I'll do it") ; active→slain (kill cyclops-lord; the Grave Crown 'grave-crown' drops from it and stays with the hero) ; slain→done (talk: "Take the coins"): +900 shards
 // sound: none→active (talk: Yung Lean, "I'll bring it back"): give mist-blade ; active→found (pick up lost-sound on the far cup; the hero keeps it) ; found→done (talk: "Take the signed cup"): give signed-cup, +800 shards (the line after, sound-keep, names the 800 and is 'once'; it pays nothing)
 // lean: active→signed (talk: Yung Lean, "Glintgrin will want this cup" / "I'll take it to him", only once the hero carries signed-cup): nothing to pay or give ; signed→done is Glintgrin's (realms): take signed-cup, +1000
 // crown: none→done (the game, on the first win of the 'challenge' fight): +600 shards ; later wins pay nothing ; the 'challenge' choice stays repeatable by design (gated bossAlive/bossSlain 'rift-king', never on a stage)
@@ -124,13 +124,13 @@ export const KINGDOM: DialogueBook = {
     },
     lines: [
       { id: 'skeleton-king.greet.first', slot: 'greet', text: "A visitor with pockets. Sit, stand, kneel; the throne doesn't mind. The ledger does. You're in it now.", when: { metMax: 0 } },
-      { id: 'skeleton-king.greet.again', slot: 'greet', text: "Back again. You're carrying {shards} shards. I'm not saying they're mine. I'm saying they were.", when: { metMin: 1, metMax: 2 } },
+      { id: 'skeleton-king.greet.again', slot: 'greet', text: "Back again. You're carrying {shards} coins. I'm not saying they're mine. I'm saying they were.", when: { metMin: 1, metMax: 2 } },
       { id: 'skeleton-king.greet.regular', slot: 'greet', text: "Back in the ledger. I stopped counting you. I count everything else; you're the exception, and it bothers me.", when: { metMin: 3 } },
       { id: 'skeleton-king.greet.knight', slot: 'greet', text: "A knight with a cup. The antlered fool would knight you. I'd pay you. Different kingdoms.", when: { hero: 'knight', metMin: 1 } },
 
       { id: 'skeleton-king.react.galaxy-knight', slot: 'react', text: "You killed a galaxy knight in my treasury. He was guarding it from you. Noted. Nothing is missing; I checked twice.", when: { event: 'kill', enemy: 'galaxy-knight' } },
       { id: 'skeleton-king.react.ghoul', slot: 'react', text: "A ghoul down on the plaza. It owed the court a cup. You've inherited the debt. Congratulations.", when: { event: 'kill', enemy: 'styro-ghoul' } },
-      { id: 'skeleton-king.react.golem', slot: 'react', text: "A crystal sentry, broken. The shards are mine. The shards are always mine; look at the floor.", when: { event: 'kill', enemy: 'crystalsentry' } },
+      { id: 'skeleton-king.react.golem', slot: 'react', text: "A crystal sentry, broken. The coins are mine. The coins are always mine; look at the floor.", when: { event: 'kill', enemy: 'crystalsentry' } },
       { id: 'skeleton-king.react.chucker', slot: 'react', text: "The chucker in the dome is dead. It threw my cups. Its estate owes me. It has no estate. You're nearest; the ledger isn't fussy.", when: { event: 'kill', enemy: 'lean-chucker' } },
       { id: 'skeleton-king.react.hurt', slot: 'react', text: "Red on the stones. It goes in the ledger under 'wear'. I charge the stones for it, not you. Yet.", when: { event: 'hurt' } },
       { id: 'skeleton-king.react.down', slot: 'react', text: "You went down on my floor. I counted the coins while you lay there. All present. You weren't, for a bit.", when: { event: 'down' } },
@@ -138,14 +138,14 @@ export const KINGDOM: DialogueBook = {
       { id: 'skeleton-king.react.chest', slot: 'react', text: "You opened a chest. Whatever was in it was mine first. Everything was. Keep it; I like being owed.", when: { event: 'feat', feat: 'chest' } },
       { id: 'skeleton-king.react.wizard', slot: 'react', text: "The floating wizard. You never touch my floor, so you can't wear it out. The only guest I'd keep.", when: { hero: 'wizard' } },
       { id: 'skeleton-king.react.archer', slot: 'react', text: "The archer on her bow. Mushrooms, I hear. My court sells potions, not fungus. Grow up, financially.", when: { hero: 'archer' } },
-      { id: 'skeleton-king.react.warden', slot: 'react', text: "The antlered fool's warden is dead, I hear. He'll pay you in silence and a ring. I pay in shards. Count them later.", when: { event: 'kill', enemy: 'warden' } },
+      { id: 'skeleton-king.react.warden', slot: 'react', text: "The antlered fool's warden is dead, I hear. He'll pay you in silence and a ring. I pay in coins. Count them later.", when: { event: 'kill', enemy: 'warden' } },
       { id: 'skeleton-king.react.graves', slot: 'react', text: "You've been putting the Alley's dead back down. They're my subjects, technically. Do go on; they never paid.", when: { event: 'kill', enemy: 'grave-skeleton' } },
       { id: 'skeleton-king.react.boss', slot: 'react', text: "{lastBoss} fell. Whatever it dropped, bring it here first. The antlered fool will only sulk at it.", when: { event: 'kill', boss: true } },
       { id: 'skeleton-king.react.crit', slot: 'react', text: "That blow came up through the throne. The throne is a dragon. It noticed too.", when: { event: 'feat', feat: 'crit' } },
       { id: 'skeleton-king.react.levelup', slot: 'react', text: "Growing costs nothing. Everything else here does. I'm looking into charging for it.", when: { event: 'feat', feat: 'levelup' } },
 
       // The quest 'grave': none -> active (here) -> slain (the Grave Cyclops dies) -> done (here; the graph pays 900).
-      { id: 'skeleton-king.topic.grave-ask', slot: 'topic', ask: 'Kill the Grave Cyclops?', text: "A cyclops at the end of the Alley of Graves wears a crown that was mine. Kill him. Nine hundred shards, counted, not promised.", when: { quest: ['grave', 'none'] }, weight: 8, choices: [
+      { id: 'skeleton-king.topic.grave-ask', slot: 'topic', ask: 'Kill the Grave Cyclops?', text: "A cyclops sleeps under the Alley of Graves in a crown that was mine. Stand in the candle ring and he wakes. Kill him. Nine hundred coins, counted, not promised.", when: { quest: ['grave', 'none'] }, weight: 8, choices: [
         { label: "I'll take his head.", action: 'quest:grave:active', to: 'skeleton-king.topic.grave-go' },
         { label: "What does it pay, again?", to: 'skeleton-king.topic.grave-pay' },
         { label: "Not now.", action: 'close' },
@@ -159,14 +159,14 @@ export const KINGDOM: DialogueBook = {
       ] },
       { id: 'skeleton-king.topic.grave-wait', slot: 'topic', ask: 'Still waiting on the crown?', text: "The crown is still on the wrong skull. Mine has the space for it; I've been keeping it clear.", when: { quest: ['grave', 'active'] }, weight: 6 },
       { id: 'skeleton-king.topic.grave-claim', slot: 'topic', ask: 'The cyclops is dead.', text: "He's dead and the crown is on you. Keep it; two crowns on one skull looks desperate. Nine hundred, as counted.", when: { quest: ['grave', 'slain'] }, weight: 10, choices: [
-        { label: "Take the shards.", action: 'quest:grave:done', to: 'skeleton-king.topic.grave-paid' },
+        { label: "Take the coins.", action: 'quest:grave:done', to: 'skeleton-king.topic.grave-paid' },
       ] },
       { id: 'skeleton-king.topic.grave-paid', slot: 'topic', ask: 'Is the count right?', text: "Counted. Tell the antlered fool what I paid. Tell him slowly; he's a tree.", when: { quest: ['grave', 'done'] }, choices: [
         { label: "I'll tell him.", action: 'close' },
       ] },
       { id: 'skeleton-king.topic.grave-after', slot: 'topic', ask: "Why won't you wear the crown?", text: "Two crowns on one skull. I said it looked desperate. It does. Wear it past the antlered fool; walk slowly.", when: { quest: ['grave', 'done'] }, weight: 2 },
       { id: 'skeleton-king.topic.coins', slot: 'topic', ask: 'About the portal coins', text: "Every coin on these stones was paid to cross the portal. Some paid twice. The second time is for the view." },
-      { id: 'skeleton-king.topic.rival', slot: 'topic', ask: 'About the antlered king', text: "The antlered fool on the island pays in silence. I pay in shards. Silence is cheaper, and he knows it." },
+      { id: 'skeleton-king.topic.rival', slot: 'topic', ask: 'About the antlered king', text: "The antlered fool on the island pays in silence. I pay in coins. Silence is cheaper, and he knows it." },
       { id: 'skeleton-king.topic.trade', slot: 'topic', ask: 'What do you buy?', text: "I buy what the great ones drop. Twice what the antlered fool offers. He hasn't noticed. Don't tell him; I enjoy it." },
       { id: 'skeleton-king.topic.silence', slot: 'topic', ask: 'What do you make of the silence?', text: "The Hollow King swallowed our voices, the head says. He never swallowed my coins. We'll see who's richer at the end.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
       { id: 'skeleton-king.topic.ended', slot: 'topic', ask: 'Can you hear the coins now?', text: "Every coin rings now. I'd forgotten they rang. The court is loud and I'm counting again, by ear.", when: { quest: ['silence', 'ended'] }, weight: 3 },
@@ -215,7 +215,7 @@ export const KINGDOM: DialogueBook = {
 
       { id: 'galaxy-wizard.topic.meteors', slot: 'topic', ask: 'About the falling meteors', text: "Meteors fall past my window every night. I stopped wishing years ago. One will land one day. I keep a bowl out." },
       { id: 'galaxy-wizard.topic.pink', slot: 'topic', ask: 'Why is pink important?', text: "Pink is the colour of a potion that has made up its mind. Most people never get that far. Most potions don't either." },
-      { id: 'galaxy-wizard.topic.trade', slot: 'topic', ask: 'What are you selling?', text: "Lotus tea, thirty shards. It steadies the hand. It does nothing for the head. Nothing here does; that's the charm." },
+      { id: 'galaxy-wizard.topic.trade', slot: 'topic', ask: 'What are you selling?', text: "Lotus tea, thirty coins. It steadies the hand. It does nothing for the head. Nothing here does; that's the charm." },
       { id: 'galaxy-wizard.topic.silence', slot: 'topic', ask: 'Has the kingdom gone quiet for you?', text: "Swallowed, the head says. The kettle went blue that day and has been thinking ever since. A year is a long think, even for a kettle.", when: { quest: ['silence', ['told', 'five', 'open']] }, weight: 2 },
       { id: 'galaxy-wizard.topic.ended', slot: 'topic', ask: 'The voices are back.', text: "The kettle went pink when the sound came back. A year of thinking, and what it decided was to hum the plaza's song. Badly. It's a kettle.", when: { quest: ['silence', 'ended'] }, weight: 3 },
 
@@ -276,7 +276,7 @@ export const KINGDOM: DialogueBook = {
       { id: 'yunglean.topic.sound-found', slot: 'topic', ask: 'I found the Lost Sound.', text: "You found it. Listen... the snow is singing again. Here. Sign it? Sure. I sign everything. It's all the same cup.", when: { quest: ['sound', 'found'] }, weight: 10, voice: 'lean-sound', choices: [
         { label: "Take the signed cup.", action: 'quest:sound:done', to: 'yunglean.topic.sound-keep' },
       ] },
-      { id: 'yunglean.topic.sound-keep', slot: 'topic', ask: 'Do I keep the sound?', text: "Keep the sound. A sound kept is a sound shared. Eight hundred shards for the mist on your boots.", when: { quest: ['sound', 'done'] }, once: true, choices: [
+      { id: 'yunglean.topic.sound-keep', slot: 'topic', ask: 'Do I keep the sound?', text: "Keep the sound. A sound kept is a sound shared. Eight hundred coins for the mist on your boots.", when: { quest: ['sound', 'done'] }, once: true, choices: [
         { label: "Glintgrin will want this cup.", action: 'quest:lean:signed', to: 'yunglean.topic.lean-signed', when: { quest: ['lean', 'active'] } },
         { label: "Thank you.", to: 'yunglean.topic.sound-done' },
       ] },
@@ -332,7 +332,7 @@ export const KINGDOM: DialogueBook = {
       { id: 'void-monk.greet.regular', slot: 'greet', text: "Again. You and I are the only two things on this plaza that don't swirl.", when: { metMin: 3 } },
       { id: 'void-monk.greet.wizard', slot: 'greet', text: "A wizard who floats. Careful near the rings: they pull on things that aren't held down.", when: { hero: 'wizard', metMin: 1 } },
 
-      { id: 'void-monk.react.golem', slot: 'react', text: "A crystal sentry broke near the rings. Its shards fell in. Somewhere, it's raining glass on someone's home.", when: { event: 'kill', enemy: 'crystalsentry' } },
+      { id: 'void-monk.react.golem', slot: 'react', text: "A crystal sentry broke near the rings. Its coins fell in. Somewhere, it's raining glass on someone's home.", when: { event: 'kill', enemy: 'crystalsentry' } },
       { id: 'void-monk.react.ghoul', slot: 'react', text: "A ghoul died near my rings. Its cup went in. Something will drink it, somewhere else. Something always does.", when: { event: 'kill', enemy: 'styro-ghoul' } },
       { id: 'void-monk.react.galaxy-knight', slot: 'react', text: "You killed a galaxy knight. His armour had a sky on it. I have one on my face. We never spoke; two skies rarely do.", when: { event: 'kill', enemy: 'galaxy-knight' } },
       { id: 'void-monk.react.hurt', slot: 'react', text: "Don't bleed near the rings. The worlds on the other side argue about whose it is. They've gone to war over less.", when: { event: 'hurt' } },
@@ -392,7 +392,7 @@ export const KINGDOM: DialogueBook = {
       { id: 'market-a.react.wizard', slot: 'react', text: "A floating customer. You don't stand in the queue, so I can't charge you for the queue. I'll think of something.", when: { hero: 'wizard' } },
       { id: 'market-a.react.archer', slot: 'react', text: "The girl on the bow. She eats mushrooms raw. I'd sell her a sauce if I had one. I have a salve. Close enough.", when: { hero: 'archer' } },
       { id: 'market-a.react.cyclops', slot: 'react', text: "Word from the island: you killed the cyclops by the eye pool. Nothing it dropped was porcelain. I asked.", when: { event: 'kill', enemy: 'cyclops' } },
-      { id: 'market-a.react.penny', slot: 'react', text: "They say an old woman in the vale asks for shards and tells secrets. I'd tell secrets too, for shards. I don't have any. Secrets.", when: { quest: ['penny', 'none'] }, weight: 1.2 },
+      { id: 'market-a.react.penny', slot: 'react', text: "They say an old woman in the vale asks for coins and tells secrets. I'd tell secrets too, for coins. I don't have any. Secrets.", when: { quest: ['penny', 'none'] }, weight: 1.2 },
       { id: 'market-a.react.boss', slot: 'react', text: "{lastBoss} is dead. Its loot is already underpriced somewhere. Not here.", when: { event: 'kill', boss: true } },
       { id: 'market-a.react.levelup', slot: 'react', text: "Grown customers pay grown prices. The ball saw it coming. Tuesday.", when: { event: 'feat', feat: 'levelup' } },
 
@@ -435,7 +435,7 @@ export const KINGDOM: DialogueBook = {
       { id: 'market-b.react.fountain', slot: 'react', text: "You drank from the court's fountain! The world spun! Buy a lantern; it'll spin too, but you'll see it!", when: { event: 'feat', feat: 'fountain' } },
       { id: 'market-b.react.knight', slot: 'react', text: "A knight who glides on his cape! With a cup! I don't sell cups. Lanterns! Hang one off the cup!", when: { hero: 'knight' } },
       { id: 'market-b.react.archer', slot: 'react', text: "The girl who rides her bow! Buy a lantern! Hang it off the bow! Fly by night! The night is purple here, but still!", when: { hero: 'archer' } },
-      { id: 'market-b.react.penny', slot: 'react', text: "In the vale an old woman sells a secret for twenty shards, they say! I'd sell mine for ten! I don't have one!", when: { quest: ['penny', 'none'] }, weight: 1.2 },
+      { id: 'market-b.react.penny', slot: 'react', text: "In the vale an old woman sells a secret for twenty coins, they say! I'd sell mine for ten! I don't have one!", when: { quest: ['penny', 'none'] }, weight: 1.2 },
       { id: 'market-b.react.bell', slot: 'react', text: "They say the Fish King under the lake lost a bell! A bell! I sell lanterns, not bells, but I could! I'd need a bell!", when: { quest: ['bell', ['active', 'found']] }, weight: 1.2 },
       { id: 'market-b.react.boss', slot: 'react', text: "{lastBoss} is dead! Did it drop a lantern? No? Then why are we talking about it!", when: { event: 'kill', boss: true } },
       { id: 'market-b.react.levelup', slot: 'react', text: "Bigger customer! Same prices! I'm generous! Tell Snaggle!", when: { event: 'feat', feat: 'levelup' } },
@@ -471,7 +471,7 @@ export const KINGDOM: DialogueBook = {
 
       { id: 'skeleton-lord.react.galaxy-knight', slot: 'react', text: "You killed a galaxy knight at the treasury. One more diamond for my teeth: he promised he'd hold it.", when: { event: 'kill', enemy: 'galaxy-knight' } },
       { id: 'skeleton-lord.react.ghoul', slot: 'react', text: "A ghoul down on the plaza. I heard the cup land. They always land upright. That's the saddest part.", when: { event: 'kill', enemy: 'styro-ghoul' } },
-      { id: 'skeleton-lord.react.golem', slot: 'react', text: "A crystal sentry broke. I'll have the shards set in my teeth. There's room. There's always room.", when: { event: 'kill', enemy: 'crystalsentry' } },
+      { id: 'skeleton-lord.react.golem', slot: 'react', text: "A crystal sentry broke. I'll have the coins set in my teeth. There's room. There's always room.", when: { event: 'kill', enemy: 'crystalsentry' } },
       { id: 'skeleton-lord.react.chucker', slot: 'react', text: "The chucker is gone. The dome is quiet. I'll smoke to it; it was good at its one thing.", when: { event: 'kill', enemy: 'lean-chucker' } },
       { id: 'skeleton-lord.react.hurt', slot: 'react', text: "You're bleeding on my settee. Fur drinks blood. The settee has drunk worse.", when: { event: 'hurt' } },
       { id: 'skeleton-lord.react.down', slot: 'react', text: "You went down in the court. I watched through the smoke. The smoke made it beautiful. I'm sorry about that.", when: { event: 'down' } },
@@ -518,7 +518,7 @@ export const KINGDOM: DialogueBook = {
       { id: 'court-knight.react.galaxy-knight', slot: 'react', text: "You killed a galaxy knight at the treasury. Good men, galaxy knights. Bad at staying alive, apparently.", when: { event: 'kill', enemy: 'galaxy-knight' } },
       { id: 'court-knight.react.ghoul', slot: 'react', text: "A ghoul fewer on the plaza. I'd have helped, but my sword is ice and the plaza is warm.", when: { event: 'kill', enemy: 'styro-ghoul' } },
       { id: 'court-knight.react.chucker', slot: 'react', text: "The chucker in the dome. I was going to fight him. After this goblet. Then the next. You've saved me the goblets.", when: { event: 'kill', enemy: 'lean-chucker' } },
-      { id: 'court-knight.react.golem', slot: 'react', text: "A crystal sentry broke somewhere near. My sword heard. It's ice; it wants to meet the shards.", when: { event: 'kill', enemy: 'crystalsentry' } },
+      { id: 'court-knight.react.golem', slot: 'react', text: "A crystal sentry broke somewhere near. My sword heard. It's ice; it wants to meet the coins.", when: { event: 'kill', enemy: 'crystalsentry' } },
       { id: 'court-knight.react.hurt', slot: 'react', text: "You're hurt. I'd offer the goblet, but it's purple and it doesn't heal, it just stops you minding.", when: { event: 'hurt' } },
       { id: 'court-knight.react.down', slot: 'react', text: "You went down in the court. I stood up. First time in a week. Sat down again; you'd got up.", when: { event: 'down' } },
       { id: 'court-knight.react.fountain', slot: 'react', text: "You sipped the fountains and the court spun. I watched you walk in a circle. You looked content.", when: { event: 'feat', feat: 'fountain' } },
@@ -560,7 +560,7 @@ export const KINGDOM: DialogueBook = {
 
       { id: 'potion-brewer.react.galaxy-knight', slot: 'react', text: "You killed a galaxy knight by the treasury. His armour had a sky on it. I could have bottled it.", when: { event: 'kill', enemy: 'galaxy-knight' } },
       { id: 'potion-brewer.react.ghoul', slot: 'react', text: "A ghoul died on the plaza. Its cup was a bad vintage. I'd have poured it out anyway.", when: { event: 'kill', enemy: 'styro-ghoul' } },
-      { id: 'potion-brewer.react.golem', slot: 'react', text: "A crystal sentry shattered nearby. Shards in my bottles. The skies are sharper tonight.", when: { event: 'kill', enemy: 'crystalsentry' } },
+      { id: 'potion-brewer.react.golem', slot: 'react', text: "A crystal sentry shattered nearby. Coins in my bottles. The skies are sharper tonight.", when: { event: 'kill', enemy: 'crystalsentry' } },
       { id: 'potion-brewer.react.chucker', slot: 'react', text: "The chucker in the dome is dead. Cups, thrown, for years, and not one of them a bottle. No sense of occasion.", when: { event: 'kill', enemy: 'lean-chucker' } },
       { id: 'potion-brewer.react.hurt', slot: 'react', text: "There's a bottle for that wound. It's the planet one. Don't.", when: { event: 'hurt' } },
       { id: 'potion-brewer.react.down', slot: 'react', text: "You went down in the court. The fountains kept pouring. They don't stop for anyone. I've asked.", when: { event: 'down' } },

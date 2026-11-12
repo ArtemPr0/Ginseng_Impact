@@ -13,7 +13,7 @@
  */
 import type { Zone } from '../game/Events';
 
-export type SongId = 'title' | 'island' | 'lean' | 'sunken' | 'vale' | 'graveyard' | 'dream' | 'boss' | 'ending' | 'tavern';
+export type SongId = 'title' | 'island' | 'lean' | 'sunken' | 'vale' | 'graveyard' | 'dream' | 'boss' | 'fight' | 'ending' | 'tavern';
 export type Part = 'kick' | 'snare' | 'hats' | 'bass' | 'pad' | 'pluck' | 'bells' | 'choir' | 'drone' | 'riser';
 
 export interface Song {
@@ -49,7 +49,7 @@ export const REGISTER: Record<Part, number> = { kick: 0, snare: 0, hats: 0, bass
 /** Which song each zone plays (every quarter of the kingdom shares the Lean Quarter's beat; the tree house keeps the island's). */
 export const SONG_FOR_ZONE: Record<Zone, SongId> = {
   island: 'island', galaxy: 'lean', sunken: 'sunken', vale: 'vale', graveyard: 'graveyard', dream: 'dream',
-  treehouse: 'island', 'tavern-room': 'tavern', 'crypt-room': 'tavern',
+  treehouse: 'island', 'tavern-room': 'tavern', 'crypt-room': 'tavern', 'castle-hall': 'island',
 };
 
 export const SCALES = {
@@ -202,6 +202,17 @@ const boss: Song = {
   },
 };
 
+/** The fight layer, while ordinary mobs are on the hero: four on the floor, a backbeat and driving hats over the song (a layer, as the boss's). */
+const fight: Song = {
+  id: 'fight', bpm: 96, root: 57, scale: [...SCALES.minor], bars: 2, gain: 0.65,
+  chords: [[0], [0]],
+  parts: {
+    kick: 'x...x...x...x...|x...x...x..xx...',
+    snare: '....x.......x...|....x.......x.x.',
+    hats: '2.2.2.2.2.2.2.2.|2.2.2.2.2.222.2.',
+  },
+};
+
 const ending: Song = {
   id: 'ending', bpm: 72, root: 50, scale: [...SCALES.major], bars: 16, gain: 0.9, octaves: { bass: -12 },
   // D D(add9) Bm7 G(add9) D/F# A Bm G | D F#m7 G A Bm G D/A Asus4
@@ -230,4 +241,4 @@ const tavern: Song = {
   },
 };
 
-export const SONGS: Record<SongId, Song> = { title, island, lean, sunken, vale, graveyard, dream, boss, ending, tavern };
+export const SONGS: Record<SongId, Song> = { title, island, lean, sunken, vale, graveyard, dream, boss, fight, ending, tavern };

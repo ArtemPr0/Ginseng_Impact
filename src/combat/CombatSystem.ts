@@ -1,10 +1,11 @@
 import { BoxGeometry, IcosahedronGeometry, BufferGeometry, CircleGeometry, Color, Float32BufferAttribute, Group, LineBasicMaterial, LineSegments, Mesh, PerspectiveCamera, Scene, Vector3, ConeGeometry, CylinderGeometry, TorusGeometry, MeshBasicMaterial, AdditiveBlending, DoubleSide, Sprite, SpriteMaterial } from 'three';
+import { CoinStreak, Hype, isOverkill } from '../game/Hype';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Audio } from '../audio/Audio';
 import { CombatSfx, hitMaterial } from '../audio/CombatSfx';
 import type { CharacterDef } from '../characters/roster';
 import type { Game } from '../core/Game';
-import { ENEMY_DEFS, ENEMY_SPAWNS, type BossAttackKind, type EnemyDef, type EnemyKind } from '../data/enemies';
+import { ENEMY_DEFS, ENEMY_SPAWNS, ORBIT_SHOT, type BossAttackKind, type EnemyDef, type EnemyKind } from '../data/enemies';
 import type { ClipName } from '../data/models';
 import { voiceUrl } from '../data/voices';
 import type { Events, HeroId } from '../game/Events';
@@ -366,10 +367,15 @@ export class CombatSystem {
   private readonly rnd: () => number;
   /** The combo counter (hits in a row, 1.2 s apart at most). */
   private readonly streak = new HitStreak(1.2);
+  /** The hype man: combo tiers, multi-kills, overkills (game/Hype.ts). */
+  private readonly hype = new Hype();
+  private readonly coinStreak = new CoinStreak();
   /** Tab's lock-on (Combat.ts LockOn): the camera keeps its target framed, swings turn to it, shots and spells go for it. */
   private readonly lock = new LockOn<Enemy>();
   /** Whether the boss layer of the score is on (a boss has the hero in its sights). */
   private bossMusic = false;
+  /** The fight layer: on while any mob has the hero in its sights (the boss layer takes over in a boss fight). */
+  private fightMusic = false;
   /** Seconds of fighting (the ground patches' shared ticks count on it). */
   private clock = 0;
   /** This step's strongest camera kick, whether the fov punches, the grade's pulse, a crit's sting, a heavy's boom: applied once, at the end of the step. */
@@ -1013,6 +1019,10 @@ export class CombatSystem {
       this.bossMusic = bossFight;
       d.audio.score.layer('boss', bossFight);
     }
+    if (anyAggro !== this.fightMusic) {
+      this.fightMusic = anyAggro;
+      d.audio.score.layer('fight', anyAggro, anyAggro ? 0.6 : 3);
+    }
 
     // --- projectiles ---
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
@@ -1168,7 +1178,7 @@ export class CombatSystem {
 
     // --- loot ---
     const got = this.loot.update(dt, this.playerPos());
-    if (got > 0) { d.inventory.shards += got; d.audio.coins(Math.min(3, Math.ceil(got / 5))); d.hud.shardPop(got); }
+    if (got > 0) { d.inventory.shards += got; d.audio.coinStep(this.coinStreak.hit(this.time)); d.hud.shardPop(got); }
 
     this.vfx.update(dt);
     d.hud.setHp(this.hp.get(me.id)!, this.maxOf(me));
@@ -1679,12 +1689,13 @@ export class CombatSystem {
     const sc = e.def.scale ?? 1;
     switch (kind) {
       case 'diamond': {
-        // The circling diamond nearest its mark, thrown straight at them, leading a little.
+        // The circling diamond (or double cup) nearest its mark, thrown straight at them, leading a little.
         const from = e.takeGem(t);
         if (!from) { this.enemyBolt(e, 0, 14); break; }
         const to = landing('diamond', t);
         const vel = new Vector3(to.x, to.y, to.z).sub(from).normalize().multiplyScalar(17);
-        const gem = this.spawnProjectile(from, vel, 'enemy', e.def.atk, 1.15, e.def.element, SHOT_RADIUS.diamond ?? 0.75, 0xdff2ff, 0, 0, 1.5, 0, 1, 'gem', { by: e.def.kind });
+        const shot = ORBIT_SHOT[e.def.orbit?.model ?? 'gem'];
+        const gem = this.spawnProjectile(from, vel, 'enemy', e.def.atk, 1.15, e.def.element, SHOT_RADIUS.diamond ?? 0.75, shot === 'cup' ? 0xb36bff : 0xdff2ff, 0, 0, 1.5, 0, 1, shot, { by: e.def.kind });
         // Its landing warning fills on as it flies (straight, at 17 m/s) and ends as it strikes.
         gem.flight = from.distanceTo(_g.set(to.x, to.y, to.z)) / 17;
         this.warnShot(gem, 'diamond', to);
@@ -2277,6 +2288,7 @@ export class CombatSystem {
     const kl = Math.hypot(kdx, kdz) || 1;
     const kb = { x: kdx / kl, z: kdz / kl };
     const bossKb = e.def.boss ? 0.15 : 1;
+    const hpBefore = e.hp;
     const died = e.takeDamage(dmg, kb, (knockback + (reaction ? REACTIONS[reaction].knockback : 0)) * bossKb);
     // Enough punishment in a short time breaks a boss's stance: it reels, and that is the opening.
     if (!died && e.def.boss && e.def.kind !== 'hollowking') {
@@ -2329,6 +2341,8 @@ export class CombatSystem {
       if (heavy || crit) this.feel.punch = true;
       if (heavy) this.feel.boom = true;
       this.streak.hit();
+      const call = this.hype.hit(this.streak.count);
+      if (call) { this.d.hud.hype(call.text, call.tier); this.d.audio.comboUp(call.tier); }
     }
     this.sfx.hit(hitMaterial(e.def.kind), heavy, element !== null);
     if (crit) {
@@ -2338,10 +2352,23 @@ export class CombatSystem {
     // The burst: a blow's worth a hit, or through a many-shot cast, once a body (o.cast).
     if (o.energy ?? true) this.burstEnergy = Math.min(BURST_MAX, this.burstEnergy + (o.cast ? o.cast.take(e.id) : HIT_ENERGY));
     if (reaction) { this.applyReaction(e, reaction, dmg, at, pierceStop(REACTION_STOP, nth)); this.d.audio.reaction(); }
-    if (died) this.onEnemyDeath(e, at);
+    if (died) {
+      // Blown far past dead: launched off its feet, tumbling (Yeet.ts), with a bonk and a quip.
+      if (own && isOverkill(dmg, hpBefore, e.def.maxHp) && e.launchFrom(kb.x, kb.z)) {
+        const q = this.hype.overkill();
+        this.d.hud.hype(q.text, q.tier);
+        this.d.audio.overkill();
+        this.d.game.hitStop = Math.max(this.d.game.hitStop, 0.09);
+      }
+      this.onEnemyDeath(e, at);
+    }
   }
 
   private onEnemyDeath(e: Enemy, at: Vector3): void {
+    // The killing blow lands a beat harder; kills close together are named (Hype.kill).
+    this.d.game.hitStop = Math.max(this.d.game.hitStop, e.def.boss ? 0.3 : 0.05);
+    const chain = this.hype.kill(this.time);
+    if (chain) { this.d.hud.hype(chain.text, chain.tier + 1); this.d.audio.multiKill(chain.tier); }
     this.fx.sparks(at, UP, 24, PALETTE.moon, 7, 1.1);
     this.fx.shock(_v.set(e.pos.x, e.pos.y, e.pos.z), ELEMENT_COLOR[e.def.element], e.def.boss ? 14 : 5);
     this.d.hud.removeEnemyBar(e.id);
@@ -2803,6 +2830,8 @@ export class CombatSystem {
     const c = this.d.controller;
     const gloat = this.enemies.find((e) => e.alive && e.aggro && e.def.voices && Math.hypot(e.pos.x - c.pos.x, e.pos.z - c.pos.z) < 25);
     if (gloat) { this.voiceClock = 0; this.say(gloat, gloat.def.voices!.win); }
+    // And everything nearby that was fighting dances on the spot.
+    for (const e of this.enemies) if (e.alive && e.aggro && Math.hypot(e.pos.x - c.pos.x, e.pos.z - c.pos.z) < 20) e.taunt(3.5);
   }
 
   /** After the fall's hold: the next hero takes over, or, with nobody left, the fog takes the party. */

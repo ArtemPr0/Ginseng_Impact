@@ -6,6 +6,10 @@ import { MODELS } from '../data/models';
 import { PALETTE } from '../render/palette';
 import { SpeechBubble } from './SpeechBubble';
 import { voiceUrl, VOICES } from '../data/voices';
+import { type Moment, reactionFor } from '../models/Emotes';
+
+/** Poses that keep an NPC in a seat (their reactions stay seated: Emotes.reactionFor). */
+const SEATED_POSES = new Set<string>(['sit', 'read', 'throne', 'sitSword', 'fish', 'row', 'ride', 'kneel', 'pray']);
 
 export type NpcBehaviour =
   | { kind: 'stand'; pose?: RigPose['pose']; yaw: number }
@@ -68,14 +72,14 @@ export const NPC_DEFS: NpcDef[] = [
   {
     id: 'king', name: 'The Antlered King', title: 'Who Buys What the Fog Drops', weapon: 'sword',
     model: 'king', accent: PALETTE.witch,
-    lines: ['Kneel or do not. The candles do not care.', 'Bring me what the great ones drop. I pay in shards and in silence.', 'My crown was antlers before it was gold. Everything here was something else first.'],
+    lines: ['Kneel or do not. The candles do not care.', 'Bring me what the great ones drop. I pay in coins and in silence.', 'My crown was antlers before it was gold. Everything here was something else first.'],
     behaviour: { kind: 'stand', pose: 'throne', yaw: Math.PI / 2 },
     shop: [{ itemId: 'crown-blade', price: 900 }, { itemId: 'moon-dew', price: 30 }, { itemId: 'star-chart', price: 220 }],
   },
   {
     id: 'sentry', name: 'Sir Halvard', title: 'Knight of the Lonely Cliff', weapon: 'greatsword',
     model: 'knight-seated', accent: PALETTE.blood,
-    lines: ['Those windows have been lit for a hundred years. No one has come out.', 'I sit. I watch. For three hundred shards I will stand.', 'The pass below is the beast\'s. Go around, or go with me.'],
+    lines: ['Those windows have been lit for a hundred years. No one has come out.', 'I sit. I watch. For three hundred coins I will stand.', 'The pass below is the beast\'s. Go around, or go with me.'],
     behaviour: { kind: 'stand', pose: 'sitSword', yaw: Math.PI * 0.6 },
     hire: { cost: 300, atk: 95, maxHp: 2200, ranged: false },
   },
@@ -129,7 +133,7 @@ export const NPC_DEFS: NpcDef[] = [
   {
     id: 'cook', name: 'Mother Marrow', title: 'Who Stirs the Sea', weapon: 'staff',
     model: 'witch-cook', accent: PALETTE.witch,
-    lines: ['Stir it widdershins or it stirs you.', 'Rot salve. Thirty shards. It smells like the pot. It works like the pot.', 'The castle on the rock? I cooked for them once. They did not come back for seconds.'],
+    lines: ['Stir it widdershins or it stirs you.', 'Rot salve. Thirty coins. It smells like the pot. It works like the pot.', 'The castle on the rock? I cooked for them once. They did not come back for seconds.'],
     behaviour: { kind: 'stand', pose: 'stir', yaw: Math.PI },
     shop: [{ itemId: 'rot-salve', price: 30 }, { itemId: 'witch-staff', price: 320 }],
   },
@@ -157,7 +161,7 @@ export const NPC_DEFS: NpcDef[] = [
   {
     id: 'croak', name: 'Brother Croak', title: 'Frog Monk of the Lotus Pond', weapon: 'staff',
     model: 'frog-monk', accent: PALETTE.rune,
-    lines: ['The lotus opens for the moon, not for you. Sit anyway.', 'Lotus tea steadies the blade hand. Thirty shards.', 'The Frog King dreams in the hollow. Do not wake him with iron.'],
+    lines: ['The lotus opens for the moon, not for you. Sit anyway.', 'Lotus tea steadies the blade hand. Thirty coins.', 'The Frog King dreams in the hollow. Do not wake him with iron.'],
     behaviour: { kind: 'stand', pose: 'read', yaw: Math.PI * 0.4 },
     shop: [{ itemId: 'lotus-tea', price: 30 }, { itemId: 'moon-dew', price: 40 }],
   },
@@ -246,7 +250,7 @@ export const NPC_DEFS: NpcDef[] = [
   {
     id: 'galaxy-wizard', name: 'The Star Brewer', title: 'Wizard of the Round Tower', weapon: 'staff',
     model: 'galaxy-wizard', accent: PALETTE.dusk,
-    lines: ['Pink is the colour of a potion that has made up its mind.', 'Meteors fall past my window every night. I have stopped wishing.', 'One sip and you will see the city as I do. Thirty shards.'],
+    lines: ['Pink is the colour of a potion that has made up its mind.', 'Meteors fall past my window every night. I have stopped wishing.', 'One sip and you will see the city as I do. Thirty coins.'],
     behaviour: { kind: 'stand', pose: 'stir', yaw: 0 },
     shop: [{ itemId: 'lotus-tea', price: 30 }],
   },
@@ -393,9 +397,9 @@ export const NPC_DEFS: NpcDef[] = [
     behaviour: { kind: 'stand', yaw: Math.PI },
   },
   {
-    id: 'vale-beggar', name: 'Old Penny', title: 'Who Asks for Shards', weapon: 'staff',
+    id: 'vale-beggar', name: 'Old Penny', title: 'Who Asks for Coins', weapon: 'staff',
     model: 'wanderer', accent: PALETTE.moon,
-    lines: ['A shard for an old woman? I will tell you which stall waters its ale.', 'I was rich once. Then I lent the dragon money.'],
+    lines: ['A coin for an old woman? I will tell you which stall waters its ale.', 'I was rich once. Then I lent the dragon money.'],
     behaviour: { kind: 'stand', pose: 'sit', yaw: 0 },
   },
   {
@@ -415,7 +419,7 @@ export const NPC_DEFS: NpcDef[] = [
   {
     id: 'fish-king', name: 'The Fish King', title: 'Host of the Sea Castle', weapon: 'staff',
     model: 'fish-king', accent: PALETTE.rune,
-    lines: ['Welcome under the lake. Breathe if you like; it changes nothing down here.', 'The jellyfish are the lamps. The lamps are rude.', 'Drink from the purple chalice. Forty shards, and you will float a little.'],
+    lines: ['Welcome under the lake. Breathe if you like; it changes nothing down here.', 'The jellyfish are the lamps. The lamps are rude.', 'Drink from the purple chalice. Forty coins, and you will float a little.'],
     behaviour: { kind: 'stand', pose: 'offer', yaw: Math.PI / 2 },
     shop: [{ itemId: 'moon-dew', price: 40 }, { itemId: 'lotus-tea', price: 30 }],
   },
@@ -428,6 +432,12 @@ export class Npc {
   private flinchT = 0;
   private flinchX = 0;
   private flinchZ = 0;
+  /** The emote it is playing (react) and how long is left. */
+  private emote: { key: NonNullable<RigPose['pose']>; left: number } | null = null;
+  /** Waved at the hero on this approach (reset once the hero is 20 m off). */
+  private waved = false;
+  /** Seconds of the hero being near before it gets bored and breaks into a little dance (react('bored')). */
+  private boredIn = 20 + Math.random() * 40;
   readonly rig: Rig;
   readonly object: Group;
   readonly pos = new Vector3();
@@ -479,7 +489,26 @@ export class Npc {
    * written line `line` in a bubble instead (his first, the one the talk panel opens on, unless another is asked for),
    * his pose kept (a seated one stays seated).
    */
-  /** Sets out along a new path at `speed` m/s (the loop restarts from its first leg): the Pale Bride's walk to the shore. */
+  /** Seated (or riding, rowing, enthroned): reacts from the seat (models/Emotes.reactionFor). */
+  get seated(): boolean {
+    const b = this.def.behaviour;
+    const p = b.kind === 'stand' || b.kind === 'loop' ? b.pose : undefined;
+    if (p === 'drink') return /sit/.test(MODELS[this.def.model ?? '']?.clips?.drink ?? 'sit');
+    return p !== undefined && SEATED_POSES.has(p);
+  }
+
+  /**
+   * A bystander's reaction to a moment (a kill nearby, a boss down, the party falling, the hero walking up, a level):
+   * a shared emote held for a few seconds. Talking, walking or busy with one already, it lets the moment pass.
+   */
+  react(moment: Moment): boolean {
+    if (this.gone || this.def.invisible || this.emote) return false;
+    const r = reactionFor(moment, this.seated);
+    if (!r) return false;
+    this.emote = { key: r.key as NonNullable<RigPose['pose']>, left: r.seconds };
+    return true;
+  }
+
   /** Swung at within two metres: a standing NPC steps a metre back (seated, walking and scripted ones hold). */
   startle(from: { x: number; z: number }): void {
     const b = this.def.behaviour;
@@ -490,6 +519,7 @@ export class Npc {
     this.flinchT = 2.25;
   }
 
+  /** Sets out along a new path at `speed` m/s (the loop restarts from its first leg): the Pale Bride's walk to the shore. */
   walk(path: Array<[number, number]>, speed: number): void {
     this.def.behaviour = { kind: 'loop', path, speed };
     this.seg = 0;
@@ -650,7 +680,14 @@ export class Npc {
     } else this.object.position.copy(this.pos);
     this.object.rotation.y = yawToRotation(this.yaw);
     this.sounds(dt, Math.hypot(player.x - this.pos.x, player.z - this.pos.z));
-    const pose = b.kind === 'guard' && moving ? undefined : this.speaking > 0 ? 'talk' : talking ? (this.def.voice ? b.kind === 'stand' ? b.pose : undefined : undefined) : b.kind === 'stand' || b.kind === 'guard' || b.kind === 'loop' ? b.pose : undefined;
+    // A wave the first time the hero walks up (once per approach); the emote held while it lasts.
+    const far = Math.hypot(player.x - this.pos.x, player.z - this.pos.z);
+    if (far > 20) this.waved = false;
+    else if (far < 6 && !this.waved && !talking && !moving) { this.waved = true; this.react('wave'); }
+    // Now and then, with the hero about to see it, a little dance or jumping jacks for nobody in particular.
+    if (far < 25 && !talking && !moving && !this.emote && (this.boredIn -= dt) <= 0) { this.boredIn = 25 + Math.random() * 45; this.react('bored'); }
+    if (this.emote) { this.emote.left -= dt; if (this.emote.left <= 0 || talking || moving) this.emote = null; }
+    const pose = this.emote ? this.emote.key : b.kind === 'guard' && moving ? undefined : this.speaking > 0 ? 'talk' : talking ? (this.def.voice ? b.kind === 'stand' ? b.pose : undefined : undefined) : b.kind === 'stand' || b.kind === 'guard' || b.kind === 'loop' ? b.pose : undefined;
     // The hero within ten metres, ahead of it: the head follows, the pose stays.
     const dx = player.x - this.pos.x, dz = player.z - this.pos.z, near = Math.hypot(dx, dz);
     let want = 0;

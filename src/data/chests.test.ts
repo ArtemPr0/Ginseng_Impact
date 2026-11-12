@@ -8,7 +8,7 @@ import { footprintContains, gridFootprint, type Footprint } from '../world/Colli
 import { Noise2D } from '../world/noise';
 import { WORLD, terrainHeight } from '../world/Terrain';
 
-const ZONES: Record<Zone, true> = { island: true, galaxy: true, sunken: true, treehouse: true, dream: true, graveyard: true, vale: true, 'tavern-room': true, 'crypt-room': true };
+const ZONES: Record<Zone, true> = { island: true, galaxy: true, sunken: true, treehouse: true, dream: true, graveyard: true, vale: true, 'tavern-room': true, 'crypt-room': true, 'castle-hall': true };
 
 type XZ = { x: number; z: number };
 const dist = (a: XZ, b: XZ) => Math.hypot(a.x - b.x, a.z - b.z);

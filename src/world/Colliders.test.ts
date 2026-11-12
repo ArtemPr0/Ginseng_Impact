@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLEARANCE, gridFootprint, HeightWorld } from './Colliders';
+import { CLEARANCE, gridFootprint, HeightWorld, trunkFootprint } from './Colliders';
 import { COLLIDER_GRIDS, PRESENT_MODELS } from '../data/colliderGrids';
 import { MODELS } from '../data/models';
 
@@ -73,5 +73,16 @@ describe('baked model colliders', () => {
     w.add(gridFootprint('village-house', 10, 0, 10, Math.PI / 2, 1.5)!);
     expect(w.heightAt(10, 10, 0)).toBeGreaterThan(MODELS['village-house'].height);
     expect(w.heightAt(10 + MODELS['village-house'].height * 2, 10, 0)).toBe(0);
+  });
+});
+
+describe('trunkFootprint — a tree is solid only at its trunk', () => {
+  it('never makes a trunk wider than a tenth of the tree, whatever fraction a caller passes (realm scatter passed 0.5)', () => {
+    for (const id of ['dead-forest-tree', 'pine', 'gnarled-tree', 'flower-tree']) {
+      if (!PRESENT_MODELS.has(id)) continue;
+      const H = MODELS[id].height;
+      const f = trunkFootprint(id, 0, 0, 0, 1, 0.5);
+      expect(f && f.kind === 'cyl' ? f.r : 0, id).toBeLessThanOrEqual(H * 0.1 + 1e-9);
+    }
   });
 });

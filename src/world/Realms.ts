@@ -3,6 +3,7 @@
  * and the new sites on the island (the portal clearing, the mushroom tavern, the world tree, the spire-city view).
  * Every structure and prop is a Meshy model by id; floors are stone slabs until their floor models exist.
  */
+import type { Footprint } from './Colliders';
 import { Group, PointLight, Vector3 } from 'three';
 import { GALAXY, ISLAND_PORTALS, LAYOUT, SUNKEN, SINK } from '../data/world';
 import { glowSprite } from '../render/Glow';
@@ -10,6 +11,7 @@ import { PALETTE } from '../render/palette';
 import { fire } from './Fire';
 import type { FloraOptions, Placement } from './Flora';
 import type { Landmark } from './Landmarks';
+import type { Bouncer } from './Heart';
 import { modelLandmark } from './ModelLandmark';
 import { PRESENT_MODELS } from '../data/colliderGrids';
 import { portal, type PortalLink } from './Portal';
@@ -26,13 +28,17 @@ export interface RealmApi {
   /** Builds what follows into a realm's own group (shown only while the player is inside it); null = the island. */
   realm(id: string | null): void;
   place(l: Landmark): void;
-  /** `trunk`: solid at the trunk, this many metres round. */
+  /** A collider that moves with its object (mutate its x/z/rotY): checked everywhere, not bucketed. */
+  moving?(f: Footprint): void;
+  /** `trunk`: solid at the trunk, a cylinder of this fraction of the tree's height in radius (0.035 a pine, 0.05 a dead tree). */
   flora(id: string, placements: Placement[], opts?: FloraOptions & { trunk?: number }): void;
   vfx(f: { group: Group; update(dt: number): void }): void;
   /** A shot at the hero from something in this world (the dragon's fire). */
   shoot?(from: Vector3, s: HostileShot): void;
   /** Swimmable water (a realm's river or moat): surface `level` over [x0, x1] × [z0, z1]. */
   water?(x0: number, x1: number, z0: number, z1: number, level: number): void;
+  /** A bouncy cap (jump on it and it throws you up): the dream's mushrooms. */
+  bounce?(b: Bouncer): void;
   /** Terrain height on the island. */
   h(x: number, z: number): number;
   rnd(): number;

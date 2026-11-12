@@ -8,7 +8,7 @@
 import { dressGraveyard } from './Pois';
 import { Color, Mesh, type MeshStandardMaterial, Vector3 } from 'three';
 import { ENEMY_SPAWNS } from '../data/enemies';
-import { GRAVEYARD } from '../data/world';
+import { GRAVE_RING, GRAVEYARD } from '../data/world';
 import { MODELS } from '../data/models';
 import { fireflies } from '../render/Fireflies';
 import { patchRetint } from '../render/Materials';
@@ -94,7 +94,8 @@ export function buildGraveyard(api: GraveyardApi): { links: PortalLink[]; intera
   api.flora('dead-forest-tree', trees, { trunk: 0.05 });
 
   // Something every 35 m: the guards (enemies, data/enemies), a candle shrine, an open grave that throws you up, the gate.
-  const shrineZ = R.z + 20;
+  // (The candle ring raises the Grave Cyclops: GRAVE_RING, Adventures.)
+  const shrineZ = GRAVE_RING.z;
   for (const side of [-1, 1]) {
     const x = R.x + side * 2.2;
     api.place(modelLandmark('brazier', x, shrineZ, y0, { collider: 'none' }));

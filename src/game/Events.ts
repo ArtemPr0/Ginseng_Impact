@@ -3,7 +3,7 @@
  * trade, a quest step, a feat), so NPC minds, the world state, the journal and the save can react without the
  * systems knowing about each other. Pure: no three.js, no DOM.
  */
-export type Zone = 'island' | 'galaxy' | 'sunken' | 'treehouse' | 'dream' | 'graveyard' | 'vale' | 'tavern-room' | 'crypt-room';
+export type Zone = 'island' | 'galaxy' | 'sunken' | 'treehouse' | 'dream' | 'graveyard' | 'vale' | 'tavern-room' | 'crypt-room' | 'castle-hall';
 
 export type HeroId = 'knight' | 'archer' | 'wizard';
 
@@ -23,7 +23,7 @@ export type GameEvent =
   | { kind: 'loot'; item: string; rarity: number }
   | { kind: 'trade'; what: 'buy' | 'sell' | 'equip' | 'hire' | 'dismiss'; item: string }
   | { kind: 'quest'; id: string; stage: string }
-  | { kind: 'feat'; what: Feat; at?: { x: number; y: number; z: number } };
+  | { kind: 'feat'; what: Feat; at?: { x: number; y: number; z: number }; /** The level reached (levelup). */ level?: number };
 
 export type EventKind = GameEvent['kind'];
 export type EventOf<K extends EventKind> = Extract<GameEvent, { kind: K }>;

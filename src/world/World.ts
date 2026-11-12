@@ -1,7 +1,10 @@
-import { Color, Group, type Mesh, type MeshStandardMaterial, type Object3D, Vector3 } from 'three';
+import { type Bone, Color, Group, Matrix4, type Mesh, type MeshStandardMaterial, Object3D, type SkinnedMesh, Vector3 } from 'three';
+import { socketsInBone } from '../characters/SkullEyes';
+import { blunt } from '../render/Blunt';
+import { PipeSmoke } from '../render/Smoke';
 import { REALM_SCULPTS } from '../data/sculpts';
 import { FOLK } from '../data/folk';
-import { ANCHORS, CRYPT_ROOM, GALAXY, ISLAND_PORTALS, LANDMARKS, LAYOUT, REALMS, SINK, SUNKEN, TAVERN_ROOM, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
+import { ANCHORS, CRYPT_ROOM, GALAXY, ISLAND_PORTALS, LANDMARKS, LAYOUT, REALMS, SINK, SKY_EYES, SUNKEN, TAVERN_ROOM, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
 import type { Events, Zone } from '../game/Events';
 import { PALETTE } from '../render/palette';
@@ -28,6 +31,7 @@ import { Noise2D } from './noise';
 import { witchStream } from './Stream';
 import { stoneHeadEyes } from './StoneHead';
 import { buildCryptRoom, buildTavernRoom } from './Interiors';
+import { buildCastleHall } from './CastleHall';
 import { landableIsland } from './Islands';
 import { CARRIAGE } from './Carriage';
 import { buildTreeHouse } from './TreeHouse';
@@ -122,25 +126,81 @@ function grillSparkle(npc: Npc): { group: Group; update(dt: number): void } {
   };
 }
 
-/** The crypt skeletons' eyes burn green in their sockets (DeldocTvFiB), a little in front of and above the head joint. */
+/**
+ * The crypt skeletons' eyes burn green in their sockets (DeldocTvFiB): two small points carried by the head bone
+ * (SkullEyes), placed from the bind pose. (They were set from the body's yaw off the head joint, so a turned or bowed
+ * head left a green blob hanging beside the skull: the playtest of 2026-11-12.)
+ */
 function skullEyes(npc: Npc): { group: Group; update(dt: number): void } {
   const group = new Group();
-  const eyes = [-1, 1].map((side) => { const s = glowSprite(PALETTE.witch, 0.13, 0.9, true); group.add(s); return { s, side }; });
+  const eyes = [0, 1].map(() => { const s = glowSprite(PALETTE.witch, 0.06, 0.95, true); group.add(s); return s; });
   let head: Object3D | null = null;
+  let local: Vector3[] | null = null;
   const at = new Vector3();
   return {
     group,
     update: () => {
       if (!head && npc.rig.model) head = npc.rig.model.bone(/head$/i);
-      group.visible = !!head;
-      if (!head) return;
-      head.getWorldPosition(at);
-      for (const { s, side } of eyes) {
-        s.position.set(at.x + Math.cos(npc.yaw) * 0.1 + Math.sin(npc.yaw) * side * 0.035, at.y + 0.09, at.z + Math.sin(npc.yaw) * 0.1 - Math.cos(npc.yaw) * side * 0.035);
+      if (head && !local) {
+        // The head's world matrix at bind, from the skinned mesh that it drives.
+        let skinned: SkinnedMesh | null = null;
+        npc.rig.model!.root.traverse((o) => { if (!skinned && (o as SkinnedMesh).isSkinnedMesh && (o as SkinnedMesh).skeleton.bones.includes(head as Bone)) skinned = o as SkinnedMesh; });
+        const sm = skinned as SkinnedMesh | null;
+        if (sm) {
+          sm.updateWorldMatrix(true, false);
+          const i = sm.skeleton.bones.indexOf(head as Bone);
+          const bind = new Matrix4().multiplyMatrices(sm.matrixWorld, sm.bindMatrix).multiply(sm.skeleton.boneInverses[i].clone().invert());
+          local = socketsInBone(bind, npc.yaw);
+        }
       }
+      group.visible = !!local;
+      if (!head || !local) return;
+      head.updateWorldMatrix(true, false);
+      local.forEach((l, k) => eyes[k].position.copy(at.copy(l).applyMatrix4(head!.matrixWorld)));
     },
   };
 }
+
+/**
+ * The Skeleton Lord's blunt (Blunt.ts, built in code), held in his right hand's fingers, its ember glowing and its
+ * purple smoke rising from it (it rose from a fixed point at his teeth before; the playtest of 2026-11-12 asked for
+ * the blunt in his hand). Parented to the hand bone, sized back to metres against the skeleton's scale.
+ */
+function bluntInHand(npc: Npc): { group: Group; update(dt: number): void } {
+  const group = new Group();
+  const b = blunt();
+  const holder = new Group();
+  holder.add(b.object);
+  const tip = new Object3D();
+  tip.position.copy(b.ember);
+  const emberGlow = glowSprite(0xff7a2a, 0.09, 0.8, true);
+  emberGlow.position.copy(b.ember);
+  b.object.add(tip, emberGlow);
+  const smoke = new PipeSmoke(0xb36bff);
+  tip.add(smoke.emitter);
+  group.add(smoke.particles);
+  let attached = false;
+  const ws = new Vector3();
+  return {
+    group,
+    update: (dt) => {
+      if (!attached && npc.rig.model) {
+        const hand = npc.rig.model.bone(/right.?hand$/i);
+        if (!hand) return;
+        npc.rig.model.root.updateWorldMatrix(true, true);
+        hand.getWorldScale(ws);
+        holder.scale.setScalar(1 / Math.max(1e-4, ws.y));
+        holder.position.set(BLUNT_GRIP.x / ws.y, BLUNT_GRIP.y / ws.y, BLUNT_GRIP.z / ws.y);
+        holder.rotation.set(BLUNT_GRIP.rx, BLUNT_GRIP.ry, BLUNT_GRIP.rz);
+        hand.add(holder);
+        attached = true;
+      }
+      if (attached) smoke.update(dt);
+    },
+  };
+}
+/** Where the blunt sits in the hand bone's frame (metres; the bone's +y runs to the fingers): between the fingers. */
+const BLUNT_GRIP = { x: 0, y: 0.09, z: 0.02, rx: 0, ry: 0, rz: 0 };
 
 /** The diver's brass helmet: its porthole glows white (DeVj-Z8POjl's kelp road), just in front of his head joint. */
 function helmetGlow(npc: Npc): { group: Group; update(dt: number): void } {
@@ -371,23 +431,12 @@ export class World {
     const causeway = causewayWalk(LAYOUT.causeway, h, MODELS['causeway-segment'].height);
     this.place(causeway.landmark);
     flora('causeway-segment', causeway.spans);
-    // Piers: over the chasm a rock spire climbs out of the cloud sea to the arch feet (slimmed across, or a 95 m
-    // spire would be 35 m wide); on land, where the deck clears a dip, a stone pillar.
+    // Piers: under every joint over the chasm a rock spire climbs out of the cloud sea to the arch feet, all alike
+    // (slimmed across, or a 95 m spire would be 35 m wide).
     for (const p of causeway.piers) {
-      if (p.height > 12) {
-        const lm = modelLandmark('pinnacle', p.x, p.z, p.y, { collider: 'none', scale: p.height / MODELS.pinnacle.height });
-        lm.root.scale.x *= 0.45;
-        lm.root.scale.z *= 0.45;
-        this.place(lm);
-      } else {
-        this.place(modelLandmark('snow-pillar', p.x, p.z, p.y - 0.4, { scale: (p.height + 0.4) / MODELS['snow-pillar'].height }));
-      }
-    }
-    // The stairs' colliders come from causewayWalk (the model only shows them).
-    // (Squeezed across to the bridge's width: a flight scaled up to meet the high north end would be 27 m wide.)
-    for (const [st, yaw] of [[causeway.stairs, 0], [causeway.northStairs, Math.PI]] as const) {
-      const lm = modelLandmark('causeway-stairs', st.x, st.z, st.y, { collider: 'none', yaw, scale: st.height / MODELS['causeway-stairs'].height });
-      lm.root.scale.x *= st.widthScale;
+      const lm = modelLandmark('pinnacle', p.x, p.z, p.y, { collider: 'none', scale: p.height / MODELS.pinnacle.height });
+      lm.root.scale.x *= 0.3;
+      lm.root.scale.z *= 0.3;
       this.place(lm);
     }
     const cb = LAYOUT.chasmBridge;
@@ -633,17 +682,14 @@ export class World {
 
     // --- the island's heart (#28) and the forest gorge (01.16.36) ---
     const heart = buildHeart({
-      get group() { return world0.target; }, realm: (id) => this.enterZone(id), place: (l) => this.place(l), flora, vfx, h, rnd,
+      get group() { return world0.target; }, realm: (id) => this.enterZone(id), place: (l) => this.place(l), moving: (f) => { this.heights.moving.push(f); }, flora, vfx, h, rnd,
       shoot: (from, sh) => this.hooks.shoot?.(from, sh), heights: this.heights,
     });
     this.eye = heart.eye;
     this.bouncers.push(...heart.bouncers);
     this.heights.bouncers.push(...heart.bouncers);
     // Eyes in the sky that watch the hero (and glare when shot); the eye pool startles when a shot lands in it.
-    const skyEyes = new SkyEyes([
-      { x: -34, y: 36, z: -60, size: 9 }, { x: 30, y: 42, z: -66, size: 11 }, { x: -92, y: 44, z: -122, size: 10 },
-      { x: 74, y: 46, z: 8, size: 10 }, { x: -62, y: 40, z: 28, size: 8 }, { x: 8, y: 56, z: -120, size: 13 },
-    ]);
+    const skyEyes = new SkyEyes(SKY_EYES);
     this.group.add(skyEyes.group);
     this.watchers.push({ zone: null, update: (dt, cam, p) => skyEyes.update(dt, cam, p) });
     this.shotTargets.push(...skyEyes.targets());
@@ -810,9 +856,10 @@ export class World {
     const realmApi: RealmApi = {
       get group() { return world.target; },
       realm: (id) => this.enterZone(id),
-      place: (l) => this.place(l), flora, vfx, h: gh, rnd: rrnd,
+      place: (l) => this.place(l), moving: (f) => { this.heights.moving.push(f); }, flora, vfx, h: gh, rnd: rrnd,
       water: (x0, x1, z0, z1, level) => { this.waterZones.push({ x0, x1, z0, z1, level }); },
       shoot: (from, s) => this.hooks.shoot?.(from, s),
+      bounce: (b) => { this.heights.bouncers.push(b); },
     };
     this.portals.push(...buildRealms(realmApi));
     // The tree house's round door and the room behind it; the frog's dream.
@@ -821,6 +868,8 @@ export class World {
     ANCHORS.brother = { ...treeHouse.brotherAt, y: treeHouse.floorY };
     // The vale tavern's taproom behind its front door.
     this.interactables.push(...buildTavernRoom(realmApi, (x, y, z, yaw, name) => this.hooks.teleport?.(x, y, z, yaw, name)));
+    // Inside the island castle, by its gate: the Moon Throne Hall.
+    this.interactables.push(...buildCastleHall(realmApi, (x, y, z, yaw, name) => this.hooks.teleport?.(x, y, z, yaw, name), (what) => this.hooks.reward?.(what), h));
     // The crypt bar under the Lean Quarter's snow chapel.
     this.interactables.push(...buildCryptRoom(realmApi, (x, y, z, yaw, name) => this.hooks.teleport?.(x, y, z, yaw, name)));
     buildDream(realmApi);
@@ -900,8 +949,11 @@ export class World {
     const diver = this.npcs.find((n) => n.def.id === 'diver');
     if (diver) { this.enterZone(SUNKEN.id); vfx(helmetGlow(diver)); }
     // The crypt bar's skeletons: green eyes, and gold grills catching the candlelight.
+    // (Each effect goes into the group of the realm its body is in: vfx() builds into the zone entered last.)
     this.enterZone(CRYPT_ROOM.id);
     for (const n of this.npcs) if (n.def.id.startsWith('crypt-')) { vfx(skullEyes(n)); if (n.def.id !== 'crypt-bones') vfx(grillSparkle(n)); }
+    const skeletonLord = this.npcs.find((n) => n.def.id === 'skeleton-lord');
+    if (skeletonLord) { this.enterZone(GALAXY.id); vfx(bluntInHand(skeletonLord)); }
     CARRIAGE.passenger = this.npcs.find((n) => n.def.id === 'carriage-count') ?? null;
     const waxwick = this.npcs.find((n) => n.def.id === 'waxwick');
     if (waxwick) { this.enterZone(TAVERN_ROOM.id); vfx(candleCrown(waxwick)); }
@@ -1140,7 +1192,7 @@ function cutDoor(root: Object3D, d: { x: number; z: number; halfWidth: number; f
 
 /** Ground kept clear of trees around the island's landmarks (x, z, radius). */
 // (Read from the layout tables: literal copies went stale when the arch gate and the tree house moved, and pines grew through them.)
-const CLEARING_RADIUS: Record<string, number> = { 'colossus-statue': 11, archgate: 8, nave: 15, observatory: 10, 'candle-gate': 8 };
+const CLEARING_RADIUS: Record<string, number> = { 'colossus-statue': 11, archgate: 8, observatory: 10, 'candle-gate': 8 };
 const LANDMARK_CLEARINGS = [
   ...LANDMARKS.filter((l) => l.id in CLEARING_RADIUS).map((l) => ({ x: l.x, z: l.z, r: CLEARING_RADIUS[l.id] })),
   { x: LAYOUT.tower.x, z: LAYOUT.tower.z, r: 17 },

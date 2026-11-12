@@ -91,11 +91,15 @@ export function gridFootprint(id: string, x: number, base: number, z: number, ro
   return { kind: 'grid', id, x, z, rotY, base, minX, minZ, cell, nx: g.nx, nz: g.nz, unit: (g.yMax * H) / GRID_BINS, data, r, top: base + g.yMax * H };
 }
 
-/** A tree trunk: a cylinder of `trunkFraction` × height radius, topped near the crown (climbable like a trunk). */
+/** A tree trunk: a cylinder of `trunkFraction` × height radius, topped near the crown (climbable like a trunk).
+ *  Anything 3 m or taller is a tree, and no trunk is wider than a tenth of its tree: a 10 m dead tree given 0.5 (read as
+ *  metres by its caller) made a 10 m-wide invisible wall the hero climbed and stood on in mid-air. */
+export const MAX_TRUNK_FRACTION = 0.1;
 export function trunkFootprint(id: string, x: number, base: number, z: number, scale: number, trunkFraction: number): Footprint | null {
   if (!hasGrid(id)) return null;
   const H = (MODELS[id]?.height ?? 1) * scale;
-  return { kind: 'cyl', x, z, r: Math.max(0.2, H * trunkFraction), top: base + H * 0.85 };
+  const fraction = H >= 3 ? Math.min(trunkFraction, MAX_TRUNK_FRACTION) : trunkFraction;
+  return { kind: 'cyl', x, z, r: Math.max(0.2, H * fraction), top: base + H * 0.85 };
 }
 
 /** Cell index of (x, z) in a grid footprint, or -1 outside it. */

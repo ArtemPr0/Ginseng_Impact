@@ -42,6 +42,9 @@ async function pickup(x, z, y, label) {
 async function slay(kind) {
   const e = enemiesOf(kind).find((v) => v.alive) ?? enemiesOf(kind)[0];
   if (!e) { fail('no such enemy', { kind }); return; }
+  // (Topped up first: a hero worn down by the earlier fights falls to a ranged boss's first volley, and a boss gives
+  // up and heals once the hero is down.)
+  G.combat.healActive(1e9);
   weaken(e, 1);
   const done = await fight(e, { ms: 15000 });
   log.push(`slain ${kind}: ${done}`);
@@ -81,6 +84,8 @@ await pickup(-1000, -92, -48, 'Drowned Bell');
 if (st('bell') !== 'found') fail('the bell pickup did not move the quest', { at: st('bell') });
 await drive('fish-king', 'bell', 'done');
 await drive('skeleton-king', 'grave', 'active');
+// (The Grave Cyclops has no fixed spawn: the candle ring in the Alley of Graves raises him, data/world.ts GRAVE_RING.)
+await tp(0, -980); await sleep(4500);
 await slay('cyclops-lord');
 await drive('skeleton-king', 'grave', 'done');
 log.push(`trip ${st('trip')} throne ${st('throne')} sound ${st('sound')} bell ${st('bell')} grave ${st('grave')} silence ${st('silence')}`);

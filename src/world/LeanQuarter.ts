@@ -24,9 +24,9 @@ import { fountain } from '../render/Fountain';
 import { landableIsland } from './Islands';
 import { glowSprite } from '../render/Glow';
 import { Glints, LEAN, meteors, mistLayers, ringedPlanet, skyVortex, tickLeanFx } from '../render/LeanFx';
-import { clipAbove, patchLitWindows } from '../render/Materials';
+import { clipAbove, patchLitWindows, patchNeckTurn } from '../render/Materials';
+import { gazeStep, type Gaze } from './Gaze';
 import { PALETTE } from '../render/palette';
-import { PipeSmoke } from '../render/Smoke';
 import { cascade } from './Falls';
 import { fire, PURPLE_FIRE } from './Fire';
 import type { Placement } from './Flora';
@@ -34,8 +34,9 @@ import type { Interactable } from './Interact';
 import type { ModelRig } from '../models/ModelRig';
 import { modelLandmark } from './ModelLandmark';
 import { PRESENT_MODELS } from '../data/colliderGrids';
+import { gridFootprint, type Footprint } from './Colliders';
 import type { RealmApi } from './Realms';
-import { floorSlab } from './Walkways';
+import { witchBridgeDeck } from './Walkways';
 import { waterSheet } from './Water';
 import { ISLAND_TOP } from './Heart';
 
@@ -54,6 +55,50 @@ function restyle(model: ModelRig, fn: (mat: MeshStandardMaterial) => void): void
     m.material = mat;
   });
 }
+
+/**
+ * lean-dragon.glb's neck (model units, measured: the head rises from the body at z 0.1 on the line x -0.33, its snout at
+ * z 0.95; the wing is on the +x side, the claws below y -0.3), and how far its head looks off the model's yaw (27° left).
+ */
+const LEAN_DRAGON_NECK = { pivot: [-0.22, 0.12] as [number, number], z0: 0.08, z1: 0.38, yMin: -0.25, xCenter: -0.33, xHalf: 0.36 };
+const LEAN_DRAGON_LOOK = Math.PI * 0.15;
+
+/**
+ * A lean dragon that watches you (the playtest of 2026-11-12): within 28 m its body shifts round toward you and its neck
+ * turns its head the rest of the way (Gaze). Its collider is a cylinder, since the body turns.
+ */
+function watchfulDragon(api: RealmApi, x: number, z: number, y: number, home: number, scale: number, extra?: (dt: number, root: Group, m: ModelRig | null, neck: number) => void): void {
+  const turn = { value: 0 };
+  let g: Gaze = { body: home, neck: 0 };
+  // Its baked collider, turned with the body each frame (a cylinder round its middle let you walk through head and tail).
+  const grid = gridFootprint('lean-dragon', x, y, z, face(home), scale);
+  const footprints: Footprint[] = grid && api.moving ? [] : [{ kind: 'cyl', x, z, r: 3.2 * scale, top: y + 2.6 * scale }];
+  if (grid && api.moving) api.moving(grid);
+  api.place(modelLandmark('lean-dragon', x, z, y, { yaw: face(home), scale, collider: 'manual', footprints,
+    onLoad: (m) => restyle(m, (mat) => patchNeckTurn(mat, { ...LEAN_DRAGON_NECK, turn })),
+    update: (dt, root, m, player) => {
+      g = gazeStep(g, { x, z }, player, dt, { home, look: LEAN_DRAGON_LOOK, reach: 28, body: 0.6, neck: 0.7 });
+      root.rotation.y = face(g.body);
+      if (grid) grid.rotY = root.rotation.y;
+      turn.value = g.neck;
+      extra?.(dt, root, m, g.neck);
+    } }));
+}
+
+/** tavern-table.glb's top at scale 1: half its length (local x) and width (local z), and its height. */
+export const TABLE_TOP = { hx: 1.0, hz: 0.87, y: 0.95 } as const;
+/**
+ * dragon-fountain.glb at 4.5 m, measured from its mesh (local +z is where the dragon looks): the lower jaw's tip 1.86 m
+ * out and 2.74 m up; the basin's bowl centred 0.37 m out, 1.9 m across the radius inside its rim, its water at 1.5 m.
+ */
+export const DRAGON_FOUNTAIN = { jaw: { z: 1.8, y: 2.74 }, basin: { z: 0.37, r: 1.9, y: 1.5 } } as const;
+/** The galaxy-bottle tables: five bottles along the top, a candle at either end, set in from the edges. */
+export const BOTTLE_TABLE = { bottles: [-0.72, -0.36, 0, 0.36, 0.72], candles: [[-0.5, 0.45], [0.5, -0.45]] } as const;
+/** The sky dock's table: cups and gems along its length. */
+export const DOCK_TABLE = { cups: [-0.5, 0, 0.5], gems: [-0.78, -0.22, 0.75] } as const;
+
+/** The footbridge over the castle moat (12 m of water): 2 m onto each bank. */
+export const MOAT_BRIDGE_LENGTH = 16;
 
 export interface LeanQuarterHooks {
   /** The world swirls (renderer.trip): a sip from a lean fountain. */
@@ -98,16 +143,19 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   glints.add(new Vector3(1000, gy + 1.9, -170.2), new Vector3(), 0.3);
   // The reel's two black dragons flanking the throne, heads up, facing down the court (+z: the model itself looks
   // about 27° to the left of its yaw, checked from the court).
-  for (const side of [-1, 1]) api.place(modelLandmark('lean-dragon', 1000 + side * 8.5, -172, gy, { yaw: face(Math.PI * 0.35), scale: 0.85 }));
+  // They watch you come up the court (watchfulDragon).
+  for (const side of [-1, 1]) watchfulDragon(api, 1000 + side * 8.5, -172, gy, Math.PI * 0.35, 0.85);
   // Dragon-head fountains along both sides, each pouring lean into its basin; tiered fountains down the aisle.
   for (const side of [-1, 1]) {
     for (const z of [-108, -138]) {
       const x = 1000 + side * 38;
       const dir = side < 0 ? 0 : Math.PI;
       api.place(modelLandmark('dragon-fountain', x, z, gy, { yaw: face(dir), footprints: [{ kind: 'box', x, z, hw: 2.2, hd: 2.2, top: gy + 1.2 }] }));
-      // From the jaws (the head leans out over the basin) down into it, once the fountain exists.
-      if (PRESENT_MODELS.has('dragon-fountain')) api.place(cascade({ x: x - side * 1.3, z, top: gy + 3.6, height: 2.6, width: 0.5, yaw: side < 0 ? Math.PI / 2 : -Math.PI / 2, curve: 0.5, color: LEAN_FALL }));
-      glow(LEAN, 3.2, x - side * 1.8, gy + 1.2, z, 0.45);
+      // From the jaws down into the basin under them (DRAGON_FOUNTAIN, measured: the fall started 0.9 m over the head
+      // and splashed down on the floor), the basin's lean glowing.
+      const out = Math.cos(dir), F = DRAGON_FOUNTAIN;
+      if (PRESENT_MODELS.has('dragon-fountain')) api.place(cascade({ x: x + out * F.jaw.z, z, top: gy + F.jaw.y, height: F.jaw.y - F.basin.y, width: 0.35, yaw: side < 0 ? Math.PI / 2 : -Math.PI / 2, curve: 0.15, color: LEAN_FALL, foot: false }));
+      glow(LEAN, 3.2, x + out * F.basin.z, gy + F.basin.y, z, 0.45);
     }
   }
   for (const x of [982, 1018]) {
@@ -148,11 +196,7 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   {
     // (Where the seated lord's feet are: his anchor at the settee's front edge, data/world ANCHORS.)
     const lord = new Vector3(1042.15, 24.53, -160);
-    const smoke = new PipeSmoke(0xb36bff);
-    // At his teeth, seated (the vape the gauntlet holds to his mouth in the reel).
-    smoke.emitter.position.set(lord.x - 0.18, lord.y + 1.36, lord.z);
-    fx.add(smoke.emitter, smoke.particles);
-    updates.push((dt) => smoke.update(dt));
+    // (His smoke rises from the blunt in his right hand now: World.bluntInHand.)
     glints.add(new Vector3(lord.x - 0.16, lord.y + 1.34, lord.z), new Vector3(), 0.05);
     glints.add(new Vector3(lord.x - 0.2, lord.y + 0.95, lord.z), new Vector3(), 0.12);
   }
@@ -160,11 +204,12 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   for (const z of [-120, -134]) {
     const tx = 1030;
     api.flora('tavern-table', [{ x: tx, y: gy, z, yaw: 0, scale: 1 }]);
-    api.place({ object: new Group(), footprints: [{ kind: 'box', x: tx, z, hw: 1.6, hd: 0.6, top: gy + 0.95 }] });
-    const bottles: Placement[] = [-1.2, -0.6, 0, 0.6, 1.2].map((dx) => ({ x: tx + dx, y: gy + 0.95, z: z + (api.rnd() - 0.5) * 0.3, yaw: api.rnd() * 6, scale: 0.8 + api.rnd() * 0.4 }));
+    // (The bottles stood out to ±1.2 m and the candles ±1.5 m on a 2 m table: the ends floated beside it.)
+    api.place({ object: new Group(), footprints: [{ kind: 'box', x: tx, z, hw: TABLE_TOP.hx, hd: TABLE_TOP.hz, top: gy + TABLE_TOP.y }] });
+    const bottles: Placement[] = BOTTLE_TABLE.bottles.map((dx) => ({ x: tx + dx, y: gy + TABLE_TOP.y, z: z + (api.rnd() - 0.5) * 0.3, yaw: api.rnd() * 6, scale: 0.8 + api.rnd() * 0.4 }));
     api.flora('potion-bottle', bottles, { shadows: false });
     for (const b of bottles) glow(0x6a5dff, 0.6, b.x, b.y + 0.2, b.z, 0.55);
-    api.flora('candle', [{ x: tx - 1.5, y: gy + 0.95, z, yaw: 0, scale: 1 }, { x: tx + 1.5, y: gy + 0.95, z, yaw: 0, scale: 1 }], { shadows: false });
+    api.flora('candle', BOTTLE_TABLE.candles.map(([dx, dz]) => ({ x: tx + dx, y: gy + TABLE_TOP.y, z: z + dz, yaw: 0, scale: 1 })), { shadows: false });
   }
 
   // ===== Bucket Street and the lean castle, west (DeaqHWJBBPw, DeXn5rSPxR8) =====
@@ -189,7 +234,7 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
     glow(PALETTE.dusk, 1.8, x, gy + 2, z, 0.45);
   }
   api.flora('purple-mushroom', shrooms, { shadows: false });
-  // (Old Hollowstaff, mid-street, is the diamond-throwing boss now: his diamonds circle him (Enemy orbitGems).)
+  // (Old Hollowstaff, mid-street, is the cup-throwing boss now: double cups of lean circle him (EnemyDef.orbit).)
   // The star brewer's tower at the street's north-west corner (DeQ-NnpvqF6).
   api.place(modelLandmark('round-tower', 872, -26, gy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'cyl', x: 872, z: -26, r: 3.6, top: gy + 22 }] }));
   // The lean castle at the street's west end, its windows burning purple, lean pouring off its front into the moat.
@@ -205,8 +250,11 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
     for (const z of [16, 20]) api.place(cascade({ x: 809.6, z, top: gy + 14, height: 7.2, width: 1.6, yaw: Math.PI / 2, curve: 0.5, color: LEAN_FALL }));
     for (const z of [10.5, 15.5, 20.5, 25.5]) api.place(cascade({ x: 811.6, z, top: gy + 7, height: 7.4, width: 2.2, yaw: Math.PI / 2, curve: 0.9, color: LEAN_FALL }));
   }
-  // The bridge to the gate, purple flames at its ends.
-  api.place(floorSlab(moat.x, C.z, gy, moat.w + 0.4, 7));
+  // The bridge to the gate: the stone footbridge arched over the moat bank to bank (a flat 2 m block lay across it,
+  // flickering against the water), purple flames at its ends.
+  const moatBridge = witchBridgeDeck(moat.x, C.z, api.h, MOAT_BRIDGE_LENGTH);
+  api.place(moatBridge);
+  api.place(modelLandmark('witch-bridge', moat.x, C.z, moatBridge.baseY, { scale: moatBridge.scale, collider: 'none', onLoad: () => { moatBridge.object.visible = false; moatBridge.object.userData.hidden = true; } }));
   for (const dz of [-4, 4]) for (const x of [829.4, 814.8]) {
     api.place(modelLandmark('torch-post', x, C.z + dz, gy, { footprints: [{ kind: 'cyl', x, z: C.z + dz, r: 0.25, top: gy + 2.4 }] }));
     api.vfx(fire(x, gy + 2.3, C.z + dz, 0.4, x > 820 ? 8 : 0, PURPLE_FIRE));
@@ -322,8 +370,9 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
     for (let i = 0; i < 10; i++) { const s = glowSprite(LEAN, 0.16, 0.9, true); s.visible = false; fx.add(s); drips.push({ s, v: 0, age: 0 }); }
     const mouth = new Vector3();
     let dripIn = 0;
-    api.place(modelLandmark('lean-dragon', dx, dz, gy, { yaw: face(Math.PI * 0.9), footprints: [{ kind: 'cyl', x: dx, z: dz, r: 3.2, top: gy + 2.6 }],
-      update: (dt, root, m) => {
+    // (He watches you too; the drips fall from his jaws wherever his head has turned.)
+    const U = MODELS['lean-dragon'].height / 1.111, P = LEAN_DRAGON_NECK.pivot;
+    watchfulDragon(api, dx, dz, gy, Math.PI * 0.9, 1, (dt, root, m, neck) => {
         t += dt;
         // A slow breath, and lean dripping from his jaws (the reel's dragon drinks with a cup pressed to his teeth).
         root.scale.setScalar(1 + Math.sin(t * 0.9) * 0.008);
@@ -333,10 +382,15 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
         if (dripIn <= 0) {
           dripIn = 0.25 + Math.random() * 0.5;
           const d = drips.find((x) => !x.s.visible);
-          if (d) { root.localToWorld(mouth.set((Math.random() - 0.5) * 0.3, MODELS['lean-dragon'].height * 0.55, MODELS['lean-dragon'].height * 0.95)); d.s.position.copy(mouth); d.v = 0; d.age = 0; d.s.visible = true; }
+          if (d) {
+            // The snout (x -0.36, z 0.9 model units) swung about the neck's pivot as patchNeckTurn swings it.
+            const ox = -0.36 - P[0], oz = 0.9 - P[1], c = Math.cos(neck), sn = Math.sin(neck);
+            root.localToWorld(mouth.set((P[0] + c * ox + sn * oz) * U + (Math.random() - 0.5) * 0.3, MODELS['lean-dragon'].height * 0.55, (P[1] - sn * ox + c * oz) * U));
+            d.s.position.copy(mouth); d.v = 0; d.age = 0; d.s.visible = true;
+          }
         }
         for (const d of drips) { if (!d.s.visible) continue; d.age += dt; d.v -= 9.8 * dt; d.s.position.y += d.v * dt; if (d.age > 0.8 || d.s.position.y < gy) d.s.visible = false; }
-      } }));
+      });
     glints.add(new Vector3(dx - 2.4, gy + 2.3, dz - 0.4), new Vector3(), 0.4);
   }
   // The sky bar: a booth on chains at the island's near side. It is shut (its window is part of the model), so Old Ribs
@@ -346,11 +400,11 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
     const tx = D.x - 7.8, tz = D.z - 1.1, ang = -Math.PI / 4;
     api.flora('tavern-table', [{ x: tx, y: gy, z: tz, yaw: ang, scale: 1 }]);
     // (A box turns the other way from a model's yaw: its local x runs along (cos rotY, sin rotY).)
-    api.place({ object: new Group(), footprints: [{ kind: 'box', x: tx, z: tz, hw: 1.6, hd: 0.6, top: gy + 0.95, rotY: -ang }] });
+    api.place({ object: new Group(), footprints: [{ kind: 'box', x: tx, z: tz, hw: TABLE_TOP.hx, hd: TABLE_TOP.hz, top: gy + TABLE_TOP.y, rotY: -ang }] });
     // Along the table's length (its local x, turned by `ang`).
     const along = (k: number) => ({ x: tx + Math.cos(ang) * k, z: tz - Math.sin(ang) * k });
-    api.flora('lean-cup', [-0.6, 0, 0.6].map((k) => ({ ...along(k), y: gy + 0.97, yaw: 0, scale: 1 })), { shadows: false });
-    api.flora('gem', [-1.1, -0.3, 1.0].map((k) => ({ ...along(k), y: gy + 0.97, yaw: api.rnd() * 6, scale: 0.18 })), { shadows: false });
+    api.flora('lean-cup', DOCK_TABLE.cups.map((k) => ({ ...along(k), y: gy + 0.97, yaw: 0, scale: 1 })), { shadows: false });
+    api.flora('gem', DOCK_TABLE.gems.map((k) => ({ ...along(k), y: gy + 0.97, yaw: api.rnd() * 6, scale: 0.18 })), { shadows: false });
   }
   // Gothic lamps round the dock's rim.
   const lamps: Placement[] = [];

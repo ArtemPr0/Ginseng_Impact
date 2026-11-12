@@ -254,7 +254,7 @@ export class Story {
     if (d.isFollowing(npcId)) out.push({ label: HOME_LABEL, action: 'home' });
     else if (d.isHireable(npcId)) {
       const cost = d.hireCost?.(npcId);
-      out.push({ label: cost === undefined ? HIRE_LABEL : `${HIRE_LABEL} · ◆ ${cost}`, action: 'hire' });
+      out.push({ label: cost === undefined ? HIRE_LABEL : `${HIRE_LABEL} · ● ${cost}`, action: 'hire' });
     }
     return out;
   }
