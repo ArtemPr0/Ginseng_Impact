@@ -120,3 +120,15 @@ describe('the currency on the ground', () => {
     }
   });
 });
+
+describe('taking an item', () => {
+  it('reports the item\'s own rarity when it reaches the hero (the chime and sparkle match the drop)', () => {
+    const field = new LootField(new Scene(), () => 0);
+    field.spawn([{ kind: 'item', itemId: 'yeti-pelt', count: 1 }], new Vector3());
+    const got: number[] = [];
+    field.onAbsorbed = (r) => got.push(r);
+    field.take(field.pickups[0]);
+    for (let i = 0; i < 20; i++) field.update(0.05, new Vector3(5, 0, 0));
+    expect(got).toEqual([ITEMS['yeti-pelt'].rarity]);
+  });
+});

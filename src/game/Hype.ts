@@ -132,3 +132,15 @@ export class Titles {
     return this.earned();
   }
 }
+
+/** Coins picked up close behind one another ring higher and higher (a semitone a coin, an octave at most). */
+export class CoinStreak {
+  private step = -1;
+  private last = -Infinity;
+  /** The step of a coin picked up at time `t` (seconds): 0 after a pause of more than 1.2 s. */
+  hit(t: number): number {
+    this.step = t - this.last > 1.2 ? 0 : Math.min(12, this.step + 1);
+    this.last = t;
+    return this.step;
+  }
+}

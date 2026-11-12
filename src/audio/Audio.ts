@@ -384,6 +384,14 @@ export class Audio {
   }
 
   /** Coin clinks. */
+  /** A coin of a streak: a bright two-note bling a semitone higher for each coin close behind the last (step 0..12). */
+  coinStep(step: number): void {
+    const f = 1318.5 * Math.pow(2, step / 12);
+    this.tone('square', f, f, 0.06, 0.07, 0, 0.002, 0.05);
+    this.tone('square', f * 1.335, f * 1.335, 0.14, 0.07, 0.06, 0.002, 0.12);
+    this.tone('sine', f * 2, f * 2, 0.16, 0.06, 0.06, 0.002, 0.14);
+  }
+
   coins(n = 3): void {
     for (let i = 0; i < n; i++) {
       const f = 2400 + Math.random() * 1400;

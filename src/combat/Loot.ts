@@ -46,7 +46,7 @@ export function rollDrops(table: DropEntry[] | undefined, shards: [number, numbe
 interface Pickup { drop: Drop; object: Group; pos: Vector3; vel: Vector3; life: number; spin: number; landed: boolean }
 
 /** A taken item on its way into the hero: lifts, spirals in, shrinks to a spark. */
-interface Absorbing { object: Group; from: Vector3; t: number; turn: number }
+interface Absorbing { object: Group; from: Vector3; t: number; turn: number; rarity: number }
 
 /** A little starburst where something was absorbed. */
 interface Sparkle { sprites: Sprite[]; t: number; at: Vector3 }
@@ -115,7 +115,8 @@ export class LootField {
     const i = this.pickups.indexOf(p);
     if (i < 0) return p.drop;
     this.pickups.splice(i, 1);
-    this.absorbing.push({ object: p.object, from: p.object.position.clone(), t: 0, turn: Math.random() < 0.5 ? 1 : -1 });
+    const rarity = p.drop.kind === 'item' ? ITEMS[p.drop.itemId].rarity : 0;
+    this.absorbing.push({ object: p.object, from: p.object.position.clone(), t: 0, turn: Math.random() < 0.5 ? 1 : -1, rarity });
     return p.drop;
   }
 
@@ -149,8 +150,8 @@ export class LootField {
         this.scene.remove(a.object);
         disposeObject(a.object);
         this.absorbing.splice(i, 1);
-        this.sparkle(chest, PALETTE.rune);
-        this.onAbsorbed?.(1);
+        this.sparkle(chest, a.rarity > 0 ? RARITY_COLOR[a.rarity as 1 | 2 | 3 | 4] : PALETTE.rune);
+        this.onAbsorbed?.(a.rarity);
       }
     }
     for (let i = this.sparkles.length - 1; i >= 0; i--) {

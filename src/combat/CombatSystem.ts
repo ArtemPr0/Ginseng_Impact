@@ -1,5 +1,5 @@
 import { BoxGeometry, IcosahedronGeometry, BufferGeometry, CircleGeometry, Color, Float32BufferAttribute, Group, LineBasicMaterial, LineSegments, Mesh, PerspectiveCamera, Scene, Vector3, ConeGeometry, CylinderGeometry, TorusGeometry, MeshBasicMaterial, AdditiveBlending, DoubleSide, Sprite, SpriteMaterial } from 'three';
-import { Hype, isOverkill } from '../game/Hype';
+import { CoinStreak, Hype, isOverkill } from '../game/Hype';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Audio } from '../audio/Audio';
 import { CombatSfx, hitMaterial } from '../audio/CombatSfx';
@@ -369,6 +369,7 @@ export class CombatSystem {
   private readonly streak = new HitStreak(1.2);
   /** The hype man: combo tiers, multi-kills, overkills (game/Hype.ts). */
   private readonly hype = new Hype();
+  private readonly coinStreak = new CoinStreak();
   /** Tab's lock-on (Combat.ts LockOn): the camera keeps its target framed, swings turn to it, shots and spells go for it. */
   private readonly lock = new LockOn<Enemy>();
   /** Whether the boss layer of the score is on (a boss has the hero in its sights). */
@@ -1171,7 +1172,7 @@ export class CombatSystem {
 
     // --- loot ---
     const got = this.loot.update(dt, this.playerPos());
-    if (got > 0) { d.inventory.shards += got; d.audio.coins(Math.min(3, Math.ceil(got / 5))); d.hud.shardPop(got); }
+    if (got > 0) { d.inventory.shards += got; d.audio.coinStep(this.coinStreak.hit(this.time)); d.hud.shardPop(got); }
 
     this.vfx.update(dt);
     d.hud.setHp(this.hp.get(me.id)!, this.maxOf(me));

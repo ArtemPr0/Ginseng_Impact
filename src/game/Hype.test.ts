@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COMBO_TIERS, Hype, isOverkill, TITLES, Titles } from './Hype';
+import { COMBO_TIERS, Hype, isOverkill, TITLES, Titles, CoinStreak } from './Hype';
 
 describe('Hype: combo callouts', () => {
   it('calls out each combo tier once, as the streak reaches it', () => {
@@ -82,5 +82,16 @@ describe('Titles', () => {
       expect(d.quip.length).toBeLessThanOrEqual(70);
     }
     expect(new Set(TITLES.map((d) => d.id)).size).toBe(TITLES.length);
+  });
+});
+
+describe('the coin streak', () => {
+  it('climbs a step with each coin picked up close behind the last, up to an octave, and starts over after a pause', () => {
+    const s = new CoinStreak();
+    expect([0, 0.3, 0.6, 0.9].map((t) => s.hit(t))).toEqual([0, 1, 2, 3]);
+    expect(s.hit(3)).toBe(0);
+    let last = 0;
+    for (let i = 1; i < 30; i++) last = s.hit(3 + i * 0.1);
+    expect(last).toBe(12);
   });
 });
