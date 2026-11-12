@@ -330,6 +330,25 @@ describe('Score', () => {
     expect(score.idle).toBe(false);
   });
 
+  it('a fight layer drives the song while mobs are on the hero, and the boss layer takes over from it', () => {
+    const { score } = make();
+    score.play('island');
+    advance(score, 0.3);
+    score.layer('fight', true, 0.5);
+    const fight = faderTo(SONGS.fight.gain)!;
+    expect(fight, 'the fight layer fades in').toBeDefined();
+    score.layer('boss', true, 1);
+    expect(fight.gain.events.at(-1)!.v, 'the fight layer gives way').toBe(0);
+    expect(faderTo(SONGS.boss.gain), 'the boss layer comes in').toBeDefined();
+    score.layer('boss', false, 1);
+    advance(score, 1.2);
+    // (The fight is still on: its layer comes back.)
+    expect(faderTo(SONGS.fight.gain)!.gain.events.at(-1)!.v).toBe(SONGS.fight.gain);
+    score.layer('fight', false, 1);
+    advance(score, 1.2);
+    expect(score.current).toBe('island');
+  });
+
   it('the boss layer plays alone when nothing else does, and stop() takes it down too', () => {
     const { score } = make();
     score.layer('boss', true);

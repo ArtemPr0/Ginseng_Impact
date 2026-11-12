@@ -374,6 +374,8 @@ export class CombatSystem {
   private readonly lock = new LockOn<Enemy>();
   /** Whether the boss layer of the score is on (a boss has the hero in its sights). */
   private bossMusic = false;
+  /** The fight layer: on while any mob has the hero in its sights (the boss layer takes over in a boss fight). */
+  private fightMusic = false;
   /** Seconds of fighting (the ground patches' shared ticks count on it). */
   private clock = 0;
   /** This step's strongest camera kick, whether the fov punches, the grade's pulse, a crit's sting, a heavy's boom: applied once, at the end of the step. */
@@ -1016,6 +1018,10 @@ export class CombatSystem {
     if (bossFight !== this.bossMusic) {
       this.bossMusic = bossFight;
       d.audio.score.layer('boss', bossFight);
+    }
+    if (anyAggro !== this.fightMusic) {
+      this.fightMusic = anyAggro;
+      d.audio.score.layer('fight', anyAggro, anyAggro ? 0.6 : 3);
     }
 
     // --- projectiles ---

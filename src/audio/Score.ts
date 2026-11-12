@@ -51,7 +51,10 @@ export class Score {
   private volume = 0.6;
   /** What should play; play(), stop() and layer() set it and tick() makes it so once the engine has a context. */
   private want: SongId | null = null;
-  private wantLayer = false;
+  /** The layers wanted: the boss's wins over the fight's while both are. */
+  private wantBoss = false;
+  private wantFight = false;
+  private get wantLayer(): 'boss' | 'fight' | null { return this.wantBoss ? 'boss' : this.wantFight ? 'fight' : null; }
   private fade = 2;
   private layerFade = 1;
   private voice: Voice | null = null;
@@ -81,17 +84,21 @@ export class Score {
   stop(fadeSeconds = 2): void {
     if (!this.want && !this.wantLayer) return;
     this.want = null;
-    this.wantLayer = false;
+    this.wantBoss = this.wantFight = false;
     this.fade = fadeSeconds;
     this.layerFade = fadeSeconds;
     this.run();
   }
 
-  /** The boss layer (kick, 808, riser, half-time snare) over whatever plays, on the current song's grid and root. */
-  layer(id: 'boss', on: boolean, fadeSeconds = 1): void {
-    void id;
-    if (this.wantLayer === on) return;
-    this.wantLayer = on;
+  /**
+   * A layer over whatever plays, on the current song's grid and root: the boss's (kick, 808, riser, half-time snare)
+   * or the fight's (four on the floor, backbeat, hats). Only one sounds: the boss's while it is wanted.
+   */
+  layer(id: 'boss' | 'fight', on: boolean, fadeSeconds = 1): void {
+    const before = this.wantLayer;
+    if (id === 'boss') this.wantBoss = on;
+    else this.wantFight = on;
+    if (this.wantLayer === before) return;
     this.layerFade = fadeSeconds;
     this.run();
   }
@@ -146,7 +153,7 @@ export class Score {
   /** Stops everything at once (no fade) and the timer; the score can play again afterwards. */
   dispose(): void {
     this.want = null;
-    this.wantLayer = false;
+    this.wantBoss = this.wantFight = false;
     const t = this.ctx?.currentTime ?? 0;
     for (const v of [this.voice, this.layerVoice, ...this.fading]) if (v) this.kill(v, t);
     this.voice = this.layerVoice = null;
@@ -182,8 +189,9 @@ export class Score {
   private reconcile(t: number): void {
     if (this.voice && this.voice.id !== this.want) { this.release(this.voice, t, this.fade); this.voice = null; }
     if (this.want && !this.voice) this.voice = this.revive(this.want, t, this.fade) ?? this.start(SONGS[this.want], t, this.fade, null);
-    if (this.layerVoice && !this.wantLayer) { this.release(this.layerVoice, t, this.layerFade); this.layerVoice = null; }
-    if (this.wantLayer && !this.layerVoice) this.layerVoice = this.revive('boss', t, this.layerFade) ?? this.start(SONGS.boss, t, this.layerFade, this.voice);
+    const layer = this.wantLayer;
+    if (this.layerVoice && this.layerVoice.id !== layer) { this.release(this.layerVoice, t, this.layerFade); this.layerVoice = null; }
+    if (layer && !this.layerVoice) this.layerVoice = this.revive(layer, t, this.layerFade) ?? this.start(SONGS[layer], t, this.layerFade, this.voice);
   }
 
   /** A voice fading in over `fade` from `t`; a layer (`host` given) on the host's grid and root. */
