@@ -49,7 +49,7 @@ export const LAYOUT = {
   // (At 0.65 and z -17 its south feet clear the river's bank and its north wall the chasm's lip, which 0.7 did not.)
   cathedral: { x: 68, z: -17, yaw: Math.PI / 2, scale: 0.65, y: 3.6 },
   /** The mud pool east of the cathedral, home of the Marsh Sovereign: a basin (PADS) filled to `mud` (world y). */
-  floodedRuin: { x: 106, z: -13, r: 9, mud: 4.9 },
+  floodedRuin: { x: 106, z: -13, r: 8, mud: 3.3 },
   forest: { innerRadius: 72, outerRadius: 119, count: 420 },
   flowerMeadows: [
     // The white meadow the horse rider crosses (the whale reel's field of white flowers, DeSEl9PvPG_).
@@ -396,7 +396,7 @@ export const PADS: ReadonlyArray<{ x: number; z: number; r: number; y: number; b
   { x: -112, z: 2, r: 3, y: 4.4, blend: 4 },      // Brother Croak hiding in the castle's shadow
   { x: -54, z: -93, r: 2.2, y: 61.0, blend: 3 },  // Hollow Jack on the peak's summit, his banner over the island
   { x: 16, z: -122, r: 7, y: 4.6, blend: 5 },     // the Ember Rider
-  { x: 106, z: -13, r: 8, y: 3.4, blend: 4 },     // the Marsh Sovereign's mud basin (filled to 4.9)
+  { x: 106, z: -13, r: 6, y: 1.8, blend: 2 },     // the Marsh Sovereign's mud basin (filled to 3.3, under its banks all round)
   { x: -40, z: -90, r: 1.6, y: 28.4, blend: 2.5 }, // Sir Halvard's seat on the cliff
   { x: -56, z: 30, r: 2, y: 1.5, blend: 4 },       // Old Moss fishing from the bank (above the river's waterline)
   // The village's ground: two level pads over the street hollow and the coast's bulge (per-house footings dug pits).

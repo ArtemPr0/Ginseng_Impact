@@ -176,3 +176,16 @@ describe('the causeway', () => {
     for (const z of [c.zStart + 2, c.zEnd - 2]) expect(terrainHeight(c.x, z, noise), `rim beyond z ${z}`).toBeGreaterThan(1);
   });
 });
+
+describe('the Marsh Sovereign\'s mud pool', () => {
+  it('lies in its basin: the bank stands over the mud all round its edge (no sheet hanging over the ground to see under), deep enough to wade', () => {
+    const m = LAYOUT.floodedRuin;
+    let low = Infinity;
+    for (let k = 0; k < 48; k++) for (const r of [m.r, m.r + 0.5, m.r + 1, m.r + 1.4]) {
+      const a = (k / 48) * Math.PI * 2;
+      low = Math.min(low, terrainHeight(m.x + r * Math.cos(a), m.z + r * Math.sin(a), noise));
+    }
+    expect(low, 'lowest bank at the edge').toBeGreaterThanOrEqual(m.mud);
+    expect(m.mud - terrainHeight(m.x, m.z, noise), 'depth at the middle').toBeGreaterThan(1.2);
+  });
+});
