@@ -13,7 +13,7 @@ import { kingdomNight, kingdomSkyColors } from './world/Kingdom';
 import { Inventory } from './items/Inventory';
 import { riverAt, WORLD } from './world/Terrain';
 import { ITEMS } from './items/Items';
-import { CONTROLLER, createControllerState, startDash, stepController } from './player/CharacterController';
+import { CONTROLLER, createControllerState, haltController, startDash, stepController } from './player/CharacterController';
 import { Party } from './player/Party';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera';
 import { Atmosphere } from './render/Atmosphere';
@@ -277,7 +277,7 @@ area.hooks.reward = (what) => {
   if (what !== 'eyes') return;
   events.emit({ kind: 'feat', what: 'skyeye' });
   combat.loot.spawn([{ kind: 'shards', amount: 60 }, { kind: 'item', itemId: 'moon-dew', count: 2 }], new Vector3(controller.pos.x, controller.pos.y + 1, controller.pos.z));
-  hud.announce('The sky blinks first · 60 shards');
+  hud.announce('The sky blinks first · 60 coins');
   audio.loot(4);
 };
 area.hooks.board = (boat) => { adventures.riding = boat; audio.footstep(); hud.announce('Aboard · F talk · SPACE jump off'); };
@@ -290,6 +290,7 @@ adventures.openRowers = () => {
 function openPanel(fn: () => void): void {
   input.unlock();
   input.uiOpen = true;
+  haltController(controller);
   fn();
   hud.setLocked(false);
 }

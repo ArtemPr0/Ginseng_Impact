@@ -388,8 +388,8 @@ describe('Story: a step that chains on inside the quests goes on with the line f
     expect(t.quests.stage('grave')).toBe('slain');
     expect(t.purse.bag).toEqual(['grave-crown']);
     expect(claim.line).toBe(text('skeleton-king', 'skeleton-king.topic.grave-claim'));
-    expect(labels(claim)).toEqual(['Take the shards.']);
-    expect(asNode(pick(claim, 'Take the shards.')).line).toBe(text('skeleton-king', 'skeleton-king.topic.grave-paid'));
+    expect(labels(claim)).toEqual(['Take the coins.']);
+    expect(asNode(pick(claim, 'Take the coins.')).line).toBe(text('skeleton-king', 'skeleton-king.topic.grave-paid'));
     expect(t.quests.stage('grave')).toBe('done');
     expect(t.purse).toMatchObject({ shards: 900, paid: 900, bag: ['grave-crown'] });
   });
@@ -422,9 +422,9 @@ describe('Story: Trade, Hire, Send home', () => {
   it('offers Hire (with the price) to one who can be hired, then Send home while he follows', () => {
     const t = setup({ shards: 250, hire: { vigil: 200 } });
     const first = t.story.open('vigil')!;
-    expect(labels(first).slice(-2)).toEqual(['Hire · ◆ 200', LEAVE_LABEL]);
+    expect(labels(first).slice(-2)).toEqual(['Hire · ● 200', LEAVE_LABEL]);
     expect(labels(first)).not.toContain(HOME_LABEL);
-    const hired = asNode(pick(first, 'Hire · ◆ 200'));
+    const hired = asNode(pick(first, 'Hire · ● 200'));
     expect(hired.line).toBe(HIRE_LINES.ok);
     expect(hired.choices).toEqual([{ label: LEAVE_LABEL }]);
     expect(t.following.has('vigil')).toBe(true);
@@ -438,7 +438,7 @@ describe('Story: Trade, Hire, Send home', () => {
 
   it('tells a player short of the price so', () => {
     const t = setup({ shards: 100, hire: { vigil: 200 } });
-    expect(asNode(pick(t.story.open('vigil')!, 'Hire · ◆ 200')).line).toBe(HIRE_LINES.poor);
+    expect(asNode(pick(t.story.open('vigil')!, 'Hire · ● 200')).line).toBe(HIRE_LINES.poor);
     expect(t.following.size).toBe(0);
   });
 

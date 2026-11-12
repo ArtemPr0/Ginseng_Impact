@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { rollDrops, type ItemDrop } from './Loot';
+import { describe, expect, it, vi } from 'vitest';
+
+// (The glow sprites paint on a canvas; a plain sprite stands in outside the browser.)
+vi.mock('../render/Glow', async () => { const { Sprite } = await import('three'); return { glowSprite: () => new Sprite() }; });
+import { LootField, rollDrops, type ItemDrop } from './Loot';
+import { CylinderGeometry, type Mesh, type MeshStandardMaterial, Scene, Vector3 } from 'three';
 import { AFFIX_TOKENS, ITEMS, rollAffix } from '../items/Items';
 
 /** mulberry32: a small seeded generator for repeatable rolls. */
@@ -97,6 +101,22 @@ describe('rollAffix', () => {
     for (let seed = 1; seed <= 60; seed++) {
       const a = rollAffix(4, seeded(seed))!;
       expect(lineCount(a)).toBe(2);
+    }
+  });
+});
+
+describe('the currency on the ground', () => {
+  it('drops as gold coins: a round coin, gold, not a pale diamond', () => {
+    const field = new LootField(new Scene(), () => 0);
+    field.spawn([{ kind: 'shards', amount: 12 }], new Vector3());
+    expect(field.pickups.length).toBeGreaterThan(0);
+    for (const p of field.pickups) {
+      const meshes: Mesh[] = [];
+      p.object.traverse((o) => { if ((o as Mesh).isMesh) meshes.push(o as Mesh); });
+      const coin = meshes.find((m) => m.geometry instanceof CylinderGeometry);
+      expect(coin, 'a coin mesh').toBeTruthy();
+      const c = (coin!.material as MeshStandardMaterial).color;
+      expect(c.r).toBeGreaterThan(c.b * 2); // gold, not white-blue
     }
   });
 });

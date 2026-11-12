@@ -118,6 +118,12 @@ export const SINK = { house: 0.2, ruin: 0.3, church: 0.4, throne: 0.05, treehous
  */
 export interface LandmarkSpot { id: string; x: number; z: number; yaw?: number; scale?: number; sink?: number; at?: { x: number; z: number }; fixedY?: number; rockBase?: boolean }
 /** The island's free-standing buildings and props that no other table places (the big landmarks live in LAYOUT). */
+/** The island's watching eyes in the sky (render/SkyEyes): they glare when shot. None hangs over the Blood Eye's chasm patrol. */
+export const SKY_EYES: readonly { x: number; y: number; z: number; size: number }[] = [
+  { x: -56, y: 36, z: -14, size: 9 }, { x: 52, y: 42, z: -104, size: 11 }, { x: -92, y: 44, z: -122, size: 10 },
+  { x: 74, y: 46, z: 8, size: 10 }, { x: -62, y: 40, z: 28, size: 8 }, { x: 8, y: 56, z: -120, size: 13 },
+];
+
 export const LANDMARKS: readonly LandmarkSpot[] = [
   // Beside the stone head on the north half: the last flat open ground there (it once stood over the chasm).
   { id: 'nave', x: 18, z: -136, sink: 0.4 },

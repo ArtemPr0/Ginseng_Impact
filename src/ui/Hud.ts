@@ -224,7 +224,7 @@ export class Hud {
       <div class="hud-prompt" id="hud-prompt"><div class="hud-subtitle">A SILENT KINGDOM BEYOND THE FOG</div><div class="hud-wordmark">GINSENG IMPACT</div><div class="hud-press" id="hud-press">CLICK TO ENTER THE FOG</div><button type="button" class="hud-new-game" id="hud-new-game" style="display:none">NEW GAME</button>
         <div class="hud-controls">WASD move · SHIFT sprint · SPACE jump, again to fly (hold to rise) · C dive · X land · LMB attack · hold RMB heavy · E skill · Q burst · R dodge · TAB lock on · F talk / loot · I inventory · 1 2 3 switch · ESC pause</div></div>
       <div class="hud-boss panel" id="hud-boss"><div class="hud-boss-name" id="hud-boss-name"></div><div class="hud-boss-title" id="hud-boss-title"></div><div class="hud-boss-bar"><div class="hud-boss-fill" id="hud-boss-fill"></div></div></div>
-      <div class="hud-shards panel" id="hud-shards"><span class="hud-shard-glyph">◆</span><span id="hud-shards-n">0</span><span class="hud-shards-pop" id="hud-shards-pop"></span></div>
+      <div class="hud-shards panel" id="hud-shards"><span class="hud-shard-glyph hud-coin">●</span><span id="hud-shards-n">0</span><span class="hud-shards-pop" id="hud-shards-pop"></span></div>
       <div class="hud-active panel"><div class="hud-name" id="hud-name"></div><div class="hud-title" id="hud-title"></div>
         <div class="hud-hp-wrap"><div class="hud-hp" id="hud-hp"></div><div class="hud-hp-text" id="hud-hp-text"></div></div>
         <div class="hud-stamina-wrap" id="hud-stamina-wrap"><div class="hud-stamina" id="hud-stamina"></div></div>
@@ -535,7 +535,7 @@ export class Hud {
     const buttons: string[] = [];
     if (this.talkLine < npc.lines.length - 1) buttons.push(`<button data-act="next">Next</button>`);
     if (npc.shop) buttons.push(`<button data-act="shop">Trade</button>`);
-    if (npc.hire && !this.hired.has(npc.id)) buttons.push(`<button data-act="hire">Hire · ◆ ${npc.hire.cost}</button>`);
+    if (npc.hire && !this.hired.has(npc.id)) buttons.push(`<button data-act="hire">Hire · ● ${npc.hire.cost}</button>`);
     buttons.push(`<button data-act="close">Leave</button>`);
     el.innerHTML = `<div class="dlg-head"><div class="dlg-name">${npc.name}</div><div class="dlg-title">${npc.title}</div></div>
       <div class="dlg-line">“${npc.lines[this.talkLine]}”</div>
@@ -601,14 +601,14 @@ export class Hud {
     const el = this.q('#hud-dialog');
     const buy = (npc.shop ?? []).map((s) => {
       const d = ITEMS[s.itemId];
-      return `<div class="row"><span class="item r${d.rarity}">${d.name}</span><span class="desc">${d.desc}</span><button data-act="buy" data-id="${s.itemId}" data-price="${s.price}" ${inv.shards < s.price ? 'disabled' : ''}>Buy ◆ ${s.price}</button></div>`;
+      return `<div class="row"><span class="item r${d.rarity}">${d.name}</span><span class="desc">${d.desc}</span><button data-act="buy" data-id="${s.itemId}" data-price="${s.price}" ${inv.shards < s.price ? 'disabled' : ''}>Buy ● ${s.price}</button></div>`;
     }).join('');
     // (Quest keys are never for sale.)
     const sell = inv.entries.filter((e) => !e.equippedBy && ITEMS[e.itemId].kind !== 'key').map((e) => {
       const d = ITEMS[e.itemId];
-      return `<div class="row"><span class="item r${d.rarity}">${d.name}${e.count > 1 ? ` ×${e.count}` : ''}</span><span class="desc">${RARITY_NAME[d.rarity]}</span><button data-act="sell" data-uid="${e.uid}">Sell ◆ ${d.value}</button></div>`;
+      return `<div class="row"><span class="item r${d.rarity}">${d.name}${e.count > 1 ? ` ×${e.count}` : ''}</span><span class="desc">${RARITY_NAME[d.rarity]}</span><button data-act="sell" data-uid="${e.uid}">Sell ● ${d.value}</button></div>`;
     }).join('') || '<div class="empty">Nothing to sell.</div>';
-    el.innerHTML = `<div class="dlg-head"><div class="dlg-name">${npc.name}</div><div class="dlg-title">Trade · you have ◆ ${inv.shards}</div></div>
+    el.innerHTML = `<div class="dlg-head"><div class="dlg-name">${npc.name}</div><div class="dlg-title">Trade · you have ● ${inv.shards}</div></div>
       <div class="shop-cols"><div><div class="col-title">Buy</div>${buy}</div><div><div class="col-title">Sell</div>${sell}</div></div>
       <div class="dlg-buttons"><button data-act="back">Back</button><button data-act="close">Leave</button></div>`;
     this.wire(el, (act, b) => {
@@ -642,7 +642,7 @@ export class Hud {
       groups[d.kind].push(`<div class="row"><span class="item r${d.rarity}">${d.name}${e.count > 1 ? ` ×${e.count}` : ''}</span><span class="desc">${stats}</span><span class="btns">${btn}</span></div>`);
     }
     const section = (title: string, rows: string[]) => rows.length ? `<div class="col-title">${title}</div>${rows.join('')}` : '';
-    el.innerHTML = `<div class="dlg-head"><div class="dlg-name">Satchel</div><div class="dlg-title">◆ ${inv.shards} Moon Shards · ${me.name} wields a ${me.weapon}</div></div>
+    el.innerHTML = `<div class="dlg-head"><div class="dlg-name">Satchel</div><div class="dlg-title">● ${inv.shards} Gold Coins · ${me.name} wields a ${me.weapon}</div></div>
       <div class="inv-list">${section('Weapons', groups.weapon)}${section('Consumables', groups.consumable)}${section('Charms', groups.charm)}${section('Keys', groups.key)}${section('Materials', groups.material)}${inv.entries.length ? '' : '<div class="empty">Empty. The fog owes you nothing yet.</div>'}</div>
       <div class="dlg-buttons"><button data-act="close">Close (I)</button></div>`;
     this.wire(el, (act, b) => {

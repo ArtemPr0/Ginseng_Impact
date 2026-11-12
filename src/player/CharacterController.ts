@@ -183,6 +183,13 @@ export function createControllerState(pos: Vec3): ControllerState {
   };
 }
 
+/** Stops the hero's stride (a dialogue or shop opened): the paused game no longer steps the controller, and the
+ *  render loop picks the walk/run clip from this velocity, so a stride left in it runs on the spot behind the panel. */
+export function haltController(s: ControllerState): void {
+  s.vel.x = 0;
+  s.vel.z = 0;
+}
+
 /** Starts a dodge roll along `dir` (horizontal, normalised here), or a backstep when `dir` has no length. */
 export function startDash(s: ControllerState, dir: { x: number; z: number }): void {
   const len = Math.hypot(dir.x, dir.z);

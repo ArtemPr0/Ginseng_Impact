@@ -11,7 +11,7 @@
  */
 // QUEST GRAPH EXPECTATIONS (data/quests.ts pays these; lines only move stages):
 // lean: none→active (talk: Glintgrin, "Deal."): +lean-cup, the cup to be signed ; active→signed (kingdom: Yung Lean signs it, the cup for signed-cup) ; signed→done (talk: Glintgrin, "Hand over the cup"; accept it from active too when signed-cup is carried): -signed-cup, +1000 shards
-// books: none→active (talk: Rattlebones, "Buy it (60 Moon Shards)", the choice is gated minShards 60): -60 shards, +old-ledger (Verdigris and the Reader only ask, and add a journal note) ; active→done (talk: the Reader, "Give him the book"): -old-ledger, the castle's falls brighten
+// books: none→active (talk: Rattlebones, "Buy it (60 Gold Coins)", the choice is gated minShards 60): -60 shards, +old-ledger (Verdigris and the Reader only ask, and add a journal note) ; active→done (talk: the Reader, "Give him the book"): -old-ledger, the castle's falls brighten
 // penny: none→secret (talk: Old Penny, "Here. Twenty.", gated minShards 20): -20 shards ; secret→done (talk: Old Penny, "Forty, then.", gated minShards 40 and metMin 2): -40 shards, +lunar-charm
 // bell: none→active (talk: the Fish King, "I will find it.") ; active→found (graph: the Drowned Bell picked up in the lane behind the throne): +drowned-bell ; found→done (talk: the Fish King, "Keep it?"): +700 shards, the hero keeps drowned-bell
 // silence and grave are only read here (gates on told/five/open and none/active); the Stone Head and the Skeleton King move them.
@@ -55,7 +55,7 @@ const BROTHER: LineDef[] = [
   { id: 'brother.topic.why', slot: 'topic', ask: 'Why a signed cup?', text: 'Goldgrin has asked where Yung Lean is since we were tadpole-sized. I want him to stop. A signed cup is a full stop.',
     choices: [{ label: 'Deal.', action: 'quest:lean:active', to: 'brother.topic.deal', when: { quest: ['lean', 'none'] } }, { label: 'On it.', action: 'close' }] },
   { id: 'brother.topic.wait', slot: 'topic', ask: 'No signed cup yet.', voice: 'brother-wait', weight: 6, when: { quest: ['lean', ['active', 'signed']], notItem: 'signed-cup' },
-    text: 'No cup, no shards. Yung Lean is somewhere past the portal. Sad, and rich.',
+    text: 'No cup, no coins. Yung Lean is somewhere past the portal. Sad, and rich.',
     choices: [{ label: 'Working on it.', action: 'close' }] },
   { id: 'brother.topic.have', slot: 'topic', ask: 'I brought the signed cup', weight: 10, when: { quest: ['lean', 'none'], item: 'signed-cup' },
     text: 'Bro. Is that his writing? You walked in with the whole job done. Say deal and I pay.',
@@ -114,15 +114,15 @@ const CRYPT_RED: LineDef[] = [
   { id: 'crypt-red.react.levelup', slot: 'react', text: 'Between the door and the bar you grew. Lean does that to the living. Briefly.', when: { event: 'feat', feat: 'levelup' } },
   // topic: the book for 'books' (buying it is the quest's first step; the graph takes the sixty and hands over the ledger)
   { id: 'crypt-red.topic.ledger', slot: 'topic', ask: 'About the old ledger', weight: 6, when: { quest: ['books', 'none'], notItem: 'old-ledger' },
-    text: 'I own a book. A ledger: a century of debts. The dragon\'s reader wants it, I hear. Nobody down here reads. Sixty shards and it is yours. So is the why.',
+    text: 'I own a book. A ledger: a century of debts. The dragon\'s reader wants it, I hear. Nobody down here reads. Sixty coins and it is yours. So is the why.',
     choices: [
-      { label: 'Buy it (60 Moon Shards)', action: 'quest:books:active', to: 'crypt-red.topic.sold', when: { minShards: 60 } },
+      { label: 'Buy it (60 Gold Coins)', action: 'quest:books:active', to: 'crypt-red.topic.sold', when: { minShards: 60 } },
       { label: 'Why would a skeleton own a ledger?', to: 'crypt-red.topic.why-ledger' },
       { label: 'Too rich for me.', to: 'crypt-red.topic.short', when: { maxShards: 59 } },
       { label: 'Not today.', action: 'close' },
     ] },
   { id: 'crypt-red.topic.why-ledger', slot: 'topic', ask: 'Why own a ledger?', text: 'I am in it. Page forty. Two drinks and a coat. I bought the book so the debt would be mine. It is still in there.',
-    choices: [{ label: 'Buy it (60 Moon Shards)', action: 'quest:books:active', to: 'crypt-red.topic.sold', when: { quest: ['books', 'none'], minShards: 60 } }, { label: 'Keep it, then.', action: 'close' }] },
+    choices: [{ label: 'Buy it (60 Gold Coins)', action: 'quest:books:active', to: 'crypt-red.topic.sold', when: { quest: ['books', 'none'], minShards: 60 } }, { label: 'Keep it, then.', action: 'close' }] },
   { id: 'crypt-red.topic.short', slot: 'topic', ask: 'Sixty is too much for me.', when: { quest: ['books', 'none'] },
     text: 'Sixty. The yard outside is full of skeletons and they are full of bone. Someone buys bone. Come back.',
     choices: [{ label: 'Fine.', action: 'close' }] },
@@ -573,7 +573,7 @@ const VALE_KNIGHT: LineDef[] = [
     choices: [{ label: 'Noted.', action: 'close' }] },
   { id: 'vale-knight.topic.castle', slot: 'topic', ask: 'The castle on chains', text: 'The castle over the clouds sends a lantern down on chains when it wants something. I have never seen anyone go up. I have seen it come down empty.',
     choices: [{ label: 'Noted.', action: 'close' }] },
-  { id: 'vale-knight.topic.penny', slot: 'topic', ask: 'About Old Penny', when: { quest: ['penny', 'none'] }, text: 'Old Penny will ask you for twenty shards. Pay her. She knows which stall waters its ale, and which knight never goes home.',
+  { id: 'vale-knight.topic.penny', slot: 'topic', ask: 'About Old Penny', when: { quest: ['penny', 'none'] }, text: 'Old Penny will ask you for twenty coins. Pay her. She knows which stall waters its ale, and which knight never goes home.',
     choices: [{ label: 'Noted.', action: 'close' }] },
   { id: 'vale-knight.topic.silence', slot: 'topic', ask: 'About the five voices', when: { quest: ['silence', ['told', 'five', 'open']] },
     text: 'The stone head on the island says five voices were swallowed. Here the lanterns do not talk. They point. It is enough.',
@@ -590,30 +590,30 @@ const VALE_KNIGHT: LineDef[] = [
 
 const VALE_BEGGAR: LineDef[] = [
   // greet
-  { id: 'vale-beggar.greet.first', slot: 'greet', text: 'A shard for an old woman? Twenty, and I will tell you which stall waters its ale. And one other thing.', when: { metMax: 0 } },
+  { id: 'vale-beggar.greet.first', slot: 'greet', text: 'A coin for an old woman? Twenty, and I will tell you which stall waters its ale. And one other thing.', when: { metMax: 0 } },
   { id: 'vale-beggar.greet.again', slot: 'greet', text: 'Back. Twenty is still the price. It has gone up everywhere else.', when: { metMin: 1, metMax: 2, quest: ['penny', 'none'] } },
   { id: 'vale-beggar.greet.paid', slot: 'greet', text: 'My benefactor. The ale is still watered. I would have told you for ten. Do not look like that.', when: { metMin: 1, quest: ['penny', ['secret', 'done']] } },
   { id: 'vale-beggar.greet.regular', slot: 'greet', text: 'You keep coming past. Sit. No, do not; the cobbles are mine. Stand there and look rich.', when: { metMin: 3 } },
   { id: 'vale-beggar.greet.knight', slot: 'greet', text: 'A knight with a full cup and a full purse. One of those is coming my way.', when: { hero: 'knight' }, weight: 2 },
   // react
   { id: 'vale-beggar.react.beast', slot: 'react', text: 'You killed a fog beast in the meadow. It used to sniff my bowl. Nothing in it. It knew.', when: { event: 'kill', enemy: 'beast' } },
-  { id: 'vale-beggar.react.golem', slot: 'react', text: 'A crystal sentry, under the king. Did it drop shards? Of course it did. Twenty of them have my name.', when: { event: 'kill', enemy: 'crystalsentry' } },
+  { id: 'vale-beggar.react.golem', slot: 'react', text: 'A crystal sentry, under the king. Did it drop coins? Of course it did. Twenty of them have my name.', when: { event: 'kill', enemy: 'crystalsentry' } },
   { id: 'vale-beggar.react.beast3', slot: 'react', text: 'Three beasts. The meadow is quieter. My bowl is not fuller. Draw your own conclusions, and then pay.', when: { event: 'kill', enemy: 'beast', kills: ['beast', 3] }, weight: 2 },
   { id: 'vale-beggar.react.boss', slot: 'react', text: '{lastBoss}, dead. There is always a purse on a big one. Twenty of it is spoken for. By me. Now.', when: { event: 'kill', boss: true } },
   { id: 'vale-beggar.react.hurt', slot: 'react', text: 'You are bleeding. I would give you a cloth. I would sell you a cloth. Ten.', when: { event: 'hurt' } },
   { id: 'vale-beggar.react.down', slot: 'react', text: 'You went down on the street. I went through your pockets. Nothing. We are even now.', when: { event: 'down' } },
-  { id: 'vale-beggar.react.sip', slot: 'react', text: 'A sip. That is a two-shard sip. I know cups. I had one.', when: { event: 'feat', feat: 'sip', hero: 'knight' } },
+  { id: 'vale-beggar.react.sip', slot: 'react', text: 'A sip. That is a two-coin sip. I know cups. I had one.', when: { event: 'feat', feat: 'sip', hero: 'knight' } },
   { id: 'vale-beggar.react.fly', slot: 'react', text: 'You flew over the street. If you can afford to fly, you can afford twenty.', when: { event: 'feat', feat: 'fly' } },
   { id: 'vale-beggar.react.archer', slot: 'react', text: 'Wren. A bow, a hood, and no purse I can see. I see everything else. The purse is on the left.', when: { hero: 'archer' }, weight: 0.5 },
   { id: 'vale-beggar.react.wizard', slot: 'react', text: 'Orlan floats past my bowl every time. Nothing drops. Floating is cheaper than I thought.', when: { hero: 'wizard' }, weight: 0.5 },
-  { id: 'vale-beggar.react.levelup', slot: 'react', text: 'Grown, have we. Grown people have shards. It is a rule. Twenty.', when: { event: 'feat', feat: 'levelup' } },
+  { id: 'vale-beggar.react.levelup', slot: 'react', text: 'Grown, have we. Grown people have coins. It is a rule. Twenty.', when: { event: 'feat', feat: 'levelup' } },
   { id: 'vale-beggar.react.chest', slot: 'react', text: 'A chest, opened. I heard the lid. I hear lids from three streets. Twenty of what was in it.', when: { event: 'feat', feat: 'chest' } },
   { id: 'vale-beggar.react.crit', slot: 'react', text: 'That hit. Worth money, a hit like that. Twenty.', when: { event: 'feat', feat: 'crit' } },
   { id: 'vale-beggar.react.bought', slot: 'react', text: 'You bought something. From a stall. The stall waters it; they all do. I would have told you that for twenty.', when: { event: 'trade' } },
   { id: 'vale-beggar.react.rich', slot: 'react', text: 'That is a heavy purse. I can hear it from here. It sounds like forty, which is a coincidence.', when: { minShards: 400, quest: ['penny', 'secret'] }, weight: 0.5 },
   // topic: the quest 'penny' (the graph takes the twenty at 'secret'; at 'done' it takes the forty and gives the charm)
-  { id: 'vale-beggar.topic.ask', slot: 'topic', ask: 'Twenty shards for a secret', weight: 8, when: { quest: ['penny', 'none'] },
-    text: 'Twenty shards. For that: the stall that waters its ale, and one thing nobody on this street will tell you for free.',
+  { id: 'vale-beggar.topic.ask', slot: 'topic', ask: 'Twenty coins for a secret', weight: 8, when: { quest: ['penny', 'none'] },
+    text: 'Twenty coins. For that: the stall that waters its ale, and one thing nobody on this street will tell you for free.',
     choices: [
       { label: 'Here. Twenty.', action: 'quest:penny:secret', to: 'vale-beggar.topic.secret', when: { minShards: 20 } },
       { label: 'I have not got it.', to: 'vale-beggar.topic.broke', when: { maxShards: 19 } },
@@ -652,7 +652,7 @@ const VALE_BEGGAR: LineDef[] = [
   { id: 'vale-beggar.bark.twenty', slot: 'bark', text: 'Twenty.' },
   { id: 'vale-beggar.bark.pockets', slot: 'bark', text: 'Pockets.', when: { event: 'down' } },
   { id: 'vale-beggar.bark.purse', slot: 'bark', text: 'There is a purse on it.', when: { event: 'kill' } },
-  { id: 'vale-beggar.bark.spare', slot: 'bark', text: 'Spare a shard.', when: { event: 'hurt' } },
+  { id: 'vale-beggar.bark.spare', slot: 'bark', text: 'Spare a coin.', when: { event: 'hurt' } },
 ];
 
 const VALE_MERCHANT: LineDef[] = [
@@ -782,7 +782,7 @@ const FISH_KING: LineDef[] = [
       { label: 'Not today.', action: 'close' },
     ] },
   { id: 'fish-king.topic.what', slot: 'topic', ask: 'What do I get for it?', when: { quest: ['bell', 'none'] },
-    text: 'Shards. Seven hundred. And a bell that rings under water, which is a sound no one living has heard. The purple chalice is free either way.',
+    text: 'Coins. Seven hundred. And a bell that rings under water, which is a sound no one living has heard. The purple chalice is free either way.',
     choices: [{ label: 'I will find it.', action: 'quest:bell:active', to: 'fish-king.topic.where' }, { label: 'Not today.', action: 'close' }] },
   { id: 'fish-king.topic.where', slot: 'topic', ask: 'Where is the bell?', when: { quest: ['bell', 'active'] },
     text: 'Behind my throne, the lane. Two anglers guard it. They were bell-ringers; they are fish now, with teeth. The bell glows. Everything they keep glows.',
@@ -802,7 +802,7 @@ const FISH_KING: LineDef[] = [
   { id: 'fish-king.topic.after', slot: 'topic', ask: 'I still have your bell.', weight: 2, when: { quest: ['bell', 'done'] },
     text: 'The bell is with you still? Good. The anglers have nothing to guard. They stand in the lane, guarding. Habit is a kind of water.',
     choices: [{ label: 'It is.', action: 'close' }] },
-  { id: 'fish-king.topic.chalice', slot: 'topic', ask: 'About the purple chalice', text: 'Drink from the purple chalice. Forty shards, and you will float a little. Everyone floats a little here; with the chalice, you float on purpose.',
+  { id: 'fish-king.topic.chalice', slot: 'topic', ask: 'About the purple chalice', text: 'Drink from the purple chalice. Forty coins, and you will float a little. Everyone floats a little here; with the chalice, you float on purpose.',
     choices: [{ label: 'Noted.', action: 'close' }] },
   { id: 'fish-king.topic.lamps', slot: 'topic', ask: 'About the jellyfish lamps', text: 'The jellyfish are the lamps. The lamps are rude. They were courtiers, once. The lake did not change them; it only made it visible.',
     choices: [{ label: 'Noted.', action: 'close' }] },
@@ -912,8 +912,8 @@ export const REALMS: DialogueBook = {
   'vale-beggar': {
     persona: {
       id: 'vale-beggar', district: 'vale', knows: ['tavern-room', 'galaxy'], rumourDelay: 90, tone: 'dry',
-      gag: 'Twenty shards; the price of a secret rises every visit, and the dragon owes her money.',
-      about: 'Old Penny, who sits on the Vale street asking for a shard and selling what she knows; she was rich once, before she lent the dragon money.',
+      gag: 'Twenty coins; the price of a secret rises every visit, and the dragon owes her money.',
+      about: 'Old Penny, who sits on the Vale street asking for a coin and selling what she knows; she was rich once, before she lent the dragon money.',
     },
     lines: VALE_BEGGAR,
   },

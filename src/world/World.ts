@@ -1,7 +1,7 @@
 import { Color, Group, type Mesh, type MeshStandardMaterial, type Object3D, Vector3 } from 'three';
 import { REALM_SCULPTS } from '../data/sculpts';
 import { FOLK } from '../data/folk';
-import { ANCHORS, CRYPT_ROOM, GALAXY, ISLAND_PORTALS, LANDMARKS, LAYOUT, REALMS, SINK, SUNKEN, TAVERN_ROOM, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
+import { ANCHORS, CRYPT_ROOM, GALAXY, ISLAND_PORTALS, LANDMARKS, LAYOUT, REALMS, SINK, SKY_EYES, SUNKEN, TAVERN_ROOM, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
 import type { Events, Zone } from '../game/Events';
 import { PALETTE } from '../render/palette';
@@ -640,10 +640,7 @@ export class World {
     this.bouncers.push(...heart.bouncers);
     this.heights.bouncers.push(...heart.bouncers);
     // Eyes in the sky that watch the hero (and glare when shot); the eye pool startles when a shot lands in it.
-    const skyEyes = new SkyEyes([
-      { x: -34, y: 36, z: -60, size: 9 }, { x: 30, y: 42, z: -66, size: 11 }, { x: -92, y: 44, z: -122, size: 10 },
-      { x: 74, y: 46, z: 8, size: 10 }, { x: -62, y: 40, z: 28, size: 8 }, { x: 8, y: 56, z: -120, size: 13 },
-    ]);
+    const skyEyes = new SkyEyes(SKY_EYES);
     this.group.add(skyEyes.group);
     this.watchers.push({ zone: null, update: (dt, cam, p) => skyEyes.update(dt, cam, p) });
     this.shotTargets.push(...skyEyes.targets());

@@ -2,6 +2,7 @@
  * Every structure and creature in the world is "a Meshy model at a spot": this module places one by its
  * registry id, keeps its colliders, and stands a glowing placeholder there until the GLB exists.
  */
+import { settleSpin, steerHeading } from './Drift';
 import { AdditiveBlending, CircleGeometry, DoubleSide, Group, Mesh, MeshBasicMaterial, Vector3 } from 'three';
 import { PALETTE } from '../render/palette';
 import { MODELS } from '../data/models';
@@ -137,16 +138,21 @@ export function riverDrifter(id: string, startS: number, speed: number): ModelLa
   let s = startS;
   let t = 0;
   let spin = 0;
+  let heading = p0.yaw;
   const base = lm.update!;
   lm.update = (dt, player) => {
     t += dt;
     s += dt * speed;
     const p = riverPoint(s);
+    // The river wraps from its west end back to its source: a boat put back there starts bow-on again.
+    if (Math.hypot(p.x - lm.root.position.x, p.z - lm.root.position.z) > 5) { heading = p.yaw; spin = 0; }
     lm.root.position.set(p.x, RIVER_LEVEL + 0.05 + Math.sin(t * 1.4) * 0.06, p.z);
-    // Over the eye pool the vortex takes hold: the boat spins a full turn as it crosses the pupil.
+    // Bow along the current, swinging round at the bends like a hull; over the eye pool the vortex takes hold and
+    // spins it, and once past the pupil it swings back to the current (Drift.ts).
+    heading = steerHeading(heading, p.yaw, dt);
     const pupil = Math.max(0, 1 - Math.hypot(p.x - EYE.x, p.z - EYE.z) / 14);
-    spin += dt * pupil * pupil * 2.6;
-    lm.root.rotation.y = yawToRotation(p.yaw) + spin;
+    spin = settleSpin(spin, pupil, dt);
+    lm.root.rotation.y = yawToRotation(heading) + spin;
     lm.root.rotation.z = Math.sin(t * 1.1) * 0.03;
     base(dt, player);
   };

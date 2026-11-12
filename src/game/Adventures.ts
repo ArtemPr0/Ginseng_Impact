@@ -78,7 +78,7 @@ export class Adventures {
       spend: (n) => d.inventory.spend(n),
       take: (id) => d.inventory.remove(id, 1),
       give: (id) => { d.inventory.add(id, 1); d.audio.loot(itemDef(id)?.rarity ?? 4); d.hud.announce(itemDef(id)?.name ?? id); },
-      pay: (n) => { d.inventory.shards += n; d.audio.coins(6); d.hud.announce(`+${n} Moon Shards`); },
+      pay: (n) => { d.inventory.shards += n; d.audio.coins(6); d.hud.announce(`+${n} Gold Coins`); },
     };
     // A kill's reward (the Third Eye, the Grave Crown, Yung Lean's purse) is paid into the same purse.
     this.quests.wallet = this.wallet;

@@ -68,13 +68,13 @@ export function graves(api: RealmApi, x: number, z: number, r = 11): void {
   api.flora('grave', ring(api, x, z, r, 7, 3));
   api.flora('grave-cross', ring(api, x, z, r, 4, 3));
   api.flora('rune-grave', ring(api, x, z, r, 2, 3));
-  api.flora('dead-forest-tree', [{ x, y: api.h(x, z), z, yaw: api.rnd() * 6, scale: 1 }], { trunk: 0.5 });
+  api.flora('dead-forest-tree', [{ x, y: api.h(x, z), z, yaw: api.rnd() * 6, scale: 1 }], { trunk: 0.05 });
 }
 
 /** A ring of toadstools with one giant among them, lit from under the caps. */
 export function shrooms(api: RealmApi, x: number, z: number): void {
   api.flora('mushroom', ring(api, x, z, 9, 16, 4));
-  api.flora('giant-mushroom', [[0, 0, 1.3], [5.5, 3, 1], [-4, 5, 0.85]].map(([dx, dz, scale]) => ({ x: x + dx, y: api.h(x + dx, z + dz), z: z + dz, yaw: dx, scale })), { trunk: 0.5 });
+  api.flora('giant-mushroom', [[0, 0, 1.3], [5.5, 3, 1], [-4, 5, 0.85]].map(([dx, dz, scale]) => ({ x: x + dx, y: api.h(x + dx, z + dz), z: z + dz, yaw: dx, scale })), { trunk: 0.09 });
   for (let i = 0; i < 4; i++) { const a = i * 1.7, g = glowSprite(0x7fd8ff, 2, 0.4, true); g.position.set(x + Math.cos(a) * 5, api.h(x, z) + 1.1, z + Math.sin(a) * 5); api.group.add(g); }
 }
 
@@ -114,10 +114,10 @@ export function dressVale(api: RealmApi): void {
   shrooms(api, 1046, 872);
   shrooms(api, 870, 925);
   api.flora('giant-flower', ring(api, 1058, 960, 13, 14, 2, [0.8, 1.3]), { wind: 0.12 });
-  api.flora('flower-tree', ring(api, 1050, 990, 12, 5, 3, [0.8, 1.1]), { trunk: 0.4 });
+  api.flora('flower-tree', ring(api, 1050, 990, 12, 5, 3, [0.8, 1.1]), { trunk: 0.04 });
   // Woods on the far side of everything, thick enough to be a place of their own.
-  api.flora('pine', [...field(api, 860, 930, 790, 845, 11), ...field(api, 1020, 1075, 800, 845, 12)].filter((p) => p.y > -3), { trunk: 0.4 });
-  api.flora('gnarled-tree', [...field(api, 852, 900, 880, 905, 14), ...field(api, 850, 925, 975, 1005, 15)].filter((p) => p.y > -3), { trunk: 0.5 });
+  api.flora('pine', [...field(api, 860, 930, 790, 845, 11), ...field(api, 1020, 1075, 800, 845, 12)].filter((p) => p.y > -3), { trunk: 0.035 });
+  api.flora('gnarled-tree', [...field(api, 852, 900, 880, 905, 14), ...field(api, 850, 925, 975, 1005, 15)].filter((p) => p.y > -3), { trunk: 0.05 });
   // (Not in the village, the gate's ruin or the crowned head's mound.)
   api.flora('boulder', [...ring(api, 985, 870, 60, 12, 30, [0.8, 2]), ...ring(api, 900, 960, 40, 8, 20, [0.8, 2])].filter((p) => p.y > -3 && !(p.x > 960 && p.z > 890) && Math.hypot(p.x - 1000, p.z - 830) > 17 && Math.hypot(p.x - 908, p.z - 918) > 24));
 }
@@ -126,8 +126,8 @@ export function dressVale(api: RealmApi): void {
 export function dressKingdom(api: RealmApi): void {
   // (A wood you walk into, not a tree every 24 m; clear of the camp and the lamps.)
   const clear = (p: Placement) => Math.hypot(p.x - 830, p.z + 56) > 9 && ![[860, -56], [930, -56], [980, -58]].some(([x, z]) => Math.hypot(p.x - x, p.z - z) < 3.5);
-  api.flora('purple-mushroom', field(api, 800, 985, -72, -42, 9).filter(clear), { trunk: 0.3 });
-  api.flora('dead-forest-tree', [...field(api, 806, 980, -70, -44, 12).filter(clear), ...field(api, 790, 860, 80, 102, 12)], { trunk: 0.5 });
+  api.flora('purple-mushroom', field(api, 800, 985, -72, -42, 9).filter(clear), { trunk: 0.08 });
+  api.flora('dead-forest-tree', [...field(api, 806, 980, -70, -44, 12).filter(clear), ...field(api, 790, 860, 80, 102, 12)], { trunk: 0.05 });
   api.flora('purple-crystal', [...field(api, 928, 944, -182, -98, 13), ...field(api, 1058, 1074, -182, -98, 13)], { shadows: false });
   for (const [x, z] of [[860, -56], [930, -56], [980, -58]]) { prop(api, 'gothic-lamp', x, z, 0.3, 3); const g = glowSprite(0xc070ff, 2.4, 0.55, true); g.position.set(x, api.h(x, z) + 3.1, z); api.group.add(g); }
   camp(api, 830, -56);
@@ -135,7 +135,7 @@ export function dressKingdom(api: RealmApi): void {
   // stand of dead trees.)
   ruin(api, 990, -160, 0.6);
   shrooms(api, 1040, 80);
-  api.flora('dead-forest-tree', field(api, 1004, 1062, 62, 96, 13).filter((p) => Math.hypot(p.x - 1040, p.z - 80) > 12 && p.y > 10), { trunk: 0.5 });
+  api.flora('dead-forest-tree', field(api, 1004, 1062, 62, 96, 13).filter((p) => Math.hypot(p.x - 1040, p.z - 80) > 12 && p.y > 10), { trunk: 0.05 });
   graves(api, 972, 122, 13);
   graves(api, 812, 90, 9);
   // (The dunes either side of the Skeleton Court, bare on the 2026-11-04 walk: a burial ground under dead trees west,
@@ -143,7 +143,7 @@ export function dressKingdom(api: RealmApi): void {
   graves(api, 924, -150, 10);
   ruin(api, 1082, -128, 2.1);
   const courtSide = (p: Placement) => p.y > 18 && Math.hypot(p.x - 924, p.z + 150) > 11 && Math.hypot(p.x - 1082, p.z + 128) > 17;
-  api.flora('dead-forest-tree', [...field(api, 906, 936, -184, -96, 11), ...field(api, 1064, 1096, -184, -96, 11)].filter(courtSide), { trunk: 0.5 });
+  api.flora('dead-forest-tree', [...field(api, 906, 936, -184, -96, 11), ...field(api, 1064, 1096, -184, -96, 11)].filter(courtSide), { trunk: 0.05 });
 }
 
 /** The drowned land round the sea king's city: wrecks, weed and old stones. */

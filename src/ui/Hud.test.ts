@@ -304,8 +304,10 @@ describe('Hud satchel', () => {
     hud.setParty(ROSTER, 0); // Sir Aldric, the greatsword hand
     hud.inventoryPanel();
     const html = root.querySelector('#hud-dialog').innerHTML;
-    expect(html).toContain('Moon Shards');
+    expect(html).toContain('Gold Coins');
+    expect(html).not.toContain('Moon Shards');
     expect(html).not.toContain('Diamonds');
+    expect(html).not.toContain('◆');
     expect(html).toContain('equipped by Wren');
     expect(html).not.toContain('equipped by archer');
     expect(html).toContain('Sir Aldric wields a greatsword');

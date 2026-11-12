@@ -26,7 +26,7 @@ export interface RealmApi {
   /** Builds what follows into a realm's own group (shown only while the player is inside it); null = the island. */
   realm(id: string | null): void;
   place(l: Landmark): void;
-  /** `trunk`: solid at the trunk, this many metres round. */
+  /** `trunk`: solid at the trunk, a cylinder of this fraction of the tree's height in radius (0.035 a pine, 0.05 a dead tree). */
   flora(id: string, placements: Placement[], opts?: FloraOptions & { trunk?: number }): void;
   vfx(f: { group: Group; update(dt: number): void }): void;
   /** A shot at the hero from something in this world (the dragon's fire). */

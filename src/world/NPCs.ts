@@ -68,14 +68,14 @@ export const NPC_DEFS: NpcDef[] = [
   {
     id: 'king', name: 'The Antlered King', title: 'Who Buys What the Fog Drops', weapon: 'sword',
     model: 'king', accent: PALETTE.witch,
-    lines: ['Kneel or do not. The candles do not care.', 'Bring me what the great ones drop. I pay in shards and in silence.', 'My crown was antlers before it was gold. Everything here was something else first.'],
+    lines: ['Kneel or do not. The candles do not care.', 'Bring me what the great ones drop. I pay in coins and in silence.', 'My crown was antlers before it was gold. Everything here was something else first.'],
     behaviour: { kind: 'stand', pose: 'throne', yaw: Math.PI / 2 },
     shop: [{ itemId: 'crown-blade', price: 900 }, { itemId: 'moon-dew', price: 30 }, { itemId: 'star-chart', price: 220 }],
   },
   {
     id: 'sentry', name: 'Sir Halvard', title: 'Knight of the Lonely Cliff', weapon: 'greatsword',
     model: 'knight-seated', accent: PALETTE.blood,
-    lines: ['Those windows have been lit for a hundred years. No one has come out.', 'I sit. I watch. For three hundred shards I will stand.', 'The pass below is the beast\'s. Go around, or go with me.'],
+    lines: ['Those windows have been lit for a hundred years. No one has come out.', 'I sit. I watch. For three hundred coins I will stand.', 'The pass below is the beast\'s. Go around, or go with me.'],
     behaviour: { kind: 'stand', pose: 'sitSword', yaw: Math.PI * 0.6 },
     hire: { cost: 300, atk: 95, maxHp: 2200, ranged: false },
   },
@@ -129,7 +129,7 @@ export const NPC_DEFS: NpcDef[] = [
   {
     id: 'cook', name: 'Mother Marrow', title: 'Who Stirs the Sea', weapon: 'staff',
     model: 'witch-cook', accent: PALETTE.witch,
-    lines: ['Stir it widdershins or it stirs you.', 'Rot salve. Thirty shards. It smells like the pot. It works like the pot.', 'The castle on the rock? I cooked for them once. They did not come back for seconds.'],
+    lines: ['Stir it widdershins or it stirs you.', 'Rot salve. Thirty coins. It smells like the pot. It works like the pot.', 'The castle on the rock? I cooked for them once. They did not come back for seconds.'],
     behaviour: { kind: 'stand', pose: 'stir', yaw: Math.PI },
     shop: [{ itemId: 'rot-salve', price: 30 }, { itemId: 'witch-staff', price: 320 }],
   },
@@ -157,7 +157,7 @@ export const NPC_DEFS: NpcDef[] = [
   {
     id: 'croak', name: 'Brother Croak', title: 'Frog Monk of the Lotus Pond', weapon: 'staff',
     model: 'frog-monk', accent: PALETTE.rune,
-    lines: ['The lotus opens for the moon, not for you. Sit anyway.', 'Lotus tea steadies the blade hand. Thirty shards.', 'The Frog King dreams in the hollow. Do not wake him with iron.'],
+    lines: ['The lotus opens for the moon, not for you. Sit anyway.', 'Lotus tea steadies the blade hand. Thirty coins.', 'The Frog King dreams in the hollow. Do not wake him with iron.'],
     behaviour: { kind: 'stand', pose: 'read', yaw: Math.PI * 0.4 },
     shop: [{ itemId: 'lotus-tea', price: 30 }, { itemId: 'moon-dew', price: 40 }],
   },
@@ -246,7 +246,7 @@ export const NPC_DEFS: NpcDef[] = [
   {
     id: 'galaxy-wizard', name: 'The Star Brewer', title: 'Wizard of the Round Tower', weapon: 'staff',
     model: 'galaxy-wizard', accent: PALETTE.dusk,
-    lines: ['Pink is the colour of a potion that has made up its mind.', 'Meteors fall past my window every night. I have stopped wishing.', 'One sip and you will see the city as I do. Thirty shards.'],
+    lines: ['Pink is the colour of a potion that has made up its mind.', 'Meteors fall past my window every night. I have stopped wishing.', 'One sip and you will see the city as I do. Thirty coins.'],
     behaviour: { kind: 'stand', pose: 'stir', yaw: 0 },
     shop: [{ itemId: 'lotus-tea', price: 30 }],
   },
@@ -393,9 +393,9 @@ export const NPC_DEFS: NpcDef[] = [
     behaviour: { kind: 'stand', yaw: Math.PI },
   },
   {
-    id: 'vale-beggar', name: 'Old Penny', title: 'Who Asks for Shards', weapon: 'staff',
+    id: 'vale-beggar', name: 'Old Penny', title: 'Who Asks for Coins', weapon: 'staff',
     model: 'wanderer', accent: PALETTE.moon,
-    lines: ['A shard for an old woman? I will tell you which stall waters its ale.', 'I was rich once. Then I lent the dragon money.'],
+    lines: ['A coin for an old woman? I will tell you which stall waters its ale.', 'I was rich once. Then I lent the dragon money.'],
     behaviour: { kind: 'stand', pose: 'sit', yaw: 0 },
   },
   {
@@ -415,7 +415,7 @@ export const NPC_DEFS: NpcDef[] = [
   {
     id: 'fish-king', name: 'The Fish King', title: 'Host of the Sea Castle', weapon: 'staff',
     model: 'fish-king', accent: PALETTE.rune,
-    lines: ['Welcome under the lake. Breathe if you like; it changes nothing down here.', 'The jellyfish are the lamps. The lamps are rude.', 'Drink from the purple chalice. Forty shards, and you will float a little.'],
+    lines: ['Welcome under the lake. Breathe if you like; it changes nothing down here.', 'The jellyfish are the lamps. The lamps are rude.', 'Drink from the purple chalice. Forty coins, and you will float a little.'],
     behaviour: { kind: 'stand', pose: 'offer', yaw: Math.PI / 2 },
     shop: [{ itemId: 'moon-dew', price: 40 }, { itemId: 'lotus-tea', price: 30 }],
   },

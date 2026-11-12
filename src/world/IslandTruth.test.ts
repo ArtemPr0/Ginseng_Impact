@@ -6,7 +6,7 @@
  * (waterLevelAt), exactly as World.ts places it (LANDMARKS, LAYOUT, VILLAGE, ANCHORS, ENEMY_SPAWNS).
  */
 import { describe, expect, it } from 'vitest';
-import { ANCHORS, ISLAND_PORTALS, LANDMARKS, LAYOUT, SINK, VILLAGE, type LandmarkSpot } from '../data/world';
+import { ANCHORS, ISLAND_PORTALS, LANDMARKS, LAYOUT, SINK, SKY_EYES, VILLAGE, type LandmarkSpot } from '../data/world';
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
 import { MODELS } from '../data/models';
 import { gridFootprint, type GridFootprint } from './Colliders';
@@ -157,5 +157,13 @@ describe('the island\'s folk and mobs stand on dry land', () => {
       }
     }
     expect(bad).toEqual([]);
+  });
+});
+
+describe('one eye at a time', () => {
+  it('no watching sky eye hangs over the Blood Eye\'s patrol (side by side they read as one eye with two pupils)', () => {
+    const spawn = ENEMY_SPAWNS.find((s) => s.kind === 'blood-eye')!;
+    const path = [[spawn.x, spawn.z], ...(spawn.patrol ?? [])];
+    for (const e of SKY_EYES) for (const [x, z] of path) expect(Math.hypot(e.x - x, e.z - z), `sky eye at (${e.x},${e.z})`).toBeGreaterThan(30);
   });
 });

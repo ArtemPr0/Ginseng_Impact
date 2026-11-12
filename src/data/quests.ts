@@ -261,7 +261,7 @@ export const QUEST_GRAPH: Record<QuestId, QuestNode> = {
       active: { objective: 'Slay the Grave Cyclops at the end of the Alley of Graves.', marker: AT.graveCyclops },
       // The crown stays with the hero ("Keep it; two crowns on one skull looks desperate").
       slain: { objective: "The crown is yours. Collect the Skeleton King's nine hundred.", marker: AT.skeletonKing, reward: { give: ['grave-crown'] } },
-      done: { objective: 'Nine hundred shards, counted twice. The crown stays on your head.', terminal: true, reward: { shards: 900 } },
+      done: { objective: 'Nine hundred coins, counted twice. The crown stays on your head.', terminal: true, reward: { shards: 900 } },
     },
     triggers: [{ on: 'kill', enemy: 'cyclops-lord', from: 'active', to: 'slain', past: true }],
     voice: voiceOf('grave'),
@@ -294,7 +294,7 @@ export const QUEST_GRAPH: Record<QuestId, QuestNode> = {
     id: 'penny', title: "Old Penny's Secrets", kind: 'side',
     order: ['none', 'secret', 'done'],
     stages: {
-      none: { objective: "Old Penny on the Vale's street sells a secret for twenty shards.", marker: AT.penny },
+      none: { objective: "Old Penny on the Vale's street sells a secret for twenty coins.", marker: AT.penny },
       secret: { objective: 'Old Penny has one more secret. It costs forty, and she likes regulars.', marker: AT.penny, reward: { charge: 20 } },
       done: { objective: "Old Penny told you everything, and gave you the dragon's charm.", terminal: true, reward: { charge: 40, give: ['lunar-charm'] } },
     },
