@@ -1,7 +1,7 @@
 import { loadModelOrWarn, ModelRig, yawToRotation } from '../models/ModelRig';
 import { MissingModelPlaceholder } from '../models/Placeholder';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { Box3, Color, Group, type HSL, type Mesh, type MeshStandardMaterial, type Object3D, Quaternion, type Sprite, SRGBColorSpace, Vector3 } from 'three';
+import { Box3, CircleGeometry, Color, Group, type HSL, Mesh, MeshBasicMaterial, type MeshStandardMaterial, type Object3D, Quaternion, type Sprite, SRGBColorSpace, Vector3 } from 'three';
 import { MODELS, type ModelDef } from '../data/models';
 import { glowSprite } from '../render/Glow';
 import { LeanBubble } from '../render/LeanBubble';
@@ -9,7 +9,7 @@ import { patchTrippy } from '../render/Materials';
 import { patchDissolve } from '../render/CombatFx';
 import { EyeIris } from '../render/EyeIris';
 import { easeLean, slopeTarget, type Lean } from '../characters/SlopeLean';
-import type { EnemyDef } from '../data/enemies';
+import type { EnemyDef, OrbitModel } from '../data/enemies';
 import { PALETTE } from '../render/palette';
 import type { WorldQuery } from '../player/CharacterController';
 import { type AttackTokens, EnemyBrain, type EnemyState } from './EnemyBrain';
@@ -315,7 +315,8 @@ export class Enemy {
     if (!this.alive) this.model.play('death', true);
     const held = MODELS[id]?.held;
     if (held) void loadModelOrWarn(held.model, MODELS[held.model]?.label).then((g) => { if (g) this.hold(held, g); });
-    if (this.def.orbitGems && !this.gems) void loadModelOrWarn('gem', MODELS.gem?.label).then((g) => { if (g) this.buildGems(g, this.def.orbitGems!); });
+    const orbit = this.def.orbit;
+    if (orbit && !this.gems) void loadModelOrWarn(orbit.model, MODELS[orbit.model]?.label).then((g) => { if (g) this.buildGems(g, orbit.model, orbit.count); });
   }
 
   /** Climbs out of the ground over `seconds` (standing up as it comes), then fights. */
@@ -326,27 +327,37 @@ export class Enemy {
     this.brain.stateTime = 0;
   }
 
-  /** The diamonds circling the body (EnemyDef.orbitGems), each with its glint, and when each grows back. */
-  private gems: { group: Group; list: Array<{ obj: Group; back: number }>; t: number } | null = null;
+  /** What circles the body (EnemyDef.orbit: diamonds or double cups), each with its glow, and when each grows back. */
+  private gems: { group: Group; list: Array<{ obj: Group; back: number }>; t: number; spin: boolean } | null = null;
 
-  private buildGems(gltf: GLTF, n: number): void {
+  private buildGems(gltf: GLTF, model: OrbitModel, n: number): void {
     const group = new Group();
     const list: Array<{ obj: Group; back: number }> = [];
     for (let i = 0; i < n; i++) {
-      const rig = new ModelRig('gem', gltf, { cloneMaterials: true });
-      for (const m of rig.materials) { m.color.set(0xe9f2ff); m.emissive.set(0x6a8cff); m.emissiveIntensity = 0.5; }
+      const rig = new ModelRig(model, gltf, { cloneMaterials: true });
       const obj = new Group();
-      rig.root.scale.setScalar(0.5 + (i % 3) * 0.15);
-      obj.add(rig.root, glowSprite(0xdff2ff, 0.7, 0.45, true));
+      if (model === 'lean-cup') {
+        // A double cup brimming with lean, upright (it turns about its own axis, nothing spills), glowing purple.
+        rig.root.scale.setScalar(2.4);
+        rig.root.position.y = -0.2;
+        const lean = new Mesh(new CircleGeometry(0.17, 12), new MeshBasicMaterial({ color: 0x9b3dff, toneMapped: false }));
+        lean.rotation.x = -Math.PI / 2;
+        lean.position.y = 0.15;
+        obj.add(rig.root, lean, glowSprite(0xb36bff, 0.8, 0.45, true));
+      } else {
+        for (const m of rig.materials) { m.color.set(0xe9f2ff); m.emissive.set(0x6a8cff); m.emissiveIntensity = 0.5; }
+        rig.root.scale.setScalar(0.5 + (i % 3) * 0.15);
+        obj.add(rig.root, glowSprite(0xdff2ff, 0.7, 0.45, true));
+      }
       group.add(obj);
       list.push({ obj, back: 0 });
     }
-    this.gems = { group, list, t: Math.random() * 10 };
+    this.gems = { group, list, t: Math.random() * 10, spin: model === 'gem' };
     // (In the scene, not on the body: the body's turn and scale would carry them.)
     this.object.parent?.add(group);
   }
 
-  /** Circles the diamonds round the body: a slow ring at chest height, bobbing; a thrown one grows back in. */
+  /** Circles them round the body: a slow ring at chest height, bobbing; a thrown one grows back in. */
   private animateGems(dt: number): void {
     const g = this.gems;
     if (!g) return;
@@ -357,13 +368,13 @@ export class Enemy {
     g.list.forEach((d, i) => {
       const a = g.t * 0.7 + (i / n) * Math.PI * 2;
       d.obj.position.set(this.pos.x + Math.cos(a) * 1.6, this.pos.y + 1.5 + Math.sin(g.t * 1.3 + i) * 0.45, this.pos.z + Math.sin(a) * 1.6);
-      d.obj.rotation.y = g.t * 2 + i;
+      d.obj.rotation.y = g.t * (g.spin ? 2 : 0.6) + i;
       d.back = Math.max(0, d.back - dt);
       d.obj.scale.setScalar(d.back > 0 ? Math.max(0.001, 1 - d.back / 4) ** 3 : 1);
     });
   }
 
-  /** Takes the circling diamond nearest `to` (it grows back in 4 s): where it was, or null when all are gone. */
+  /** Takes the circling one nearest `to` (it grows back in 4 s): where it was, or null when all are gone. */
   takeGem(to: { x: number; y: number; z: number }): Vector3 | null {
     const g = this.gems;
     if (!g) return null;

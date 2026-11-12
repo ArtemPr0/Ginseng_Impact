@@ -207,7 +207,7 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
     glow(PALETTE.dusk, 1.8, x, gy + 2, z, 0.45);
   }
   api.flora('purple-mushroom', shrooms, { shadows: false });
-  // (Old Hollowstaff, mid-street, is the diamond-throwing boss now: his diamonds circle him (Enemy orbitGems).)
+  // (Old Hollowstaff, mid-street, is the cup-throwing boss now: double cups of lean circle him (EnemyDef.orbit).)
   // The star brewer's tower at the street's north-west corner (DeQ-NnpvqF6).
   api.place(modelLandmark('round-tower', 872, -26, gy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'cyl', x: 872, z: -26, r: 3.6, top: gy + 22 }] }));
   // The lean castle at the street's west end, its windows burning purple, lean pouring off its front into the moat.

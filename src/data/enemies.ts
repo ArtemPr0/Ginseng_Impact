@@ -3,6 +3,10 @@ import type { Element } from '../combat/Elements';
 
 export type EnemyKind = 'beast' | 'bucket' | 'crystalsentry' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity' | 'cyclops' | 'cyclops-lord' | 'blood-eye' | 'trip-wizard' | 'galaxy-knight' | 'mail-knight' | 'diamond-wizard' | 'fish-guard' | 'angler' | 'grave-skeleton' | 'koi' | 'jellyfish' | 'archway-shade' | 'brazier-hermit' | 'vale-knight';
 
+/** What can circle a mob, and the projectile each flies as when thrown. */
+export type OrbitModel = 'gem' | 'lean-cup';
+export const ORBIT_SHOT: Record<OrbitModel, 'gem' | 'cup'> = { gem: 'gem', 'lean-cup': 'cup' };
+
 export type BossAttackKind = 'slam' | 'boulder' | 'roar' | 'volley' | 'summon' | 'blink' | 'roots' | 'sweep' | 'breath' | 'charge' | 'bite' | 'logthrow' | 'punch' | 'grab' | 'cupmortar' | 'cupvolley' | 'snowstorm' | 'web' | 'webdrop' | 'hop' | 'kaleido' | 'eyebeam' | 'mirror' | 'glare' | 'thorns' | 'rainbow' | 'diamond';
 
 export interface BossAttack { kind: BossAttackKind; range: number; windup: number; recover: number; weight: number }
@@ -63,8 +67,8 @@ export interface EnemyDef {
   beamColor?: number;
   /** Its texture glows (emissive from its own colours) at this strength: the Blood Eye burns in the night. */
   glow?: number;
-  /** Diamonds circling it (gem.glb), this many: its 'diamond' attack throws the one nearest the hero. */
-  orbitGems?: number;
+  /** Things circling it (a model, this many): its 'diamond' attack throws the one nearest the hero (ORBIT_SHOT). */
+  orbit?: { model: OrbitModel; count: number };
   /** Lines it says (ids in data/voices): when it spots you, as it throws, as it dies, and when you fall. */
   voices?: { aggro: string[]; attack: string[]; death: string[]; win: string[] };
 }
@@ -155,13 +159,14 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     attacks: [{ kind: 'cupvolley', range: 20, windup: 1.0, recover: 1.3, weight: 3 }, { kind: 'cupmortar', range: 20, windup: 0.8, recover: 1.0, weight: 2 }, { kind: 'sweep', range: 5, windup: 0.6, recover: 1.0, weight: 1 }],
     drops: [{ itemId: 'rune-shard', chance: 1 }, { itemId: 'moon-dew', chance: 1 }], voices: GHOUL_VOICES,
   },
-  // Old Hollowstaff on the bucket street (DeaqHWJBBPw's skeleton wizard): his diamonds circle him, and the one
-  // nearest you is thrown at you; it grows back in a few seconds.
+  // Old Hollowstaff on the bucket street (DeaqHWJBBPw's skeleton wizard): double cups of lean circle him (they were
+  // diamonds; the playtest of 2026-11-12 asked for cups), and the one nearest you is thrown at you; it fills back in a
+  // few seconds.
   'diamond-wizard': {
-    kind: 'diamond-wizard', name: 'Old Hollowstaff', title: 'Who Throws His Diamonds', maxHp: 4800, def: 60, atk: 115, speed: 3.0, element: 'astral', hover: 0, bodyRadius: 0.7, height: 1.9, boss: true,
+    kind: 'diamond-wizard', name: 'Old Hollowstaff', title: 'Who Throws His Cups', maxHp: 4800, def: 60, atk: 115, speed: 3.0, element: 'astral', hover: 0, bodyRadius: 0.7, height: 1.9, boss: true,
     brain: { aggroRange: 15, attackRange: 18, windup: 0.6, recover: 0.6, attackCooldown: 0.5, preferredRange: 9 }, respawn: 220, leash: 18, shards: [140, 210],
     attacks: [{ kind: 'diamond', range: 20, windup: 0.5, recover: 0.5, weight: 5 }, { kind: 'blink', range: 12, windup: 0.5, recover: 0.4, weight: 1 }, { kind: 'sweep', range: 3, windup: 0.6, recover: 1.0, weight: 1 }],
-    drops: [{ itemId: 'rune-shard', chance: 1 }, { itemId: 'star-chart', chance: 0.4 }], collapse: true, orbitGems: 9,
+    drops: [{ itemId: 'rune-shard', chance: 1 }, { itemId: 'star-chart', chance: 0.4 }], collapse: true, orbit: { model: 'lean-cup', count: 9 },
   },
   // Yung Lean himself, off his throne when you challenge him: digital snow, cups, his ghouls.
   'rift-king': {

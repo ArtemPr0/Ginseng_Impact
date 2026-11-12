@@ -4,7 +4,7 @@ import type { Audio } from '../audio/Audio';
 import { CombatSfx, hitMaterial } from '../audio/CombatSfx';
 import type { CharacterDef } from '../characters/roster';
 import type { Game } from '../core/Game';
-import { ENEMY_DEFS, ENEMY_SPAWNS, type BossAttackKind, type EnemyDef, type EnemyKind } from '../data/enemies';
+import { ENEMY_DEFS, ENEMY_SPAWNS, ORBIT_SHOT, type BossAttackKind, type EnemyDef, type EnemyKind } from '../data/enemies';
 import type { ClipName } from '../data/models';
 import { voiceUrl } from '../data/voices';
 import type { Events, HeroId } from '../game/Events';
@@ -1679,12 +1679,13 @@ export class CombatSystem {
     const sc = e.def.scale ?? 1;
     switch (kind) {
       case 'diamond': {
-        // The circling diamond nearest its mark, thrown straight at them, leading a little.
+        // The circling diamond (or double cup) nearest its mark, thrown straight at them, leading a little.
         const from = e.takeGem(t);
         if (!from) { this.enemyBolt(e, 0, 14); break; }
         const to = landing('diamond', t);
         const vel = new Vector3(to.x, to.y, to.z).sub(from).normalize().multiplyScalar(17);
-        const gem = this.spawnProjectile(from, vel, 'enemy', e.def.atk, 1.15, e.def.element, SHOT_RADIUS.diamond ?? 0.75, 0xdff2ff, 0, 0, 1.5, 0, 1, 'gem', { by: e.def.kind });
+        const shot = ORBIT_SHOT[e.def.orbit?.model ?? 'gem'];
+        const gem = this.spawnProjectile(from, vel, 'enemy', e.def.atk, 1.15, e.def.element, SHOT_RADIUS.diamond ?? 0.75, shot === 'cup' ? 0xb36bff : 0xdff2ff, 0, 0, 1.5, 0, 1, shot, { by: e.def.kind });
         // Its landing warning fills on as it flies (straight, at 17 m/s) and ends as it strikes.
         gem.flight = from.distanceTo(_g.set(to.x, to.y, to.z)) / 17;
         this.warnShot(gem, 'diamond', to);
