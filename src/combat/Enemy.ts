@@ -5,6 +5,7 @@ import { Box3, Color, Group, type HSL, type Mesh, type MeshStandardMaterial, typ
 import { MODELS, type ModelDef } from '../data/models';
 import { glowSprite } from '../render/Glow';
 import { leanDisc } from '../render/LeanCup';
+import { pickGait } from './Gait';
 import { LeanBubble } from '../render/LeanBubble';
 import { patchTrippy } from '../render/Materials';
 import { patchDissolve } from '../render/CombatFx';
@@ -221,6 +222,8 @@ export class Enemy {
   private heap: { t: number; bones: Array<{ b: Object3D; from: Quaternion; to: Quaternion; delay: number }>; tipAxis: Vector3; drop: number } | null = null;
   /** Death without a death clip (see topplePose): seconds into the topple, or -1. */
   private toppleT = -1;
+  /** The locomotion clip key it is walking or running in (Gait.pickGait holds it). */
+  private gait = '';
   /** Whom it fights: a companion's place (the object it was handed in `marks`), or null for the hero (marks[0]). */
   private markRef: Mark | null = null;
   /**
@@ -1065,18 +1068,12 @@ export class Enemy {
       if (!(st === 'idle' && !this.returning && m.has('idle_02') && m.play('idle_02'))) m.play('idle');
       return;
     }
-    // Pick the gait whose natural pace is nearest the real one, then match it exactly.
-    let best = '';
-    let bestScale = 1;
-    let bestErr = Infinity;
-    for (const key of ['walk', 'run', 'walking', 'running']) {
-      const rate = m.strideSpeed(key);
-      if (rate <= 0) continue;
-      const scale = v / rate;
-      const err = Math.abs(Math.log(scale));
-      if (err < bestErr) { bestErr = err; best = key; bestScale = scale; }
-    }
-    if (!best) { m.play('idle'); return; }
+    // The gait whose natural pace is nearest the real one, matched exactly; the one it is in is held (Gait.ts).
+    const gait = pickGait(['walk', 'run', 'walking', 'running'].map((key) => ({ key, rate: m.strideSpeed(key) })), v, this.gait);
+    if (!gait) { m.play('idle'); return; }
+    this.gait = gait.key;
+    const best = gait.key;
+    const bestScale = gait.scale;
     const fx = Math.cos(this.yaw);
     const fz = Math.sin(this.yaw);
     const len = Math.hypot(this.moveDirX, this.moveDirZ) || 1;
