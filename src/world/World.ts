@@ -1,5 +1,7 @@
-import { type Bone, Color, Group, Matrix4, type Mesh, type MeshStandardMaterial, type Object3D, type SkinnedMesh, Vector3 } from 'three';
+import { type Bone, Color, Group, Matrix4, type Mesh, type MeshStandardMaterial, Object3D, type SkinnedMesh, Vector3 } from 'three';
 import { socketsInBone } from '../characters/SkullEyes';
+import { blunt } from '../render/Blunt';
+import { PipeSmoke } from '../render/Smoke';
 import { REALM_SCULPTS } from '../data/sculpts';
 import { FOLK } from '../data/folk';
 import { ANCHORS, CRYPT_ROOM, GALAXY, ISLAND_PORTALS, LANDMARKS, LAYOUT, REALMS, SINK, SKY_EYES, SUNKEN, TAVERN_ROOM, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
@@ -157,6 +159,45 @@ function skullEyes(npc: Npc): { group: Group; update(dt: number): void } {
     },
   };
 }
+
+/**
+ * The Skeleton Lord's blunt (Blunt.ts, built in code), held in his right hand's fingers, its ember glowing and its
+ * purple smoke rising from it (it rose from a fixed point at his teeth before; the playtest of 2026-11-12 asked for
+ * the blunt in his hand). Parented to the hand bone, sized back to metres against the skeleton's scale.
+ */
+function bluntInHand(npc: Npc): { group: Group; update(dt: number): void } {
+  const group = new Group();
+  const b = blunt();
+  const holder = new Group();
+  holder.add(b.object);
+  const tip = new Object3D();
+  tip.position.copy(b.ember);
+  b.object.add(tip, Object.assign(glowSprite(0xff7a2a, 0.09, 0.8, true), { position: b.ember.clone() }));
+  const smoke = new PipeSmoke(0xb36bff);
+  tip.add(smoke.emitter);
+  group.add(smoke.particles);
+  let attached = false;
+  const ws = new Vector3();
+  return {
+    group,
+    update: (dt) => {
+      if (!attached && npc.rig.model) {
+        const hand = npc.rig.model.bone(/right.?hand$/i);
+        if (!hand) return;
+        npc.rig.model.root.updateWorldMatrix(true, true);
+        hand.getWorldScale(ws);
+        holder.scale.setScalar(1 / Math.max(1e-4, ws.y));
+        holder.position.set(BLUNT_GRIP.x / ws.y, BLUNT_GRIP.y / ws.y, BLUNT_GRIP.z / ws.y);
+        holder.rotation.set(BLUNT_GRIP.rx, BLUNT_GRIP.ry, BLUNT_GRIP.rz);
+        hand.add(holder);
+        attached = true;
+      }
+      if (attached) smoke.update(dt);
+    },
+  };
+}
+/** Where the blunt sits in the hand bone's frame (metres; the bone's +y runs to the fingers): between the fingers. */
+const BLUNT_GRIP = { x: 0, y: 0.09, z: 0.02, rx: 0, ry: 0, rz: 0 };
 
 /** The diver's brass helmet: its porthole glows white (DeVj-Z8POjl's kelp road), just in front of his head joint. */
 function helmetGlow(npc: Npc): { group: Group; update(dt: number): void } {
@@ -903,6 +944,8 @@ export class World {
     if (diver) { this.enterZone(SUNKEN.id); vfx(helmetGlow(diver)); }
     // The crypt bar's skeletons: green eyes, and gold grills catching the candlelight.
     this.enterZone(CRYPT_ROOM.id);
+    const skeletonLord = this.npcs.find((n) => n.def.id === 'skeleton-lord');
+    if (skeletonLord) { this.enterZone(GALAXY.id); vfx(bluntInHand(skeletonLord)); }
     for (const n of this.npcs) if (n.def.id.startsWith('crypt-')) { vfx(skullEyes(n)); if (n.def.id !== 'crypt-bones') vfx(grillSparkle(n)); }
     CARRIAGE.passenger = this.npcs.find((n) => n.def.id === 'carriage-count') ?? null;
     const waxwick = this.npcs.find((n) => n.def.id === 'waxwick');

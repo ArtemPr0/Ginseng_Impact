@@ -27,7 +27,6 @@ import { Glints, LEAN, meteors, mistLayers, ringedPlanet, skyVortex, tickLeanFx 
 import { clipAbove, patchLitWindows, patchNeckTurn } from '../render/Materials';
 import { gazeStep, type Gaze } from './Gaze';
 import { PALETTE } from '../render/palette';
-import { PipeSmoke } from '../render/Smoke';
 import { cascade } from './Falls';
 import { fire, PURPLE_FIRE } from './Fire';
 import type { Placement } from './Flora';
@@ -192,11 +191,7 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   {
     // (Where the seated lord's feet are: his anchor at the settee's front edge, data/world ANCHORS.)
     const lord = new Vector3(1042.15, 24.53, -160);
-    const smoke = new PipeSmoke(0xb36bff);
-    // At his teeth, seated (the vape the gauntlet holds to his mouth in the reel).
-    smoke.emitter.position.set(lord.x - 0.18, lord.y + 1.36, lord.z);
-    fx.add(smoke.emitter, smoke.particles);
-    updates.push((dt) => smoke.update(dt));
+    // (His smoke rises from the blunt in his right hand now: World.bluntInHand.)
     glints.add(new Vector3(lord.x - 0.16, lord.y + 1.34, lord.z), new Vector3(), 0.05);
     glints.add(new Vector3(lord.x - 0.2, lord.y + 0.95, lord.z), new Vector3(), 0.12);
   }
