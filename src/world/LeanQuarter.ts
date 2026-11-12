@@ -24,7 +24,8 @@ import { fountain } from '../render/Fountain';
 import { landableIsland } from './Islands';
 import { glowSprite } from '../render/Glow';
 import { Glints, LEAN, meteors, mistLayers, ringedPlanet, skyVortex, tickLeanFx } from '../render/LeanFx';
-import { clipAbove, patchLitWindows } from '../render/Materials';
+import { clipAbove, patchLitWindows, patchNeckTurn } from '../render/Materials';
+import { gazeStep, type Gaze } from './Gaze';
 import { PALETTE } from '../render/palette';
 import { PipeSmoke } from '../render/Smoke';
 import { cascade } from './Falls';
@@ -53,6 +54,31 @@ function restyle(model: ModelRig, fn: (mat: MeshStandardMaterial) => void): void
     fn(mat);
     m.material = mat;
   });
+}
+
+/**
+ * lean-dragon.glb's neck (model units, measured: the head rises from the body at z 0.1 on the line x -0.33, its snout at
+ * z 0.95; the wing is on the +x side, the claws below y -0.3), and how far its head looks off the model's yaw (27° left).
+ */
+const LEAN_DRAGON_NECK = { pivot: [-0.22, 0.12] as [number, number], z0: 0.08, z1: 0.38, yMin: -0.25, xCenter: -0.33, xHalf: 0.36 };
+const LEAN_DRAGON_LOOK = Math.PI * 0.15;
+
+/**
+ * A lean dragon that watches you (the playtest of 2026-11-12): within 28 m its body shifts round toward you and its neck
+ * turns its head the rest of the way (Gaze). Its collider is a cylinder, since the body turns.
+ */
+function watchfulDragon(api: RealmApi, x: number, z: number, y: number, home: number, scale: number, extra?: (dt: number, root: Group, m: ModelRig | null, neck: number) => void): void {
+  const turn = { value: 0 };
+  let g: Gaze = { body: home, neck: 0 };
+  const r = 3.2 * scale;
+  api.place(modelLandmark('lean-dragon', x, z, y, { yaw: face(home), scale, collider: 'manual', footprints: [{ kind: 'cyl', x, z, r, top: y + 2.6 * scale }],
+    onLoad: (m) => restyle(m, (mat) => patchNeckTurn(mat, { ...LEAN_DRAGON_NECK, turn })),
+    update: (dt, root, m, player) => {
+      g = gazeStep(g, { x, z }, player, dt, { home, look: LEAN_DRAGON_LOOK, reach: 28, body: 0.6, neck: 0.7 });
+      root.rotation.y = face(g.body);
+      turn.value = g.neck;
+      extra?.(dt, root, m, g.neck);
+    } }));
 }
 
 /** tavern-table.glb's top at scale 1: half its length (local x) and width (local z), and its height. */
@@ -113,7 +139,8 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   glints.add(new Vector3(1000, gy + 1.9, -170.2), new Vector3(), 0.3);
   // The reel's two black dragons flanking the throne, heads up, facing down the court (+z: the model itself looks
   // about 27° to the left of its yaw, checked from the court).
-  for (const side of [-1, 1]) api.place(modelLandmark('lean-dragon', 1000 + side * 8.5, -172, gy, { yaw: face(Math.PI * 0.35), scale: 0.85 }));
+  // They watch you come up the court (watchfulDragon).
+  for (const side of [-1, 1]) watchfulDragon(api, 1000 + side * 8.5, -172, gy, Math.PI * 0.35, 0.85);
   // Dragon-head fountains along both sides, each pouring lean into its basin; tiered fountains down the aisle.
   for (const side of [-1, 1]) {
     for (const z of [-108, -138]) {
@@ -343,8 +370,9 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
     for (let i = 0; i < 10; i++) { const s = glowSprite(LEAN, 0.16, 0.9, true); s.visible = false; fx.add(s); drips.push({ s, v: 0, age: 0 }); }
     const mouth = new Vector3();
     let dripIn = 0;
-    api.place(modelLandmark('lean-dragon', dx, dz, gy, { yaw: face(Math.PI * 0.9), footprints: [{ kind: 'cyl', x: dx, z: dz, r: 3.2, top: gy + 2.6 }],
-      update: (dt, root, m) => {
+    // (He watches you too; the drips fall from his jaws wherever his head has turned.)
+    const U = MODELS['lean-dragon'].height / 1.111, P = LEAN_DRAGON_NECK.pivot;
+    watchfulDragon(api, dx, dz, gy, Math.PI * 0.9, 1, (dt, root, m, neck) => {
         t += dt;
         // A slow breath, and lean dripping from his jaws (the reel's dragon drinks with a cup pressed to his teeth).
         root.scale.setScalar(1 + Math.sin(t * 0.9) * 0.008);
@@ -354,10 +382,15 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
         if (dripIn <= 0) {
           dripIn = 0.25 + Math.random() * 0.5;
           const d = drips.find((x) => !x.s.visible);
-          if (d) { root.localToWorld(mouth.set((Math.random() - 0.5) * 0.3, MODELS['lean-dragon'].height * 0.55, MODELS['lean-dragon'].height * 0.95)); d.s.position.copy(mouth); d.v = 0; d.age = 0; d.s.visible = true; }
+          if (d) {
+            // The snout (x -0.36, z 0.9 model units) swung about the neck's pivot as patchNeckTurn swings it.
+            const ox = -0.36 - P[0], oz = 0.9 - P[1], c = Math.cos(neck), sn = Math.sin(neck);
+            root.localToWorld(mouth.set((P[0] + c * ox + sn * oz) * U + (Math.random() - 0.5) * 0.3, MODELS['lean-dragon'].height * 0.55, (P[1] - sn * ox + c * oz) * U));
+            d.s.position.copy(mouth); d.v = 0; d.age = 0; d.s.visible = true;
+          }
         }
         for (const d of drips) { if (!d.s.visible) continue; d.age += dt; d.v -= 9.8 * dt; d.s.position.y += d.v * dt; if (d.age > 0.8 || d.s.position.y < gy) d.s.visible = false; }
-      } }));
+      });
     glints.add(new Vector3(dx - 2.4, gy + 2.3, dz - 0.4), new Vector3(), 0.4);
   }
   // The sky bar: a booth on chains at the island's near side. It is shut (its window is part of the model), so Old Ribs
