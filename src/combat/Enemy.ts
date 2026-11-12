@@ -1,9 +1,10 @@
 import { loadModelOrWarn, ModelRig, yawToRotation } from '../models/ModelRig';
 import { MissingModelPlaceholder } from '../models/Placeholder';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { Box3, CircleGeometry, Color, Group, type HSL, Mesh, MeshBasicMaterial, type MeshStandardMaterial, type Object3D, Quaternion, type Sprite, SRGBColorSpace, Vector3 } from 'three';
+import { Box3, Color, Group, type HSL, type Mesh, type MeshStandardMaterial, type Object3D, Quaternion, type Sprite, SRGBColorSpace, Vector3 } from 'three';
 import { MODELS, type ModelDef } from '../data/models';
 import { glowSprite } from '../render/Glow';
+import { leanDisc } from '../render/LeanCup';
 import { LeanBubble } from '../render/LeanBubble';
 import { patchTrippy } from '../render/Materials';
 import { patchDissolve } from '../render/CombatFx';
@@ -340,8 +341,7 @@ export class Enemy {
         // A double cup brimming with lean, upright (it turns about its own axis, nothing spills), glowing purple.
         rig.root.scale.setScalar(2.4);
         rig.root.position.y = -0.2;
-        const lean = new Mesh(new CircleGeometry(0.17, 12), new MeshBasicMaterial({ color: 0x9b3dff, toneMapped: false }));
-        lean.rotation.x = -Math.PI / 2;
+        const lean = leanDisc(0.17);
         lean.position.y = 0.15;
         obj.add(rig.root, lean, glowSprite(0xb36bff, 0.8, 0.45, true));
       } else {
