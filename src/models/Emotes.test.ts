@@ -40,6 +40,12 @@ describe('reactionFor', () => {
     expect(reactionFor('wave', false, () => 0)?.key).toBe('wave');
   });
 
+  it('gets bored standing about: a little dance or jumping jacks; never from a seat', () => {
+    expect(['dance', 'jacks']).toContain(reactionFor('bored', false, () => 0)?.key);
+    expect(['dance', 'jacks']).toContain(reactionFor('bored', false, () => 0.99)?.key);
+    expect(reactionFor('bored', true, () => 0.5)).toBeNull();
+  });
+
   it('lasts a few seconds', () => {
     for (const k of ['kill', 'boss', 'wipe', 'wave', 'levelup'] as const) {
       const r = reactionFor(k, false, () => 0.3);

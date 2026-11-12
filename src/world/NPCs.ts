@@ -436,6 +436,8 @@ export class Npc {
   private emote: { key: NonNullable<RigPose['pose']>; left: number } | null = null;
   /** Waved at the hero on this approach (reset once the hero is 20 m off). */
   private waved = false;
+  /** Seconds of the hero being near before it gets bored and breaks into a little dance (react('bored')). */
+  private boredIn = 20 + Math.random() * 40;
   readonly rig: Rig;
   readonly object: Group;
   readonly pos = new Vector3();
@@ -682,6 +684,8 @@ export class Npc {
     const far = Math.hypot(player.x - this.pos.x, player.z - this.pos.z);
     if (far > 20) this.waved = false;
     else if (far < 6 && !this.waved && !talking && !moving) { this.waved = true; this.react('wave'); }
+    // Now and then, with the hero about to see it, a little dance or jumping jacks for nobody in particular.
+    if (far < 25 && !talking && !moving && !this.emote && (this.boredIn -= dt) <= 0) { this.boredIn = 25 + Math.random() * 45; this.react('bored'); }
     if (this.emote) { this.emote.left -= dt; if (this.emote.left <= 0 || talking || moving) this.emote = null; }
     const pose = this.emote ? this.emote.key : b.kind === 'guard' && moving ? undefined : this.speaking > 0 ? 'talk' : talking ? (this.def.voice ? b.kind === 'stand' ? b.pose : undefined : undefined) : b.kind === 'stand' || b.kind === 'guard' || b.kind === 'loop' ? b.pose : undefined;
     // The hero within ten metres, ahead of it: the head follows, the pose stays.

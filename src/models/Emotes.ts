@@ -18,7 +18,7 @@ export function emotesFor(def: { clipFiles?: Partial<Record<string, string>>; em
   return out;
 }
 
-export type Moment = 'kill' | 'boss' | 'wipe' | 'wave' | 'levelup';
+export type Moment = 'kill' | 'boss' | 'wipe' | 'wave' | 'levelup' | 'bored';
 
 const KILL = ['cheer', 'dance', 'ymca', 'jacks'];
 
@@ -28,12 +28,13 @@ const KILL = ['cheer', 'dance', 'ymca', 'jacks'];
  * NPC would lift it off its chair).
  */
 export function reactionFor(moment: Moment, seated: boolean, rand: () => number = Math.random): { key: string; seconds: number } | null {
-  if (seated) return moment === 'wave' ? null : { key: 'clap', seconds: 3 };
+  if (seated) return moment === 'wave' || moment === 'bored' ? null : { key: 'clap', seconds: 3 };
   switch (moment) {
     case 'kill': return { key: KILL[Math.min(KILL.length - 1, Math.floor(rand() * KILL.length))], seconds: 3 };
     case 'boss': return { key: 'ymca', seconds: 7 };
     case 'wipe': return { key: 'shrug', seconds: 2.5 };
     case 'wave': return { key: 'wave', seconds: 2.2 };
     case 'levelup': return { key: 'cheer', seconds: 3 };
+    case 'bored': return rand() < 0.5 ? { key: 'dance', seconds: 4 } : { key: 'jacks', seconds: 3 };
   }
 }
