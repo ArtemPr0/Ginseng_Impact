@@ -401,7 +401,9 @@ const GALAXY_SCULPT: RealmSculpt = {
   // No hills on the plaza's open east edge, where the lean waves leave for the cups.
   hills: { amp: 3, wavelength: 60, seed: 11, mask: (x) => 1 - smoothstep(1040, 1058, x) },
   land: {
-    kind: 'pads', margin: 28, wobble: 5,
+    // (28 m left bare dunes either side of Bucket Street: the playtest of 2026-11-12, "shrink it so every step has
+    // something".)
+    kind: 'pads', margin: 18, wobble: 5,
     // Rolling ground south of the plaza (behind the ring portals), held back from the cups' line.
     extra: [{ name: 'plaza-south', rect: [956, 1044, 76, 80], margin: 18, wobble: 3 }],
   },
@@ -533,12 +535,17 @@ const VALE_SCULPT: RealmSculpt = {
     },
   },
   land: {
-    kind: 'pads', margin: 35, wobble: 5,
+    // (35 m left a bare meadow round the village: the playtest of 2026-11-12, "too much empty land, shrink it".)
+    kind: 'pads', margin: 20, wobble: 5,
     // Beyond the pads' 35 m: the hill, the river to both its ends, and the meadows the mobs roam (the fog beasts by the
     // tavern, east toward the castle and over the river; the sentries on the hill). The cliff falls east of x ≈ 1085, so the
     // floating castle (x 1115..1145) and its chained platforms (x 1103+) stay over the void.
     extra: [
       { name: 'hill', disc: VALE_DOME.disc },
+      // The river from end to end, the fallen gate north of the dragon and the graves west of the hill.
+      { name: 'river', rect: [VALE.x - 62, VALE.x - 28, VALE.z - 120, VALE.z + 125], margin: 4 },
+      { name: 'north-gate', disc: { x: VALE.x, z: VALE.z - 70, r: 14 }, margin: 8 },
+      { name: 'west-graves', disc: { x: VALE.x - 120, z: VALE.z - 30, r: 12 }, margin: 8 },
       { name: 'river-south', disc: { x: VALE.x - 48, z: VALE.z - 88, r: 34 }, margin: 12 },
       { name: 'river-north', disc: { x: VALE.x - 52, z: VALE.z + 110, r: 22 }, margin: 12 },
       { name: 'west-meadow', disc: { x: VALE.x - 70, z: VALE.z + 85, r: 20 }, margin: 10 },

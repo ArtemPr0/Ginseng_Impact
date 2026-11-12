@@ -140,9 +140,10 @@ export function dressVale(api: RealmApi): void {
 /** The kingdom's margins: a purple wood north of Bucket Street, crystal outcrops by the court, more graves in the snow. */
 export function dressKingdom(api: RealmApi): void {
   // (A wood you walk into, not a tree every 24 m; clear of the camp and the lamps.)
-  const clear = (p: Placement) => Math.hypot(p.x - 830, p.z + 56) > 9 && ![[860, -56], [930, -56], [980, -58]].some(([x, z]) => Math.hypot(p.x - x, p.z - z) < 3.5);
+  // (On the land: the margins were cut back on 2026-11-12, so a field reaching past them stops at the rim.)
+  const clear = (p: Placement) => p.y > 20 && Math.hypot(p.x - 830, p.z + 56) > 9 && ![[860, -56], [930, -56], [980, -58]].some(([x, z]) => Math.hypot(p.x - x, p.z - z) < 3.5);
   api.flora('purple-mushroom', field(api, 800, 985, -72, -42, 9).filter(clear), { trunk: 0.08 });
-  api.flora('dead-forest-tree', [...field(api, 806, 980, -70, -44, 12).filter(clear), ...field(api, 790, 860, 80, 102, 12)], { trunk: 0.05 });
+  api.flora('dead-forest-tree', [...field(api, 806, 980, -70, -44, 12).filter(clear), ...field(api, 790, 860, 80, 102, 12).filter((p) => p.y > 20)], { trunk: 0.05 });
   api.flora('purple-crystal', [...field(api, 928, 944, -182, -98, 13), ...field(api, 1058, 1074, -182, -98, 13)], { shadows: false });
   for (const [x, z] of [[860, -56], [930, -56], [980, -58]]) { prop(api, 'gothic-lamp', x, z, 0.3, 3); const g = glowSprite(0xc070ff, 2.4, 0.55, true); g.position.set(x, api.h(x, z) + 3.1, z); api.group.add(g); }
   camp(api, 830, -56);
@@ -153,7 +154,7 @@ export function dressKingdom(api: RealmApi): void {
   shrooms(api, 1040, 80);
   api.flora('dead-forest-tree', field(api, 1004, 1062, 62, 96, 13).filter((p) => Math.hypot(p.x - 1040, p.z - 80) > 12 && p.y > 10), { trunk: 0.05 });
   graves(api, 972, 122, 13);
-  graves(api, 812, 90, 9);
+  graves(api, 834, 86, 9);
   // (The dunes either side of the Skeleton Court, bare on the 2026-11-04 walk: a burial ground under dead trees west,
   // a fallen gatehouse east, the trees thinning out to the void.)
   graves(api, 924, -150, 10);

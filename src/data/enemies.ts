@@ -432,13 +432,13 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   // at the fallen gate.
   { kind: 'beast', x: 880, z: 835 }, { kind: 'beast', x: 892, z: 842 }, { kind: 'beast', x: 870, z: 846 },
   { kind: 'beast', x: 1045, z: 822 }, { kind: 'beast', x: 1056, z: 830 },
-  { kind: 'beast', x: 1010, z: 1030 }, { kind: 'beast', x: 985, z: 1035 }, // the vale's bare south meadow
+  { kind: 'beast', x: 1010, z: 1030 }, { kind: 'beast', x: 988, z: 1022 }, // the vale's south meadow
   { kind: 'grave-skeleton', x: 890, z: 860 }, { kind: 'grave-skeleton', x: 874, z: 876 },
   { kind: 'grave-skeleton', x: 915, z: 808 }, { kind: 'grave-skeleton', x: 922, z: 820 }, { kind: 'grave-skeleton', x: 908, z: 820 },
   { kind: 'crystalsentry', x: 1008, z: 838 }, { kind: 'crystalsentry', x: 992, z: 822 },
   // The kingdom's margins: imps in the purple wood, the dead at their graves.
   { kind: 'styro-ghoul', x: 880, z: -56 }, { kind: 'styro-ghoul', x: 900, z: -50 }, { kind: 'styro-ghoul', x: 950, z: -60 },
-  { kind: 'mail-knight', x: 832, z: -48 }, { kind: 'grave-skeleton', x: 965, z: 112 }, { kind: 'grave-skeleton', x: 815, z: 96 },
+  { kind: 'mail-knight', x: 832, z: -48 }, { kind: 'grave-skeleton', x: 965, z: 112 }, { kind: 'grave-skeleton', x: 836, z: 88 },
   // The drowned land beyond the city: anglers among the wrecks.
   { kind: 'angler', x: -1062, z: -52 }, { kind: 'angler', x: -938, z: -92 }, { kind: 'angler', x: -1066, z: 42 }, { kind: 'angler', x: -942, z: 50 },
   // Beyond the alley's walls.
