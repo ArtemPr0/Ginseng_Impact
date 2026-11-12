@@ -1126,7 +1126,7 @@ function cutDoor(root: Object3D, d: { x: number; z: number; halfWidth: number; f
 
 /** Ground kept clear of trees around the island's landmarks (x, z, radius). */
 // (Read from the layout tables: literal copies went stale when the arch gate and the tree house moved, and pines grew through them.)
-const CLEARING_RADIUS: Record<string, number> = { 'colossus-statue': 11, archgate: 8, nave: 15, observatory: 10, 'candle-gate': 8 };
+const CLEARING_RADIUS: Record<string, number> = { 'colossus-statue': 11, archgate: 8, observatory: 10, 'candle-gate': 8 };
 const LANDMARK_CLEARINGS = [
   ...LANDMARKS.filter((l) => l.id in CLEARING_RADIUS).map((l) => ({ x: l.x, z: l.z, r: CLEARING_RADIUS[l.id] })),
   { x: LAYOUT.tower.x, z: LAYOUT.tower.z, r: 17 },

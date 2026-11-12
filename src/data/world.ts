@@ -127,8 +127,7 @@ export const SKY_EYES: readonly { x: number; y: number; z: number; size: number 
 ];
 
 export const LANDMARKS: readonly LandmarkSpot[] = [
-  // Beside the stone head on the north half: the last flat open ground there (it once stood over the chasm).
-  { id: 'nave', x: 18, z: -136, sink: 0.4 },
+  // (The ruined nave stood beside the stone head at (18, -136), inside the Hollow King's body: it is in the Sunken City now.)
   // On the Frost March's flat north of the chasm (at (70, -72) it stood on the chasm's north cliff face).
   { id: 'archgate', x: 56, z: -84, yaw: 0, sink: 0.3 },
   { id: 'colossus-statue', x: 10, z: -96, yaw: 0.9, sink: 0.5 },
@@ -140,7 +139,7 @@ export const LANDMARKS: readonly LandmarkSpot[] = [
   { id: 'cloister', x: 33.5, z: 64.5, at: { x: 33.5, z: 68 } },
   { id: 'observatory', x: LAYOUT.observatory.x, z: LAYOUT.observatory.z, sink: 0.2 },
   { id: 'cauldron', x: 24, z: 77 },
-  // The gothic gate (DeSEl9PvPG_) beside the road to the stone head, a ruined gate into the nave's precinct: its steps
+  // The gothic gate (DeSEl9PvPG_) beside the road to the stone head, a ruined gate into the old precinct: its steps
   // face the road (local +z turned to -x), the arch is walked through. (On the road itself it sat in the 4 m climb to
   // the head's chin, and its footing made a bank across the path.)
   { id: 'candle-gate', x: 37, z: -128, yaw: -Math.PI / 2, sink: 0.3 },
@@ -462,9 +461,8 @@ export const FLATS: {
     { x: 0, z: -146, r: 8.5 }, // the stone head (10.3 x 12.4 m, sunk 3 m)
     // The hamlet knoll's top and its houses (the farthest, at (26, -14), reaches 18.9 m out).
     { x: KNOLL.x, z: KNOLL.z, r: KNOLL.r + 2 },
-    // Model slots waiting for their GLB (they render nothing yet): the ruined nave, the frozen arch gate, the colossus
-    // statue by the dead wood, and the ruins.
-    { x: 18, z: -136, r: 10 },
+    // Model slots waiting for their GLB (they render nothing yet): the frozen arch gate, the colossus statue by the dead
+    // wood, and the ruins.
     { x: 37, z: -128, r: 6 }, // the candle gate
     { x: 56, z: -84, r: 5 },
     { x: 10, z: -96, r: 6 },
@@ -510,7 +508,6 @@ export const FOOTINGS: ReadonlyArray<{ x: number; z: number; r: number; blend: n
   { x: 56, z: -84, r: 4.5, blend: 2 },   // the arch gate on the Frost March
   { x: LAYOUT.treehouse.x, z: LAYOUT.treehouse.z, r: 10, blend: 2.5 },
   { x: 10, z: -96, r: 4.6, blend: 2 },   // the colossus statue
-  { x: 18, z: -136, r: 11, blend: 3 },   // the ruined nave
-  { x: 37, z: -128, r: 5, blend: 2.5 },  // the candle gate, east of the nave, clear of its footing ring (beside the road it sat in the Ember Rider's pad)
+  { x: 37, z: -128, r: 5, blend: 2.5 },  // the candle gate (beside the road it sat in the Ember Rider's pad)
   ...LAYOUT.ruins.map((r) => ({ x: r.x, z: r.z, r: r.arch ? 3.2 : 1.6, blend: r.arch ? 1.8 : 1.2 })),
 ];

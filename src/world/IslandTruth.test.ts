@@ -189,3 +189,10 @@ describe('the Marsh Sovereign\'s mud pool', () => {
     expect(m.mud - terrainHeight(m.x, m.z, noise), 'depth at the middle').toBeGreaterThan(1.2);
   });
 });
+
+describe('the Hollow King', () => {
+  it('has his ground to himself: no island building inside his body (48 m across at 25 m tall)', () => {
+    const king = ENEMY_SPAWNS.find((s) => s.kind === 'hollowking')!;
+    for (const l of LANDMARKS) expect(Math.hypot(l.x - king.x, l.z - king.z), l.id).toBeGreaterThan(17);
+  });
+});

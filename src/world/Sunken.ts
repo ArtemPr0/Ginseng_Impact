@@ -41,6 +41,17 @@ const HOUSE_FRONT = 5.9;
 const CASTLE_YAW = 0;
 /** Rotation that turns a model's front (local +z) toward world direction `yaw` (cos, sin). */
 const face = (yaw: number) => Math.PI / 2 - yaw;
+/** mulberry32: the street's own seeded dice (the layout must not shift when other dressing draws from api.rnd). */
+function seededRandom(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 const TEAL_FIRE = { core: 0x2ff0d0, inner: 0xc8fff4, ember: 0x10b8a0 };
 const LANTERN = 0xffa040;
 
@@ -48,6 +59,41 @@ const LANTERN = 0xffa040;
 export const SUNKEN_FLOOR = [-1040, -960, -140, 70] as const;
 /** Where the hero arrives from the pond, facing up the kelp road (north). */
 export const SUNKEN_ARRIVAL = { x: SUNKEN.x, z: SUNKEN.z + 56 };
+
+/**
+ * The drowned street's extent (relative to the realm's x): houses stand from z0 to z1, never nearer the middle than
+ * `clear` (the way through to the castle, which the fish swim down), never nearer each other than `spacing`.
+ */
+export const STREET = { z0: -50, z1: 14, clear: 8, reach: 34, spacing: 13.5 } as const;
+/** Ground the houses keep off: the long goblet tables and barrels before the gate, and the ruined nave. */
+export const DROWNED_RESERVED: ReadonlyArray<{ dx: number; z: number; r: number; what: string }> = [
+  { dx: -7.2, z: -56, r: 8, what: 'west goblet table' }, { dx: 7.2, z: -56, r: 8, what: 'east goblet table' },
+  { dx: -11, z: -58.5, r: 6, what: 'west barrels' }, { dx: 11, z: -58.5, r: 6, what: 'east barrels' },
+  { dx: 24, z: -26, r: 15, what: 'the ruined nave' },
+];
+/** Where the ruined nave lies, fallen into the street's east side (it stood in the Hollow King's body on the island). */
+export const DROWNED_NAVE = { dx: 24, z: -26, yaw: 0.5, tilt: 0.06, sink: 1.2 } as const;
+
+/**
+ * The drowned street's houses as the sea left them: scattered either side of the way through, at odd distances,
+ * turned every which way, leaning and sunk into the silt (they stood in two straight rows, fronts to the street).
+ * dx is from the realm's x; yaw is the world direction the front faces.
+ */
+export function drownedLayout(rnd: () => number): Array<{ dx: number; z: number; yaw: number; tilt: number; sink: number }> {
+  const out: Array<{ dx: number; z: number; yaw: number; tilt: number; sink: number }> = [];
+  for (let tries = 0; tries < 900 && out.length < 15; tries++) {
+    const side = rnd() < 0.5 ? -1 : 1;
+    const dx = side * (STREET.clear + rnd() * (STREET.reach - STREET.clear));
+    const z = STREET.z0 + rnd() * (STREET.z1 - STREET.z0);
+    if (out.some((h) => Math.hypot(h.dx - dx, h.z - z) < STREET.spacing)) continue;
+    if (DROWNED_RESERVED.some((r) => Math.hypot(r.dx - dx, r.z - z) < r.r)) continue;
+    // Most still face the way through, knocked askew; one in four turned right round by the sea.
+    const toStreet = side < 0 ? 0 : Math.PI;
+    const yaw = rnd() < 0.25 ? rnd() * Math.PI * 2 : toStreet + (rnd() - 0.5) * 1.6;
+    out.push({ dx, z, yaw, tilt: (rnd() - 0.5) * 0.14, sink: rnd() * 0.9 });
+  }
+  return out;
+}
 
 function restyle(model: ModelRig, fn: (mat: MeshStandardMaterial) => void): void {
   model.root.traverse((o) => {
@@ -59,7 +105,20 @@ function restyle(model: ModelRig, fn: (mat: MeshStandardMaterial) => void): void
   });
 }
 
-/** Builds the city into its realm; returns the ways home (the bubble column and the green door). */
+/** The sea's surface over the city: rising through it takes you home (y; the band either side of it that counts). */
+export const SUNKEN_SURFACE = { y: SUNKEN.y + 30, band: 1.5 } as const;
+/** Goblet spots along a long table's top (z from its middle: tavern-table.glb's top runs ±1.0 m). */
+export const TABLE_SPOTS = [-0.75, -0.25, 0.25, 0.75] as const;
+
+/**
+ * The surface as a way home: one link as wide as the realm, at the surface's height, out in the lily pond's shallows
+ * by the whirlpool you went down through.
+ */
+export function surfaceExit(link: (at: Vector3, radius: number, height: number, x: number, z: number, yaw: number, name: string) => PortalLink): PortalLink {
+  return link(new Vector3(SUNKEN.x, SUNKEN_SURFACE.y, SUNKEN.z), SUNKEN.radius, SUNKEN_SURFACE.band, POND_EXIT.x, POND_EXIT.z, POND_EXIT.yaw, 'The Lily Pond');
+}
+
+/** Builds the city into its realm; returns the ways home (the bubble column and the sea's surface). */
 export function buildSunken(api: RealmApi, link: (at: Vector3, radius: number, height: number, x: number, z: number, yaw: number, name: string) => PortalLink): PortalLink[] {
   const S = SUNKEN;
   const sy = S.y;
@@ -78,7 +137,7 @@ export function buildSunken(api: RealmApi, link: (at: Vector3, radius: number, h
   // ===== The water itself =====
   const fx = new Group();
   fx.add(causticFloor(fcx, fcz, fw, fd, sy));
-  fx.add(waterCeiling(fcx, fcz, fw + 200, fd + 200, sy + 30, X + 6, -98));
+  fx.add(waterCeiling(fcx, fcz, fw + 200, fd + 200, SUNKEN_SURFACE.y, X + 6, -98));
   fx.add(lightShafts([
     { x: X + 3, y: sy + 30, z: -96, length: 34, width: 5 }, { x: X - 4, y: sy + 30, z: -74, length: 33, width: 3.5, tilt: 0.12 },
     { x: X + 2, y: sy + 30, z: -40, length: 32, width: 4, tilt: 0.22 }, { x: X - 3, y: sy + 30, z: -12, length: 32, width: 3, tilt: 0.15 },
@@ -110,26 +169,29 @@ export function buildSunken(api: RealmApi, link: (at: Vector3, radius: number, h
   for (const t of kelpTrees) api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: t.x, z: t.z, r: 0.35 * t.scale, top: sy + 6 }] });
 
   // ===== 2. The drowned street (z 18 → -56) =====
-  const houseZs = [12, 2, -8, -18, -28, -38, -48];
-  // Orange lanterns hung on the house fronts on both sides, up the street (they hung in the gaps between the houses).
+  // Houses thrown about by the sea either side of the way through (drownedLayout), each with its warm windows and an
+  // orange lantern hung on its front; the ruined nave fallen in among them on the east side.
   const lanterns: Placement[] = [];
   const HOUSE = PRESENT_MODELS.has('drowned-house') ? 'drowned-house' : 'village-house';
-  houseZs.forEach((z, i) => {
-    for (const side of [-1, 1]) {
-      const x = X + side * (10.5 + (i % 2) * 0.8);
-      const yaw = side < 0 ? 0 : Math.PI;
-      api.place(modelLandmark(HOUSE, x, z, sy, { yaw: face(yaw), footprints: [{ kind: 'box', x, z, hw: 3.3, hd: 3.3, top: sy + 6 }],
-        // Slate-blue under the water; its windows' warm light is drawn as glows (the lit-window patch would light the
-        // thatch too). The reel's houses are slate-roofed: drowned-house replaces this once it is made.
-        onLoad: (m) => { if (HOUSE === 'village-house') restyle(m, (mat) => { mat.color.lerp(new Color(0x2a4060), 0.65); }); } }));
-      // Its windows' light on its front (drowned-house.glb, measured: 11.8 m deep, its front 5.9 m from its middle, toward
-      // the street; the glows sat 2.5 m inside it), and an orange lantern hung on the front between them.
-      const front = x - side * HOUSE_FRONT;
-      for (const dz of [-1.4, 1.4]) glow(LANTERN, 1.3, front - side * 0.05, sy + 2.4, z + dz, 0.5);
-      lanterns.push({ x: front - side * 0.35, y: sy + 3.4, z, yaw: api.rnd() * 6, scale: 1 });
-      glow(LANTERN, 2.4, front - side * 0.35, sy + 3.3, z, 0.6);
-    }
-  });
+  const layoutRnd = seededRandom(1907);
+  for (const hse of drownedLayout(layoutRnd)) {
+    const x = X + hse.dx, z = hse.z;
+    api.place(modelLandmark(HOUSE, x, z, sy - hse.sink, { yaw: face(hse.yaw),
+      // Slate-blue under the water; its windows' warm light is drawn as glows (the lit-window patch would light the
+      // thatch too). The reel's houses are slate-roofed: drowned-house replaces this once it is made.
+      onLoad: (m) => { m.root.rotation.z = hse.tilt; if (HOUSE === 'village-house') restyle(m, (mat) => { mat.color.lerp(new Color(0x2a4060), 0.65); }); } }));
+    // Its windows' light on its front (drowned-house.glb, measured: 11.8 m deep, its front 5.9 m from its middle), and
+    // an orange lantern hung on the front between them.
+    const fx = Math.cos(hse.yaw), fz = Math.sin(hse.yaw);
+    const front = { x: x + fx * HOUSE_FRONT, z: z + fz * HOUSE_FRONT };
+    for (const d of [-1.4, 1.4]) glow(LANTERN, 1.3, front.x + fx * 0.05 - fz * d, sy - hse.sink + 2.4, front.z + fz * 0.05 + fx * d, 0.5);
+    lanterns.push({ x: front.x + fx * 0.35, y: sy - hse.sink + 3.4, z: front.z + fz * 0.35, yaw: api.rnd() * 6, scale: 1 });
+    glow(LANTERN, 2.4, front.x + fx * 0.35, sy - hse.sink + 3.3, front.z + fz * 0.35, 0.6);
+  }
+  {
+    const n = DROWNED_NAVE;
+    api.place(modelLandmark('nave', X + n.dx, n.z, sy - n.sink, { yaw: n.yaw, onLoad: (m) => { m.root.rotation.z = n.tilt; restyle(m, (mat) => { mat.color.lerp(new Color(0x24405a), 0.5); }); } }));
+  }
   api.flora('hanging-lantern', lanterns);
   // Market stalls under the lanterns (clear of the house fronts: the drowned houses are deeper than their boxes).
   for (const [dx, z, yaw] of [[-4.8, 0, 0], [4.8, -22, Math.PI], [-4.8, -41, 0]] as const) {
@@ -218,12 +280,14 @@ export function buildSunken(api: RealmApi, link: (at: Vector3, radius: number, h
   for (const side of [-1, 1]) {
     const tx = X + side * 7.2, tz = -56;
     api.flora('tavern-table', [{ x: tx, y: sy, z: tz, yaw: Math.PI / 2, scale: 1 }]);
-    api.place({ object: new Group(), footprints: [{ kind: 'box', x: tx, z: tz, hw: 0.6, hd: 1.6, top: sy + 0.95 }] });
+    // (tavern-table.glb is 2.0 m long and 1.76 m wide: turned along z, its top runs z ±1.0 and x ±0.88. The goblets
+    // and candles stood out to ±1.6 m, off both ends, in the water.)
+    api.place({ object: new Group(), footprints: [{ kind: 'box', x: tx, z: tz, hw: 0.88, hd: 1.0, top: sy + 0.95 }] });
     for (let k = 0; k < 4; k++) {
-      const z = tz - 1.2 + k * 0.8;
+      const z = tz + TABLE_SPOTS[k];
       goblets.push({ x: tx + (k % 2 ? 0.25 : -0.25), y: sy + 0.95, z, yaw: api.rnd() * 6, scale: 0.6 });
       glow(0x9b4dff, 0.7, tx + (k % 2 ? 0.25 : -0.25), sy + 1.35, z, 0.5);
-      if (k % 2 === 0) candles.push({ x: tx, y: sy + 0.95, z: z + 0.4, yaw: 0, scale: 1 });
+      if (k % 2 === 0) candles.push({ x: tx - (k % 2 ? 0.25 : -0.25), y: sy + 0.95, z: z + 0.25, yaw: 0, scale: 1 });
     }
   }
   api.flora('chalice', goblets, { shadows: false, patch: (mat) => { mat.color.set(0x5a2a9a); mat.emissive?.set(0x3a1070); } });
@@ -237,11 +301,9 @@ export function buildSunken(api: RealmApi, link: (at: Vector3, radius: number, h
     api.place(modelLandmark('orb-lamp', X + dx, -59.6, sy, { footprints: [{ kind: 'cyl', x: X + dx, z: -59.6, r: 0.3, top: sy + 2.2 }] }));
     glow(0xff3a2a, 2.2, X + dx, sy + 2, -59.6, 0.6);
   }
-  // The green door home, by the castle's west corner (the reel's glowing green doorway).
-  // (In a stone ring like the island's return portal: it hung alone over the floor.)
-  api.place(modelLandmark('ring-portal', X - 14, -58.5, sy, { yaw: face(0) }));
-  api.place(portal(X - 14, sy + 3.9, -58.5, 1.65, { vertical: true, facing: 0, colors: [0x0a3a1a, 0x3dff7a] }));
-  links.push(link(new Vector3(X - 14, sy + 0.8, -58.5), 1.6, 3, POND_EXIT.x, POND_EXIT.z, POND_EXIT.yaw, 'The Lily Pond'));
+  // The way home is up: swim up through the sea's surface anywhere over the city and you come out in the lily pond
+  // you went down through (the green door that stood by the castle's west corner is gone).
+  links.push(surfaceExit(link));
   // Jellyfish drifting over the square in front of the castle and high over its towers (22 m), each with its glow (they
   // drifted through its walls).
   const jelly: Placement[] = [];
