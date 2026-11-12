@@ -48,6 +48,7 @@ import { HEAD_LIT } from './world/StoneHead';
 import { CHESTS, CHEST_RESPAWN, type ChestDef } from './data/chests';
 import { ENEMY_DEFS } from './data/enemies';
 import { rollDrops } from './combat/Loot';
+import { levelSpot } from './world/LevelSpot';
 import { modelLandmark } from './world/ModelLandmark';
 import { type NpcDef } from './world/NPCs';
 
@@ -482,9 +483,10 @@ function openChest(c: ChestDef): void {
   save.write(snapshot());
 }
 for (const c of CHESTS) {
-  const y = world.heightAt(c.x, c.z);
   const id = c.kind === 'cache' ? 'barrel' : 'coin-block';
-  const placed = modelLandmark(id, c.x, c.z, y, { yaw: 0.4 });
+  // On level ground all under it (it sat on a post's top on the Vale castle's shelf), moved up to 4 m to find it.
+  const spot = levelSpot((x, z) => world.heightAt(x, z), c.x, c.z, c.kind === 'cache' ? 0.5 : 0.8, 4);
+  const placed = modelLandmark(id, spot.x, spot.z, spot.y, { yaw: 0.4 });
   area.adopt(c.zone === 'island' ? null : c.zone, placed.object);
   chestProps.set(c.id, placed.object);
   area.heights.add(...placed.footprints);
