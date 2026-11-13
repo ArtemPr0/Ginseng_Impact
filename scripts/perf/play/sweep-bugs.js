@@ -59,7 +59,7 @@ const out = {};
   const gy = G.groundOnly(d.pos.x, d.pos.z);
   out.doctor = { y: +d.pos.y.toFixed(2), ground: +gy.toFixed(2) };
   if (Math.abs(d.pos.y - gy) > 0.3) fail('plague doctor off the ground', out.doctor);
-  const off = G.area.npcs.filter((n) => !n.def.invisible && !n.seated && n.pos.x > 860 && n.pos.x < 960 && n.pos.z > 75 && n.pos.z < 175)
+  const off = G.area.npcs.filter((n) => !n.def.invisible && !n.seated && n.pos.x > 893 && n.pos.x < 993 && n.pos.z > 75 && n.pos.z < 175)
     .map((n) => [n.def.id, +(n.pos.y - G.groundOnly(n.pos.x, n.pos.z)).toFixed(2)]).filter((r) => Math.abs(r[1]) > 0.3);
   out.snowOff = off; if (off.length) note('snow npcs off ground', { off });
 }

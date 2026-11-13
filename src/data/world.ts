@@ -82,7 +82,7 @@ export const LAYOUT = {
   orchard: { x: 60, z: 24 },
   rainZone: { x: 60, z: 24, radius: 30 },
   /** Snow: the Frost March (the island's frozen north-east, see Terrain.frozenAt) and the kingdom's snow chapel. */
-  snowZones: [{ x: 84, z: -78, radius: 48 }, { x: 900, z: 122, radius: 52 }],
+  snowZones: [{ x: 84, z: -78, radius: 48 }, { x: 933, z: 122, radius: 52 }],
   frozenRect: { xFrom: 33, xTo: 114, zFrom: -105, zTo: -18 },
   /** The moon-shell colossus crawls the east shore, outside every building. */
   colossusPath: [[84, -90], [90, -110], [84, -130], [90, -110]] as Array<[number, number]>,
@@ -189,7 +189,7 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   standard: { x: -54, z: -93 },
   'rose-knight': { x: 16, z: 34 }, maiden: { x: 18.2, z: 33 },
   // Dunmar guards the door of Yung Lean's hall; Sel watches the head of Bucket Street (both in the kingdom).
-  'watcher-knight': { x: 1000, z: -51.8 }, 'watcher-mage': { x: 937, z: 24 },
+  'watcher-knight': { x: 1000, z: -51.8 }, 'watcher-mage': { x: 970, z: 24 },
   'cup-gnome': { x: 6.5, z: 64 },
   // Fifth batch of reels.
   // (Beside the middle tavern table, not inside it: the table at (-40, -24) is solid once its model exists.)
@@ -198,15 +198,15 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   'lantern-witch': { x: -106, z: 14 },
   // The Lean Quarter (round 6, see LEAN_QUARTER): the Skeleton Court, Bucket Street, the snow chapel, the sky dock.
   // On the dragon throne's seat (ray-probed: 25.38, its front edge at z -171.1), hips 0.12 over it, 0.3 in from the edge.
-  'skeleton-king': { x: 1000, z: -171.0, y: 24.76 },
-  'galaxy-wizard': { x: 872, z: -18 },
+  'skeleton-king': { x: 1000, z: -159, y: 24.76 },
+  'galaxy-wizard': { x: 905, z: -18 },
   // The lord at the front of the pavilion's settee (ray-probed: seat 25.03, 1.8 m deep, front edge x 1042.4; sat at
   // its back his shins sank into it), Sir Cobalt on a stool at his side.
-  'skeleton-lord': { x: 1042.15, z: -160, y: 24.53 }, 'court-knight': { x: 1042.3, z: -158.3, dy: 0.02 },
-  'potion-brewer': { x: 1026, z: -127 },
+  'skeleton-lord': { x: 1042.15, z: -148, y: 24.53 }, 'court-knight': { x: 1042.3, z: -146.3, dy: 0.02 },
+  'potion-brewer': { x: 1026, z: -115 },
   bartender: { x: 1173.0, z: 10.1 }, 'dock-knight': { x: 1181, z: 7.5, dy: 0.06 },
   // On the snow flat at snowY(124.6) ≈ 26.1 (SNOW_FLATS plague-doctor); GroundQuery sets y.
-  'plague-doctor': { x: 931, z: 124.6, dy: 0 },
+  'plague-doctor': { x: 964, z: 124.6, dy: 0 },
   // Down in the crypt bar (Interiors.ts, CRYPT_ROOM): two along the west counter facing the way in, Knuckles on a
   // barrel against the east counter facing them; Sir Gilt before the back counter's skulls.
   'crypt-red': { x: -1001.9, z: 1299.6 }, 'crypt-witch': { x: -1001.9, z: 1301.3 }, 'crypt-bones': { x: -998.7, z: 1300.6, dy: 0.02 },
@@ -214,14 +214,14 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   yunglean: { x: 1000, z: -74.6, dy: 0.8 },
   'void-monk': { x: 1008, z: 66 },
   // Behind their stalls between the purple houses of the bucket street (Realms.ts places the stalls).
-  'market-a': { x: 915, z: 6.4 }, 'market-b': { x: 879, z: 29.6 },
+  'market-a': { x: 948, z: 6.4 }, 'market-b': { x: 912, z: 29.6 },
   // Inside the vale's tavern (Interiors.ts, TAVERN_ROOM): Waxwick behind the long table with the hearth at his back,
   // a dwarf at each end of it (the table: x -1001.6..-998.4, z 999.6..1000.8).
   waxwick: { x: -1000, z: 999.05 }, brannoc: { x: -1002.2, z: 1000.3 }, hilde: { x: -997.8, z: 1000.3 },
   // The Dragon's Vale (Vale.ts): the reader on the dragon's claw, the street's folk.
   'dragon-reader': { x: 995.0, z: 904.6, dy: 0.02 },
   // Inside the carriage at the lean castle's bridge (world/Carriage.ts moves him with it).
-  'carriage-count': { x: 840, z: 12.8, y: 24.8 },
+  'carriage-count': { x: 873, z: 12.8, y: 24.8 },
   // Before the green dragon's head (his neck turns to watch you; Vale.ts).
   'vale-dragon': { x: 996.5, z: 908 },
   'vale-knight': { x: 1004.5, z: 958 }, 'vale-beggar': { x: 994.4, z: 966, dy: 0.02 }, 'vale-merchant': { x: 1005.0, z: 941.4 },
@@ -266,14 +266,14 @@ export const KINGDOM_ROAD = { x: GALAXY.x, z0: GALAXY.z - 44, z1: GALAXY.z + 72,
  * dock east beyond the cup islands. Rectangles are [x0, x1, z0, z1].
  */
 export const LEAN_QUARTER = {
-  court: [940, 1060, -185, -85] as const,
-  street: [828, 940, -40, 75] as const,
+  court: [940, 1060, -173, -85] as const,
+  street: [861, 973, -40, 75] as const,
   /** The lean moat in front of the castle (a sunken channel) and the castle's own ground behind it. */
-  moat: [816, 828, -40, 75] as const,
-  castleYard: [780, 816, -40, 75] as const,
-  snow: [860, 960, 75, 175] as const,
-  castle: { x: 800, z: 18 },
-  chapel: { x: 900, z: 152 },
+  moat: [849, 861, -40, 75] as const,
+  castleYard: [813, 849, -40, 75] as const,
+  snow: [893, 993, 75, 175] as const,
+  castle: { x: 833, z: 18 },
+  chapel: { x: 933, z: 152 },
   dock: { x: 1180, z: 12, r: 12 },
 };
 

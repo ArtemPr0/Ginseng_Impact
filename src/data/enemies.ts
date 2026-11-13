@@ -377,7 +377,7 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'rivershade', x: -67, z: 38 },    // rising from the witch stream, upstream of the bridge and Old Moss
   { kind: 'passbeast', x: -36, z: -140 },
   // The spider chapel walks its loop in the sky over the west cliffs (it used to be scenery).
-  { kind: 'spiderchapel', x: 932, z: 170, exact: true, patrol: [[932, 170], [944, 162], [942, 188], [922, 182]] },   // the kingdom's snowfield past the graves (off its old perch over the void)
+  { kind: 'spiderchapel', x: 965, z: 170, exact: true, patrol: [[965, 170], [977, 162], [975, 188], [955, 182]] },   // the kingdom's snowfield past the graves (off its old perch over the void)
   { kind: 'troll', x: -64, z: -133, exact: true }, // on the gorge floor under the stone bridge
   { kind: 'lurker', x: -24, z: -14 },       // the lily pond's shallows (west of the whirlpool)
   { kind: 'marshdemon', x: 106, z: -13, exact: true },   // waist-deep in his mud pool, east of the cathedral
@@ -428,34 +428,34 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'lean-chucker', x: 1034.3, z: -55, yaw: Math.PI, exact: true, sitY: 24.56 },
   // Bucket Street in the kingdom's west quarter (LEAN_QUARTER in data/world.ts): the mimics and the chain-mail knights.
   // (Up and down the street's ends: the stalls and their keepers stand clear of them.)
-  { kind: 'bucket', x: 934, z: 60 }, { kind: 'bucket', x: 918, z: 66 }, { kind: 'bucket', x: 896, z: 58 },
-  { kind: 'bucket', x: 884, z: -24 }, { kind: 'bucket', x: 864, z: -28 }, { kind: 'bucket', x: 848, z: 62 },
-  { kind: 'mail-knight', x: 908, z: 52 }, { kind: 'mail-knight', x: 860, z: 52 }, { kind: 'mail-knight', x: 876, z: 6 },
-  { kind: 'diamond-wizard', x: 900, z: 18, exact: true, yaw: 0 },  // mid-street, where Old Hollowstaff stood
+  { kind: 'bucket', x: 967, z: 60 }, { kind: 'bucket', x: 951, z: 66 }, { kind: 'bucket', x: 929, z: 58 },
+  { kind: 'bucket', x: 917, z: -24 }, { kind: 'bucket', x: 897, z: -28 }, { kind: 'bucket', x: 881, z: 62 },
+  { kind: 'mail-knight', x: 941, z: 52 }, { kind: 'mail-knight', x: 893, z: 52 }, { kind: 'mail-knight', x: 909, z: 6 },
+  { kind: 'diamond-wizard', x: 933, z: 18, exact: true, yaw: 0 },  // mid-street, where Old Hollowstaff stood
   // The Dragon's Vale's fields (it stood empty): fog beasts roaming the east meadow and the river's far bank, crystal
   // sentries in the stones under the crowned head, a pack by the floating castle's cliff.
   { kind: 'beast', x: 1045, z: 960 }, { kind: 'beast', x: 1052, z: 966 }, { kind: 'beast', x: 1060, z: 900 },
-  { kind: 'beast', x: 1072, z: 860 }, { kind: 'beast', x: 1066, z: 852 }, { kind: 'beast', x: 930, z: 990 },
+  { kind: 'beast', x: 1072, z: 860 }, { kind: 'beast', x: 1066, z: 856.4 }, { kind: 'beast', x: 930, z: 990 },
   { kind: 'crystalsentry', x: 930, z: 905 }, { kind: 'crystalsentry', x: 922, z: 940 },
   // Round the vale's new places (Pois.ts): the wolves in the north wood, the dead at their graves and their fire, sentries
   // at the fallen gate.
-  { kind: 'beast', x: 880, z: 835 }, { kind: 'beast', x: 892, z: 842 }, { kind: 'beast', x: 870, z: 846 },
-  { kind: 'beast', x: 1045, z: 822 }, { kind: 'beast', x: 1056, z: 830 },
-  { kind: 'beast', x: 1010, z: 1030 }, { kind: 'beast', x: 988, z: 1022 }, // the vale's south meadow
+  { kind: 'beast', x: 880, z: 848.8 }, { kind: 'beast', x: 892, z: 851.9 }, { kind: 'beast', x: 870, z: 853.7 },
+  { kind: 'beast', x: 1045, z: 842.9 }, { kind: 'beast', x: 1056, z: 846.5 },
+  { kind: 'beast', x: 1012, z: 1019 }, { kind: 'beast', x: 988, z: 1022 }, // the vale's south meadow
   { kind: 'grave-skeleton', x: 890, z: 860 }, { kind: 'grave-skeleton', x: 874, z: 876 },
-  { kind: 'grave-skeleton', x: 915, z: 808 }, { kind: 'grave-skeleton', x: 922, z: 820 }, { kind: 'grave-skeleton', x: 908, z: 820 },
-  { kind: 'crystalsentry', x: 1008, z: 838 }, { kind: 'crystalsentry', x: 992, z: 822 },
+  { kind: 'grave-skeleton', x: 915, z: 836.6 }, { kind: 'grave-skeleton', x: 922, z: 842 }, { kind: 'grave-skeleton', x: 908, z: 842 },
+  { kind: 'crystalsentry', x: 1008, z: 850.1 }, { kind: 'crystalsentry', x: 992, z: 842.9 },
   // The kingdom's margins: imps in the purple wood, the dead at their graves.
-  { kind: 'styro-ghoul', x: 880, z: -56 }, { kind: 'styro-ghoul', x: 900, z: -50 }, { kind: 'styro-ghoul', x: 950, z: -60 },
-  { kind: 'mail-knight', x: 832, z: -48 }, { kind: 'grave-skeleton', x: 965, z: 112 }, { kind: 'grave-skeleton', x: 836, z: 88 },
+  { kind: 'styro-ghoul', x: 913, z: -56 }, { kind: 'styro-ghoul', x: 933, z: -50 }, { kind: 'styro-ghoul', x: 950, z: -60 },
+  { kind: 'mail-knight', x: 865, z: -48 }, { kind: 'grave-skeleton', x: 998, z: 112 }, { kind: 'grave-skeleton', x: 869, z: 88 },
   // The drowned land beyond the city: anglers among the wrecks.
   { kind: 'angler', x: -1062, z: -52 }, { kind: 'angler', x: -938, z: -92 }, { kind: 'angler', x: -1066, z: 42 }, { kind: 'angler', x: -942, z: 50 },
   // Beyond the alley's walls.
   { kind: 'grave-skeleton', x: -21, z: -1090 }, { kind: 'grave-skeleton', x: 26, z: -1034 }, { kind: 'grave-skeleton', x: -27, z: -978 }, { kind: 'grave-skeleton', x: 27, z: -918 },
   // The snow quarter of the Lean Quarter: skeletons stalking the graves round the chapel.
-  { kind: 'grave-skeleton', x: 880, z: 140 }, { kind: 'grave-skeleton', x: 925, z: 160 }, { kind: 'grave-skeleton', x: 940, z: 100 }, { kind: 'grave-skeleton', x: 875, z: 165 },
+  { kind: 'grave-skeleton', x: 913, z: 140 }, { kind: 'grave-skeleton', x: 958, z: 160 }, { kind: 'grave-skeleton', x: 973, z: 100 }, { kind: 'grave-skeleton', x: 908, z: 165 },
   // The Skeleton Court's treasury.
-  { kind: 'galaxy-knight', x: 958, z: -160 }, { kind: 'galaxy-knight', x: 968, z: -172 },
+  { kind: 'galaxy-knight', x: 958, z: -148 }, { kind: 'galaxy-knight', x: 968, z: -160 },
   // The sea king's castle (Sunken.ts): two guards at its gate, two anglers in the lane behind the throne, two more by
   // the courtyard's walls.
   { kind: 'fish-guard', x: -1006, z: -60.5, exact: true, yaw: Math.PI / 2 }, { kind: 'fish-guard', x: -994, z: -60.5, exact: true, yaw: Math.PI / 2 },

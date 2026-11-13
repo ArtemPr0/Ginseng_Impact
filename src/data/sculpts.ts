@@ -253,7 +253,7 @@ function smoothstepInverse(v: number): number {
 const Q = LEAN_QUARTER;
 const GY = GALAXY.y;
 /** The plaza (Kingdom.ts: the porcelain floor and its box, x 940..1060, z -85..75). */
-export const PLAZA: Rect = [940, 1060, -85, 75];
+export const PLAZA: Rect = [967, 1060, -85, 75];
 /** The lean moat's water and bed (LeanQuarter.ts: the sheet and `api.water` at gy − 0.35 over Q.moat, the channel's floor box at gy − 2.2). */
 export const MOAT_LEVEL = GY - 0.35;
 export const MOAT_BED = GY - 2.2;
@@ -306,14 +306,14 @@ export const CHAPEL_Y = 27;
  * (955.6, 87.8)) at the floor's own GY, so it stays where it stands and its tops hold.
  */
 export const SNOW_FLATS: ReadonlyArray<Disc & { name: string; y: number }> = [
-  { name: 'cottage-nw', x: 865.5, z: 100, r: 5, y: snowY(100) }, { name: 'cottage-w', x: 865.5, z: 120, r: 5, y: snowY(120) },
-  { name: 'cottage-e', x: 954.5, z: 150, r: 5, y: snowY(150) }, { name: 'cottage-se', x: 954.5, z: 168, r: 5, y: snowY(168) },
-  { name: 'plague-doctor', x: 931, z: 124.6, r: 3, y: snowY(124.6) },
-  { name: 'snow-gate', x: 951, z: 86.5, r: 6, y: GY },
+  { name: 'cottage-nw', x: 898.5, z: 100, r: 5, y: snowY(100) }, { name: 'cottage-w', x: 898.5, z: 120, r: 5, y: snowY(120) },
+  { name: 'cottage-e', x: 987.5, z: 150, r: 5, y: snowY(150) }, { name: 'cottage-se', x: 987.5, z: 168, r: 5, y: snowY(168) },
+  { name: 'plague-doctor', x: 964, z: 124.6, r: 3, y: snowY(124.6) },
+  { name: 'snow-gate', x: 984, z: 86.5, r: 6, y: GY },
 ];
 /** The path from the snow gate to before the chapel's door (LeanQuarter.ts builds it the same way): its pillars and torches stand 3.4 m off it. */
 export const SNOW_PATH: ReadonlyArray<readonly [number, number]> = (() => {
-  const gate = { x: 950, z: 86 }, CH = Q.chapel, out: Array<[number, number]> = [];
+  const gate = { x: 983, z: 86 }, CH = Q.chapel, out: Array<[number, number]> = [];
   for (let k = 0; k <= 10; k++) {
     const t = k / 10;
     out.push([gate.x + (CH.x + 6 - gate.x) * t + Math.sin(t * Math.PI) * 6, gate.z + (CH.z - 10 - gate.z) * t]);
@@ -403,9 +403,16 @@ const GALAXY_SCULPT: RealmSculpt = {
   land: {
     // (28 m left bare dunes either side of Bucket Street: the playtest of 2026-11-12, "shrink it so every step has
     // something".)
-    kind: 'pads', margin: 18, wobble: 5,
+    // (18 m still left the quarters far apart over bare rock: the playtest of 2026-11-13, "you didn't compact them". The
+    // west block now stands 33 m nearer the plaza, the court 12 m, and the land ends 10 m past the pads.)
+    kind: 'pads', margin: 10, wobble: 4,
     // Rolling ground south of the plaza (behind the ring portals), held back from the cups' line.
-    extra: [{ name: 'plaza-south', rect: [956, 1044, 76, 80], margin: 18, wobble: 3 }],
+    extra: [
+      { name: 'plaza-south', rect: [967, 1044, 76, 80], margin: 10, wobble: 3 },
+      // The purple wood north of the street (its camp, lamps and ghouls, Pois.ts) and the graves south of the castle.
+      { name: 'north-wood', rect: [840, 985, -60, -40], margin: 6, wobble: 3 },
+      { name: 'castle-graves', rect: [840, 893, 75, 94], margin: 6, wobble: 3 },
+    ],
   },
   edge: { kind: 'cliff', drop: 70, width: 22, lip: 1.2 },
   crag: { amp: 5, wavelength: 20, ledge: 6 },
@@ -460,7 +467,7 @@ export const valeMeander = (z: number): number => {
   const d = z - VALE_BRIDGE_Z;
   return -VALE_MEANDER_AMP * (0.68 * Math.sin(d * 0.031) + 0.32 * Math.sin(d * 0.067)) * smoothstep(5, 22, Math.abs(d));
 };
-export const VALE_RIVER: WaterRect = { rect: [VALE.x - 50, VALE.x - 40, VALE.z - 120, VALE.z + 125], meander: valeMeander, level: VY - 0.35, bed: VY - 2.2 };
+export const VALE_RIVER: WaterRect = { rect: [VALE.x - 50, VALE.x - 40, VALE.z - 76, VALE.z + 125], meander: valeMeander, level: VY - 0.35, bed: VY - 2.2 };
 /** The bridge's banks (Vale.ts: the braziers at riverX ± 6.5, bridgeZ ± 3; the slab deck spans the water on its own collider). */
 export const VALE_BANKS: readonly [Rect, Rect] = [[VALE.x - 55, VALE.x - 50, VALE.z + 35, VALE.z + 45], [VALE.x - 40, VALE.x - 35, VALE.z + 35, VALE.z + 45]];
 /**
@@ -536,23 +543,25 @@ const VALE_SCULPT: RealmSculpt = {
   },
   land: {
     // (35 m left a bare meadow round the village: the playtest of 2026-11-12, "too much empty land, shrink it".)
-    kind: 'pads', margin: 20, wobble: 5,
+    // (20 m still left the woods and meadows a long empty walk: the playtest of 2026-11-13. Everything north of z 860
+    // is squeezed to 0.45 of its depth toward the village, and the land ends 12 m past the pads.)
+    kind: 'pads', margin: 12, wobble: 5,
     // Beyond the pads' 35 m: the hill, the river to both its ends, and the meadows the mobs roam (the fog beasts by the
     // tavern, east toward the castle and over the river; the sentries on the hill). The cliff falls east of x ≈ 1085, so the
     // floating castle (x 1115..1145) and its chained platforms (x 1103+) stay over the void.
     extra: [
       { name: 'hill', disc: VALE_DOME.disc },
       // The river from end to end, the fallen gate north of the dragon and the graves west of the hill.
-      { name: 'river', rect: [VALE.x - 62, VALE.x - 28, VALE.z - 120, VALE.z + 125], margin: 4 },
-      { name: 'north-gate', disc: { x: VALE.x, z: VALE.z - 70, r: 14 }, margin: 8 },
+      { name: 'river', rect: [VALE.x - 62, VALE.x - 28, VALE.z - 76, VALE.z + 125], margin: 4 },
+      { name: 'north-gate', disc: { x: VALE.x, z: VALE.z - 53.5, r: 14 }, margin: 8 },
       { name: 'west-graves', disc: { x: VALE.x - 120, z: VALE.z - 30, r: 12 }, margin: 8 },
-      { name: 'river-south', disc: { x: VALE.x - 48, z: VALE.z - 88, r: 34 }, margin: 12 },
+      { name: 'river-south', disc: { x: VALE.x - 48, z: VALE.z - 62, r: 18 }, margin: 8 },
       { name: 'river-north', disc: { x: VALE.x - 52, z: VALE.z + 110, r: 22 }, margin: 12 },
       { name: 'west-meadow', disc: { x: VALE.x - 70, z: VALE.z + 85, r: 20 }, margin: 10 },
-      { name: 'east-meadow', rect: [VALE.x + 40, VALE.x + 70, VALE.z - 55, VALE.z + 5], margin: 12 },
+      { name: 'east-meadow', rect: [VALE.x + 40, VALE.x + 70, VALE.z - 46, VALE.z + 5], margin: 10 },
       // The woods north of the street, either side of the fallen gate.
-      { name: 'north-west-wood', rect: [VALE.x - 130, VALE.x - 60, VALE.z - 105, VALE.z - 50], margin: 12 },
-      { name: 'north-east-wood', rect: [VALE.x + 20, VALE.x + 72, VALE.z - 105, VALE.z - 56], margin: 12 },
+      { name: 'north-west-wood', rect: [VALE.x - 130, VALE.x - 60, VALE.z - 74, VALE.z - 44], margin: 8 },
+      { name: 'north-east-wood', rect: [VALE.x + 20, VALE.x + 72, VALE.z - 68, VALE.z - 44], margin: 8 },
     ],
   },
   edge: { kind: 'cliff', drop: 60, width: 20, lip: 1 },

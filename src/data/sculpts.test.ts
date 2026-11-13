@@ -174,9 +174,9 @@ describe('realm sculpts: pads keep their height', () => {
     const g = REALM_SCULPTS.galaxy;
     expect(h(g, 1000, 0)).toBeCloseTo(GALAXY.y, 6);
     expect(h(g, 1000, -135)).toBeCloseTo(GALAXY.y, 6);
-    expect(h(g, 884, 17)).toBeCloseTo(GALAXY.y, 6);
-    expect(h(g, 798, 18)).toBeCloseTo(GALAXY.y, 6);
-    expect(h(g, 822, 0)).toBeCloseTo(MOAT_BED, 6);
+    expect(h(g, 917, 17)).toBeCloseTo(GALAXY.y, 6);
+    expect(h(g, 831, 18)).toBeCloseTo(GALAXY.y, 6);
+    expect(h(g, 855, 0)).toBeCloseTo(MOAT_BED, 6);
     expect(h(g, LEAN_QUARTER.chapel.x, LEAN_QUARTER.chapel.z)).toBeCloseTo(CHAPEL_Y, 6);
     expect(snowY(LEAN_QUARTER.chapel.z)).toBeCloseTo(CHAPEL_Y, 6);
     for (const f of SNOW_FLATS) expect(h(g, f.x, f.z), f.name).toBeCloseTo(f.y, 6);
@@ -184,7 +184,7 @@ describe('realm sculpts: pads keep their height', () => {
     expect(SNOW_FLATS.find((f) => f.name === 'snow-gate')!.y).toBe(GALAXY.y);
     for (const f of SNOW_FLATS) if (f.name !== 'snow-gate') expect(f.y, f.name).toBeCloseTo(snowY(f.z), 9);
     // The moat's bed holds Q.moat less a cell all round, on the grid (its walls rise over the last cell inside the sheet).
-    expect(MOAT_BED_RECT).toEqual([817.5, 826.5, -37.5, 73.5]);
+    expect(MOAT_BED_RECT).toEqual([850.5, 859.5, -37.5, 73.5]);
     // The sky dock floats over the void like the cups: no ground under its island, let alone its floor.
     expect(h(g, LEAN_QUARTER.dock.x, LEAN_QUARTER.dock.z)).toBe(ABYSS_Y);
     expect(DOCK.below).toBeLessThan(GALAXY.y - 20);
@@ -193,7 +193,7 @@ describe('realm sculpts: pads keep their height', () => {
   it("the kingdom: step 6's h() items in the snow quarter: the chapel level at 27 under every floor-touching collider cell, its door, the path's pillars and torches on the slope, the mist's level top", () => {
     const g = REALM_SCULPTS.galaxy, field = drawn(g), gy = GALAXY.y, Q = LEAN_QUARTER;
     // LeanQuarter.ts: the chapel faces the gate the path comes in by (yaw face(atan2(gate − chapel)), face(a) = π/2 − a).
-    const CH = Q.chapel, gate = { x: 950, z: 86 };
+    const CH = Q.chapel, gate = { x: 983, z: 86 };
     const y = h(g, CH.x, CH.z);
     expect(y).toBeCloseTo(CHAPEL_Y, 9);
     expect(y - gy).toBeCloseTo(3, 9);
@@ -217,8 +217,8 @@ describe('realm sculpts: pads keep their height', () => {
     expect(cells).toBeGreaterThan(800);
     // Interiors.ts's crypt door and the crypt's way back up are on the chapel's pad, and so is LeanQuarter.ts's glow at
     // the door, at gy + 1.4 today: under the ground until it is h() + 1.4.
-    for (const [x, z] of [[902.6, 146.5], [904.8, 144.1]]) if (!(Math.abs(h(g, x, z) - CHAPEL_Y) < 1e-9)) bad.push(`crypt door/exit (${x}, ${z}): ${h(g, x, z)}`);
-    expect(gy + 1.4).toBeLessThan(h(g, 902.6, 146.5));
+    for (const [x, z] of [[935.6, 146.5], [937.8, 144.1]]) if (!(Math.abs(h(g, x, z) - CHAPEL_Y) < 1e-9)) bad.push(`crypt door/exit (${x}, ${z}): ${h(g, x, z)}`);
+    expect(gy + 1.4).toBeLessThan(h(g, 935.6, 146.5));
     // The path from the gate to before the chapel's door (LeanQuarter.ts), with a pair 3.4 m either side of every other
     // point: torches at k = 2 and 6, snow pillars at 4 and 8. Every one on the slope, but one torch on the plague doctor's
     // flat: step 6 stands them at h() and their footprints' tops (gy + 2.4, gy + 2.1) at h() + k.
@@ -234,16 +234,16 @@ describe('realm sculpts: pads keep their height', () => {
       for (const side of [-1, 1]) (k % 4 === 2 ? torches : pillars).push([x + (sx / n) * 3.4 * side, z + (sz / n) * 3.4 * side]);
     }
     const at = (ps: Array<[number, number]>) => ps.map(([x, z]) => [+x.toFixed(2), +z.toFixed(2), +h(g, x, z).toFixed(2)]);
-    expect(at(pillars)).toEqual([[940.85, 110.41, 25.21], [935.36, 106.39, 24.96], [920.63, 133.3, 26.57], [916.02, 128.3, 26.31]]);
-    expect(at(torches)).toEqual([[947.71, 98.84, 24.53], [941.75, 95.56, 24.38], [931.79, 121.93, 26.1], [926.83, 117.27, 25.65]]);
+    expect(at(pillars)).toEqual([[973.85, 110.41, 25.21], [968.36, 106.39, 24.96], [953.63, 133.3, 26.57], [949.02, 128.3, 26.31]]);
+    expect(at(torches)).toEqual([[980.71, 98.84, 24.53], [974.75, 95.56, 24.38], [964.79, 121.93, 26.1], [959.83, 117.27, 25.65]]);
     for (const [x, z] of pillars) if (!(Math.abs(h(g, x, z) - snowY(z)) < 1e-6)) bad.push(`pillar (${x.toFixed(2)}, ${z.toFixed(2)}) off the slope: ${h(g, x, z)}`);
     for (const [x, z] of torches) {
-      const want = Math.hypot(x - 931, z - 124.6) < 3 ? snowY(124.6) : snowY(z);
+      const want = Math.hypot(x - 964, z - 124.6) < 3 ? snowY(124.6) : snowY(z);
       if (!(Math.abs(h(g, x, z) - want) < 1e-6)) bad.push(`torch (${x.toFixed(2)}, ${z.toFixed(2)}): ${h(g, x, z)} for ${want}`);
     }
     // The plague doctor's chest (cyl r 1.15, top gy + 1.3) is under the ground of his flat until its top is h() + 1.3.
-    expect(h(g, 931, 124.6)).toBeCloseTo(snowY(124.6), 9);
-    expect(gy + 1.3).toBeLessThan(h(g, 931, 124.6));
+    expect(h(g, 964, 124.6)).toBeCloseTo(snowY(124.6), 9);
+    expect(gy + 1.3).toBeLessThan(h(g, 964, 124.6));
     // Where step 6 may lay the snow's mist level: the quarter's top (Q.snow's z 150..175), sculpted at 27 all over and
     // drawn at 27 but in the last cell along its sides.
     const [x0, x1, , z1] = Q.snow;
@@ -260,16 +260,16 @@ describe('realm sculpts: pads keep their height', () => {
     // [x, z, y, what] — read off LeanQuarter.ts, Kingdom.ts, Realms.ts, Vale.ts, Sunken.ts, Graveyard.ts.
     const spots: Record<RealmSculpt['id'], Array<[number, number, number, string]>> = {
       galaxy: [
-        [1000, -172, gy, 'dragon throne'], [992.5, -166, gy, 'throne brazier'], [962, -108, gy, 'dragon fountain'], [1038, -138, gy, 'dragon fountain'],
-        [982, -126, gy, 'lean fountain'], [1018, -126, gy, 'lean fountain'], [989, -156, gy, 'court torch'], [1011, -96, gy, 'court torch'],
-        [956, -176, gy, 'stone throne'], [950, -168, gy, 'coin block'], [1043, -160, gy, 'pavilion'], [1030, -134, gy, 'bottle table'],
-        [1036, -150, gy, 'court barrel'], [924, 4, gy, 'purple house'], [852, 32, gy, 'purple house'], [915, 8.6, gy, 'stall'],
-        [879, 27.4, gy, 'stall'], [872, -26, gy, 'round tower'], [800, 18, gy, 'castle'], [829.4, 14, gy, 'moat torch'],
-        [829.4, 22, gy, 'moat torch'], [814.8, 14, gy, 'moat torch'], [814.8, 22, gy, 'moat torch'], [783, -38, gy, 'yard crystal'],
-        [813, 72, gy, 'yard crystal'], [1000, 69, gy, 'checker road'], [989, 52, gy, 'causeway tower'], [1011, -14, gy, 'causeway tower'],
+        [1000, -160, gy, 'dragon throne'], [992.5, -154, gy, 'throne brazier'], [962, -96, gy, 'dragon fountain'], [1038, -126, gy, 'dragon fountain'],
+        [982, -114, gy, 'lean fountain'], [1018, -114, gy, 'lean fountain'], [989, -144, gy, 'court torch'], [1011, -84, gy, 'court torch'],
+        [956, -164, gy, 'stone throne'], [950, -156, gy, 'coin block'], [1043, -148, gy, 'pavilion'], [1030, -122, gy, 'bottle table'],
+        [1036, -138, gy, 'court barrel'], [957, 4, gy, 'purple house'], [885, 32, gy, 'purple house'], [948, 8.6, gy, 'stall'],
+        [912, 27.4, gy, 'stall'], [905, -26, gy, 'round tower'], [833, 18, gy, 'castle'], [862.4, 14, gy, 'moat torch'],
+        [862.4, 22, gy, 'moat torch'], [847.8, 14, gy, 'moat torch'], [847.8, 22, gy, 'moat torch'], [816, -38, gy, 'yard crystal'],
+        [846, 72, gy, 'yard crystal'], [1000, 69, gy, 'checker road'], [989, 52, gy, 'causeway tower'], [1011, -14, gy, 'causeway tower'],
         [1000, 72, gy, 'ring portal'], [988, 70, gy, 'ring portal'], [1000, -66, gy, 'galaxy hall'], [1000, -75, gy, 'marble throne'],
         [1035, -55, gy, 'lean-chucker pavilion'], [1027, 66, gy, 'tea stream end'], [1057, 10, gy, 'first lean wave'],
-        [946.5, 86, gy, 'snow gate pillar'], [953.5, 86, gy, 'snow gate pillar'], [955.6, 87.8, gy, 'broken gate'],
+        [979.5, 86, gy, 'snow gate pillar'], [986.5, 86, gy, 'snow gate pillar'], [988.6, 87.8, gy, 'broken gate'],
       ],
       vale: [
         [1024, 976, vy, 'tavern'], [1015, 973, vy, 'yard table'], [1015, 978.4, vy, 'yard table'], [1019, 966, vy, 'campfire'],
@@ -569,7 +569,7 @@ describe('realm sculpts: the land', () => {
     const v = REALM_SCULPTS.vale;
     for (let z = 790; z <= 1020; z += 5) expect(landMask(v, 1095, z, noise), `x 1095, z ${z}`).toBe(0);
     // (The bed rises to the shore over its last WATER_BANK metres at each end, so the sheet's ends sink into the banks.)
-    for (let z = 784; z <= 1021; z += 3) {
+    for (let z = 828; z <= 1021; z += 3) {
       // (It winds: the channel's middle is the line plus the meander, its banks follow.)
       const mid = 955 + valeMeander(z);
       expect(landMask(v, mid, z, noise), `river at z ${z}`).toBe(1);
@@ -598,8 +598,8 @@ describe('realm sculpts: sharp edges are drawn as sculpted', () => {
     for (const s of SCULPTS) { const f = realmField(s); expect(on(f.x0) && on(f.z0) && on(f.size), s.id).toBe(true); }
     expect(PLOT_PADS).toEqual([[4.5, 15, -1044, -916.5], [-15, -4.5, -1044, -916.5]]);
     for (const v of [...PLOT_PADS.flat(), ...MOAT_BED_RECT]) expect(on(v), `${v}`).toBe(true);
-    expect(onGrid([816, 828, -40, 75])).toEqual([816, 828, -39, 75]);
-    expect(onGrid([816, 828, -40, 75], 1)).toEqual(MOAT_BED_RECT);
+    expect(onGrid([849, 861, -40, 75])).toEqual([849, 861, -39, 75]);
+    expect(onGrid([849, 861, -40, 75], 1)).toEqual(MOAT_BED_RECT);
   });
 
   it('the alley of graves: each plot rises over one column of cells, and the drawn ground there is the sculpt', () => {
@@ -696,15 +696,15 @@ describe('realm sculpts: sharp edges are drawn as sculpted', () => {
     }
     // Across the channel, away from its ends: the drawn ground is the sculpt, level with the banks at x 816 and 828, the
     // walls one cell each inside the sheet, the bed level between.
-    for (let z = -37; z <= 73; z += 1.7) for (let x = 812; x <= 832; x += 0.05) {
+    for (let z = -37; z <= 73; z += 1.7) for (let x = 845; x <= 865; x += 0.05) {
       const a = h(g, x, z), b = field.heightAt(x, z);
       if (!(Math.abs(a - b) < 0.01)) bad.push(`(${x.toFixed(2)}, ${z.toFixed(2)}): sculpt ${a.toFixed(3)}, drawn ${b.toFixed(3)}`);
-      if (x >= 817.5 && x <= 826.5 && !(Math.abs(b - MOAT_BED) < 1e-4)) bad.push(`(${x.toFixed(2)}, ${z.toFixed(2)}): the bed at ${b.toFixed(3)}`);
+      if (x >= 850.5 && x <= 859.5 && !(Math.abs(b - MOAT_BED) < 1e-4)) bad.push(`(${x.toFixed(2)}, ${z.toFixed(2)}): the bed at ${b.toFixed(3)}`);
     }
     expect(bad, `${bad.length} points:\n${bad.slice(0, 20).join('\n')}`).toEqual([]);
-    for (const x of [816, 828]) expect(field.heightAt(x, 0)).toBeCloseTo(GALAXY.y, 4);
+    for (const x of [849, 861]) expect(field.heightAt(x, 0)).toBeCloseTo(GALAXY.y, 4);
     // The torches either side of the bridge stand on level drawn ground.
-    for (const x of [814.8, 829.4]) for (const z of [14, 22]) expect(field.heightAt(x, z)).toBeCloseTo(GALAXY.y, 4);
+    for (const x of [847.8, 862.4]) for (const z of [14, 22]) expect(field.heightAt(x, z)).toBeCloseTo(GALAXY.y, 4);
   }, SCAN_TIMEOUT);
 });
 
@@ -735,10 +735,10 @@ describe('realm sculpts: layers and tint', () => {
     const at = (s: RealmSculpt, x: number, z: number, slope = 0) => { out.fill(0); realmLayers(s, x, z, h(s, x, z), slope, noise, out); return out; };
     const { galaxy: g, vale: v, graveyard: gr, sunken: su } = REALM_SCULPTS;
     expect(at(g, 1000, -5)[LAYER.marble]).toBeGreaterThan(0.95);
-    expect(at(g, 884, 18)[LAYER.cobble]).toBeGreaterThan(0.95);
+    expect(at(g, 917, 18)[LAYER.cobble]).toBeGreaterThan(0.95);
     expect(at(g, 1000, -135)[LAYER.flagstone]).toBeGreaterThan(0.95);
-    expect(at(g, 905, 160)[LAYER.snow]).toBeGreaterThan(0.95);
-    expect(at(g, 822, 0)[LAYER.wet]).toBe(1);
+    expect(at(g, 938, 160)[LAYER.snow]).toBeGreaterThan(0.95);
+    expect(at(g, 855, 0)[LAYER.wet]).toBe(1);
     expect(at(v, 1000, 960)[LAYER.cobble]).toBeGreaterThan(0.95);
     expect(at(v, 955, 850)[LAYER.seabed]).toBeGreaterThan(0.95);
     expect(at(gr, 0, -1000)[LAYER.flagstone]).toBeGreaterThan(0.9);
@@ -750,7 +750,7 @@ describe('realm sculpts: layers and tint', () => {
     expect(grass).toBeGreaterThan(0.5);
     // The plaza's marble frays at its edge: somewhere along it the cobble or the rock shows through.
     let mixed = 0;
-    for (let z = -80; z < 70; z += 1) { const w = at(g, 941, z); if (w[LAYER.marble] > 0.05 && w[LAYER.marble] < 0.6) mixed++; }
+    for (let z = -80; z < 70; z += 1) { const w = at(g, 968, z); if (w[LAYER.marble] > 0.05 && w[LAYER.marble] < 0.6) mixed++; }
     expect(mixed).toBeGreaterThan(5);
   });
 
@@ -761,7 +761,7 @@ describe('realm sculpts: layers and tint', () => {
       const t = tint(s, x, z);
       for (const v of [t.r, t.g, t.b]) { expect(Number.isFinite(v)).toBe(true); expect(v).toBeGreaterThanOrEqual(0); expect(v).toBeLessThan(0.6); }
     }
-    const snow = tint(REALM_SCULPTS.galaxy, 905, 160), rock = tint(REALM_SCULPTS.galaxy, 850, 200);
+    const snow = tint(REALM_SCULPTS.galaxy, 938, 160), rock = tint(REALM_SCULPTS.galaxy, 883, 200);
     expect(snow.r + snow.g + snow.b).toBeGreaterThan(rock.r + rock.g + rock.b);
     // Blue-leaning, like the island's navy and moonlit snow.
     expect(snow.b).toBeGreaterThan(snow.r);

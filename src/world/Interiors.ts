@@ -132,7 +132,7 @@ export function buildTavernRoom(api: RealmApi, teleport: Teleport): Interactable
  * The snow chapel's door in the Lean Quarter: snow-chapel.glb at LEAN_QUARTER.chapel faces the gate at (950, 86); its
  * front stands about 5 m out along that way.
  */
-export const CHAPEL_DOOR = { x: 902.6, z: 146.5 };
+export const CHAPEL_DOOR = { x: 935.6, z: 146.5 };
 
 /**
  * The crypt bar under the snow chapel (DeldocTvFiB): crypt-bar.glb, a vault open at the front, at 6.5 m tall. Measured
