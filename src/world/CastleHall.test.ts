@@ -38,6 +38,10 @@ describe('the Moon Throne Hall inside the island castle', async () => {
     const [bx, by, bz] = teleport.mock.calls[1] as number[];
     expect(Math.hypot(bx - CASTLE_DOOR.x, bz - CASTLE_DOOR.z)).toBeLessThan(2);
     expect(by).toBeCloseTo(into.pos.y, 6);
+    // (On its own landing, not a metre over the treads below it: the review.)
+    const under = placed.flatMap((l) => l.footprints ?? []).filter((f) => f.kind === 'box' && Math.abs(f.x - bx) < 1.6 && Math.abs(f.z - bz) < 0.3);
+    expect(under.length).toBeGreaterThan(0);
+    expect(Math.max(...under.map((f) => f.top)) - by).toBeGreaterThan(-0.3);
   });
 
   it('climbs its stairs from the ground to the door by treads no higher than a step (one riser was 0.66 m: nobody could walk up)', () => {

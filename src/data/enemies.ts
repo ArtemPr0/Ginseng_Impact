@@ -33,6 +33,8 @@ export interface EnemyDef {
   scale?: number;
   shards: [number, number];
   drops?: DropEntry[];
+  /** Who its 'summon' attack calls (its own place's mobs; fog beasts if unset). */
+  summons?: EnemyKind;
   /** Keeps the mob near its spawn (water-bound bosses). */
   leash?: number;
   /** Heavy walker: footsteps shake the camera and puff dust. */
@@ -170,7 +172,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   },
   // Yung Lean himself, off his throne when you challenge him: digital snow, cups, his ghouls.
   'rift-king': {
-    kind: 'rift-king', name: 'Yung Lean', title: 'King of the Sad Side of the World', maxHp: 9000, def: 80, atk: 135, speed: 3.6, element: 'astral', hover: 0, bodyRadius: 0.7, height: 1.85, boss: true,
+    kind: 'rift-king', summons: 'styro-ghoul', name: 'Yung Lean', title: 'King of the Sad Side of the World', maxHp: 9000, def: 80, atk: 135, speed: 3.6, element: 'astral', hover: 0, bodyRadius: 0.7, height: 1.85, boss: true,
     brain: { aggroRange: 34, attackRange: 14, windup: 1.0, recover: 1.2, attackCooldown: 0.7, preferredRange: 7 }, respawn: 1e9, leash: 45, shards: [300, 400],
     attacks: [{ kind: 'snowstorm', range: 24, windup: 1.2, recover: 1.0, weight: 3 }, { kind: 'cupmortar', range: 20, windup: 0.8, recover: 1.0, weight: 2 }, { kind: 'summon', range: 30, windup: 1.3, recover: 1.5, weight: 1 }, { kind: 'volley', range: 18, windup: 0.9, recover: 1.0, weight: 2 }],
     drops: [{ itemId: 'moon-dew', chance: 1 }],
@@ -328,7 +330,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   // The Sunken City's boss (the playtest of 2026-11-13): the drowned street's big blue grouper (DeVj-Z8POjl), grown to
   // the size of a cart, circling the ruined church; it calls the city's anglers when it is losing.
   grouper: {
-    kind: 'grouper', name: 'Big Gerald', title: 'The Grouper Who Swallowed the Church Bell', maxHp: 7400, def: 60, atk: 145, speed: 5.5, element: 'tide', hover: 0, bodyRadius: 2.4, height: 3.2, boss: true,
+    kind: 'grouper', summons: 'angler', name: 'Big Gerald', title: 'The Grouper Who Swallowed the Church Bell', maxHp: 7400, def: 60, atk: 145, speed: 5.5, element: 'tide', hover: 0, bodyRadius: 2.4, height: 3.2, boss: true,
     flying: true, flyAbove: 3.5, leash: 30,
     brain: { aggroRange: 18, attackRange: 12, windup: 0.8, recover: 1.1, attackCooldown: 0.9, preferredRange: 6 }, respawn: 240, shards: [150, 220],
     attacks: [{ kind: 'bite', range: 5, windup: 0.6, recover: 0.9, weight: 3 }, { kind: 'charge', range: 16, windup: 0.8, recover: 1.4, weight: 2 }, { kind: 'volley', range: 16, windup: 0.8, recover: 1.0, weight: 2 }, { kind: 'summon', range: 18, windup: 1.2, recover: 1.5, weight: 1 }],
@@ -443,7 +445,7 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'beast', x: 1045, z: 842.9 }, { kind: 'beast', x: 1056, z: 846.5 },
   { kind: 'beast', x: 1012, z: 1019 }, { kind: 'beast', x: 988, z: 1022 }, // the vale's south meadow
   { kind: 'grave-skeleton', x: 890, z: 860 }, { kind: 'grave-skeleton', x: 874, z: 876 },
-  { kind: 'grave-skeleton', x: 915, z: 836.6 }, { kind: 'grave-skeleton', x: 922, z: 842 }, { kind: 'grave-skeleton', x: 908, z: 842 },
+  { kind: 'grave-skeleton', x: 911, z: 833 }, { kind: 'grave-skeleton', x: 922, z: 842 }, { kind: 'grave-skeleton', x: 908, z: 842 },
   { kind: 'crystalsentry', x: 1008, z: 850.1 }, { kind: 'crystalsentry', x: 992, z: 842.9 },
   // The kingdom's margins: imps in the purple wood, the dead at their graves.
   { kind: 'styro-ghoul', x: 913, z: -56 }, { kind: 'styro-ghoul', x: 933, z: -50 }, { kind: 'styro-ghoul', x: 950, z: -60 },
@@ -461,7 +463,7 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'fish-guard', x: -1006, z: -60.5, exact: true, yaw: Math.PI / 2 }, { kind: 'fish-guard', x: -994, z: -60.5, exact: true, yaw: Math.PI / 2 },
   { kind: 'angler', x: -1000, z: -80, exact: true, yaw: Math.PI / 2 }, { kind: 'angler', x: -1000, z: -88, exact: true, yaw: Math.PI / 2 },
   // Big Gerald circles the drowned church behind the castle (Sunken.ts: the church at (-1000, -116)).
-  { kind: 'grouper', x: -1012, z: -116, exact: true, patrol: [[-1012, -116], [-1000, -130], [-988, -116], [-1000, -102]] },
+  { kind: 'grouper', x: -1016, z: -116, exact: true, patrol: [[-1016, -116], [-1011.3, -127.3], [-1000, -132], [-988.7, -127.3], [-984, -116], [-988.7, -104.7], [-1000, -100], [-1011.3, -104.7]] },
   // Flying koi over the lily pond and the heart's middle tier; dream koi and jellies over the Frog King's dream.
   ...[5, 7, 9, 11, 5, 7, 9].map((r, i) => ({ kind: 'koi' as const, x: -18 + Math.cos(i) * r, z: -18 + Math.sin(i) * r, exact: true, patrol: ring(-18, -18, r) })),
   ...[4, 6.5, 9, 4, 7].map((r, i) => ({ kind: 'koi' as const, x: -22 + Math.cos(i * 1.3) * r, z: 35 + Math.sin(i * 1.3) * r, exact: true, patrol: ring(-22, 35, r) })),

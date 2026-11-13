@@ -72,8 +72,8 @@ const GRIDS: Array<[string, Footprint | null]> = [
   ['observatory', gridFootprint('observatory', LAYOUT.observatory.x, 0, LAYOUT.observatory.z)],
   ...LAYOUT.ruins.map((r): [string, Footprint | null] => [ruinKind(r), gridFootprint(ruinKind(r), r.x, 0, r.z, r.yaw)]),
   ['snow-chapel', gridFootprint('snow-chapel', Q.chapel.x, GY, Q.chapel.z, face(Math.atan2(86 - Q.chapel.z, 983 - Q.chapel.x)))],
-  ['gothic-pavilion', gridFootprint('gothic-pavilion', 1043, GY, -160, face(Math.PI))],
-  ['dragon-throne', gridFootprint('dragon-throne', 1000, GY, -172, face(Math.PI / 2))],
+  ['gothic-pavilion', gridFootprint('gothic-pavilion', 1043, GY, -148, face(Math.PI))],
+  ['dragon-throne', gridFootprint('dragon-throne', 1000, GY, -160, face(Math.PI / 2))],
   ['stone-throne', gridFootprint('stone-throne', 956, GY, -164, face(Math.PI / 2))],
   ['lean-castle', gridFootprint('castle', Q.castle.x, GY, Q.castle.z, face(0))],
   ['sea-castle', gridFootprint('sea-castle', -1000, -48, -80, 0)],
@@ -83,7 +83,7 @@ const GRIDS: Array<[string, Footprint | null]> = [
 const GRIDS_RESOLVED = GRIDS.length;
 const BUILDINGS: Footprint[] = [
   ...GRIDS.map(([, f]) => f).filter((f): f is Footprint => f !== null),
-  ...[924, 906, 888, 870, 852].flatMap((x) => [4, 32].map((z): Footprint => ({ kind: 'box', x, z, hw: 3.4, hd: 3.4, top: GY + 9 }))),
+  ...[957, 939, 921, 903, 885].flatMap((x) => [4, 32].map((z): Footprint => ({ kind: 'box', x, z, hw: 3.4, hd: 3.4, top: GY + 9 }))),
   ...STALLS.map((st): Footprint => ({ kind: 'box', x: st.x, z: st.z, hw: 1.8, hd: 1.2, top: GY + 1.1 })),
   ...[12, 2, -8, -18, -28, -38, -48].flatMap((z, i) => [-1, 1].map((side): Footprint => ({ kind: 'box', x: -1000 + side * (10.5 + (i % 2) * 0.8), z, hw: 3.3, hd: 3.3, top: -42 }))),
 ];

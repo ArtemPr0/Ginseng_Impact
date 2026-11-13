@@ -4,7 +4,7 @@ import { blunt } from '../render/Blunt';
 import { PipeSmoke } from '../render/Smoke';
 import { REALM_SCULPTS } from '../data/sculpts';
 import { FOLK } from '../data/folk';
-import { ANCHORS, CRYPT_ROOM, GALAXY, ISLAND_PORTALS, LANDMARKS, LAYOUT, REALMS, SINK, SKY_EYES, SUNKEN, TAVERN_ROOM, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
+import { ANCHORS, CARRIAGE_STAND, CRYPT_ROOM, GALAXY, ISLAND_PORTALS, LANDMARKS, LAYOUT, REALMS, SINK, SKY_EYES, SUNKEN, TAVERN_ROOM, TREEHOUSE_ROOM, VILLAGE } from '../data/world';
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
 import type { Events, Zone } from '../game/Events';
 import { PALETTE } from '../render/palette';
@@ -882,7 +882,7 @@ export class World {
     this.interactables.push(...buildLeanQuarter(realmApi, { trip: (s, sec) => this.hooks.trip?.(s, sec), sip: () => this.hooks.events?.emit({ kind: 'feat', what: 'fountain' }) }).interactables);
     // The carriage at the lean castle's bridge, Count Rattlewheel inside (world/Carriage.ts; main.ts drives it).
     this.enterZone(GALAXY.id);
-    this.interactables.push(...CARRIAGE.build(realmApi, 840, 12, -Math.PI / 2, (x, z, y) => this.heights.heightAt(x, z, y), (s, sec) => this.hooks.trip?.(s, sec)));
+    this.interactables.push(...CARRIAGE.build(realmApi, CARRIAGE_STAND.x, CARRIAGE_STAND.z, CARRIAGE_STAND.heading, (x, z, y) => this.heights.heightAt(x, z, y), (s, sec) => this.hooks.trip?.(s, sec)));
     this.enterZone(null);
     // Behind the demon church's door: the Alley of Graves.
     {

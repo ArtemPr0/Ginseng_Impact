@@ -139,12 +139,12 @@ export function buildCastleHall(api: RealmApi, teleport: Teleport, reward: (what
   for (let i = 1; i <= n; i++) {
     const top = footY + ((doorY - footY) * i) / n;
     const zc = CASTLE_GATE.z - (run * (i - 0.5)) / n;
-    treads.push({ kind: 'box', x: CASTLE_DOOR.x, z: i === n ? CASTLE_DOOR.z + run / n / 2 : zc, hw: 1.6, hd: run / n / 2 + 0.02, top, bottom: top - 1.2 });
+    treads.push({ kind: 'box', x: CASTLE_DOOR.x, z: zc, hw: 1.6, hd: run / n / 2 + 0.02, top, bottom: top - 1.2 });
   }
   api.place({ object: new Group(), footprints: treads });
   return [
     { pos: new Vector3(CASTLE_DOOR.x, doorY, CASTLE_DOOR.z), range: 2.8, zone: null, label: () => 'Enter the castle', act: () => teleport(x, floor, exitZ - 2, -Math.PI / 2, R.name) },
-    { pos: new Vector3(x, floor, exitZ - 0.4), range: 1.6, zone: R.id, label: () => 'Leave the castle', act: () => teleport(CASTLE_DOOR.x, doorY, CASTLE_DOOR.z + 1, Math.PI / 2) },
+    { pos: new Vector3(x, floor, exitZ - 0.4), range: 1.6, zone: R.id, label: () => 'Leave the castle', act: () => teleport(CASTLE_DOOR.x, doorY, CASTLE_DOOR.z + run / n / 2, Math.PI / 2) },
     {
       pos: new Vector3(T.x, floor, T.z + 1.6), range: 2.4, zone: R.id,
       label: () => (rest > 0 ? null : 'Sit on the empty throne'),

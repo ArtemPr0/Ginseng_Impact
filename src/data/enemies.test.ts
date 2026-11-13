@@ -26,6 +26,12 @@ describe('the Sunken City\'s water boss (the playtest of 2026-11-13: "some sort 
     expect(d.flying).toBe(true);
     expect(boss!.patrol?.length).toBeGreaterThan(2);
     for (const [x, z] of boss!.patrol!) expect(Math.hypot(x - church.x, z - church.z)).toBeLessThan(30);
+    // Every leg keeps the 4.6 m fish clear of the church (its collider reaches ~9.7 m from the middle: the review).
+    const P = boss!.patrol!;
+    for (let i = 0; i < P.length; i++) {
+      const [ax, az] = P[i], [bx, bz] = P[(i + 1) % P.length];
+      for (let t = 0; t <= 1; t += 0.05) expect(Math.hypot(ax + (bx - ax) * t - church.x, az + (bz - az) * t - church.z), `leg ${i} at ${t}`).toBeGreaterThan(12.5);
+    }
   });
 
   it('is a reel subject: the city\'s big blue grouper (DeVj-Z8POjl), grown huge', () => {

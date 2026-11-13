@@ -16,4 +16,15 @@ describe('leaves floating down the river (the playtest of 2026-11-13: they drift
     expect(Math.hypot(b.x - a.x, b.z - a.z)).toBeGreaterThan(0.5);
     expect(Math.hypot(b.x - a.x, b.z - a.z)).toBeLessThan(0.9);
   });
+
+  it('never jump sideways at a bend of the river line (the review: 3 m in one frame at a 30° vertex)', () => {
+    for (const off of [-6, 6]) {
+      let prev = floatingLeaf({ s0: 0, off, speed: 0.7 }, 0);
+      for (let t = 0.05; t < 200; t += 0.05) { // (one lap: at the river's end a leaf starts again at its head)
+        const p = floatingLeaf({ s0: 0, off, speed: 0.7 }, t);
+        expect(Math.hypot(p.x - prev.x, p.z - prev.z), `off ${off} at t ${t.toFixed(2)}`).toBeLessThan(0.15);
+        prev = p;
+      }
+    }
+  });
 });

@@ -168,6 +168,9 @@ export const VILLAGE = {
  * Where each standing/sitting NPC lives (world metres). `dy` lifts a seated pose onto its seat; `y` pins an
  * absolute height (a balcony perch). Loop NPCs start at the first point of their path instead.
  */
+/** Where the carriage stands before the lean castle's bridge, facing the street (World.ts builds it; the Count rides in it). */
+export const CARRIAGE_STAND = { x: 873, z: 12, heading: -Math.PI / 2 } as const;
+
 export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: number }> = {
   // The Stone Head (bodiless, LAYOUT.head): where you stand before its face, on the rise 4 m short of its chin (the
   // head's collider starts at z -140), so its bubble hangs just in front of the mouth and 30 m reach the causeway's end.
@@ -221,7 +224,7 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   // The Dragon's Vale (Vale.ts): the reader on the dragon's claw, the street's folk.
   'dragon-reader': { x: 995.0, z: 904.6, dy: 0.02 },
   // Inside the carriage at the lean castle's bridge (world/Carriage.ts moves him with it).
-  'carriage-count': { x: 873, z: 12.8, y: 24.8 },
+  'carriage-count': { x: 873, z: 12.8, y: 24.8 }, // (CARRIAGE_STAND + 0.8 m in z)
   // Before the green dragon's head (his neck turns to watch you; Vale.ts).
   'vale-dragon': { x: 996.5, z: 908 },
   'vale-knight': { x: 1004.5, z: 958 }, 'vale-beggar': { x: 994.4, z: 966, dy: 0.02 }, 'vale-merchant': { x: 1005.0, z: 941.4 },

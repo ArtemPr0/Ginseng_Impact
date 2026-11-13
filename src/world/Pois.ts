@@ -3,7 +3,7 @@
  * game already has, stands on the sculpted ground, and is set where the empty-ground map (scripts/perf/audit/empty.js)
  * showed nothing within reach. Their mobs are in ENEMY_SPAWNS, their chests in data/chests.ts.
  */
-import { KINGDOM_ROAD } from '../data/world';
+import { GALAXY, KINGDOM_ROAD } from '../data/world';
 import { glowSprite } from '../render/Glow';
 import { fire, PURPLE_FIRE } from './Fire';
 import { modelLandmark } from './ModelLandmark';
@@ -131,7 +131,7 @@ export function dressVale(api: RealmApi): void {
   shrooms(api, 870, 925);
   // (After the north was squeezed on 2026-11-13: the bare ground west of the head's hill, the south meadow and the east.)
   ruin(api, 884, 948, 1.2);
-  garden(api, 952, 1027, 12, 6);
+  garden(api, 975, 1030, 12, 6);
   api.flora('gnarled-tree', field(api, 930, 990, 1036, 1044, 14).filter((p) => p.y > -1), { trunk: 0.05 });
   camp(api, 1046, 900);
   api.flora('flower-tree', ring(api, 1046, 884, 8, 4, 4, [0.8, 1.1]), { trunk: 0.04 });
@@ -149,7 +149,10 @@ export function dressVale(api: RealmApi): void {
 export function dressKingdom(realm: RealmApi): void {
   // (Nothing grows on the checkered road: a dead tree from the field south of the plaza stood on it.)
   const offRoad = (p: Placement) => !(Math.abs(p.x - KINGDOM_ROAD.x) < KINGDOM_ROAD.half && p.z > KINGDOM_ROAD.z0 && p.z < KINGDOM_ROAD.z1);
-  const api: RealmApi = Object.assign(Object.create(realm) as RealmApi, { flora: (id: string, ps: Placement[], opts?: Parameters<RealmApi['flora']>[2]) => realm.flora(id, ps.filter(offRoad), opts) });
+  // (And nothing on the cliff past the rim: the land ends 10 m past the pads since 2026-11-13, and a field or a ring
+  // reaching past it would hang its pieces on the 70 m drop.)
+  const onLand = (p: Placement) => p.y > GALAXY.y - 1.5;
+  const api: RealmApi = Object.assign(Object.create(realm) as RealmApi, { flora: (id: string, ps: Placement[], opts?: Parameters<RealmApi['flora']>[2]) => realm.flora(id, ps.filter((p) => offRoad(p) && onLand(p)), opts) });
   // (A wood you walk into, not a tree every 24 m; clear of the camp and the lamps.)
   // (On the land: the margins were cut back on 2026-11-12, so a field reaching past them stops at the rim.)
   const clear = (p: Placement) => p.y > 20 && Math.hypot(p.x - 863, p.z + 56) > 9 && ![[893, -56], [963, -56], [980, -58]].some(([x, z]) => Math.hypot(p.x - x, p.z - z) < 3.5);
@@ -175,7 +178,6 @@ export function dressKingdom(realm: RealmApi): void {
   // (After the compaction of 2026-11-13, what the empty-space audit still found bare, each with its quarter's own things.)
   const lamp = (x: number, z: number) => { prop(api, 'gothic-lamp', x, z, 0.3, 3); const g = glowSprite(0xc070ff, 2.4, 0.55, true); g.position.set(x, api.h(x, z) + 3.1, z); api.group.add(g); };
   const brazier = (x: number, z: number) => { prop(api, 'brazier', x, z, 0.6, 1.3); api.vfx(fire(x, api.h(x, z) + 1.5, z, 0.7, 10, PURPLE_FIRE)); };
-  const onLand = (p: Placement) => p.y > 23.5;
   // The castle's rock behind it, out to the rim: crystals and dead trees.
   api.flora('purple-crystal', field(api, 796, 812, -30, 70, 9).filter(onLand), { shadows: false });
   api.flora('dead-forest-tree', field(api, 800, 812, -20, 60, 16).filter(onLand), { trunk: 0.05 });
