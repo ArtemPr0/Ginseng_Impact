@@ -1,7 +1,7 @@
 import type { BrainParams } from '../combat/EnemyBrain';
 import type { Element } from '../combat/Elements';
 
-export type EnemyKind = 'beast' | 'bucket' | 'crystalsentry' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity' | 'cyclops' | 'cyclops-lord' | 'blood-eye' | 'trip-wizard' | 'galaxy-knight' | 'mail-knight' | 'diamond-wizard' | 'fish-guard' | 'angler' | 'grave-skeleton' | 'koi' | 'jellyfish' | 'archway-shade' | 'brazier-hermit' | 'vale-knight';
+export type EnemyKind = 'beast' | 'bucket' | 'crystalsentry' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity' | 'cyclops' | 'cyclops-lord' | 'blood-eye' | 'trip-wizard' | 'galaxy-knight' | 'mail-knight' | 'diamond-wizard' | 'fish-guard' | 'angler' | 'grave-skeleton' | 'koi' | 'jellyfish' | 'archway-shade' | 'brazier-hermit' | 'vale-knight' | 'grouper';
 
 /** What can circle a mob, and the projectile each flies as when thrown. */
 export type OrbitModel = 'gem' | 'lean-cup';
@@ -325,6 +325,15 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     brain: { aggroRange: 10, attackRange: 3.6, windup: 0.5, recover: 1.0, attackCooldown: 0.6 }, respawn: 60, shards: [8, 14], drops: [{ itemId: 'croc-hide', chance: 0.6 }],
   },
   // Decorative flyers you can shoot: they circle their pools and never fight back.
+  // The Sunken City's boss (the playtest of 2026-11-13): the drowned street's big blue grouper (DeVj-Z8POjl), grown to
+  // the size of a cart, circling the ruined church; it calls the city's anglers when it is losing.
+  grouper: {
+    kind: 'grouper', name: 'Big Gerald', title: 'The Grouper Who Swallowed the Church Bell', maxHp: 7400, def: 60, atk: 145, speed: 5.5, element: 'tide', hover: 0, bodyRadius: 2.4, height: 3.2, boss: true,
+    flying: true, flyAbove: 3.5, leash: 30,
+    brain: { aggroRange: 18, attackRange: 12, windup: 0.8, recover: 1.1, attackCooldown: 0.9, preferredRange: 6 }, respawn: 240, shards: [150, 220],
+    attacks: [{ kind: 'bite', range: 5, windup: 0.6, recover: 0.9, weight: 3 }, { kind: 'charge', range: 16, windup: 0.8, recover: 1.4, weight: 2 }, { kind: 'volley', range: 16, windup: 0.8, recover: 1.0, weight: 2 }, { kind: 'summon', range: 18, windup: 1.2, recover: 1.5, weight: 1 }],
+    drops: [{ itemId: 'church-bell', chance: 1 }, { itemId: 'tide-hook', chance: 0.5 }],
+  },
   koi: {
     kind: 'koi', name: 'Flying Koi', maxHp: 80, def: 5, atk: 0, speed: 3.2, element: 'tide', hover: 0, bodyRadius: 0.55, height: 0.6,
     flying: true, flyAbove: 1.9, passive: true, neutral: true, leash: 40,
@@ -451,6 +460,8 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   // the courtyard's walls.
   { kind: 'fish-guard', x: -1006, z: -60.5, exact: true, yaw: Math.PI / 2 }, { kind: 'fish-guard', x: -994, z: -60.5, exact: true, yaw: Math.PI / 2 },
   { kind: 'angler', x: -1000, z: -80, exact: true, yaw: Math.PI / 2 }, { kind: 'angler', x: -1000, z: -88, exact: true, yaw: Math.PI / 2 },
+  // Big Gerald circles the drowned church behind the castle (Sunken.ts: the church at (-1000, -116)).
+  { kind: 'grouper', x: -1012, z: -116, exact: true, patrol: [[-1012, -116], [-1000, -130], [-988, -116], [-1000, -102]] },
   // Flying koi over the lily pond and the heart's middle tier; dream koi and jellies over the Frog King's dream.
   ...[5, 7, 9, 11, 5, 7, 9].map((r, i) => ({ kind: 'koi' as const, x: -18 + Math.cos(i) * r, z: -18 + Math.sin(i) * r, exact: true, patrol: ring(-18, -18, r) })),
   ...[4, 6.5, 9, 4, 7].map((r, i) => ({ kind: 'koi' as const, x: -22 + Math.cos(i * 1.3) * r, z: 35 + Math.sin(i * 1.3) * r, exact: true, patrol: ring(-22, 35, r) })),

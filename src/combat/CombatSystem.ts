@@ -1,3 +1,4 @@
+import { summonKind } from './summon';
 import { BoxGeometry, IcosahedronGeometry, BufferGeometry, CircleGeometry, Color, Float32BufferAttribute, Group, LineBasicMaterial, LineSegments, Mesh, PerspectiveCamera, Scene, Vector3, ConeGeometry, CylinderGeometry, TorusGeometry, MeshBasicMaterial, AdditiveBlending, DoubleSide, Sprite, SpriteMaterial } from 'three';
 import { CoinStreak, Hype, isOverkill } from '../game/Hype';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -1743,7 +1744,7 @@ export class CombatSystem {
         // A few at a time (never a farm): they stand on open ground, drop nothing, and leave with their caster.
         const list = (this.summoned.get(e.id) ?? []).filter((m) => m.alive && this.enemies.includes(m));
         this.summoned.set(e.id, list);
-        const kind = e.def.kind === 'rift-king' ? 'styro-ghoul' : 'beast';
+        const kind = summonKind(e.def.kind);
         // (Full house: the caster fights on instead of standing there.)
         if (list.length >= SUMMON_CAP || !PRESENT_MODELS.has(kind)) { for (const sp of [-0.14, 0, 0.14]) this.enemyBolt(e, sp, 18, 0.8); this.d.audio.cast(); break; }
         this.fx.flash(_v.copy(at).add(_w.set(0, 3, 0)), color, 5);

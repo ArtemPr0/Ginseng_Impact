@@ -333,6 +333,8 @@ export const MODELS: Record<string, ModelDef> = {
   diver: { file: 'diver.glb', height: 1.9, label: 'figure in a brass diving helmet with a glowing porthole and a long dark robe (DeVj-Z8POjl)', clips: NPC_CLIPS('walk') },
   'drowned-house': stat('drowned-house.glb', 7, 'narrow half-timbered house with a slate roof and warm lit windows, under the sea (DeVj-Z8POjl)'),
   'blue-fish': { ...stat('blue-fish.glb', 1.4, 'big blue grouper swimming between the houses (DeVj-Z8POjl)'), tint: 0x3a5f8f },
+  // (The same grouper grown to a boss: Big Gerald, round the drowned church.)
+  grouper: { ...stat('blue-fish.glb', 4.6, 'the big blue grouper as a boss, Big Gerald (DeVj-Z8POjl)'), tint: 0x3a5f8f },
   'jelly-lantern': stat('jelly-lantern.glb', 4.2, 'iron post with a hanging cage lantern holding a glowing jellyfish (DeVj-Z8POjl)'),
   'bottle-shelf': { ...stat('bottle-shelf.glb', 2.6, 'wooden shelves of glowing orange bottles (DeVj-Z8POjl)'), tint: 0x6a4a2c },
   'orb-lamp': { ...stat('orb-lamp.glb', 2.2, 'iron lamp stand with glowing red glass orbs (DeVj-Z8POjl)'), tint: 0x2e2a28 },
