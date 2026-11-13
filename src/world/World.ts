@@ -50,8 +50,8 @@ import { buildRealms, type RealmApi } from './Realms';
 import type { PortalLink } from './Portal';
 import { deadAt, EYE, eyeDistance, frozenAt, pathAt, RIVER, RIVER_LEVEL, riverAt, riverDistance, sandAt, streamAt, Terrain, WORLD } from './Terrain';
 import { mistLayers } from '../render/LeanFx';
-import { causewayPostPoints, causewayWalk, chainSpan, witchBridgeDeck } from './Walkways';
-import { lilyPond, mudPool, river } from './Water';
+import { stoneArch, witchBridgeDeck, type StoneArch } from './Walkways';
+import { floatingLeaf, lilyPond, mudPool, river } from './Water';
 
 /**
  * The moon-shell snail (moon-shell-colossus.glb, 16.6 m long, head toward +z; measured): solid as it crawls (two
@@ -418,6 +418,8 @@ export class World {
       if (/tree|pine|birch|palm|bush|cypress/.test(id)) placements = placements.filter((p) => !LANDMARK_CLEARINGS.some((c) => Math.hypot(p.x - c.x, p.z - c.z) < c.r));
       // No tree grows where someone stands: a crown over an NPC's spot hid their head in it (Mother Marrow's pine).
       if (TREES.has(id)) placements = placements.filter((p) => !Object.values(ANCHORS).some((a) => (a.x - p.x) ** 2 + (a.z - p.z) ** 2 < TREE_CLEAR ** 2));
+      // Nor in the water: an orchard tree stood on the river bed by the head pool (the playtest of 2026-11-13).
+      if (this.zone === null && TREES.has(id)) placements = placements.filter((p) => terrain.dryAt(p.x, p.z));
       // Trees are solid at the trunk (climbable, like any trunk), never at the crown.
       if (opts?.trunk) for (const p of placements) { const f = trunkFootprint(id, p.x, p.y, p.z, p.scale, opts.trunk); if (f) this.heights.add(f); }
       const set = floraSet(id, placements, opts);
@@ -427,23 +429,20 @@ export class World {
     };
     const vfx = (f: { group: Group; update: (dt: number) => void }) => { this.target.add(f.group); this.extras.push(f); this.zoneOf.set(f, this.zone); };
 
-    // --- walkways (placeholder slabs until their models land) ---
-    const causeway = causewayWalk(LAYOUT.causeway, h, MODELS['causeway-segment'].height);
-    this.place(causeway.landmark);
-    flora('causeway-segment', causeway.spans);
-    // Piers: under every joint over the chasm a rock spire climbs out of the cloud sea to the arch feet, all alike
-    // (slimmed across, or a 95 m spire would be 35 m wide).
-    for (const p of causeway.piers) {
-      const lm = modelLandmark('pinnacle', p.x, p.z, p.y, { collider: 'none', scale: p.height / MODELS.pinnacle.height });
-      lm.root.scale.x *= 0.3;
-      lm.root.scale.z *= 0.3;
-      this.place(lm);
-    }
-    const cb = LAYOUT.chasmBridge;
-    // (A chain span from bank to bank: a flat deck at the higher bank hung the north end 3 m over its ground.)
-    const bridge = chainSpan(cb.ax, cb.az, h(cb.ax, cb.az) + 0.45, cb.bx, cb.bz, h(cb.bx, cb.bz) + 0.45, MODELS['chasm-bridge'].height);
-    this.place(bridge);
-    flora('chasm-bridge', bridge.tiles);
+    // --- walkways ---
+    // The two crossings over the chasm are stone arches like the gorge's (the playtest of 2026-11-13): the causeway on
+    // the road to the head, and the west one by the cathedral. Each is the witches' bridge model scaled whole to its
+    // span; its stepped deck is the collider, and the lower bank climbs to it by treads.
+    const arches: StoneArch[] = [];
+    const arch = (cx: number, cz: number, length: number) => {
+      const a = stoneArch(cx, cz, length, 'z', h, { steps: true });
+      this.place(a);
+      this.place(modelLandmark('witch-bridge', cx, cz, a.baseY, { yaw: a.yaw, scale: a.scale, collider: 'none', onLoad: () => { a.object.visible = false; a.object.userData.hidden = true; } }));
+      arches.push(a);
+    };
+    const cw = LAYOUT.causeway;
+    arch(cw.x, (cw.zStart + cw.zEnd) / 2, cw.zStart - cw.zEnd);
+    arch(LAYOUT.chasmBridge.x, LAYOUT.chasmBridge.z, LAYOUT.chasmBridge.length);
     const deck = witchBridgeDeck(LAYOUT.coven.streamX, LAYOUT.coven.bridgeZ, h);
     this.place(deck);
     // The witches' bridge (DeWji_1PuKW): the stone slab keeps the colliders and hides once the model is in.
@@ -654,14 +653,15 @@ export class World {
     // The lily pads with their pink lotus (Dd93tyxMLB3, round 9), as modelled: the stone stand-in was pressed flat and
     // painted, with a second copy recoloured as the flower on top; the model carries its own flower.
     flora('lily-pad', pond.padSpots, { shadows: false });
-    // Two armoured knights row each boat (DdjlyzyOcnK), facing the stern as rowers do.
+    // Two armoured knights row each boat (DdjlyzyOcnK), facing the bow, the way it goes (facing the stern, as real
+    // rowers do, read as the boat going backwards: the playtest of 2026-11-13).
     for (const [start, speed] of [[0, 2.4], [108, 2.0]] as const) {
       const boat = riverDrifter('boat', start, speed);
       const rowers: Rig[] = [];
       for (const dz of [0.55, -0.45]) {
         const rig = new Rig({ id: 'rower', name: 'Rower', title: '', element: 'fog', weapon: 'sword', maxHp: 1, atk: 1, accent: PALETTE.electric }, 'knight-npc');
         rig.root.position.set(0, 0.32, dz);
-        rig.root.rotation.y = yawToRotation(-Math.PI / 2);
+        rig.root.rotation.y = yawToRotation(Math.PI / 2);
         boat.root.add(rig.root);
         rowers.push(rig);
       }
@@ -749,11 +749,10 @@ export class World {
     this.place(modelLandmark('cauldron', pot.x, pot.z, potY, { color: PALETTE.witch }));
     vfx(fire(pot.x, potY - 0.1, pot.z, 0.7, 14));
     for (const l of LANDMARKS) if (!spotted.has(l.id)) console.error(`LANDMARKS entry ${l.id} was never placed`);
-    // Lanterns and candles along the causeway.
-    const posts = causewayPostPoints(LAYOUT.causeway, MODELS['causeway-segment'].height);
+    // Lanterns and candles along the arches' parapets.
     const lanternSpots: Placement[] = [];
     const candleSpots: Placement[] = [];
-    posts.forEach((p, i) => {
+    arches.flatMap((a) => a.posts).forEach((p, i) => {
       if (i % 6 === 0) lanternSpots.push({ x: p.x, y: p.y, z: p.z, yaw: 0, scale: 1 });
       else if (i % 2 === 0) { candleSpots.push({ x: p.x, y: p.y, z: p.z, yaw: 0, scale: 1 }); vfx(fire(p.x, p.y + 0.3, p.z, 0.1, 1.2)); }
     });
@@ -825,11 +824,15 @@ export class World {
     for (let i = 0; i < 700; i++) { const a = rr() * Math.PI * 2; const r = Math.sqrt(rr()) * 12; const x = 17 + Math.cos(a) * r; const z = 34 + Math.sin(a) * r; const s0 = rr(); const s1 = rr(); if (eyeDistance(x, z) < 2 || riverAt(x, z) > 0.02) continue; roses.push({ x, y: h(x, z) - 0.05, z, yaw: s0 * 6, scale: 0.7 + s1 * 0.6 }); }
     flora('rose-bush', roses, { shadows: false });
     flora('birch', this.riverBank(rnd, 14, 30, 110, 24, 96), { trunk: 0.03 });
-    flora('fallen-leaf', this.riverBank(rnd, 8, 26, 600, 24, 96).map((p) => ({ ...p, scale: 0.8 + rnd() * 0.6 })), { shadows: false });
-    const driftSpots: Placement[] = [];
-    for (let i = 0; i < 160; i++) { const x = 24 + rnd() * 72; const z = 4 + rnd() * 12; if (riverAt(x, z) > 0.5) driftSpots.push({ x, y: 1.0, z, yaw: rnd() * 6, scale: 1 }); }
-    let leafT = 0;
-    flora('fallen-leaf', driftSpots, { shadows: false, update: (t, ps) => { const dt = Math.min(0.1, t - leafT); leafT = t; for (const p of ps) { p.x -= 0.6 * dt; if (p.x < 24) p.x = 96; p.yaw = Math.sin(t + p.z) * 0.4; } return true; } });
+    // Leaves lie flat (fallen-leaf.glb stands on its edge, thin along z: they stood upright in the grass and on the
+    // water, the playtest of 2026-11-13), on the banks and never under the water.
+    const LIE = Math.PI / 2;
+    flora('fallen-leaf', this.riverBank(rnd, 8, 26, 600, 24, 96).map((p) => ({ ...p, scale: 0.8 + rnd() * 0.6, pitch: LIE })).filter((p) => terrain.dryAt(p.x, p.z)), { shadows: false });
+    // Leaves floating down the river with the current, along its bends (they used to drift due west, off the water).
+    const leafSeeds: Array<{ s0: number; off: number; speed: number }> = [];
+    for (let i = 0; i < 160; i++) { const a = rnd(); const b = rnd(); if (i % 2 === 0) leafSeeds.push({ s0: a * 400, off: (b - 0.5) * 12, speed: 0.55 + b * 0.3 }); }
+    const floaters: Placement[] = leafSeeds.map((sd) => ({ ...floatingLeaf(sd, 0), y: RIVER_LEVEL + 0.03, scale: 0.8 + (sd.off + 6) / 30, pitch: LIE }));
+    flora('fallen-leaf', floaters, { shadows: false, update: (t, ps) => { ps.forEach((p, i) => { const w = floatingLeaf(leafSeeds[i], t); p.x = w.x; p.z = w.z; p.yaw = w.yaw; p.y = RIVER_LEVEL + 0.03 + Math.sin(t * 1.3 + i) * 0.01; }); return true; } });
     flora('coral', this.riverBank(rnd, 10, 16, 30, 36, 90), { shadows: false });
     const crnd = rng(31);
     flora('cypress', ringSpots(-66, 57, 20, 10, h, crnd));

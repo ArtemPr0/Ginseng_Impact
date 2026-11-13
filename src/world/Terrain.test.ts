@@ -292,6 +292,14 @@ describe('Terrain', () => {
     expect(terrain.streamCentre(0)).toBeCloseTo(streamCentre(0, noise), 9);
   });
 
+  it('knows dry ground from wet (trees grow only where the ground stands clear of any water: one stood in the river by the head pool, the playtest of 2026-11-13)', () => {
+    expect(terrain.dryAt(90.2, 12.8)).toBe(false);
+    expect(terrain.dryAt(33.8, 6.7)).toBe(false);
+    expect(terrain.dryAt(WORLD.pond.x, WORLD.pond.z)).toBe(false);
+    expect(terrain.dryAt(0, 59)).toBe(true);
+    expect(terrain.dryAt(60, 30)).toBe(true);
+  });
+
   it('draws the island as chunk meshes under one material, skipping the abyss, and answers `mesh` with the same group', () => {
     const group = terrain.group;
     expect(terrain.mesh).toBe(group);

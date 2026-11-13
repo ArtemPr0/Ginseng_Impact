@@ -241,6 +241,15 @@ export function riverPoint(s: number): { x: number; z: number; yaw: number } {
   return { x: lx, z: lz, yaw: 0 };
 }
 
+/**
+ * A leaf floating down the river: `s0` metres along it at t = 0, `off` metres to one side of the centre line, carried
+ * at `speed` m/s; it turns slowly as it goes. Back at the source once it reaches the sink, like the boats.
+ */
+export function floatingLeaf(seed: { s0: number; off: number; speed: number }, t: number): { x: number; z: number; yaw: number } {
+  const p = riverPoint(seed.s0 + seed.speed * t);
+  return { x: p.x - Math.sin(p.yaw) * seed.off, z: p.z + Math.cos(p.yaw) * seed.off, yaw: seed.s0 + t * 0.15 + Math.sin(t * 0.7 + seed.off) * 0.3 };
+}
+
 /** The great glowing river: a ribbon mesh along the polyline, sparkles, and reed banks. */
 /** How far the ribbon runs past the river's west end: to the sink pool's water line (its floor reaches 4.8 m, its slope the surface at about 7.6 m). */
 const WEST_CAP = 8;

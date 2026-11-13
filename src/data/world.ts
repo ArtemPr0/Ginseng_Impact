@@ -3,10 +3,13 @@ import type { Zone } from '../game/Events';
 /** Placement of everything in the first area. Units are metres; the causeway runs north (−z) along x = 0. */
 export const LAYOUT = {
   spawn: { x: 0, z: 59 },
-  /** The rope bridge over the chasm, west of the cathedral: south end on the rim, north end by the dead wood. */
-  // (Its south end on the rim at z -32.5: at -38 the last 4 m hung over the chasm; the deck is a chain span, so both
-  // ends sit on their own bank.)
-  chasmBridge: { ax: 26, az: -32.5, bx: 27, bz: -85 },
+  /**
+   * The west crossing over the chasm, by the cathedral: a stone arch like the gorge's (the playtest of 2026-11-13: "this
+   * bridge should be like an arch bridge instead of flat"), centred on (x, z), running along z rim to rim.
+   */
+  chasmBridge: { x: 26.5, z: -59.5, length: 54 },
+  /** The forest gorge's stone arch, crest to crest (at 22 m its ends stood on the walls' slopes, not on the rims). */
+  gorgeBridge: { x: -65, z: -124, length: 28 },
   /**
    * Footpaths worn into the ground (Terrain colours them; nothing grows on them). They tie the spawn to the village,
    * the tavern, the bridges, the portals and every landmark, and keep clear of the mobs' camps.
@@ -26,20 +29,20 @@ export const LAYOUT = {
     // From the hamlet on the far bank to the pond and the frog hollow, and east to the rope bridge.
     [[0, -2], [-10, -4], [-14, -6], [-30, -10], [-43, -17]],
     [[2, -5], [6, -10], [18, -18], [30, -24], [34, -24]],
-    [[22, -20], [26, -32.5]],
+    [[22, -20], [26.5, -31]],
     // The road over the chasm: up from the hamlet to the causeway's south rim, and on from its north rim to the head.
     [[0, -4], [0, -30]],
     [[0, -82], [0, -92], [-4, -96]],
     [[0, -134], [0, -140]],
     [[-2, -112], [-12, -108]],
-    [[27, -86], [44, -90], [52, -90]],
+    [[26.5, -89], [44, -90], [52, -90]],
     [[-4, -96], [-16, -88], [-36, -88]],
     // Into the forest gorge, over its stone bridge and on to the overlook.
     [[-4, -114], [-24, -116], [-42, -120], [-51, -124]],
     [[-77, -124], [-86, -116]],
   ] as Array<Array<[number, number]>>,
-  /** The causeway: one stone bridge over the chasm, rim to rim (z -34 and -79), its deck 0.25 m over the ground at each end. */
-  causeway: { x: 0, zStart: -30, zEnd: -82, width: 6, yStart: 4.45, yEnd: 3.45 },
+  /** The causeway: one stone arch over the chasm on the road to the head, rim to rim (z -34 and -79), ends beyond the rims. */
+  causeway: { x: 0, zStart: -30, zEnd: -82 },
   head: { x: 0, z: -146, height: 26 },
   /**
    * The cathedral's long axis runs east–west; its west front faces the river road. Between the chasm and the river
@@ -253,6 +256,9 @@ export interface RealmDef {
 /** The galaxy city beyond the portal (DeOemU1BOZF, DeaqHWJBBPw, DeXn5rSPxR8, DeQ-NnpvqF6, Dd0wR9Jh2lH, DdyN2PNyIxb, DdnJDwBMUoj). */
 /** Beyond the portal: Yung Lean's kingdom (it was the galaxy city; the id stays). */
 export const GALAXY: RealmDef = { id: 'galaxy', name: "Yung Lean's Kingdom", x: 1000, z: 0, y: 24, radius: 300, fog: { color: 0x3a1a52, density: 0.0055 }, ownSky: true };
+
+/** The kingdom's checkered road (DeOemU1BOZF, Realms.ts) from the plaza's south end north to the court: [z0, z1] along x. */
+export const KINGDOM_ROAD = { x: GALAXY.x, z0: GALAXY.z - 44, z1: GALAXY.z + 72, half: 5 } as const;
 
 /**
  * The kingdom's quarters (round 6, the @returndark reels), each a walkable floor off the plaza (x 940..1060,
@@ -481,10 +487,10 @@ export const FLATS: {
     { x: 10, z: -96, r: 6 },
     ...LAYOUT.ruins.map((r) => ({ x: r.x, z: r.z, r: 3.5 })),
     // The bridges' ends: each deck is set from the higher of its two banks (Walkways), so both stay as they were.
-    { x: LAYOUT.chasmBridge.ax, z: LAYOUT.chasmBridge.az, r: 3 },
-    { x: LAYOUT.chasmBridge.bx, z: LAYOUT.chasmBridge.bz, r: 3 },
-    { x: -64 - 11.3, z: -124, r: 3 }, // the gorge's stone bridge (Heart.ts, WORLD.gorge.x ± 11.3)
-    { x: -64 + 11.3, z: -124, r: 3 },
+    { x: LAYOUT.chasmBridge.x, z: LAYOUT.chasmBridge.z + LAYOUT.chasmBridge.length / 2, r: 3 },
+    { x: LAYOUT.chasmBridge.x, z: LAYOUT.chasmBridge.z - LAYOUT.chasmBridge.length / 2, r: 3 },
+    { x: LAYOUT.gorgeBridge.x - LAYOUT.gorgeBridge.length / 2, z: LAYOUT.gorgeBridge.z, r: 3 }, // the gorge's stone arch
+    { x: LAYOUT.gorgeBridge.x + LAYOUT.gorgeBridge.length / 2, z: LAYOUT.gorgeBridge.z, r: 3 },
   ],
   rects: [
     [-58, -6, 60, 80], // the village: its two street rows of houses (6.4 x 5.5 m each) and the street between them (the back row stands on the village pads)

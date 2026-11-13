@@ -5,7 +5,7 @@
  */
 import type { Footprint } from './Colliders';
 import { Group, PointLight, Vector3 } from 'three';
-import { GALAXY, ISLAND_PORTALS, LAYOUT, SUNKEN, SINK } from '../data/world';
+import { GALAXY, ISLAND_PORTALS, KINGDOM_ROAD, LAYOUT, SUNKEN, SINK } from '../data/world';
 import { glowSprite } from '../render/Glow';
 import { PALETTE } from '../render/palette';
 import { fire } from './Fire';
@@ -176,7 +176,7 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   // (The floor, the sky, the streams and the cup islands are Yung Lean's kingdom: see Kingdom.ts.)
   // Checkered causeway with towers either side (DeOemU1BOZF).
   const road: Placement[] = [];
-  for (let z = G.z + 69; z > G.z - 44; z -= 6) road.push({ x: G.x, y: gy + 0.02, z, yaw: 0, scale: 1 });
+  for (let z = KINGDOM_ROAD.z1 - 3; z > KINGDOM_ROAD.z0; z -= 6) road.push({ x: KINGDOM_ROAD.x, y: gy + 0.02, z, yaw: 0, scale: 1 });
   api.flora('checker-road', road, { shadows: false });
   for (const z of [52, 30, 8, -14]) {
     for (const side of [-1, 1]) {

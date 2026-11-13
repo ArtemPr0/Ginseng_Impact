@@ -11,7 +11,7 @@
  * z −11.5, −5, 4 and 10.5, each about 2.4 m through.
  */
 import { Color, Group, type Mesh, type MeshStandardMaterial, PointLight, Vector3 } from 'three';
-import { CASTLE_HALL, LAYOUT } from '../data/world';
+import { CASTLE_HALL, LAYOUT, SINK } from '../data/world';
 import { MODELS } from '../data/models';
 import { darkHollow } from '../render/Floors';
 import { glowSprite } from '../render/Glow';
@@ -25,8 +25,13 @@ import { modelLandmark } from './ModelLandmark';
 import type { RealmApi } from './Realms';
 import { waterRibbon } from './Water';
 
-/** Where you press F on the island: before the castle's gate, its south face (castle.glb is 31 m deep). */
+/** The foot of the castle's front stairs, on the island ground before its south face (castle.glb is 31 m deep). */
 export const CASTLE_GATE = { x: LAYOUT.castle.x, z: LAYOUT.castle.z + 15.2 } as const;
+/**
+ * The landing at the top of those stairs, before the door, where you press F (measured on the model's collider: the
+ * stairs climb 6.56 m from the castle's base to a landing at z + 10, the door's face at z + 9.6).
+ */
+export const CASTLE_DOOR = { x: LAYOUT.castle.x, z: LAYOUT.castle.z + 10, rise: 6.56 } as const;
 /** Blue flames for the island's castle (cobalt, not the Lean Quarter's purple). */
 const BLUE_FIRE = { core: 0x3a7bff, inner: 0xd6e6ff, ember: 0x1a3cff };
 const face = (yaw: number) => Math.PI / 2 - yaw;
@@ -124,10 +129,22 @@ export function buildCastleHall(api: RealmApi, teleport: Teleport, reward: (what
   } });
   api.realm(null);
 
-  const gateY = groundAt(CASTLE_GATE.x, CASTLE_GATE.z);
+  // The front stairs: treads from the ground to the door's landing under the model's own steps (one of its risers is
+  // 0.66 m, more than a step, so nobody could walk up), and the door's prompt on the landing.
+  const doorY = groundAt(LAYOUT.castle.x, LAYOUT.castle.z) - SINK.castle + CASTLE_DOOR.rise;
+  const footY = groundAt(CASTLE_GATE.x, CASTLE_GATE.z);
+  const treads: Footprint[] = [];
+  const run = CASTLE_GATE.z - CASTLE_DOOR.z;
+  const n = Math.max(1, Math.ceil((doorY - footY) / 0.33));
+  for (let i = 1; i <= n; i++) {
+    const top = footY + ((doorY - footY) * i) / n;
+    const zc = CASTLE_GATE.z - (run * (i - 0.5)) / n;
+    treads.push({ kind: 'box', x: CASTLE_DOOR.x, z: i === n ? CASTLE_DOOR.z + run / n / 2 : zc, hw: 1.6, hd: run / n / 2 + 0.02, top, bottom: top - 1.2 });
+  }
+  api.place({ object: new Group(), footprints: treads });
   return [
-    { pos: new Vector3(CASTLE_GATE.x, gateY, CASTLE_GATE.z), range: 3.2, zone: null, label: () => 'Enter the castle', act: () => teleport(x, floor, exitZ - 2, -Math.PI / 2, R.name) },
-    { pos: new Vector3(x, floor, exitZ - 0.4), range: 1.6, zone: R.id, label: () => 'Leave the castle', act: () => teleport(CASTLE_GATE.x, gateY, CASTLE_GATE.z + 2.5, Math.PI / 2) },
+    { pos: new Vector3(CASTLE_DOOR.x, doorY, CASTLE_DOOR.z), range: 2.8, zone: null, label: () => 'Enter the castle', act: () => teleport(x, floor, exitZ - 2, -Math.PI / 2, R.name) },
+    { pos: new Vector3(x, floor, exitZ - 0.4), range: 1.6, zone: R.id, label: () => 'Leave the castle', act: () => teleport(CASTLE_DOOR.x, doorY, CASTLE_DOOR.z + 1, Math.PI / 2) },
     {
       pos: new Vector3(T.x, floor, T.z + 1.6), range: 2.4, zone: R.id,
       label: () => (rest > 0 ? null : 'Sit on the empty throne'),

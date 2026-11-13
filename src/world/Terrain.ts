@@ -566,6 +566,12 @@ export class Terrain {
     return streamCentre(z, this.noise);
   }
 
+  /** Whether the ground at (x, z) stands at least `margin` metres clear of any water there (trees grow only on it). */
+  dryAt(x: number, z: number, margin = 0.2): boolean {
+    const w = waterLevelAt(x, z, this.noise);
+    return w === null || this.heightAt(x, z) > w + margin;
+  }
+
   constructor(seed = 1337) {
     this.noise = new Noise2D(seed);
     this.field = new Heightfield(islandSculpt(this.noise));

@@ -14,7 +14,7 @@ import { fireflies } from '../render/Fireflies';
 import { glowSprite } from '../render/Glow';
 import { patchGlowCap, patchLitWindows } from '../render/Materials';
 import { PALETTE } from '../render/palette';
-import type { Footprint, HeightWorld } from './Colliders';
+import type { HeightWorld } from './Colliders';
 import { cascade } from './Falls';
 import { fire } from './Fire';
 import type { FloraOptions, Placement } from './Flora';
@@ -23,7 +23,7 @@ import { landableIsland } from './Islands';
 import type { ModelRig } from '../models/ModelRig';
 import type { RealmApi } from './Realms';
 import { EYE, RIVER_LEVEL, WORLD } from './Terrain';
-import { archBridge, witchBridgeDeck } from './Walkways';
+import { archBridge, stoneArch } from './Walkways';
 import { eyePool, poolWater, waterRibbon } from './Water';
 
 /** The floating island's rock top (where its waterfalls spill and things stand), as a fraction of its height. */
@@ -164,24 +164,12 @@ export function buildHeart(api: HeartApi): { eye: ReturnType<typeof eyePool>; bo
   // Over the cliff at the mouth, down into the cloud sea.
   const mouthY = h(G.x, G.zMouth - 4) + 0.3;
   api.place(cascade({ x: G.x, z: G.zMouth - 5, top: mouthY, height: mouthY - LAYOUT.cloudSea.y + 4, width: 5, yaw: Math.PI, curve: 2, foot: false }));
-  // The stone arch across it (the witches' bridge model: 22 m, the gorge's full width at the rims).
-  const deck = witchBridgeDeck(G.x, -124, h);
+  // The stone arch across it (the witches' bridge model scaled to the gorge's full width, crest to crest: at 22 m its
+  // ends stood on the walls' slopes, 5 m over the ground, the playtest of 2026-11-13); the lower rim climbs to it by treads.
+  const GB = LAYOUT.gorgeBridge;
+  const deck = stoneArch(GB.x, GB.z, GB.length, 'x', h, { steps: true });
   api.place(deck);
-  api.place(modelLandmark('witch-bridge', G.x, -124, deck.baseY, { collider: 'none', onLoad: () => { deck.object.visible = false; deck.object.userData.hidden = true; } }));
-  // Steps up from the lower rim to the deck's end, so neither side is a ledge.
-  const ends: Footprint[] = [];
-  for (const side of [-1, 1]) {
-    const ex = G.x + side * 11.3;
-    const ground = h(ex + side * 1.5, -124);
-    const endTop = deck.baseY + 22 * (0.368 / 1.899) * 0.29;
-    const rise = endTop - ground;
-    const steps = Math.ceil(rise / 0.35);
-    for (let k = 0; k < steps; k++) {
-      const top = ground + (rise * (k + 1)) / steps;
-      ends.push({ kind: 'box', x: ex + side * (0.4 + (steps - 1 - k) * 0.45), z: -124, hw: 0.25, hd: 2.3, top, bottom: top - 1.5 });
-    }
-  }
-  if (ends.length) api.heights.add(...ends);
+  api.place(modelLandmark('witch-bridge', GB.x, GB.z, deck.baseY, { scale: deck.scale, collider: 'none', onLoad: () => { deck.object.visible = false; deck.object.userData.hidden = true; } }));
   // Pines on both rims, dead trees leaning over the edges; the walls stay bare.
   const rims: Placement[] = [];
   const dead: Placement[] = [];

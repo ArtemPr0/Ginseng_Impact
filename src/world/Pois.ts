@@ -3,6 +3,7 @@
  * game already has, stands on the sculpted ground, and is set where the empty-ground map (scripts/perf/audit/empty.js)
  * showed nothing within reach. Their mobs are in ENEMY_SPAWNS, their chests in data/chests.ts.
  */
+import { KINGDOM_ROAD } from '../data/world';
 import { glowSprite } from '../render/Glow';
 import { fire } from './Fire';
 import { modelLandmark } from './ModelLandmark';
@@ -138,7 +139,10 @@ export function dressVale(api: RealmApi): void {
 }
 
 /** The kingdom's margins: a purple wood north of Bucket Street, crystal outcrops by the court, more graves in the snow. */
-export function dressKingdom(api: RealmApi): void {
+export function dressKingdom(realm: RealmApi): void {
+  // (Nothing grows on the checkered road: a dead tree from the field south of the plaza stood on it.)
+  const offRoad = (p: Placement) => !(Math.abs(p.x - KINGDOM_ROAD.x) < KINGDOM_ROAD.half && p.z > KINGDOM_ROAD.z0 && p.z < KINGDOM_ROAD.z1);
+  const api: RealmApi = Object.assign(Object.create(realm) as RealmApi, { flora: (id: string, ps: Placement[], opts?: Parameters<RealmApi['flora']>[2]) => realm.flora(id, ps.filter(offRoad), opts) });
   // (A wood you walk into, not a tree every 24 m; clear of the camp and the lamps.)
   // (On the land: the margins were cut back on 2026-11-12, so a field reaching past them stops at the rim.)
   const clear = (p: Placement) => p.y > 20 && Math.hypot(p.x - 830, p.z + 56) > 9 && ![[860, -56], [930, -56], [980, -58]].some(([x, z]) => Math.hypot(p.x - x, p.z - z) < 3.5);
