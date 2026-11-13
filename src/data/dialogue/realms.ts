@@ -751,6 +751,9 @@ const DIVER: LineDef[] = [
 
 const FISH_KING: LineDef[] = [
   // greet
+  { id: 'fish-king.react.grouper', slot: 'react', text: 'You beat Gerald. He swallowed the church bell in my grandfather\'s time and rang on the hour since. We will sleep tonight. Drink.', when: { event: 'kill', enemy: 'grouper' } },
+  { id: 'fish-king.topic.gerald', slot: 'topic', ask: 'Anything big down here?', text: 'Round the old church behind the castle swims Gerald. Big Gerald. He ate the bell. He would like to eat you, but politely.',
+    choices: [{ label: 'I will go and see.', action: 'close' }] },
   { id: 'fish-king.greet.first', slot: 'greet', text: 'Welcome under the lake. Breathe if you like; it changes nothing down here. Sit. The chalice is purple and the purple is yours.', when: { metMax: 0 } },
   { id: 'fish-king.greet.again', slot: 'greet', text: 'The guest returns. Nothing has changed. I have moved the barrels. Nothing else.', when: { metMin: 1, metMax: 2 } },
   { id: 'fish-king.greet.regular', slot: 'greet', text: 'Welcome again. The jellyfish asked after you. The jellyfish are rude; it was a rude question.', when: { metMin: 3 } },

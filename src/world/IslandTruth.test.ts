@@ -12,6 +12,7 @@ import { MODELS } from '../data/models';
 import { gridFootprint, type GridFootprint } from './Colliders';
 import { Noise2D } from './noise';
 import { terrainHeight, waterLevelAt } from './Terrain';
+import { stoneArch } from './Walkways';
 
 const noise = new Noise2D(1337);
 const h = (x: number, z: number) => terrainHeight(x, z, noise);
@@ -168,12 +169,29 @@ describe('one eye at a time', () => {
   });
 });
 
-describe('the causeway', () => {
-  it('meets the ground at both rims (walked straight onto, no stairs) and crosses the whole chasm', () => {
+describe('the stone arches (the playtest of 2026-11-13: the chasm crossings arched like the gorge\'s, the gorge\'s reaching its rims)', () => {
+  const ends = (a: ReturnType<typeof stoneArch>) => {
+    const deck = a.footprints.filter((f) => f.kind === 'box' && f.top - (f.bottom ?? -Infinity) < 1);
+    return deck;
+  };
+  it('the causeway and the west crossing are stone arches from rim to rim over the chasm', () => {
     const c = LAYOUT.causeway;
-    expect(Math.abs(c.yStart - 0.25 - terrainHeight(c.x, c.zStart, noise))).toBeLessThan(0.4);
-    expect(Math.abs(c.yEnd - 0.25 - terrainHeight(c.x, c.zEnd, noise))).toBeLessThan(0.4);
-    for (const z of [c.zStart + 2, c.zEnd - 2]) expect(terrainHeight(c.x, z, noise), `rim beyond z ${z}`).toBeGreaterThan(1);
+    for (const b of [{ x: c.x, z: (c.zStart + c.zEnd) / 2, length: c.zStart - c.zEnd }, LAYOUT.chasmBridge]) {
+      const a = stoneArch(b.x, b.z, b.length, 'z', h, { steps: true });
+      for (const side of [-1, 1]) expect(h(b.x, b.z + side * (b.length / 2 + 0.5)), `rim beyond ${b.x}, ${b.z + side * b.length / 2}`).toBeGreaterThan(1);
+      expect(h(b.x, b.z)).toBeLessThan(-50);
+      expect(ends(a).length).toBeGreaterThan(80);
+    }
+  });
+  it('the gorge bridge reaches both rims: the ground meets each end, no gap under it and the deck not buried', () => {
+    const b = LAYOUT.gorgeBridge;
+    const a = stoneArch(b.x, b.z, b.length, 'x', h, { steps: true });
+    const deck = ends(a).filter((f) => Math.abs(f.z - b.z) < 0.01).sort((p, q) => p.x - q.x);
+    for (const end of [deck[0], deck.at(-1)!]) {
+      const g = h(end.x, b.z);
+      expect(end.top - g, `deck end at x ${end.x.toFixed(1)} over ground ${g.toFixed(2)}`).toBeLessThan(1.2);
+      expect(end.top - g).toBeGreaterThan(-0.3);
+    }
   });
 });
 

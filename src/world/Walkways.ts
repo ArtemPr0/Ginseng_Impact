@@ -1,14 +1,12 @@
 /**
- * Walkable placeholders for the structures the player stands on. Plain slabs in the palette's `stone`
- * colour that reproduce the colliders of the old causeway, chasm bridge and witch-bridge deck exactly, so
- * the island stays connected until their Meshy versions (`causeway-segment`, `causeway-stairs`,
- * `chasm-bridge`, `witch-bridge`) land. Allow-listed in the procedural audit.
+ * The walkable bridges: their stepped deck colliders, and plain slabs in the palette's `stone` colour that stand in
+ * until their Meshy models (`witch-bridge`, `chasm-bridge` tiles) load. Allow-listed in the procedural audit.
  */
 import { BoxGeometry, Group, Mesh } from 'three';
 import { surface } from '../render/Materials';
 import { PALETTE } from '../render/palette';
 import type { Footprint } from './Colliders';
-import type { CausewayConfig, Landmark } from './Landmarks';
+import type { Landmark } from './Landmarks';
 
 type HeightAt = (x: number, z: number) => number;
 
@@ -23,118 +21,12 @@ function slab(w: number, h: number, d: number, x: number, y: number, z: number, 
   return m;
 }
 
-/**
- * The tops of the raised edge stones along the causeway, one each side at the middle of every span (lanterns and
- * candles stand on these, on the bridge itself).
- */
-export function causewayPostPoints(cfg: CausewayConfig, spanHeight: number): Array<{ x: number; z: number; y: number }> {
-  const out: Array<{ x: number; z: number; y: number }> = [];
-  for (const s of causewaySpans(cfg)) {
-    for (const side of [-1, 1]) out.push({ x: cfg.x + side * SPAN_POST.x * s.scale, z: s.zc, y: s.top + spanHeight * s.scale * SPAN_POST.rise });
-  }
-  return out;
-}
-
-/** Span model length once scaled to its registry height (causeway-segment.glb is 1.362 × 0.434 × 1.900, long along z). */
-export const SPAN_LENGTH = 5.93 * (1.9 / 1.362);
-
-/**
- * The causeway's spans, end to end from zStart to zEnd: centre z, length, deck top at the centre and the scale that
- * makes the model exactly that long (every span the same, so no copy overlaps the next).
- */
-function causewaySpans(cfg: CausewayConfig): Array<{ zc: number; len: number; top: number; scale: number }> {
-  const length = cfg.zStart - cfg.zEnd;
-  const n = Math.max(1, Math.round(length / SPAN_LENGTH));
-  const len = length / n;
-  return Array.from({ length: n }, (_, i) => ({ zc: cfg.zStart - (i + 0.5) * len, len, top: cfg.yStart + ((cfg.yEnd - cfg.yStart) * (i + 0.5)) / n, scale: len / SPAN_LENGTH }));
-}
-
 /** How far below the walk surface a deck's underside is (arch crown and paving). */
 const DECK_DEPTH = 0.9;
-
-/**
- * Span model (causeway-segment.glb, measured with scripts/model-measure.mjs and downward rays in the game): the deck's
- * crown at this fraction of the span's height; the paving reaches SPAN_HALF metres either side of the centre line
- * (the edge stones overhang a little further); a raised edge stone at the middle of each span, `x` out from the
- * centre, its top `rise` × height above the crown.
- */
-const SPAN_DECK = 0.861;
-const SPAN_HALF = 2.3;
-const SPAN_POST = { x: 2.1, rise: (0.985 - SPAN_DECK) };
-
-export interface CausewayBuild {
-  /** Colliders: the deck (fine steps along its slope) and the edge stones. */
-  landmark: Landmark;
-  /** Instances of the `causeway-segment` model (arched bridge span, registry height = span height), end to end. */
-  spans: Array<{ x: number; y: number; z: number; yaw: number; scale: number }>;
-  /** Piers under the joints where the bridge crosses the chasm: foot (the cloud sea or the chasm wall) and height to the arch feet. */
-  piers: Array<{ x: number; y: number; z: number; height: number }>;
-}
-
-/** How long a piece of the deck collider is: its tops follow the slope in steps a walker never notices. */
-const DECK_STEP = 2;
-
-/**
- * The raised road over the chasm: one bridge from rim to rim. The arched spans lie end to end on one even slope (three
- * overlapping copies per segment, each segment a step higher, read as bridges stacked on bridges), the deck meets the
- * ground at both ends (no stairs, no pillar stubs under the approaches), and a pier stands under every joint over the
- * chasm, all alike. The approaches beyond the rims are ground road.
- */
-export function causewayWalk(cfg: CausewayConfig, groundAt: HeightAt, spanHeight: number): CausewayBuild {
-  const g = new Group();
-  const footprints: Footprint[] = [];
-  const spans: CausewayBuild['spans'] = [];
-  const piers: CausewayBuild['piers'] = [];
-  const all = causewaySpans(cfg);
-  const slope = (cfg.yEnd - cfg.yStart) / (cfg.zStart - cfg.zEnd);
-  for (const [i, { zc, len, top, scale }] of all.entries()) {
-    spans.push({ x: cfg.x, y: top - spanHeight * scale * SPAN_DECK, z: zc, yaw: 0, scale });
-    // The deck, in short pieces whose tops follow the slope; only as wide as the paving (no walking on air beside it).
-    const pieces = Math.max(1, Math.round(len / DECK_STEP));
-    for (let k = 0; k < pieces; k++) {
-      const z = zc + len / 2 - ((k + 0.5) * len) / pieces;
-      const y = cfg.yStart + (cfg.zStart - z) * slope;
-      footprints.push({ kind: 'box', x: cfg.x, z, hw: SPAN_HALF * scale, hd: len / pieces / 2, top: y, bottom: y - DECK_DEPTH });
-    }
-    // The raised edge stones at the middle of the span.
-    for (const side of [-1, 1]) {
-      footprints.push({ kind: 'box', x: cfg.x + side * SPAN_POST.x * scale, z: zc, hw: 0.3, hd: 0.7, top: top + spanHeight * scale * SPAN_POST.rise, bottom: top - DECK_DEPTH });
-    }
-    // A pier under the joint at the span's north end, where the bridge is over the chasm (the last joint is the north
-    // rim). A rock spire climbs out of the cloud sea (or the chasm wall) to the arch feet.
-    if (i < all.length - 1) {
-      const z = zc - len / 2;
-      const ground = groundAt(cfg.x, z);
-      const feet = cfg.yStart + (cfg.zStart - z) * slope - spanHeight * scale + 0.3;
-      if (ground < feet - 12) {
-        const base = Math.max(ground, -95);
-        piers.push({ x: cfg.x, z, y: base, height: feet - base });
-      }
-    }
-  }
-  return { landmark: { object: g, footprints }, spans, piers };
-}
 
 /** Rope-bridge tile model: width (x) of the file in metres once scaled to its registry height, and its deck height. */
 const BRIDGE_TILE = 1.8 * (1.899 / 1.071);
 const BRIDGE_DECK = 0.45;
-
-/**
- * The rope bridge over the chasm: one walk collider for the whole span and a row of `chasm-bridge` deck tiles
- * (the Meshy file is a square railed deck section; local +z runs along the span).
- */
-export function chasmBridge(ax: number, az: number, bx: number, bz: number, y: number, tileHeight: number): Landmark & { tiles: Array<{ x: number; y: number; z: number; yaw: number; scale: number }> } {
-  const len = Math.hypot(bx - ax, bz - az);
-  const yaw = Math.atan2(bz - az, bx - ax);
-  const n = Math.ceil(len / BRIDGE_TILE);
-  const step = len / n;
-  const tiles = [];
-  for (let i = 0; i < n; i++) {
-    const t = (i + 0.5) / n;
-    tiles.push({ x: ax + (bx - ax) * t, y: y - tileHeight * BRIDGE_DECK, z: az + (bz - az) * t, yaw: Math.atan2(bx - ax, bz - az), scale: step / BRIDGE_TILE });
-  }
-  return { object: new Group(), tiles, footprints: [{ kind: 'box', x: (ax + bx) / 2, z: (az + bz) / 2, hw: len / 2, hd: 1.4, top: y, rotY: yaw, bottom: y - 0.6 }] };
-}
 
 /**
  * An arched wooden footbridge (the reference's bridge over the eye, #28) from (x, zA) to (x, zB): its walk surface rises
@@ -211,9 +103,38 @@ export const WITCH_BRIDGE = { length: 22, height: 22 * (0.368 / 1.899), halfWidt
  * model at scale 1; shorter is the model scaled down whole, length/22, its rise and width with it).
  */
 export function witchBridgeDeck(streamX: number, bridgeZ: number, heightAt: HeightAt, length: number = WITCH_BRIDGE.length): Landmark & { deckY: number; baseY: number; scale: number } {
+  return stoneArch(streamX, bridgeZ, length, 'x', heightAt);
+}
+
+export interface StoneArch extends Landmark {
+  /** The crown's walk surface. */
+  deckY: number;
+  /** Where the model's origin goes (its feet). */
+  baseY: number;
+  /** The model's scale (length / 22). */
+  scale: number;
+  /** The model's rotation about y (its arch runs along local x). */
+  yaw: number;
+  /** The tops of the parapets, about every 4 m each side (candles go on them). */
+  posts: Array<{ x: number; y: number; z: number }>;
+}
+
+/**
+ * The stone arch (witch-bridge.glb) as a crossing of any length, centred on (cx, cz), its arch running along x or z: the
+ * model scaled whole (length / 22: its rise, width and parapets with it). Both ends start at the higher bank; with
+ * `steps`, the lower bank climbs to its end by stair treads (no ledge to jump), each under a stair's rise.
+ */
+export function stoneArch(cx: number, cz: number, length: number, along: 'x' | 'z', heightAt: HeightAt, opts: { steps?: boolean } = {}): StoneArch {
   const k = length / WITCH_BRIDGE.length;
   const half = WITCH_BRIDGE.halfWidth * k;
-  const bank = Math.max(heightAt(streamX - length / 2 - 0.5, bridgeZ), heightAt(streamX + length / 2 + 0.5, bridgeZ));
+  // A point `u` metres along the arch from its centre and `v` across it.
+  const at = (u: number, v: number): [number, number] => (along === 'x' ? [cx + u, cz + v] : [cx + v, cz + u]);
+  const box = (u: number, v: number, hu: number, hv: number, top: number, bottom: number): Footprint => {
+    const [x, z] = at(u, v);
+    return along === 'x' ? { kind: 'box', x, z, hw: hu, hd: hv, top, bottom } : { kind: 'box', x, z, hw: hv, hd: hu, top, bottom };
+  };
+  const groundAt = (u: number) => heightAt(...at(u, 0));
+  const bank = Math.max(groundAt(-length / 2 - 0.5), groundAt(length / 2 + 0.5));
   const H = WITCH_BRIDGE.height * k;
   const baseY = bank + 0.1 - WITCH_BRIDGE_PROFILE[0] * H;
   const surface = (t: number) => {
@@ -223,17 +144,40 @@ export function witchBridgeDeck(streamX: number, bridgeZ: number, heightAt: Heig
   };
   const g = new Group();
   const footprints: Footprint[] = [];
-  const slices = 44;
+  // (Slices no longer than 0.45 m: on a long arch the profile's steepest step stays under a walker's trip height.)
+  const slices = Math.max(44, Math.ceil(length / 0.45));
+  const du = length / slices;
   for (let s = 0; s < slices; s++) {
     const t = (s + 0.5) / slices;
-    const x = streamX - length / 2 + t * length;
+    const u = -length / 2 + t * length;
     const top = surface(t);
-    footprints.push({ kind: 'box', x, z: bridgeZ, hw: length / slices / 2 + 0.02, hd: half, top, bottom: top - DECK_DEPTH });
-    for (const side of [-1, 1]) footprints.push({ kind: 'box', x, z: bridgeZ + side * (half + 0.2), hw: length / slices / 2 + 0.02, hd: 0.2, top: top + 0.9, bottom: top - DECK_DEPTH });
+    footprints.push(box(u, 0, du / 2 + 0.02, half, top, top - DECK_DEPTH));
+    for (const side of [-1, 1]) footprints.push(box(u, side * (half + 0.2), du / 2 + 0.02, 0.2, top + 0.9 * Math.max(1, k * 0.8), top - DECK_DEPTH));
+  }
+  const endTop = surface(0);
+  if (opts.steps) {
+    for (const side of [-1, 1]) {
+      const ground = groundAt(side * (length / 2 + 1.5));
+      const rise = endTop - ground;
+      if (rise < 0.3) continue;
+      const n = Math.ceil(rise / 0.35);
+      for (let i = 0; i < n; i++) {
+        const top = endTop - (rise * i) / n;
+        footprints.push(box(side * (length / 2 + 0.225 + i * 0.45), 0, 0.25, half, top, top - 1.5));
+      }
+    }
+  }
+  const posts: StoneArch['posts'] = [];
+  const nPosts = Math.max(2, Math.round(length / 4));
+  for (let i = 0; i <= nPosts; i++) {
+    const t = 0.04 + (0.92 * i) / nPosts;
+    const u = -length / 2 + t * length;
+    for (const side of [-1, 1]) { const [x, z] = at(u, side * (half + 0.2)); posts.push({ x, y: surface(t) + 0.9 * Math.max(1, k * 0.8), z }); }
   }
   // Stand-in until the model loads: a flat slab at the crown.
-  g.add(slab(length, 0.6, half * 2, streamX, surface(0.5) - 0.3, bridgeZ));
-  return { object: g, footprints, deckY: surface(0.5), baseY, scale: k };
+  const [sx, sz] = at(0, 0);
+  g.add(along === 'x' ? slab(length, 0.6, half * 2, sx, surface(0.5) - 0.3, sz) : slab(half * 2, 0.6, length, sx, surface(0.5) - 0.3, sz));
+  return { object: g, footprints, deckY: surface(0.5), baseY, scale: k, yaw: along === 'x' ? 0 : Math.PI / 2, posts };
 }
 
 /** A flat stone floor slab whose top is at `top` (the realms' ground until their floor models exist). */

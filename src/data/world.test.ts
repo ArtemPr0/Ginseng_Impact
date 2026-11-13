@@ -36,3 +36,12 @@ describe('REALM_SKY', () => {
     }
   });
 });
+
+describe('the carriage at the lean castle\'s bridge (the review of 2026-11-13: left inside the castle when the west block moved)', async () => {
+  const { CARRIAGE_STAND, LEAN_QUARTER: Q, ANCHORS: A } = await import('./world');
+  it('stands on the street side of the moat, with Count Rattlewheel in it', () => {
+    expect(CARRIAGE_STAND.x).toBeGreaterThan(Q.moat[1]);
+    expect(CARRIAGE_STAND.x).toBeLessThan(Q.street[0] + 20);
+    expect(Math.hypot(A['carriage-count'].x - CARRIAGE_STAND.x, A['carriage-count'].z - CARRIAGE_STAND.z)).toBeLessThan(1);
+  });
+});

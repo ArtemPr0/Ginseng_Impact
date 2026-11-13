@@ -1,51 +1,52 @@
 import { describe, expect, it } from 'vitest';
-import { causewayPostPoints, causewayWalk, SPAN_LENGTH } from './Walkways';
-import type { CausewayConfig } from './Landmarks';
+import { stoneArch, WITCH_BRIDGE } from './Walkways';
+import type { Footprint } from './Colliders';
 
-// A chasm between two banks at 3.2 m, like the island's (rims at z -34 and -79, the cloud sea at -90 below).
-const ground = (_x: number, z: number) => (z < -34 && z > -79 ? -90 : 3.2);
-const cfg: CausewayConfig = { x: 0, zStart: -30, zEnd: -82, width: 6, yStart: 3.45, yEnd: 3.45 };
-const SPAN_H = 1.89;
+// A chasm between two banks, like the island's (rims at z -34 and -79, the cloud sea at -90 below): the south bank at
+// 4.2, the north at 3.2.
+const ground = (_x: number, z: number) => (z < -34 && z > -79 ? -90 : z >= -34 ? 4.2 : 3.2);
+type Box = Extract<Footprint, { kind: 'box' }>;
+const boxes = (fs: Footprint[]) => fs.filter((f): f is Box => f.kind === 'box');
 
-describe('the causeway is one bridge, bank to bank', () => {
-  const b = causewayWalk(cfg, ground, SPAN_H);
+describe('a stone arch across a chasm (the gorge bridge, as long as the crossing)', () => {
+  const a = stoneArch(0, -56, 52, 'z', ground, { steps: true });
+  const deck = boxes(a.footprints).filter((f) => Math.abs(f.x) < 0.01 && f.top - f.bottom! < 1).sort((p, q) => q.z - p.z);
+  const k = 52 / WITCH_BRIDGE.length;
 
-  it('lays its arched spans end to end: no copy overlaps the next', () => {
-    const spans = [...b.spans].sort((a, c) => c.z - a.z);
-    expect(spans.length).toBe(Math.round(52 / SPAN_LENGTH));
-    for (let i = 1; i < spans.length; i++) {
-      const gap = spans[i - 1].z - spans[i].z;
-      expect(gap).toBeCloseTo(SPAN_LENGTH * spans[i].scale, 6);
-    }
-    // The first and last span end exactly at the bridge's ends.
-    expect(spans[0].z + (SPAN_LENGTH * spans[0].scale) / 2).toBeCloseTo(cfg.zStart, 6);
-    expect(spans.at(-1)!.z - (SPAN_LENGTH * spans.at(-1)!.scale) / 2).toBeCloseTo(cfg.zEnd, 6);
+  it('runs along z from rim to rim, the model scaled whole to the length', () => {
+    const zs = deck.map((f) => f.z);
+    expect(Math.max(...zs) - Math.min(...zs)).toBeGreaterThan(51);
+    expect(Math.max(...zs)).toBeLessThan(-30);
+    expect(Math.min(...zs)).toBeGreaterThan(-82);
+    expect(a.scale).toBeCloseTo(k, 6);
+    expect(deck[0].hw).toBeCloseTo(WITCH_BRIDGE.halfWidth * k, 6);
+    expect(Math.abs(Math.sin(a.yaw))).toBeCloseTo(1, 6);
   });
 
-  it('walks straight on from the ground at both ends: no stairs, no ledge', () => {
-    expect('stairs' in b).toBe(false);
-    const boxes = b.landmark.footprints.filter((f) => f.kind === 'box' && Math.abs(f.x - cfg.x) < 0.01);
-    const tops = boxes.map((f) => (f as { z: number; top: number }));
-    const south = tops.reduce((a, c) => (c.z > a.z ? c : a));
-    const north = tops.reduce((a, c) => (c.z < a.z ? c : a));
-    expect(south.top - ground(0, cfg.zStart)).toBeLessThan(0.4);
-    expect(north.top - ground(0, cfg.zEnd)).toBeLessThan(0.4);
+  it('starts both ends at the higher bank and arches over the middle', () => {
+    expect(deck[0].top - 4.2).toBeLessThan(0.3);
+    expect(deck.at(-1)!.top - 4.2).toBeLessThan(0.3);
+    expect(a.deckY - deck[0].top).toBeGreaterThan(0.5 * WITCH_BRIDGE.height * k);
   });
 
   it('has a deck with no step a walker would trip on', () => {
-    const deck = b.landmark.footprints.filter((f) => f.kind === 'box' && Math.abs(f.x - cfg.x) < 0.01).map((f) => f as { z: number; top: number }).sort((a, c) => c.z - a.z);
     for (let i = 1; i < deck.length; i++) expect(Math.abs(deck[i].top - deck[i - 1].top)).toBeLessThan(0.15);
   });
 
-  it('stands on piers only over the chasm, one at every joint there, all alike', () => {
-    for (const p of b.piers) expect(ground(p.x, p.z)).toBeLessThan(-50);
-    const joints = b.spans.map((s) => s.z - (SPAN_LENGTH * s.scale) / 2).filter((z) => z > cfg.zEnd + 0.1 && ground(0, z) < -50);
-    expect(b.piers.length).toBe(joints.length);
+  it('climbs from the lower bank onto the deck by steps no higher than a stair', () => {
+    const north = boxes(a.footprints).filter((f) => f.z < -82).sort((p, q) => q.z - p.z);
+    expect(north.length).toBeGreaterThan(1);
+    expect(north.at(-1)!.top - 3.2).toBeLessThan(0.4);
+    expect(Math.abs(north[0].top - deck.at(-1)!.top)).toBeLessThan(0.15);
+    for (let i = 1; i < north.length; i++) expect(north[i - 1].top - north[i].top).toBeLessThan(0.4);
+    // (The south bank is level with the deck's end: no steps there.)
+    expect(boxes(a.footprints).filter((f) => f.z > -30).length).toBe(0);
   });
 
-  it('puts the lanterns on its own edge stones, one pair a span', () => {
-    const posts = causewayPostPoints(cfg, SPAN_H);
-    expect(posts.length).toBe(b.spans.length * 2);
+  it('puts candles on its parapets the whole way over', () => {
+    const zs = a.posts.map((p) => p.z);
+    expect(Math.max(...zs) - Math.min(...zs)).toBeGreaterThan(40);
+    for (const p of a.posts) expect(Math.abs(Math.abs(p.x) - (WITCH_BRIDGE.halfWidth * k + 0.2))).toBeLessThan(0.01);
   });
 });
 

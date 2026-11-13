@@ -57,6 +57,7 @@ export const ITEMS: Record<string, ItemDef> = {
   'warden-antler': { id: 'warden-antler', name: 'Warden Antler', kind: 'material', desc: 'A branch of the river giant\'s crown.', value: 260, rarity: 4 },
   'wyrm-scale': { id: 'wyrm-scale', name: 'Wyrm Scale', kind: 'material', desc: 'Moonlight sticks to it.', value: 280, rarity: 4 },
   'troll-hide': { id: 'troll-hide', name: 'Troll Hide', kind: 'material', desc: 'Blue stone that was skin a moment ago.', value: 170, rarity: 3 },
+  'church-bell': { id: 'church-bell', name: 'Swallowed Church Bell', kind: 'material', desc: 'Still rings on the hour. From inside a fish, for years.', value: 220, rarity: 3 },
   'lurker-eye': { id: 'lurker-eye', name: 'Lurker Eye', kind: 'material', desc: 'Still looks at you from the bag.', value: 150, rarity: 3 },
   'demon-horn': { id: 'demon-horn', name: 'Sovereign Horn', kind: 'material', desc: 'One of four. It is warm, which is wrong.', value: 240, rarity: 4 },
   'king-rib': { id: 'king-rib', name: 'Hollow Rib', kind: 'material', desc: 'A bone the size of a bridge. Something glows inside it.', value: 300, rarity: 4 },

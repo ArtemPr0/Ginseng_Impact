@@ -124,7 +124,9 @@ export class Minimap {
         let r = 5, g = 6, b = 15;
         if (h > WORLD.cloudSeaY) { r = 20; g = 28; b = 80; }
         if (h > -2) { const t = Math.min(1, (h + 2) / 14); r = 28 + t * 30; g = 40 + t * 30; b = 110 + t * 60; }
-        if (Math.abs(x - LAYOUT.causeway.x) < 3.5 && z < LAYOUT.causeway.zStart && z > LAYOUT.causeway.zEnd) { r = 140; g = 150; b = 210; }
+        // The two stone arches over the chasm.
+        const cb = LAYOUT.chasmBridge;
+        if ((Math.abs(x - LAYOUT.causeway.x) < 4 && z < LAYOUT.causeway.zStart && z > LAYOUT.causeway.zEnd) || (Math.abs(x - cb.x) < 4 && Math.abs(z - cb.z) < cb.length / 2)) { r = 140; g = 150; b = 210; }
         img.data[k] = r; img.data[k + 1] = g; img.data[k + 2] = b; img.data[k + 3] = 255;
       }
     }

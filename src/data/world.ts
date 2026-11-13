@@ -3,10 +3,13 @@ import type { Zone } from '../game/Events';
 /** Placement of everything in the first area. Units are metres; the causeway runs north (−z) along x = 0. */
 export const LAYOUT = {
   spawn: { x: 0, z: 59 },
-  /** The rope bridge over the chasm, west of the cathedral: south end on the rim, north end by the dead wood. */
-  // (Its south end on the rim at z -32.5: at -38 the last 4 m hung over the chasm; the deck is a chain span, so both
-  // ends sit on their own bank.)
-  chasmBridge: { ax: 26, az: -32.5, bx: 27, bz: -85 },
+  /**
+   * The west crossing over the chasm, by the cathedral: a stone arch like the gorge's (the playtest of 2026-11-13: "this
+   * bridge should be like an arch bridge instead of flat"), centred on (x, z), running along z rim to rim.
+   */
+  chasmBridge: { x: 26.5, z: -59.5, length: 54 },
+  /** The forest gorge's stone arch, crest to crest (at 22 m its ends stood on the walls' slopes, not on the rims). */
+  gorgeBridge: { x: -65, z: -124, length: 28 },
   /**
    * Footpaths worn into the ground (Terrain colours them; nothing grows on them). They tie the spawn to the village,
    * the tavern, the bridges, the portals and every landmark, and keep clear of the mobs' camps.
@@ -26,20 +29,20 @@ export const LAYOUT = {
     // From the hamlet on the far bank to the pond and the frog hollow, and east to the rope bridge.
     [[0, -2], [-10, -4], [-14, -6], [-30, -10], [-43, -17]],
     [[2, -5], [6, -10], [18, -18], [30, -24], [34, -24]],
-    [[22, -20], [26, -32.5]],
+    [[22, -20], [26.5, -31]],
     // The road over the chasm: up from the hamlet to the causeway's south rim, and on from its north rim to the head.
     [[0, -4], [0, -30]],
     [[0, -82], [0, -92], [-4, -96]],
     [[0, -134], [0, -140]],
     [[-2, -112], [-12, -108]],
-    [[27, -86], [44, -90], [52, -90]],
+    [[26.5, -89], [44, -90], [52, -90]],
     [[-4, -96], [-16, -88], [-36, -88]],
     // Into the forest gorge, over its stone bridge and on to the overlook.
     [[-4, -114], [-24, -116], [-42, -120], [-51, -124]],
     [[-77, -124], [-86, -116]],
   ] as Array<Array<[number, number]>>,
-  /** The causeway: one stone bridge over the chasm, rim to rim (z -34 and -79), its deck 0.25 m over the ground at each end. */
-  causeway: { x: 0, zStart: -30, zEnd: -82, width: 6, yStart: 4.45, yEnd: 3.45 },
+  /** The causeway: one stone arch over the chasm on the road to the head, rim to rim (z -34 and -79), ends beyond the rims. */
+  causeway: { x: 0, zStart: -30, zEnd: -82 },
   head: { x: 0, z: -146, height: 26 },
   /**
    * The cathedral's long axis runs east–west; its west front faces the river road. Between the chasm and the river
@@ -79,7 +82,7 @@ export const LAYOUT = {
   orchard: { x: 60, z: 24 },
   rainZone: { x: 60, z: 24, radius: 30 },
   /** Snow: the Frost March (the island's frozen north-east, see Terrain.frozenAt) and the kingdom's snow chapel. */
-  snowZones: [{ x: 84, z: -78, radius: 48 }, { x: 900, z: 122, radius: 52 }],
+  snowZones: [{ x: 84, z: -78, radius: 48 }, { x: 933, z: 122, radius: 52 }],
   frozenRect: { xFrom: 33, xTo: 114, zFrom: -105, zTo: -18 },
   /** The moon-shell colossus crawls the east shore, outside every building. */
   colossusPath: [[84, -90], [90, -110], [84, -130], [90, -110]] as Array<[number, number]>,
@@ -165,6 +168,9 @@ export const VILLAGE = {
  * Where each standing/sitting NPC lives (world metres). `dy` lifts a seated pose onto its seat; `y` pins an
  * absolute height (a balcony perch). Loop NPCs start at the first point of their path instead.
  */
+/** Where the carriage stands before the lean castle's bridge, facing the street (World.ts builds it; the Count rides in it). */
+export const CARRIAGE_STAND = { x: 873, z: 12, heading: -Math.PI / 2 } as const;
+
 export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: number }> = {
   // The Stone Head (bodiless, LAYOUT.head): where you stand before its face, on the rise 4 m short of its chin (the
   // head's collider starts at z -140), so its bubble hangs just in front of the mouth and 30 m reach the causeway's end.
@@ -186,7 +192,7 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   standard: { x: -54, z: -93 },
   'rose-knight': { x: 16, z: 34 }, maiden: { x: 18.2, z: 33 },
   // Dunmar guards the door of Yung Lean's hall; Sel watches the head of Bucket Street (both in the kingdom).
-  'watcher-knight': { x: 1000, z: -51.8 }, 'watcher-mage': { x: 937, z: 24 },
+  'watcher-knight': { x: 1000, z: -51.8 }, 'watcher-mage': { x: 970, z: 24 },
   'cup-gnome': { x: 6.5, z: 64 },
   // Fifth batch of reels.
   // (Beside the middle tavern table, not inside it: the table at (-40, -24) is solid once its model exists.)
@@ -195,15 +201,15 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   'lantern-witch': { x: -106, z: 14 },
   // The Lean Quarter (round 6, see LEAN_QUARTER): the Skeleton Court, Bucket Street, the snow chapel, the sky dock.
   // On the dragon throne's seat (ray-probed: 25.38, its front edge at z -171.1), hips 0.12 over it, 0.3 in from the edge.
-  'skeleton-king': { x: 1000, z: -171.0, y: 24.76 },
-  'galaxy-wizard': { x: 872, z: -18 },
+  'skeleton-king': { x: 1000, z: -159, y: 24.76 },
+  'galaxy-wizard': { x: 905, z: -18 },
   // The lord at the front of the pavilion's settee (ray-probed: seat 25.03, 1.8 m deep, front edge x 1042.4; sat at
   // its back his shins sank into it), Sir Cobalt on a stool at his side.
-  'skeleton-lord': { x: 1042.15, z: -160, y: 24.53 }, 'court-knight': { x: 1042.3, z: -158.3, dy: 0.02 },
-  'potion-brewer': { x: 1026, z: -127 },
+  'skeleton-lord': { x: 1042.15, z: -148, y: 24.53 }, 'court-knight': { x: 1042.3, z: -146.3, dy: 0.02 },
+  'potion-brewer': { x: 1026, z: -115 },
   bartender: { x: 1173.0, z: 10.1 }, 'dock-knight': { x: 1181, z: 7.5, dy: 0.06 },
   // On the snow flat at snowY(124.6) ≈ 26.1 (SNOW_FLATS plague-doctor); GroundQuery sets y.
-  'plague-doctor': { x: 931, z: 124.6, dy: 0 },
+  'plague-doctor': { x: 964, z: 124.6, dy: 0 },
   // Down in the crypt bar (Interiors.ts, CRYPT_ROOM): two along the west counter facing the way in, Knuckles on a
   // barrel against the east counter facing them; Sir Gilt before the back counter's skulls.
   'crypt-red': { x: -1001.9, z: 1299.6 }, 'crypt-witch': { x: -1001.9, z: 1301.3 }, 'crypt-bones': { x: -998.7, z: 1300.6, dy: 0.02 },
@@ -211,14 +217,14 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   yunglean: { x: 1000, z: -74.6, dy: 0.8 },
   'void-monk': { x: 1008, z: 66 },
   // Behind their stalls between the purple houses of the bucket street (Realms.ts places the stalls).
-  'market-a': { x: 915, z: 6.4 }, 'market-b': { x: 879, z: 29.6 },
+  'market-a': { x: 948, z: 6.4 }, 'market-b': { x: 912, z: 29.6 },
   // Inside the vale's tavern (Interiors.ts, TAVERN_ROOM): Waxwick behind the long table with the hearth at his back,
   // a dwarf at each end of it (the table: x -1001.6..-998.4, z 999.6..1000.8).
   waxwick: { x: -1000, z: 999.05 }, brannoc: { x: -1002.2, z: 1000.3 }, hilde: { x: -997.8, z: 1000.3 },
   // The Dragon's Vale (Vale.ts): the reader on the dragon's claw, the street's folk.
   'dragon-reader': { x: 995.0, z: 904.6, dy: 0.02 },
   // Inside the carriage at the lean castle's bridge (world/Carriage.ts moves him with it).
-  'carriage-count': { x: 840, z: 12.8, y: 24.8 },
+  'carriage-count': { x: 873, z: 12.8, y: 24.8 }, // (CARRIAGE_STAND + 0.8 m in z)
   // Before the green dragon's head (his neck turns to watch you; Vale.ts).
   'vale-dragon': { x: 996.5, z: 908 },
   'vale-knight': { x: 1004.5, z: 958 }, 'vale-beggar': { x: 994.4, z: 966, dy: 0.02 }, 'vale-merchant': { x: 1005.0, z: 941.4 },
@@ -254,20 +260,23 @@ export interface RealmDef {
 /** Beyond the portal: Yung Lean's kingdom (it was the galaxy city; the id stays). */
 export const GALAXY: RealmDef = { id: 'galaxy', name: "Yung Lean's Kingdom", x: 1000, z: 0, y: 24, radius: 300, fog: { color: 0x3a1a52, density: 0.0055 }, ownSky: true };
 
+/** The kingdom's checkered road (DeOemU1BOZF, Realms.ts) from the plaza's south end north to the court: [z0, z1] along x. */
+export const KINGDOM_ROAD = { x: GALAXY.x, z0: GALAXY.z - 44, z1: GALAXY.z + 72, half: 5 } as const;
+
 /**
  * The kingdom's quarters (round 6, the @returndark reels), each a walkable floor off the plaza (x 940..1060,
  * z -85..75): the Skeleton Court north, Bucket Street and the lean castle west, the snow chapel south-west, the sky
  * dock east beyond the cup islands. Rectangles are [x0, x1, z0, z1].
  */
 export const LEAN_QUARTER = {
-  court: [940, 1060, -185, -85] as const,
-  street: [828, 940, -40, 75] as const,
+  court: [940, 1060, -173, -85] as const,
+  street: [861, 973, -40, 75] as const,
   /** The lean moat in front of the castle (a sunken channel) and the castle's own ground behind it. */
-  moat: [816, 828, -40, 75] as const,
-  castleYard: [780, 816, -40, 75] as const,
-  snow: [860, 960, 75, 175] as const,
-  castle: { x: 800, z: 18 },
-  chapel: { x: 900, z: 152 },
+  moat: [849, 861, -40, 75] as const,
+  castleYard: [813, 849, -40, 75] as const,
+  snow: [893, 993, 75, 175] as const,
+  castle: { x: 833, z: 18 },
+  chapel: { x: 933, z: 152 },
   dock: { x: 1180, z: 12, r: 12 },
 };
 
@@ -481,10 +490,10 @@ export const FLATS: {
     { x: 10, z: -96, r: 6 },
     ...LAYOUT.ruins.map((r) => ({ x: r.x, z: r.z, r: 3.5 })),
     // The bridges' ends: each deck is set from the higher of its two banks (Walkways), so both stay as they were.
-    { x: LAYOUT.chasmBridge.ax, z: LAYOUT.chasmBridge.az, r: 3 },
-    { x: LAYOUT.chasmBridge.bx, z: LAYOUT.chasmBridge.bz, r: 3 },
-    { x: -64 - 11.3, z: -124, r: 3 }, // the gorge's stone bridge (Heart.ts, WORLD.gorge.x ± 11.3)
-    { x: -64 + 11.3, z: -124, r: 3 },
+    { x: LAYOUT.chasmBridge.x, z: LAYOUT.chasmBridge.z + LAYOUT.chasmBridge.length / 2, r: 3 },
+    { x: LAYOUT.chasmBridge.x, z: LAYOUT.chasmBridge.z - LAYOUT.chasmBridge.length / 2, r: 3 },
+    { x: LAYOUT.gorgeBridge.x - LAYOUT.gorgeBridge.length / 2, z: LAYOUT.gorgeBridge.z, r: 3 }, // the gorge's stone arch
+    { x: LAYOUT.gorgeBridge.x + LAYOUT.gorgeBridge.length / 2, z: LAYOUT.gorgeBridge.z, r: 3 },
   ],
   rects: [
     [-58, -6, 60, 80], // the village: its two street rows of houses (6.4 x 5.5 m each) and the street between them (the back row stands on the village pads)

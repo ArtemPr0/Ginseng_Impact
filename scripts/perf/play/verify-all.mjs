@@ -76,7 +76,7 @@ allOk = runBody('plan', '0,40', 26, join(play, 'sweep-plan.js')) && allOk;
 allOk = runBody('walk', '1000,1000', 24, join(play, 'sweep-walk.js')) && allOk;
 allOk = runBody('layout', '0,40', 8, join(audit, 'layout.js')) && allOk;
 allOk = runBody('glows', '0,40', 8, join(audit, 'glows.js')) && allOk;
-for (const [zone, at] of [['island', '0,40'], ['north', '-20,-110'], ['plaza', '1000,20'], ['snow', '931,124'], ['vale', '1000,1006'], ['sunken', '-1000,56'], ['graveyard', '0,-916'], ['dream', '0,2630']]) {
+for (const [zone, at] of [['island', '0,40'], ['north', '-20,-110'], ['plaza', '1000,20'], ['snow', '964,124'], ['vale', '1000,1006'], ['sunken', '-1000,56'], ['graveyard', '0,-916'], ['dream', '0,2630']]) {
   allOk = runBody(`characters@${zone}`, at, 10, join(audit, 'characters.js')) && allOk;
 }
 

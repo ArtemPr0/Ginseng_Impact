@@ -85,7 +85,8 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
   const updates: Array<(dt: number) => void> = [];
   api.vfx({ group: fx, update: (dt) => { for (const u of updates) u(dt); } });
   // The vale stands on its sculpt, open to its cliffs; the river is water over the sculpted bed.
-  const z0 = Z - 120, z1 = Z + 125;
+  // (The river's north reach was cut back with the rest of the north: the playtest of 2026-11-13.)
+  const z0 = Z - 76, z1 = Z + 125;
   const riverX = X - 45;
   // The way home: the arch behind where you arrive, between two lantern posts like the island's (it hung alone).
   api.place(portal(X, vy + 2.4, VALE_ARRIVAL.z + 8, 1.7, { vertical: true, facing: -Math.PI / 2, colors: [0x0a2a1a, 0xffb050] }));
@@ -212,8 +213,9 @@ export function buildVale(api: RealmApi, link: (at: Vector3, radius: number, hei
         for (const [dz, model] of [[0.55, 'cup-gnome'], [-0.45, 'gnome-brother']] as const) {
           const rig = new Rig({ id: 'ferry-gnome', name: 'Gnome', title: '', element: 'fog', weapon: 'staff', maxHp: 1, atk: 1, accent: PALETTE_GOLD }, model);
           rig.root.position.set(0, 0.32, dz);
-          // Facing the stern, as rowers do.
-          rig.root.rotation.y = yawToRotation(-Math.PI / 2);
+          // Facing the way the boat goes (facing the stern, as real rowers do, read as the boat going backwards: the
+          // playtest of 2026-11-13).
+          rig.root.rotation.y = yawToRotation(Math.PI / 2);
           m.root.parent?.add(rig.root);
           rowers.push(rig);
         }
