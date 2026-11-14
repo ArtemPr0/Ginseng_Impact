@@ -70,6 +70,13 @@ describe('Audio.voice', () => {
     expect(b.gain.gain.ramps).toHaveLength(0);
   });
 
+  it('says whether a voice would be heard, so a silent babble is never synthesised', () => {
+    expect(new Audio().canSpeak(1)).toBe(false);
+    const a = unlocked();
+    expect(a.canSpeak(1)).toBe(true);
+    expect(a.canSpeak(0.005)).toBe(false);
+  });
+
   it("an NPC's babble speaks on the NPC channel, taking over from the line before it, and resolves to its length", async () => {
     const audio = unlocked();
     await audio.voice('/audio/a.mp3', 1, 'npc');

@@ -53,6 +53,8 @@ import { startLeap, startLunge } from '../player/CharacterController';
 
 interface Projectile {
   pos: Vector3; vel: Vector3; life: number; owner: 'player' | 'enemy';
+  /** A hero's shot: the move that loosed it (a combo hit, the heavy, the skill), for its comic word. */
+  blow?: number | 'heavy' | 'skill';
   /** The enemy kind that shot it (named in the hurt it does); null for a shot from the world (witches, the snail). */
   by: string | null;
   atk: number; mult: number; element: Element | null; radius: number; object: Group;
@@ -319,6 +321,8 @@ const CRESCENT_BASE = 0.2;
 /** The smoke's damage each 0.4 s tick, a share of Orlan's attack. */
 const SMOKE_TICK = 0.2;
 const UP = new Vector3(0, 1, 0);
+/** A thrown prop's stand-in before its model loads, shared by every shot (props keep their geometry when removed). */
+const PROP_STANDIN = new IcosahedronGeometry(1, 0);
 const NOOP = (): void => {};
 const _v = new Vector3();
 const _w = new Vector3();
@@ -821,6 +825,7 @@ export class CombatSystem {
       c.pos.y = e.pos.y + e.def.height * (0.35 + 0.25 * lift) + Math.sin(g.t * 26) * 0.06;
       c.vel.x = c.vel.y = c.vel.z = 0;
       c.mode = 'air';
+      c.flungGravity = 1;
       if (g.t >= 0.85 || !e.alive) {
         this.grab = null;
         // Thrown about twelve metres the way the giant faces.
@@ -923,7 +928,7 @@ export class CombatSystem {
       const air = (timing.strike - timing.startAt) * timing.duration;
       if ((me.weapon === 'sword' || me.weapon === 'greatsword') && this.heavy.charge > 0.5 && c.mode === 'ground' && air > 0.2) {
         const gap = this.gapAhead();
-        startLeap(c, { x: Math.cos(c.yaw), z: Math.sin(c.yaw) }, air, gap === Infinity ? 2.5 : Math.max(0, Math.min(4, gap - 1.2)));
+        startLeap(c, { x: Math.cos(c.yaw), z: Math.sin(c.yaw) }, air, this.safeLeap(gap === Infinity ? 2.5 : Math.max(0, Math.min(4, gap - 1.2))));
       }
     }
     if (this.heavy) {
@@ -949,10 +954,12 @@ export class CombatSystem {
           this.fx.dust(at, 1.4 + ch);
           this.stars.pop(_w.set(fx, at.y + 0.6, fz), color, 3.2);
           d.onShake?.(0.15 + ch * 0.35);
-          // Everything small round the slam is bounced into the air.
+          // Everything small standing round the slam, on its floor, is bounced into the air (not the seated, the rooted
+          // or the bystanders).
+          const floor = at.y;
           for (const e of this.enemies) {
-            if (!e.alive || e.def.boss || e.def.flying) continue;
-            if (Math.hypot(e.pos.x - fx, e.pos.z - fz) < 3.5 + ch) e.leap(0.55, 0.9 + ch * 0.9);
+            if (!e.alive || e.def.boss || e.def.flying || e.def.seated || e.def.neutral || e.def.speed <= 0) continue;
+            if (Math.abs(e.pos.y - floor) < 1.5 && Math.hypot(e.pos.x - fx, e.pos.z - fz) < 3.5 + ch) e.leap(0.55, 0.9 + ch * 0.9);
           }
         }
       }
@@ -1184,7 +1191,7 @@ export class CombatSystem {
           p.hit.add(e.id);
           // (The crescent freezes the fight on the first body it cuts and only catches on each after, a reaction there
           // too, its blows as heavy; a shot of a many-shot skill charges the burst through its cast.)
-          this.hitEnemy(e, p.atk, p.mult, p.element, p.knockback, p.hitStop, { at: p.object.position, heavy: p.hitStop >= 0.08, pierced: p.pierce ? p.hit.size : 0, cast: p.cast });
+          this.hitEnemy(e, p.atk, p.mult, p.element, p.knockback, p.hitStop, { at: p.object.position, heavy: p.hitStop >= 0.08, blow: p.blow, pierced: p.pierce ? p.hit.size : 0, cast: p.cast });
           p.onHit?.(e);
           // The crescent cuts on through.
           if (p.pierce) continue;
@@ -1898,6 +1905,7 @@ export class CombatSystem {
           c.vel.z += (dz / l) * 14;
           c.vel.y = Math.max(c.vel.y, 5);
           c.mode = 'air';
+          c.flungGravity = 1;
         }
         this.strike(e, 0.4, inside);
         break;
@@ -2176,6 +2184,7 @@ export class CombatSystem {
           c.vel.z += (dz / l) * 9;
           c.vel.y = Math.max(c.vel.y, 4);
           c.mode = 'air';
+          c.flungGravity = 1;
         }
         break;
       }
@@ -2235,6 +2244,24 @@ export class CombatSystem {
       best = Math.min(best, Math.hypot(e.pos.x - c.pos.x, e.pos.z - c.pos.z) - r);
     }
     return best;
+  }
+
+  /**
+   * How far along the facing a leap may go, up to `want` metres: never past a drop (off a bridge, a ledge, into the
+   * chasm) or into a wall; shortened half a metre at a time, down to a leap in place.
+   */
+  private safeLeap(want: number): number {
+    const c = this.d.controller;
+    const cx = Math.cos(c.yaw), cz = Math.sin(c.yaw);
+    for (let d = want; d > 0; d -= 0.5) {
+      let ok = true;
+      for (let t = 0.5; t <= d + 1e-6 && ok; t += 0.5) {
+        const g = this.d.world.heightAt(c.pos.x + cx * t, c.pos.z + cz * t, c.pos.y + 1);
+        ok = g > c.pos.y - 1.2 && g < c.pos.y + 0.8;
+      }
+      if (ok) return d;
+    }
+    return 0;
   }
 
   /** The blade's lunge into a swing: up to `max` metres along the facing, short of the body ahead (Juice.lungeReach). */
@@ -2315,6 +2342,7 @@ export class CombatSystem {
       const shot = this.spawnProjectile(from, down, 'player', atk, def.mult, element, 1.0, color, shape.chains, shape.chainRange, def.knockback, def.hitStop, size, kind, {
         homing: { target, point: ahead, delay: 0.07, turn: 9, age: 0 }, ...look,
       });
+      shot.blow = phase;
       if (sky) shot.life = Math.max(shot.life, sky.pos.distanceTo(from) / 18 + 1);
       return;
     }
@@ -2323,6 +2351,7 @@ export class CombatSystem {
     if (sky) dir.copy(sky.pos).sub(from).normalize();
     const speed = arrow ? 26 : 22;
     const shot = this.spawnProjectile(from, dir.multiplyScalar(speed), 'player', atk, def.mult, element, 1.0, color, shape.chains, shape.chainRange, def.knockback, def.hitStop, size, kind, look);
+    shot.blow = phase;
     if (sky) shot.life = Math.max(shot.life, sky.pos.distanceTo(from) / speed + 0.4);
     this.fx.flash(from, _col.set(color).multiplyScalar(0.7), heavy ? 1.6 : 0.9);
   }
@@ -2388,9 +2417,9 @@ export class CombatSystem {
       const vel = new Vector3(Math.cos(a), 0.12, Math.sin(a)).normalize().multiplyScalar(24);
       const trail = !ribbons ? undefined : i === 0 ? 'arrow0' : i === shape.arrows - 1 ? 'arrow1' : undefined;
       // (A lighter hit-stop each: six freezes in a row would stutter the volley.)
-      this.spawnProjectile(from.clone(), vel, 'player', atk, def.mult, element, 1.0, color, shape.chains, shape.chainRange, def.knockback, def.hitStop * 0.4, 0.24, 'arrow', {
+      (this.spawnProjectile(from.clone(), vel, 'player', atk, def.mult, element, 1.0, color, shape.chains, shape.chainRange, def.knockback, def.hitStop * 0.4, 0.24, 'arrow', {
         homing: { target, point, delay: 0.12, turn: 5, age: 0 }, trail, trailW: 0.05, cast,
-      });
+      })).blow = 'skill';
     }
     this.sfx.swing('bow', true);
     this.fx.flash(from, _col.set(color).multiplyScalar(0.7), 1.5);
@@ -2433,9 +2462,9 @@ export class CombatSystem {
     const v0 = 4;
     const g = 28;
     const fall = (-v0 + Math.sqrt(v0 * v0 + 2 * g * h)) / g;
-    this.spawnProjectile(new Vector3(tx, gy + h, tz), new Vector3(0, -v0, 0), 'player', atk, def.mult, element, 0.6, color, 0, 0, def.knockback, def.hitStop, 1.5, 'star', {
+    (this.spawnProjectile(new Vector3(tx, gy + h, tz), new Vector3(0, -v0, 0), 'player', atk, def.mult, element, 0.6, color, 0, 0, def.knockback, def.hitStop, 1.5, 'star', {
       gravity: g, aoe: shape.radius, trail: `star${this.starTrails++ % 2}`, trailW: 0.16, life: fall + 0.6, cast,
-    });
+    })).blow = 'skill';
     const warn = () => this.fx.telegraph(-100 - i, 'disc', _v.set(tx, gy, tz), 0, shape.radius, 0.5, color);
     if (fall > 0.5) this.delayed.push({ t: fall - 0.5, fn: warn });
     else warn();
@@ -2722,7 +2751,12 @@ export class CombatSystem {
         rig.root.position.y = -0.5 * rig.height * scale;
         rig.root.rotation.y = look?.face ?? 0;
         spinner.add(rig.root);
-      } else spinner.add(new Mesh(new IcosahedronGeometry(0.4 * tall, 0), surface({ color: PALETTE.void, emissive: halo, emissiveIntensity: 1.5 })));
+      } else {
+        // (Its model not loaded yet: a stand-in rock on one shared shape, since a prop's geometry is kept on removal.)
+        const rock = new Mesh(PROP_STANDIN, surface({ color: PALETTE.void, emissive: halo, emissiveIntensity: 1.5 }));
+        rock.scale.setScalar(0.4 * tall);
+        spinner.add(rock);
+      }
       if (look && (look.trail === 'fire' || look.trail === 'witchfire')) {
         // A head of flame round it and three tongues streaming back, smaller each.
         const [a, b] = TRAIL_COLORS[look.trail];
@@ -2932,12 +2966,15 @@ export class CombatSystem {
       const dx = c.pos.x - w.at.x;
       const dz = c.pos.z - w.at.z;
       const l = Math.hypot(dx, dz);
-      if (w.e.alive && l < WHIRL_REACH && l > 0.6 && c.mode !== 'air') {
+      // (Only a hero on its floor, walking or swimming and not down, is carried; never into a wall or up a step.)
+      const carried = (c.mode === 'ground' || c.mode === 'swim') && this.downed === null && Math.abs(c.pos.y - w.at.y) < 3;
+      if (w.e.alive && carried && l < WHIRL_REACH && l > 0.6) {
         const near = 1 - l / WHIRL_REACH;
         const inward = 2 + 3.5 * near;
         const around = 2.5 + 3 * near;
-        c.pos.x += ((-dx / l) * inward + (-dz / l) * around) * dt;
-        c.pos.z += ((-dz / l) * inward + (dx / l) * around) * dt;
+        const nx = c.pos.x + ((-dx / l) * inward + (-dz / l) * around) * dt;
+        const nz = c.pos.z + ((-dz / l) * inward + (dx / l) * around) * dt;
+        if (this.d.world.heightAt(nx, nz, c.pos.y + 1) <= c.pos.y + 0.5) { c.pos.x = nx; c.pos.z = nz; }
       }
       if (Math.random() < dt * 14) {
         const a = Math.random() * Math.PI * 2;

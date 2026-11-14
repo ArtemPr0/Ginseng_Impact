@@ -37,7 +37,11 @@ const out = {};
   if (!c.driving) fail('no reins');
   else {
     const dir = (a, b) => { const n = Math.hypot(b.x - a.x, b.z - a.z) || 1; return { x: (b.x - a.x) / n, z: (b.z - a.z) / n }; };
+    // (Each turn from the carriage's own spot: since the kingdom was compacted a round tower stands 15 m off its right,
+    // and a carriage pressed against a wall can only back off, so the second turn would measure the tower.)
+    const home = { x: c.pos.x, y: c.pos.y, z: c.pos.z, heading: c.heading };
     const turn = async (key) => {
+      c.pos.set(home.x, home.y, home.z); c.heading = home.heading; c.speed = 0; await sleep(200);
       keyDown('KeyW'); await sleep(1100);
       let a = { x: c.pos.x, z: c.pos.z }; await sleep(250); let b = { x: c.pos.x, z: c.pos.z }; const d0 = dir(a, b);
       keyDown(key); await sleep(700); keyUp(key);

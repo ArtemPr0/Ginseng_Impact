@@ -75,6 +75,8 @@ const babbled = new Map<string, Float32Array>();
  * The last few renders are kept (a hub line is said again and again).
  */
 function babble(npcId: string, text: string, gain = 1): void {
+  // (Not heard, not made: synthesis costs a few milliseconds, too dear for a far bark or before audio is on.)
+  if (!audio.canSpeak(gain)) return;
   const key = `${npcId}|${text}`;
   let samples = babbled.get(key);
   if (!samples) {

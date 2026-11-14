@@ -399,6 +399,17 @@ describe('the attack lunge and leap (cartoon combat)', () => {
     expect(s.dashLeft).toBe(0);
   });
 
+  it('an attack never cuts a dodge roll short: no lunge or leap while it runs', () => {
+    const s = createControllerState({ x: 0, y: 0, z: 0 });
+    startDash(s, { x: 0, z: 1 });
+    startLunge(s, { x: 1, z: 0 }, 1.2);
+    startLeap(s, { x: 1, z: 0 }, 0.4, 3);
+    expect(s.mode).toBe('ground');
+    run(idle(), 60, flat, s);
+    expect(s.pos.z).toBeGreaterThan(CONTROLLER.dashSpeed * CONTROLLER.dashTime * 0.8);
+    expect(Math.abs(s.pos.x)).toBeLessThan(0.1);
+  });
+
   it('a dodge after a lunge rolls its own full length again', () => {
     const s = createControllerState({ x: 0, y: 0, z: 0 });
     startLunge(s, { x: 1, z: 0 }, 0.5);

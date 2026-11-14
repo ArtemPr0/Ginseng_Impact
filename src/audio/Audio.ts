@@ -619,8 +619,13 @@ export class Audio {
    * An NPC's babble (audio/Babble: its line as samples) on `channel`, taking over from what that channel was saying,
    * like a recorded line. Resolves to its length in seconds (0 before unlock() or when too quiet to hear).
    */
+  /** Whether a voice at `gain` would be heard (audio unlocked, loud enough): ask before synthesising one. */
+  canSpeak(gain: number): boolean {
+    return !!this.ctx && gain > 0.01;
+  }
+
   babble(samples: Float32Array, sampleRate: number, gain = 1, channel: VoiceChannel = 'npc'): number {
-    if (!this.ctx || gain <= 0.01 || !samples.length) return 0;
+    if (!this.ctx || !this.canSpeak(gain) || !samples.length) return 0;
     this.voiceSeq.set(channel, (this.voiceSeq.get(channel) ?? 0) + 1);
     const buf = this.ctx.createBuffer(1, samples.length, sampleRate);
     buf.getChannelData(0).set(samples);

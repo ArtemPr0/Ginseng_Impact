@@ -209,13 +209,19 @@ export function startDash(s: ControllerState, dir: { x: number; z: number }): vo
   s.dashPlant = false;
 }
 
+/** A dodge roll (not a lunge) is under way. */
+export function rolling(s: ControllerState): boolean {
+  return s.dashLeft > 0 && !s.dashPlant;
+}
+
 /** How long an attack's lunge takes (s): a blink. */
 export const LUNGE_TIME = 0.1;
 
 /** An attack's lunge (Juice.lungeReach): `metres` along `dir` in LUNGE_TIME, planted at the end. On the ground only. */
 export function startLunge(s: ControllerState, dir: { x: number; z: number }, metres: number): void {
   const len = Math.hypot(dir.x, dir.z);
-  if (len < 1e-6 || metres <= 0 || s.mode !== 'ground') return;
+  // (Never over a dodge roll still running: the roll is the player's escape.)
+  if (len < 1e-6 || metres <= 0 || s.mode !== 'ground' || rolling(s)) return;
   s.dashDir = { x: dir.x / len, z: dir.z / len };
   s.dashLeft = LUNGE_TIME;
   s.dashSpeedNow = metres / LUNGE_TIME;
@@ -227,6 +233,7 @@ export function startLunge(s: ControllerState, dir: { x: number; z: number }, me
  * unsteered on the way (a throw's `flung`).
  */
 export function startLeap(s: ControllerState, dir: { x: number; z: number }, airTime: number, distance: number): void {
+  if (rolling(s)) return;
   const len = Math.hypot(dir.x, dir.z) || 1;
   // (A quick leap gets heavier gravity, so it still rises LEAP_APEX metres and comes down on time.)
   const k = leapGravity(airTime, LEAP_APEX, CONTROLLER.gravity, CONTROLLER.fallGravity);
