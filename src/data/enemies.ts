@@ -4,6 +4,17 @@ import type { Element } from '../combat/Elements';
 export type EnemyKind = 'beast' | 'bucket' | 'crystalsentry' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity' | 'cyclops' | 'cyclops-lord' | 'blood-eye' | 'trip-wizard' | 'galaxy-knight' | 'mail-knight' | 'diamond-wizard' | 'fish-guard' | 'angler' | 'grave-skeleton' | 'koi' | 'jellyfish' | 'archway-shade' | 'brazier-hermit' | 'vale-knight' | 'octopus' | 'necromancer' | 'grave-witch';
 
 /** What can circle a mob, and the projectile each flies as when thrown. */
+/** How a thrown thing trails, bursts and turns in the air (combat/Throws). */
+export type ThrowTrail = 'fire' | 'witchfire' | 'water' | 'poison' | 'frost' | 'sparkle';
+export type ThrowBurst = 'crater' | 'witchfire' | 'splash' | 'poison' | 'frost' | 'shatter';
+export type ThrowSpin = 'tumble' | 'frisbee' | 'flop' | 'face';
+/**
+ * A thing of its own place a boss throws (the playtest of 2026-11-14: no more plain bolts and pale glows): a model id,
+ * how tall it is (m), its trail, its burst, how it turns; `face` turns the model so its front leads (radians), `tint`
+ * recolours it.
+ */
+export interface ThrowLook { model: string; size: number; trail: ThrowTrail; burst: ThrowBurst; spin: ThrowSpin; face?: number; tint?: number }
+
 export type OrbitModel = 'gem' | 'lean-cup' | 'barrel';
 /** How a circling thing flies when thrown: a gem, a double cup, or the model itself tumbling (a barrel). */
 export const ORBIT_SHOT: Record<OrbitModel, 'gem' | 'cup' | 'prop'> = { gem: 'gem', 'lean-cup': 'cup', barrel: 'prop' };
@@ -78,6 +89,8 @@ export interface EnemyDef {
   orbit?: { model: OrbitModel; count: number; radius?: number; height?: number; size?: number };
   /** Its body is one unrigged octopus mesh whose arms move in the shader (combat/OctopusBody). */
   tentacles?: boolean;
+  /** What its volley and its boulder throw instead of a plain bolt (combat/Throws). */
+  throws?: ThrowLook;
   /** Lines it says (ids in data/voices): when it spots you, as it throws, as it dies, and when you fall. */
   voices?: { aggro: string[]; attack: string[]; death: string[]; win: string[] };
 }
@@ -95,6 +108,8 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   // stamps, throws stones, and sweeps the bank with the yellow beam of his eye.
   cyclops: {
     kind: 'cyclops', stomp: true, name: 'The Cyclops', title: 'Who Wades the Eye', maxHp: 8800, def: 85, atk: 160, speed: 2.4, element: 'stone', hover: 0, bodyRadius: 2.2, height: 9, boss: true,
+    // A flaming boulder (the boulder was a 10 m pale glow: the playtest of 2026-11-14).
+    throws: { model: 'boulder', size: 1.8, trail: 'fire', burst: 'crater', spin: 'tumble' },
     neutral: true, floatAt: 0.9, beamColor: 0xffd23a, glow: 1.1,
     brain: { aggroRange: 22, attackRange: 7, windup: 1.0, recover: 1.4, attackCooldown: 1.0 }, respawn: 300, leash: 8, shards: [200, 300],
     attacks: [{ kind: 'slam', range: 8, windup: 1.0, recover: 1.4, weight: 3 }, { kind: 'boulder', range: 24, windup: 1.0, recover: 1.1, weight: 2 }, { kind: 'eyebeam', range: 26, windup: 1.1, recover: 1.3, weight: 2 }, { kind: 'roar', range: 14, windup: 1.0, recover: 1.4, weight: 1 }],
@@ -103,6 +118,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   // The cyclops at the end of the Alley of Graves (01.16.54), before the gothic tower: he throws the graves.
   'cyclops-lord': {
     kind: 'cyclops-lord', stomp: true, name: 'The Grave Cyclops', title: 'Keeper of the Alley', maxHp: 10500, def: 95, atk: 175, speed: 3.0, element: 'stone', hover: 0, bodyRadius: 1.9, height: 7, boss: true,
+    throws: { model: 'boulder', size: 2.3, trail: 'fire', burst: 'crater', spin: 'tumble' },
     beamColor: 0xffd23a, glow: 1.0,
     brain: { aggroRange: 24, attackRange: 6, windup: 0.9, recover: 1.3, attackCooldown: 0.9 }, respawn: 300, leash: 22, shards: [260, 360],
     attacks: [{ kind: 'slam', range: 7, windup: 0.9, recover: 1.3, weight: 3 }, { kind: 'boulder', range: 24, windup: 0.9, recover: 1.0, weight: 3 }, { kind: 'eyebeam', range: 26, windup: 1.0, recover: 1.2, weight: 2 }, { kind: 'roar', range: 14, windup: 1.0, recover: 1.4, weight: 1 }],
@@ -180,6 +196,8 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   // Yung Lean himself, off his throne when you challenge him: digital snow, cups, his ghouls.
   'rift-king': {
     kind: 'rift-king', summons: 'styro-ghoul', name: 'Yung Lean', title: 'King of the Sad Side of the World', maxHp: 9000, def: 80, atk: 135, speed: 3.6, element: 'astral', hover: 0, bodyRadius: 0.7, height: 1.85, boss: true,
+    // Diamonds (the Lean Quarter's own sparkle), cut and glinting.
+    throws: { model: 'gem', size: 0.8, trail: 'sparkle', burst: 'shatter', spin: 'tumble', tint: 0x8fc8ff },
     brain: { aggroRange: 34, attackRange: 14, windup: 1.0, recover: 1.2, attackCooldown: 0.7, preferredRange: 7 }, respawn: 1e9, leash: 45, shards: [300, 400],
     attacks: [{ kind: 'snowstorm', range: 24, windup: 1.2, recover: 1.0, weight: 3 }, { kind: 'cupmortar', range: 20, windup: 0.8, recover: 1.0, weight: 2 }, { kind: 'summon', range: 30, windup: 1.3, recover: 1.5, weight: 1 }, { kind: 'volley', range: 18, windup: 0.9, recover: 1.0, weight: 2 }],
     drops: [{ itemId: 'moon-dew', chance: 1 }],
@@ -220,12 +238,16 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   // ground under you and throw green bolts.
   necromancer: {
     kind: 'necromancer', summons: 'grave-skeleton', name: 'Grave Necromancer', maxHp: 900, def: 34, atk: 96, speed: 3.0, element: 'astral', hover: 0, bodyRadius: 0.5, height: 2.0,
+    // Skulls in violet witchfire, teeth first.
+    throws: { model: 'giant-skull', size: 0.75, trail: 'witchfire', burst: 'witchfire', spin: 'face' },
     brain: { aggroRange: 14, attackRange: 14, windup: 0.7, recover: 1.0, attackCooldown: 0.9, preferredRange: 8 }, respawn: 120, leash: 14, shards: [14, 24],
     attacks: [{ kind: 'volley', range: 14, windup: 0.8, recover: 1.0, weight: 3 }, { kind: 'summon', range: 16, windup: 1.2, recover: 1.5, weight: 1 }, { kind: 'blink', range: 8, windup: 0.4, recover: 0.4, weight: 1 }, { kind: 'sweep', range: 2.6, windup: 0.6, recover: 1.0, weight: 2 }],
     drops: [{ itemId: 'old-bone', chance: 0.6 }, { itemId: 'moon-dew', chance: 0.3 }], glow: 0.35,
   },
   'grave-witch': {
     kind: 'grave-witch', name: 'Grave Witch', maxHp: 700, def: 26, atk: 88, speed: 0, element: 'rot', hover: 0, bodyRadius: 0.5, height: 1.85,
+    // Her brews, bottle and all: they smash and pool poison where they land.
+    throws: { model: 'potion-bottle', size: 0.7, trail: 'poison', burst: 'poison', spin: 'tumble', tint: 0x6aff3a },
     brain: { aggroRange: 16, attackRange: 18, windup: 0.8, recover: 1.2, attackCooldown: 1.1, preferredRange: 10 }, respawn: 120, leash: 4, shards: [12, 20],
     attacks: [{ kind: 'roots', range: 18, windup: 0.9, recover: 1.2, weight: 3 }, { kind: 'volley', range: 16, windup: 0.8, recover: 1.0, weight: 2 }],
     drops: [{ itemId: 'moon-dew', chance: 0.4 }], glow: 0.35,
@@ -289,12 +311,15 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   },
   yeti: {
     kind: 'yeti', stomp: true, name: 'The Yeti', title: 'Lord of the Frozen Grove', maxHp: 7000, def: 80, atk: 160, speed: 3.4, element: 'lunar', hover: 0, bodyRadius: 1.3, height: 3.2, boss: true,
+    // A chunk of ice off the March (a crystal, iced blue; the frosted rock stayed a dark rock), shedding snow.
+    throws: { model: 'purple-crystal', size: 1.4, trail: 'frost', burst: 'frost', spin: 'tumble', tint: 0x9fd8ff },
     brain: { aggroRange: 18, attackRange: 4, windup: 0.8, recover: 1.3, attackCooldown: 0.9 }, respawn: 240, leash: 30, shards: [160, 240],
     attacks: [{ kind: 'slam', range: 5, windup: 0.9, recover: 1.4, weight: 3 }, { kind: 'boulder', range: 20, windup: 0.9, recover: 1.0, weight: 2 }, { kind: 'roar', range: 12, windup: 1.0, recover: 1.5, weight: 1 }],
     drops: [{ itemId: 'glacier-maul', chance: 1 }, { itemId: 'yeti-pelt', chance: 1 }, { itemId: 'moon-dew', chance: 1 }],
   },
   shade: {
     // (4.5 m, haunting the cathedral's nave: at 10 m out on the shore he towered over everything.)
+    throws: { model: 'giant-skull', size: 0.85, trail: 'witchfire', burst: 'witchfire', spin: 'face' },
     kind: 'shade', name: 'The Horned Shade', title: 'Who Haunts the Cathedral', maxHp: 6200, def: 50, atk: 130, speed: 3.0, element: 'astral', hover: 0.3, bodyRadius: 1.5, height: 4.5, boss: true,
     brain: { aggroRange: 14, attackRange: 12, windup: 0.8, recover: 1.1, attackCooldown: 0.7, preferredRange: 7 }, respawn: 240, leash: 11, shards: [160, 240],
     attacks: [{ kind: 'volley', range: 14, windup: 0.9, recover: 1.0, weight: 3 }, { kind: 'summon', range: 16, windup: 1.2, recover: 1.6, weight: 1 }, { kind: 'blink', range: 10, windup: 0.5, recover: 0.4, weight: 2 }, { kind: 'sweep', range: 3, windup: 0.6, recover: 1.0, weight: 3 }],
@@ -302,6 +327,8 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   },
   rivershade: {
     kind: 'rivershade', name: 'The River Shade', title: 'What Rises from the Water', maxHp: 3800, def: 40, atk: 110, speed: 2.4, element: 'tide', hover: 0.2, bodyRadius: 1.0, height: 3, boss: true, leash: 14,
+    // Koi out of the river, flopping all the way.
+    throws: { model: 'koi', size: 1.1, trail: 'water', burst: 'splash', spin: 'flop' },
     brain: { aggroRange: 15, attackRange: 13, windup: 0.8, recover: 1.0, attackCooldown: 0.8, preferredRange: 7 }, respawn: 200, shards: [90, 140],
     attacks: [{ kind: 'volley', range: 14, windup: 0.8, recover: 1.0, weight: 3 }, { kind: 'summon', range: 18, windup: 1.2, recover: 1.5, weight: 1 }, { kind: 'sweep', range: 4, windup: 0.6, recover: 0.9, weight: 2 }],
     drops: [{ itemId: 'tide-blade', chance: 1 }, { itemId: 'river-pearl', chance: 1 }],
@@ -322,12 +349,15 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   },
   troll: {
     kind: 'troll', stomp: true, name: 'The Gorge Troll', title: 'Red-Eyed Keeper of the Chasm', maxHp: 6400, def: 85, atk: 150, speed: 4.6, element: 'stone', hover: 0, bodyRadius: 1.3, height: 3.2, boss: true, leash: 26,
+    throws: { model: 'boulder', size: 1.7, trail: 'fire', burst: 'crater', spin: 'tumble' },
     brain: { aggroRange: 18, attackRange: 4.5, windup: 0.7, recover: 1.2, attackCooldown: 0.8 }, respawn: 240, shards: [150, 220],
     attacks: [{ kind: 'slam', range: 5, windup: 0.8, recover: 1.3, weight: 3 }, { kind: 'charge', range: 18, windup: 0.7, recover: 1.4, weight: 2 }, { kind: 'boulder', range: 20, windup: 0.9, recover: 1.0, weight: 2 }],
     drops: [{ itemId: 'troll-club', chance: 1 }, { itemId: 'troll-hide', chance: 1 }, { itemId: 'moon-dew', chance: 1 }],
   },
   lurker: {
     kind: 'lurker', name: 'The Lake Lurker', title: 'What Watches from the Shallows', maxHp: 5200, def: 55, atk: 125, speed: 2.2, element: 'tide', hover: 0, floatAt: 0.6, bodyRadius: 1.2, height: 2.8, boss: true, leash: 8,
+    // Lily pads off its own pond, spun flat like plates.
+    throws: { model: 'lily-pad', size: 0.6, trail: 'water', burst: 'splash', spin: 'frisbee' },
     brain: { aggroRange: 14, attackRange: 12, windup: 0.8, recover: 1.0, attackCooldown: 0.8, preferredRange: 7 }, respawn: 220, shards: [130, 200],
     attacks: [{ kind: 'volley', range: 14, windup: 0.8, recover: 1.0, weight: 3 }, { kind: 'sweep', range: 4, windup: 0.6, recover: 0.9, weight: 2 }, { kind: 'summon', range: 16, windup: 1.2, recover: 1.5, weight: 1 }],
     drops: [{ itemId: 'tide-hook', chance: 1 }, { itemId: 'moonstring-bow', chance: 1 }, { itemId: 'lurker-eye', chance: 1 }],
@@ -340,6 +370,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   },
   hollowking: {
     // (25 m seated: a king the size of a hill.)
+    throws: { model: 'giant-skull', size: 1.1, trail: 'witchfire', burst: 'witchfire', spin: 'face' },
     kind: 'hollowking', name: 'The Hollow King', title: 'Whose Heart Is a Kingdom', maxHp: 12000, def: 110, atk: 180, speed: 0, element: 'astral', hover: 0, bodyRadius: 6.2, height: 25, boss: true, leash: 1, reach: 26,
     brain: { aggroRange: 34, attackRange: 34, windup: 1.2, recover: 1.6, attackCooldown: 1.0 }, respawn: 400, shards: [320, 460],
     attacks: [{ kind: 'volley', range: 34, windup: 1.2, recover: 1.4, weight: 3 }, { kind: 'summon', range: 34, windup: 1.4, recover: 1.8, weight: 2 }, { kind: 'roar', range: 26, windup: 1.2, recover: 1.6, weight: 1 }],

@@ -6,7 +6,7 @@ import type { Audio } from '../audio/Audio';
 import { CombatSfx, hitMaterial } from '../audio/CombatSfx';
 import type { CharacterDef } from '../characters/roster';
 import type { Game } from '../core/Game';
-import { ENEMY_DEFS, ENEMY_SPAWNS, ORBIT_SHOT, type BossAttackKind, type EnemyDef, type EnemyKind } from '../data/enemies';
+import { ENEMY_DEFS, ENEMY_SPAWNS, ORBIT_SHOT, type BossAttackKind, type EnemyDef, type EnemyKind, type ThrowLook } from '../data/enemies';
 import type { ClipName } from '../data/models';
 import { voiceUrl } from '../data/voices';
 import type { Events, HeroId } from '../game/Events';
@@ -18,6 +18,7 @@ import { PALETTE } from '../render/palette';
 import type { CombatFx } from '../render/CombatFx';
 import { crescentShot, starShot } from '../render/ShotFx';
 import { InkClouds, swirlDisc } from '../render/OctoFx';
+import { TRAIL_COLORS, throwBurst, throwScale, throwTrail } from './Throws';
 import { GRAVEYARD } from '../data/world';
 import { surface } from '../render/Materials';
 import type { Sky } from '../render/Sky';
@@ -101,6 +102,12 @@ interface Projectile {
   /** A throw's landing warning on the ground where it comes down (throwAt), filling over `flight` seconds in the air. */
   warn: Warning | null;
   flight: number;
+  /** A boss's thrown thing (EnemyDef.throws): how it turns, trails and bursts (combat/Throws); the time since its last trail beat. */
+  look: ThrowLook | null;
+  trailAcc: number;
+  /** Flame halos streaming behind a burning throw (head first), flickering; the model turns inside `spinner`. */
+  flames: Sprite[];
+  spinner: Group | null;
 }
 
 type ProjectileKind = 'bolt' | 'arrow' | 'log' | 'ring' | 'fire' | 'cup' | 'trip' | 'web' | 'orb' | 'gem' | 'crescent' | 'star' | 'prop';
@@ -214,6 +221,14 @@ const STAGGER_EVERY = 14;
 const SUMMON_CAP = 4;
 let thrownCup: GLTF | null = null;
 void loadModel('lean-cup').then((g) => { thrownCup = g; });
+/**
+ * The light inside a boss's thrown thing, by its trail, and how strong: a burning rock glows orange from its cracks, an
+ * iced one cold blue, a brew green; a skull barely (its bone must read, not a violet blob), a diamond barely (lit more
+ * it bloomed into a white ball); a fish or a lily pad just enough to read.
+ */
+const INNER_LIGHT: Record<ThrowLook['trail'], readonly [number, number]> = {
+  fire: [0xff5a1a, 0.6], witchfire: [0xb36bff, 0.18], poison: [0x6aff3a, 0.5], frost: [0x9fd8ff, 0.6], sparkle: [0x9fe8ff, 0], water: [0xffffff, 0.18],
+};
 /** Models thrown whole (EnemyDef.orbit 'prop' shots: the octopus's barrels), loaded when their thrower appears. */
 const thrownProps = new Map<string, GLTF | null>();
 function preloadProp(id: string): void {
@@ -343,7 +358,7 @@ export class CombatSystem {
    * Purple puddles of spilled lean, and how long the slow lasts: a cup's puddle slows the hero standing in it
    * (Sizzlin' Slowness); one the lean cyclone splashed slows the mobs that wade in instead.
    */
-  private readonly puddles: Array<{ pos: Vector3; r: number; left: number; mesh: Mesh; hero: boolean }> = [];
+  private readonly puddles: Array<{ pos: Vector3; r: number; left: number; mesh: Mesh; hero: boolean; poison: number }> = [];
   private slowLeft = 0;
   /** Caught in a spider's web: held where you stand (seconds left), and the web drawn around you. */
   private webLeft = 0;
@@ -539,6 +554,7 @@ export class CombatSystem {
   private spawnEnemy(def: EnemyDef, x: number, z: number, noRespawn = false, home: Partial<EnemyHome> = {}): Enemy {
     const e = new Enemy(def, { ...home, x, z }, this.d.world);
     if (def.orbit && ORBIT_SHOT[def.orbit.model] === 'prop') preloadProp(def.orbit.model);
+    if (def.throws) preloadProp(def.throws.model);
     e.hpScale = this.plus;
     e.hp = def.maxHp * this.plus;
     e.noRespawn = noRespawn;
@@ -819,7 +835,10 @@ export class CombatSystem {
         for (const e of this.enemies) {
           if (e.alive && !e.def.flying && Math.hypot(e.pos.x - p.pos.x, e.pos.z - p.pos.z) < p.r * k + e.def.bodyRadius * (e.def.scale ?? 1) && Math.abs(e.pos.y - p.pos.y) < 1.5) e.afflict('slow', 1, 0.5);
         }
-      } else if (c.mode === 'ground' && Math.hypot(c.pos.x - p.pos.x, c.pos.z - p.pos.z) < p.r * k && Math.abs(c.pos.y - p.pos.y) < 1) this.slowLeft = Math.max(this.slowLeft, 1.4);
+      } else if (c.mode === 'ground' && Math.hypot(c.pos.x - p.pos.x, c.pos.z - p.pos.z) < p.r * k && Math.abs(c.pos.y - p.pos.y) < 1) {
+        if (p.poison > 0) this.poisonPlayer(p.poison, 2);
+        else this.slowLeft = Math.max(this.slowLeft, 1.4);
+      }
       if (p.left <= 0) { this.d.scene.remove(p.mesh); disposeObject(p.mesh); this.puddles.splice(i, 1); }
     }
     // Spotting you: a talking mob says so as it starts the chase.
@@ -1087,6 +1106,7 @@ export class CombatSystem {
       }
       if (p.kind === 'arrow' || p.kind === 'ring' || p.kind === 'trip' || p.kind === 'web' || p.kind === 'crescent') p.object.lookAt(aim.copy(p.object.position).add(p.vel));
       if (p.kind === 'web') p.object.rotateZ(dt * 3);
+      else if (p.look) this.turnThrow(p, dt);
       else if (p.kind === 'log' || p.kind === 'cup' || p.kind === 'prop') { p.object.rotation.x += dt * 7; p.object.rotation.y += dt * 1.3; }
       else if (p.kind === 'gem') { p.object.rotation.y += dt * 12; p.object.rotation.x += dt * 3; }
       else if (p.kind === 'fire') p.object.scale.setScalar(1 + (2.5 - p.life) * 0.6);
@@ -1178,7 +1198,16 @@ export class CombatSystem {
         } else if (p.owner === 'player') this.fx.flash(p.pos, _col.set(ELEMENT_COLOR[p.element ?? 'lunar']).multiplyScalar(0.6), 1.4);
         else this.fx.flash(p.pos, p.color, p.kind === 'log' ? 3.5 : 1.6);
         if (p.kind === 'log') { this.fx.dust(p.pos, 2.4); this.d.onShake?.(0.4); this.d.audio.stomp(); }
-        if (p.kind === 'prop') {
+        if (p.look) {
+          const r = throwBurst(this.fx, p.look, p.pos);
+          if (r.shake > 0) this.d.onShake?.(r.shake);
+          if (r.puddle) this.spawnPuddle(p.pos, 'enemy', 'poison', p.atk * p.mult * 0.12);
+          const b = p.look.burst;
+          if (b === 'crater' || b === 'frost') this.d.audio.stomp();
+          else if (b === 'splash') this.d.audio.slurp(1.4);
+          else if (b === 'witchfire') this.d.audio.cast();
+          else this.d.audio.clatter();
+        } else if (p.kind === 'prop') {
           // The barrel bursts: staves and splinters everywhere, a ring of water, a thump.
           this.fx.sparks(p.pos, UP, 26, 0x9a6a3a, 8, 1.3);
           this.fx.sparks(p.pos, UP, 14, 0xbff4ff, 6, 1.0);
@@ -1678,10 +1707,10 @@ export class CombatSystem {
    * the air, struck by within its SHOT_RADIUS; its landing warning lies on the ground there, filling on from HANDOFF
    * (the wind-up's share) as it falls.
    */
-  private throwAt(e: Enemy, kind: BossAttackKind, from: Vector3, to: { x: number; y: number; z: number }, T: number, g: number, mult: number, color: number, size: number, shot: ProjectileKind): void {
+  private throwAt(e: Enemy, kind: BossAttackKind, from: Vector3, to: { x: number; y: number; z: number }, T: number, g: number, mult: number, color: number, size: number, shot: ProjectileKind, look?: ThrowLook): void {
     const target = new Vector3(to.x, to.y, to.z);
     const vel = this.lob(from, target, T, g);
-    const p = this.spawnProjectile(from, vel, 'enemy', e.def.atk, mult, kind === 'cupmortar' || kind === 'cupvolley' ? 'astral' : 'stone', SHOT_RADIUS[kind] ?? 1, color, 0, 0, 0, 0, size, shot, { gravity: g, by: e.def.kind });
+    const p = this.spawnProjectile(from, vel, 'enemy', e.def.atk, mult, kind === 'cupmortar' || kind === 'cupvolley' ? 'astral' : 'stone', SHOT_RADIUS[kind] ?? 1, color, 0, 0, 0, 0, size, shot, { gravity: g, by: e.def.kind, look });
     // (The lob's own time in the air, a roof having flattened it: along the ground at its speed along the ground.)
     const across = Math.hypot(target.x - from.x, target.z - from.z);
     const speed = Math.hypot(vel.x, vel.z);
@@ -1714,6 +1743,16 @@ export class CombatSystem {
       const x = dir.x * cs - dir.z * sn;
       const z = dir.x * sn + dir.z * cs;
       dir.x = x; dir.z = z;
+    }
+    const look = e.def.throws;
+    if (look) {
+      // Its own thing, thrown (EnemyDef.throws): lobbed a little, so it falls on them after its time in the air.
+      const g = 9;
+      const T = Math.hypot(t.x - from.x, t.z - from.z) / speed;
+      const vel = dir.multiplyScalar(speed);
+      vel.y += 0.5 * g * T;
+      this.spawnProjectile(from, vel, 'enemy', e.def.atk, mult, e.def.element, 0.9, TRAIL_COLORS[look.trail][0], 0, 0, 0, 0, 1, 'prop', { by: e.def.kind, look, gravity: g });
+      return;
     }
     this.spawnProjectile(from, dir.multiplyScalar(speed), 'enemy', e.def.atk, mult, e.def.element, 0.8, ELEMENT_COLOR[e.def.element], 0, 0, 0, 0, 0.24, 'bolt', { by: e.def.kind });
   }
@@ -1808,7 +1847,9 @@ export class CombatSystem {
       case 'boulder': {
         // Lobbed on an arc that lands where its mark is heading.
         const from = new Vector3(e.pos.x, e.pos.y + e.def.height * sc * 0.9, e.pos.z);
-        this.throwAt(e, 'boulder', from, landing('boulder', t), Math.max(0.8, Math.min(1.8, 0.6 + dist / 20)), 16, 1.3, 0x8a96c8, 2.2, 'bolt');
+        // (Its own rock, burning or iced: EnemyDef.throws; never the old pale glow.)
+        const look = e.def.throws;
+        this.throwAt(e, 'boulder', from, landing('boulder', t), Math.max(0.8, Math.min(1.8, 0.6 + dist / 20)), 16, 1.3, look ? TRAIL_COLORS[look.trail][0] : 0x8a96c8, look ? 1 : 2.2, look ? 'prop' : 'bolt', look);
         break;
       }
       case 'roar': {
@@ -2549,10 +2590,14 @@ export class CombatSystem {
       cast?: CastCharge;
       /** A 'prop' shot's model id (thrown whole). */
       model?: string;
+      /** A boss's thrown thing: its model, size, trail, burst and spin (EnemyDef.throws). */
+      look?: ThrowLook;
     } = {},
   ): Projectile {
     const object = new Group();
     const rainbow: Projectile['rainbow'] = [];
+    const flames: Sprite[] = [];
+    let spinner: Group | null = null;
     let fade: Projectile['fade'] = null;
     let twinkle: Projectile['twinkle'] = null;
     if (kind === 'crescent') {
@@ -2586,15 +2631,41 @@ export class CombatSystem {
       object.add(ring, glowSprite(color, 1.6 * size, 0.5, true));
       object.position.copy(from);
     } else if (kind === 'prop') {
-      // Something thrown whole (the octopus's barrels): its own model, tumbling, a faint glow so it reads in the murk.
-      const g = extra.model ? thrownProps.get(extra.model) : null;
-      if (g && extra.model) {
-        const rig = new ModelRig(extra.model, g, { cloneMaterials: true });
-        litWood(rig.materials);
-        rig.root.scale.setScalar(size);
-        object.add(rig.root);
-      } else object.add(new Mesh(new IcosahedronGeometry(0.5 * size, 0), surface({ color: PALETTE.bark, roughness: 1 })));
-      object.add(glowSprite(color, 1.6 * size, 0.3, true));
+      // Something thrown whole (the octopus's barrels, a boss's own throw): its model turning about its middle, lit so it
+      // reads, a halo of its trail's colour (a burning throw's halos flicker).
+      const look = extra.look;
+      const id = look?.model ?? extra.model;
+      const g = id ? thrownProps.get(id) : null;
+      const scale = look ? throwScale(look) : size;
+      const tall = look ? look.size : size;
+      const halo = look ? TRAIL_COLORS[look.trail][0] : color;
+      // (The model turns inside its own holder: the flames stream behind along the flight, never round with it.)
+      spinner = new Group();
+      object.add(spinner);
+      if (g && id) {
+        const rig = new ModelRig(id, g, { cloneMaterials: true });
+        if (!look) litWood(rig.materials);
+        else {
+          // Lit just enough to read; a burning rock glows hot from inside, an iced one cold.
+          const [hot, k] = INNER_LIGHT[look.trail];
+          litWood(rig.materials, k, hot);
+          if (look.tint !== undefined) for (const m of rig.materials) m.color.multiply(_col.set(look.tint));
+        }
+        rig.root.scale.setScalar(scale);
+        rig.root.position.y = -0.5 * rig.height * scale;
+        rig.root.rotation.y = look?.face ?? 0;
+        spinner.add(rig.root);
+      } else spinner.add(new Mesh(new IcosahedronGeometry(0.4 * tall, 0), surface({ color: PALETTE.void, emissive: halo, emissiveIntensity: 1.5 })));
+      if (look && (look.trail === 'fire' || look.trail === 'witchfire')) {
+        // A head of flame round it and three tongues streaming back, smaller each.
+        const [a, b] = TRAIL_COLORS[look.trail];
+        for (const [k, c, o] of [[1.5, a, 0.6], [1.15, b, 0.6], [0.85, a, 0.5], [0.6, b, 0.4]] as const) {
+          const f = glowSprite(c, k * tall, o, true);
+          f.userData.base = k * tall;
+          object.add(f);
+          flames.push(f);
+        }
+      } else object.add(glowSprite(halo, (look ? (look.trail === 'sparkle' ? 0.8 : 1.3) : 1.6) * tall, look?.trail === 'sparkle' ? 0.18 : 0.3, true));
       object.position.copy(from);
     } else if (kind === 'cup') {
       // A double cup of lean (lean-cup.glb), brimming purple, end over end, trailing its glow.
@@ -2692,6 +2763,7 @@ export class CombatSystem {
       homing: extra.homing ?? null, wobble: extra.wobble ?? 0, onHit: extra.onHit ?? null, rainbow, seed: Math.random() * 10, web: extra.web ?? 0, by: extra.by ?? null,
       age: 0, from: from.clone(), trail: extra.trail ?? null, trailW: extra.trailW ?? 0.06, pierce: extra.pierce ?? false, aoe: extra.aoe ?? 0,
       ground: extra.ground ?? 0, burn: extra.burn ?? null, fade, twinkle, cast: extra.cast ?? null, warn: null, flight: 0,
+      look: extra.look ?? null, trailAcc: 0, flames, spinner,
     };
     this.projectiles.push(p);
     // A ribbon id is one shot's at a time: the shot that had it lets go (its ribbon fades) and this one starts afresh.
@@ -2724,6 +2796,40 @@ export class CombatSystem {
   hazard(atk: number, poison?: { dps: number; seconds: number }): void {
     this.damagePlayer(atk, 'rot');
     if (poison) this.poisonPlayer(poison.dps, poison.seconds);
+  }
+
+  /**
+   * A boss's thrown thing in the air (EnemyDef.throws): a rock or a bottle tumbles end over end, a lily pad spins flat
+   * like a plate, a fish flops along its line, a skull flies teeth first, chattering; a burning one's halos flicker;
+   * each leaves its trail (combat/Throws).
+   */
+  private turnThrow(p: Projectile, dt: number): void {
+    const look = p.look!;
+    const o = p.spinner ?? p.object;
+    switch (look.spin) {
+      case 'tumble': o.rotation.x += dt * 6; o.rotation.y += dt * 1.7; break;
+      case 'frisbee': o.rotation.set(0.25 * Math.sin(p.age * 3), o.rotation.y + dt * 16, 0); break;
+      case 'flop':
+        o.lookAt(aim.copy(p.object.position).add(p.vel));
+        o.rotateY(Math.sin(p.age * 16 + p.seed) * 0.6);
+        o.rotateZ(Math.sin(p.age * 8 + p.seed) * 0.35);
+        break;
+      case 'face':
+        o.lookAt(aim.copy(p.object.position).add(p.vel));
+        o.rotateX(Math.sin(p.age * 30) * 0.14);
+        break;
+    }
+    // The flames: the head round it, the tongues back along its flight, all flickering.
+    if (p.flames.length) {
+      const l = p.vel.length() || 1;
+      for (let i = 0; i < p.flames.length; i++) {
+        const f = p.flames[i];
+        const back = i * 0.38 * look.size;
+        f.position.set((-p.vel.x / l) * back, (-p.vel.y / l) * back + i * 0.08 * look.size, (-p.vel.z / l) * back);
+        f.scale.setScalar(f.userData.base * (0.8 + Math.random() * 0.35));
+      }
+    }
+    p.trailAcc = throwTrail(this.fx, look, p.pos, p.vel, dt, p.trailAcc);
   }
 
   /**
@@ -2911,16 +3017,24 @@ export class CombatSystem {
   }
 
   /** A puddle of lean: a burst cup's slows the hero who stands in it; one off the lean cyclone (`hero`) slows the mobs instead. */
-  private spawnPuddle(at: Vector3, owner: 'hero' | 'enemy' = 'enemy'): void {
+  /**
+   * A puddle where a cup (or the cyclone's trail) spilled lean, which slows; or where a witch's bottle broke, a green
+   * brew that poisons whoever stands in it (`dps` a second).
+   */
+  private spawnPuddle(at: Vector3, owner: 'hero' | 'enemy' = 'enemy', brew: 'lean' | 'poison' = 'lean', dps = 0): void {
     const y = this.d.world.heightAt(at.x, at.z, at.y + 1) + 0.04;
-    const mesh = new Mesh(new CircleGeometry(2.4, 24), new MeshBasicMaterial({ map: puffTexture(), color: 0x8a2be2, transparent: true, opacity: 0.6, depthWrite: false, toneMapped: false }));
+    // (A bottle's pool is small, dim and quick to sink in: three witches' volleys of three flooded the ground green.)
+    const poison = brew === 'poison';
+    const r = poison ? 1.5 : 2.4;
+    const glow = poison ? 0x6aff3a : LEAN_PURPLE;
+    const mesh = new Mesh(new CircleGeometry(r, 24), new MeshBasicMaterial({ map: puffTexture(), color: poison ? 0x2a9a34 : 0x8a2be2, transparent: true, opacity: poison ? 0.5 : 0.6, depthWrite: false, toneMapped: false }));
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(at.x, y, at.z);
     // (A burst cup's puddle glows; the cyclone's trail goes without, a halo a puddle being as many planes again.)
-    if (owner !== 'hero') mesh.add(glowSprite(LEAN_PURPLE, 3.2, 0.35, true));
+    if (owner !== 'hero') mesh.add(glowSprite(glow, poison ? 1.6 : 3.2, poison ? 0.18 : 0.35, true));
     this.d.scene.add(mesh);
-    this.puddles.push({ pos: new Vector3(at.x, y, at.z), r: 2.4, left: 6, mesh, hero: owner === 'hero' });
-    this.fx.sparks(_v.set(at.x, y + 0.3, at.z), UP, 14, LEAN_PURPLE, 4, 1.0);
+    this.puddles.push({ pos: new Vector3(at.x, y, at.z), r, left: poison ? 4 : 6, mesh, hero: owner === 'hero', poison: poison ? dps : 0 });
+    this.fx.sparks(_v.set(at.x, y + 0.3, at.z), UP, poison ? 8 : 14, glow, 4, 1.0);
   }
 
   /** Poison: damage every half second for a while (refreshed, never stacked). */

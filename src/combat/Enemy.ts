@@ -1431,11 +1431,14 @@ const STATIC_MOTION: Partial<Record<string, StaticMotion>> = {
   emberrider: 'gallop', croc: 'slither', rivershade: 'hover', lurker: 'wade', wyrm: 'fly', hollowking: 'seated', marshdemon: 'stride',
 };
 
-/** Wood that reads in the sunken city's murk (the octopus's barrels were black lumps there): its own texture, lit. */
-export function litWood(materials: readonly MeshStandardMaterial[]): void {
+/**
+ * A thrown thing that reads in the dark (the octopus's barrels were black lumps in the sunken city's murk): its own
+ * texture, lit (`glow` tints that light: a burning rock's is orange).
+ */
+export function litWood(materials: readonly MeshStandardMaterial[], intensity = 0.45, glow = 0xffffff): void {
   for (const m of materials) {
-    m.emissive.set(0xffffff);
+    m.emissive.set(glow);
     m.emissiveMap = m.map;
-    m.emissiveIntensity = 0.45;
+    m.emissiveIntensity = intensity;
   }
 }
