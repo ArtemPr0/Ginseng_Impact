@@ -448,7 +448,12 @@ export class Npc {
   private wanderWait = 0;
   private speed = 0;
   /** Sound hooks, set once by main.ts (NPCs never import the audio engine). */
-  static sound: { voice(url: string, gain: number, channel?: 'npc' | 'mob' | 'head'): Promise<number>; slurp(gain: number, pos?: { x: number; y: number; z: number }): void } | null = null;
+  static sound: {
+    voice(url: string, gain: number, channel?: 'npc' | 'mob' | 'head'): Promise<number>;
+    slurp(gain: number, pos?: { x: number; y: number; z: number }): void;
+    /** Says a line it has no recording of in its own babble (audio/Babble). */
+    babble?(npcId: string, text: string, gain: number): void;
+  } | null = null;
   private speech: SpeechBubble | null = null;
   private voiceWait = 4;
   private speaking = 0;
@@ -540,6 +545,7 @@ export class Npc {
     const text = this.def.lines[line] ?? this.def.lines[0];
     if (bubble.sprite.visible || !text) return;
     bubble.say(text, 2.4);
+    Npc.sound?.babble?.(this.def.id, text, gain);
   }
 
   /**

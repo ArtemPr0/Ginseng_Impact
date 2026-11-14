@@ -131,6 +131,10 @@ body { font-family: var(--font-body); color: var(--moon); }
 .dlg-name { font-family: var(--font-title); font-weight: 700; font-size: 20px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--moon); }
 .dlg-title { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cloth); margin-top: 2px; }
 .dlg-line { font-size: 16px; line-height: 1.5; color: var(--moon); min-height: 48px; }
+/* The line types out as the NPC babbles it (Hud typed()). */
+.dlg-ch { opacity: 0; animation: dlg-in 0.06s ease-out forwards; }
+@keyframes dlg-in { to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .dlg-ch { opacity: 1; animation: none; } }
 .dlg-buttons { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
 .hud-panel button { font-family: var(--font-title); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--moon); background: rgba(26,44,255,0.18); border: 1px solid var(--panel-border); padding: 7px 14px; cursor: pointer; transition: background 80ms steps(2, end); }
 .hud-panel button:hover { background: rgba(79,124,255,0.35); border-color: var(--electric); }

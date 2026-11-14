@@ -1,4 +1,5 @@
 import type { CharacterDef } from '../characters/roster';
+import { BABBLE_CPS } from '../audio/Babble';
 import { ELEMENT_COLOR, ROSTER } from '../characters/roster';
 import type { Element } from '../combat/Elements';
 import { ITEMS, RARITY_NAME, canWield } from '../items/Items';
@@ -170,6 +171,16 @@ export class DamageNumbers<T> {
 
 /** The lock-on marker: a ring with four ticks and a dotted inner ring, in the rune colour (the CSS turns it in steps). */
 const LOCK_SVG = `<svg viewBox="0 0 36 36" width="36" height="36" aria-hidden="true"><circle cx="18" cy="18" r="11" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="18" cy="18" r="6.5" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="2 3"/><path d="M18 1.5v6M18 28.5v6M1.5 18h6M28.5 18h6" stroke="currentColor" stroke-width="1.5"/></svg>`;
+
+
+const ESC: Record<string, string> = { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' };
+/**
+ * A dialogue line typed out letter by letter at the pace the NPC babbles it (audio/Babble, the playtest of 2026-11-14:
+ * "add unique voices"): each letter fades in 1/BABBLE_CPS s after the one before.
+ */
+function typed(line: string): string {
+  return [...line].map((ch, i) => `<span class="dlg-ch" style="animation-delay:${(i / BABBLE_CPS).toFixed(3)}s">${ESC[ch] ?? ch}</span>`).join('');
+}
 
 /** DOM HUD: Genshin layout, dark-fantasy skin. Panels (talk, shop, inventory) take the pointer. */
 export class Hud {
@@ -614,7 +625,7 @@ export class Hud {
       return c;
     });
     el.innerHTML = `<div class="dlg-head"><div class="dlg-name">${head.name}</div><div class="dlg-title">${head.title}</div></div>
-      <div class="dlg-line">“${node.line}”</div>
+      <div class="dlg-line">“${typed(node.line)}”</div>
       <div class="dlg-choices">${choices.map((c, i) => `<button data-act="c${i}"><span class="dlg-choice-n">${i + 1}</span>${c.label}</button>`).join('')}</div>`;
     this.wire(el, (act) => {
       const choice = node.choices[Number(act.slice(1))];

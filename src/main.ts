@@ -4,6 +4,9 @@ import { LightBudget } from './render/LightBudget';
 import { loadModel, ModelRig, yawToRotation } from './models/ModelRig';
 import { MODELS } from './data/models';
 import { Audio } from './audio/Audio';
+import { babbleVoice, renderBabble } from './audio/Babble';
+import { DIALOGUE } from './data/dialogue';
+import type { DialogueNode } from './game/Dialogue';
 import { Rig } from './characters/Rig';
 import { ROSTER } from './characters/roster';
 import { CombatSystem } from './combat/CombatSystem';
@@ -64,6 +67,28 @@ const renderer = new Renderer(canvas);
 const debugAt = new URLSearchParams(location.search).has('at');
 const input = new Input(canvas, debugAt);
 const audio = new Audio();
+/** Sample rate of the NPCs' babble: a voice's band, cheap to render (audio/Babble). */
+const BABBLE_RATE = 16000;
+const babbled = new Map<string, Float32Array>();
+/**
+ * An NPC says `text` in its own babble (no recording of the line): the playtest of 2026-11-14 asked for unique voices.
+ * The last few renders are kept (a hub line is said again and again).
+ */
+function babble(npcId: string, text: string, gain = 1): void {
+  const key = `${npcId}|${text}`;
+  let samples = babbled.get(key);
+  if (!samples) {
+    samples = renderBabble(text, babbleVoice(npcId, DIALOGUE[npcId]?.persona.tone), BABBLE_RATE);
+    if (babbled.size > 24) babbled.delete(babbled.keys().next().value!);
+    babbled.set(key, samples);
+  }
+  audio.babble(samples, BABBLE_RATE, gain, 'npc');
+}
+/** A dialogue line opens: its recording if it has one, else the speaker's babble. */
+const sayLine = (npcId: string) => (node: DialogueNode): void => {
+  if (node.voice) adventures.onLine(node);
+  else babble(npcId, node.line);
+};
 const hud = new Hud(document.getElementById('hud')!);
 const inkSplat = new InkSplat(document.getElementById('hud')!);
 const inventory = new Inventory();
@@ -199,7 +224,7 @@ function switchTo(i: number): boolean {
   return true;
 }
 
-Npc.sound = { voice: (url, gain, channel) => audio.voice(url, gain, channel), slurp: (gain) => audio.slurp(gain) };
+Npc.sound = { voice: (url, gain, channel) => audio.voice(url, gain, channel), slurp: (gain) => audio.slurp(gain), babble };
 // (Rig.sound.slurp is Sir Aldric's own cup of lean: the hero's sip is a feat.)
 Rig.sound = { slurp: (gain) => { audio.slurp(gain); events.emit({ kind: 'feat', what: 'sip' }); }, rustle: () => audio.rustle(), munch: () => audio.munch() };
 const lightBudget = new LightBudget(scene, 6);
@@ -323,7 +348,7 @@ area.hooks.reward = (what, line) => {
 area.hooks.board = (boat) => { adventures.riding = boat; audio.footstep(); hud.announce('Aboard · F talk · SPACE jump off'); };
 adventures.openRowers = () => {
   const node = adventures.talk('rowers');
-  if (node) { events.emit({ kind: 'talk', npc: 'rowers' }); openPanel(() => hud.dialogue({ name: 'The Rowers', title: 'Two Knights and a Boat' }, node, adventures.onLine)); }
+  if (node) { events.emit({ kind: 'talk', npc: 'rowers' }); openPanel(() => hud.dialogue({ name: 'The Rowers', title: 'Two Knights and a Boat' }, node, sayLine('rowers'))); }
 };
 
 // --- panels ---
@@ -428,7 +453,12 @@ const story = new Story({
   },
   npcsNear: (x, z, r) => area.npcs
     .filter((n) => !n.hidden && Math.hypot(n.pos.x - x, n.pos.z - z) < r)
-    .map((n) => ({ id: n.def.id, bubble: (text: string) => n.bubble(text) })),
+    .map((n) => ({ id: n.def.id, bubble: (text: string) => {
+      n.bubble(text);
+      // A bark is babbled too, fainter the farther off it is said.
+      const d = Math.hypot(n.pos.x - controller.pos.x, n.pos.z - controller.pos.z);
+      if (d < 22) babble(n.def.id, text, 0.75 * (1 - d / 22));
+    } })),
   playerAt: () => ({ x: controller.pos.x, z: controller.pos.z }),
   hireCost: (id) => area.npcs.find((n) => n.def.id === id)?.def.hire?.cost,
   companions: () => companions.length,
@@ -747,7 +777,7 @@ function pressF(): void {
     events.emit({ kind: 'talk', npc: t.npc.def.id });
     // A conversation with choices (quests) when the NPC has one; otherwise its ordinary lines.
     const node = adventures.talk(t.npc.def.id);
-    if (node) openPanel(() => hud.dialogue(t.npc.def, node, adventures.onLine));
+    if (node) openPanel(() => hud.dialogue(t.npc.def, node, sayLine(t.npc.def.id)));
     else { t.npc.speak(); openPanel(() => hud.talk(t.npc.def)); }
   } else if (t?.kind === 'dismiss') dismiss(t.companion);
 }

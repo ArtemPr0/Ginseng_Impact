@@ -27,7 +27,7 @@ class FakeContext {
   createGain(): FakeGain { const g: FakeGain = { gain: param(1), connect: (n) => n, disconnect: () => {} }; FakeContext.gains.push(g); return g; }
   createDynamicsCompressor() { return { threshold: param(0), ratio: param(1), connect: (n: unknown) => n }; }
   createBiquadFilter() { return { type: '', frequency: param(0), Q: param(0), connect: (n: unknown) => n }; }
-  createBuffer(_channels: number, len: number) { return { getChannelData: () => new Float32Array(len) }; }
+  createBuffer(_channels: number, len: number, rate = 48000) { const data = new Float32Array(len); return { duration: len / rate, getChannelData: () => data }; }
   createBufferSource(): FakeSource {
     const s: FakeSource = { buffer: null, playbackRate: param(1), onended: null, started: [], stopped: [], connect: (n) => n, start(t = 0) { this.started.push(t); }, stop(t = 0) { this.stopped.push(t); } };
     FakeContext.sources.push(s);
@@ -68,6 +68,17 @@ describe('Audio.voice', () => {
     expect(a.gain.gain.ramps).toContainEqual([0, expect.closeTo(10.06, 2)]);
     expect(b.src.stopped).toHaveLength(0);
     expect(b.gain.gain.ramps).toHaveLength(0);
+  });
+
+  it("an NPC's babble speaks on the NPC channel, taking over from the line before it, and resolves to its length", async () => {
+    const audio = unlocked();
+    await audio.voice('/audio/a.mp3', 1, 'npc');
+    const secs = audio.babble(new Float32Array(16000).fill(0.5), 16000, 1, 'npc');
+    expect(secs).toBeCloseTo(1);
+    const [a, b] = lines();
+    expect(a.src.stopped).toHaveLength(1);
+    expect(b.src.started).toHaveLength(1);
+    expect((b.src.buffer as { getChannelData(i: number): Float32Array }).getChannelData(0)[100]).toBeCloseTo(0.5);
   });
 
   it('the NPCs are the default channel', async () => {
