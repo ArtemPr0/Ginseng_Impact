@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EMOTE_FILES, emotesFor } from './Emotes';
+import { EMOTE_FILES, emotesFor, withoutHead } from './Emotes';
 
 describe('emotesFor', () => {
   it('gives every Meshy biped (it walks with the shared Walking clip) the shared emotes', () => {
@@ -52,5 +52,22 @@ describe('reactionFor', () => {
       expect(r?.seconds).toBeGreaterThan(1.5);
       expect(r?.seconds).toBeLessThan(9);
     }
+  });
+});
+
+describe('withoutHead', () => {
+  it('drops the head and neck tracks of an emote, keeping the rest of the body', async () => {
+    const { AnimationClip, QuaternionKeyframeTrack } = await import('three');
+    const q = [0, 0, 0, 1];
+    const clip = new AnimationClip('dance', 1, [
+      new QuaternionKeyframeTrack('mixamorigHead.quaternion', [0], q),
+      new QuaternionKeyframeTrack('mixamorig:Neck.quaternion', [0], q),
+      new QuaternionKeyframeTrack('mixamorig:HeadTop_End.quaternion', [0], q),
+      new QuaternionKeyframeTrack('Spine02.quaternion', [0], q),
+      new QuaternionKeyframeTrack('LeftArm.quaternion', [0], q),
+    ]);
+    const out = withoutHead(clip);
+    expect(out.tracks.map((t) => t.name)).toEqual(['Spine02.quaternion', 'LeftArm.quaternion']);
+    expect(clip.tracks.length).toBe(5);
   });
 });

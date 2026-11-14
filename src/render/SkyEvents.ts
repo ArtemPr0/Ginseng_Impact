@@ -27,23 +27,6 @@ function soft(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number, r
   ctx.restore();
 }
 
-/** Burning sun with a face (Mystical Echoes). */
-function sunFace(): CanvasTexture {
-  return tex((ctx, w, h) => {
-    soft(ctx, w / 2, h / 2, 118, 118, 0.55, '90,140,255');
-    for (let i = 0; i < 18; i++) {
-      const a = (i / 18) * Math.PI * 2;
-      soft(ctx, w / 2 + Math.cos(a) * 95, h / 2 + Math.sin(a) * 95, 28, 70, 0.5, '120,170,255');
-    }
-    soft(ctx, w / 2, h / 2, 70, 70, 1, '200,225,255');
-    ctx.fillStyle = 'rgba(10,15,60,0.9)';
-    for (const x of [100, 156]) { ctx.beginPath(); ctx.ellipse(x, 112, 13, 17, 0, 0, Math.PI * 2); ctx.fill(); }
-    ctx.beginPath(); ctx.moveTo(96, 160); ctx.quadraticCurveTo(128, 196, 160, 160); ctx.quadraticCurveTo(128, 178, 96, 160); ctx.fill();
-    ctx.fillStyle = 'rgba(55,245,255,0.95)';
-    for (const x of [100, 156]) { ctx.beginPath(); ctx.arc(x, 114, 5, 0, Math.PI * 2); ctx.fill(); }
-  });
-}
-
 /** Giant eye (eclipse / vault eye). */
 function eye(): CanvasTexture {
   return tex((ctx, w, h) => {
@@ -61,24 +44,6 @@ function eye(): CanvasTexture {
     ctx.strokeStyle = 'rgba(40,50,120,0.8)';
     ctx.lineWidth = 6;
     ctx.beginPath(); ctx.ellipse(w / 2, h / 2, 110, 54, 0, 0, Math.PI * 2); ctx.stroke();
-  });
-}
-
-/** Frog face in the storm (Astral Frog King opening). */
-function frogFace(): CanvasTexture {
-  return tex((ctx, w, h) => {
-    soft(ctx, w / 2, h / 2 + 10, 125, 100, 0.6, '70,110,255');
-    soft(ctx, w / 2, h / 2 + 30, 110, 70, 0.6, '50,90,230');
-    for (const x of [78, 178]) {
-      soft(ctx, x, 88, 34, 30, 0.9, '60,100,255');
-      ctx.fillStyle = 'rgba(255,240,200,1)';
-      ctx.beginPath(); ctx.arc(x, 90, 14, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = 'rgba(10,15,40,1)';
-      ctx.beginPath(); ctx.ellipse(x, 90, 5, 11, 0, 0, Math.PI * 2); ctx.fill();
-    }
-    ctx.fillStyle = 'rgba(10,15,60,0.85)';
-    ctx.beginPath(); ctx.moveTo(60, 170); ctx.quadraticCurveTo(128, 210, 196, 170); ctx.quadraticCurveTo(128, 186, 60, 170); ctx.fill();
-    for (let i = 0; i < 40; i++) soft(ctx, 40 + Math.random() * 176, 60 + Math.random() * 150, 3, 3, 0.9, '140,180,255');
   });
 }
 
@@ -147,9 +112,7 @@ export class SkyEvents {
       this.events.push(ev);
       return ev;
     };
-    make(sunFace(), 0xaac8ff, new Vector3(0.9, 0.5, 0.2), [150, 150], 260, 20, 45, 0.9);
     make(eye(), 0xffffff, new Vector3(-0.8, 0.55, 0.3), [170, 110], 240, 110, 40, 0.85);
-    make(frogFace(), 0x9fc0ff, new Vector3(0.1, 0.5, 1), [190, 190], 300, 160, 50, 0.8);
     make(whale(), 0xffffff, new Vector3(-0.5, 0.45, -0.9), [230, 90], 210, 60, 70, 0.9, new Vector3(0.6, 0.05, -0.2), NormalBlending);
     // Giant eyes (pair) over the gorge direction.
     make(eye(), 0xffffff, new Vector3(0.55, 0.62, -0.7), [120, 80], 240, 200, 35, 0.8);

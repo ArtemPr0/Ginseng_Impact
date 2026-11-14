@@ -184,15 +184,17 @@ export function witchStream(
       }
       burn -= dt;
       if (inStream && burn <= 0) { burn = BURN_EVERY; hooks.hurt(BURN.atk, BURN.poison); }
-      // The coven: circling the cauldron; near the bridge, each in turn raises her staff and throws an orb.
+      // The coven: standing round the cauldron, facing it; near the bridge, each in turn turns, raises her staff and throws
+      // an orb. (They stood still on 2026-11-14: witch.glb has no skeleton, and circling slid a stiff body round with no
+      // steps, which the user saw as legs that never move.)
       const near = Math.hypot(player.x - centreAt(bridgeZ), player.z - bridgeZ) < NOTICE;
       for (let i = 0; i < witches.length; i++) {
         const w = witches[i];
-        const a = t * 0.55 + (i / 3) * Math.PI * 2;
-        const rad = 2.6 + Math.sin(t * 1.3 + i) * 0.3;
+        const a = (i / 3) * Math.PI * 2 + 0.5;
+        const rad = 2.6;
         const r = w.r;
-        r.root.position.set(centreAt(bridgeZ) + Math.cos(a) * rad, deckY + 0.45 + Math.abs(Math.sin(t * 2.2 + i * 2)) * 0.12, bridgeZ + Math.sin(a) * rad * 0.7);
-        let yaw = Math.atan2(Math.cos(a) * 0.7, -Math.sin(a));
+        r.root.position.set(centreAt(bridgeZ) + Math.cos(a) * rad, deckY + 0.45, bridgeZ + Math.sin(a) * rad * 0.7);
+        let yaw = Math.atan2(bridgeZ - r.root.position.z, centreAt(bridgeZ) - r.root.position.x);
         let attack: number | undefined;
         if (w.cast >= 0) {
           // Facing the hero for the cast; the orb leaves the staff at the top of the swing.
@@ -209,7 +211,7 @@ export function witchStream(
           if (w.wait <= 0) { w.cast = 0; w.wait = 2.2 + Math.random() * 1.6; }
         }
         r.root.rotation.y = yawToRotation(yaw);
-        r.animate({ mode: 'ground', speed: w.cast >= 0 ? 0 : 1.6 + Math.sin(t * 1.1 + i) * 0.4, attack, attackKind: 'skill' }, dt);
+        r.animate({ mode: 'ground', speed: 0, attack, attackKind: 'skill' }, dt);
       }
     },
   };

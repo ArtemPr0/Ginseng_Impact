@@ -10,7 +10,6 @@ import { launch, type Yeet, yeetStep } from './Yeet';
 import { LeanBubble } from '../render/LeanBubble';
 import { patchTrippy } from '../render/Materials';
 import { patchDissolve } from '../render/CombatFx';
-import { EyeIris } from '../render/EyeIris';
 import { easeLean, slopeTarget, type Lean } from '../characters/SlopeLean';
 import type { EnemyDef, OrbitModel } from '../data/enemies';
 import { PALETTE } from '../render/palette';
@@ -292,9 +291,8 @@ export class Enemy {
 
   /** When a marker standing in for a model began to shrink (deadFor), or -1 (a model burns away instead: burnAway). */
   private shrinkFrom = -1;
-  /** A giant eye's tilt pivot and living iris (def.eye). */
+  /** A giant eye's tilt pivot (def.eye). */
   private eyePivot: Group | null = null;
-  private eyeIris: EyeIris | null = null;
   private eyeTilt = 0;
 
   /** Installs the loaded glTF as the body (its own material copies, so hit flashes stay per enemy). */
@@ -311,13 +309,10 @@ export class Enemy {
       this.eyePivot = new Group();
       this.eyePivot.position.y = cy;
       this.model.root.position.y -= cy;
-      // Laid on the eyeball over its painted iris and pupil (one pupil, not two drifting apart).
-      const H = box.max.y - box.min.y, eye = this.def.eye;
-      this.eyeIris = new EyeIris(eye.size * H, eye.iris, eye.ball * H);
-      const [ax, ay] = eye.axis;
-      this.eyeIris.group.quaternion.setFromUnitVectors(new Vector3(0, 0, 1), new Vector3(ax, ay, Math.sqrt(Math.max(0, 1 - ax * ax - ay * ay))));
+      // Just the model's own painted iris and pupil (the user, 2026-11-14: a drawn iris over it read as a second pupil).
+      const [, ay] = this.def.eye.axis;
       this.eyeTilt = Math.asin(ay);
-      this.eyePivot.add(this.model.root, this.eyeIris.group);
+      this.eyePivot.add(this.model.root);
       this.object.add(this.eyePivot);
     } else this.object.add(this.model.root);
     this.object.scale.setScalar(1);
@@ -492,13 +487,12 @@ export class Enemy {
   update(dt: number, marks: ReadonlyArray<Mark>): EnemyAction {
     const player = this.chooseMark(marks);
     this.heroY = player.y;
-    if (this.eyePivot && this.eyeIris) {
+    if (this.eyePivot) {
       const dist = Math.hypot(player.x - this.pos.x, player.z - this.pos.z);
       const dy = player.y + 1 - (this.pos.y + this.eyePivot.position.y);
       const pitch = Math.max(-0.9, Math.min(0.9, Math.atan2(dy, Math.max(1, dist))));
       // (Plus the tilt that brings the eye's own line of sight, not the ball's front, onto the hero.)
       this.eyePivot.rotation.x += (this.eyeTilt - pitch - this.eyePivot.rotation.x) * Math.min(1, dt * 3);
-      this.eyeIris.update(dt, this.hp / this.def.maxHp, 1 - Math.min(1, dist / 30));
     }
     this.time += dt;
     this.aura = tickAura(this.aura, dt);
@@ -780,7 +774,6 @@ export class Enemy {
   }
 
   takeDamage(amount: number, kb: { x: number; z: number }, strength: number): boolean {
-    this.eyeIris?.hurt();
     if (!this.alive) return false;
     // Hit: a neutral mob turns on you (passive flyers never fight back), a seated one jumps up at once.
     if (this.def.neutral && !this.def.passive && !this.provoked) { this.provoked = true; if (this.brain.state === 'idle') { this.brain.state = 'chase'; this.brain.stateTime = 0; } }
@@ -836,7 +829,6 @@ export class Enemy {
       for (const o of this.dissolve.shadows) o.castShadow = true;
       this.dissolve = null;
     }
-    if (this.eyeIris) this.eyeIris.group.visible = true;
     this.markRef = null;
     this.brain.state = 'idle';
     this.brain.stateTime = 0;
@@ -995,7 +987,6 @@ export class Enemy {
       // (Its shadow would stay whole while the body burns: the depth pass knows nothing of the dissolve.)
       const shadows = d.shadows;
       m.root.traverse((o) => { if (o.castShadow) { o.castShadow = false; shadows.push(o); } });
-      if (this.eyeIris) this.eyeIris.group.visible = false;
       this.onDissolve?.();
     }
     if (!d.on) return;

@@ -55,16 +55,17 @@ export interface EnemyDef {
   flyAbove?: number;
   /** A body that is not a model: a living bubble of lean (render/LeanBubble), `bodyRadius` across. */
   body?: 'bubble';
+  /** You can stand on it (combat/Solid): a cylinder `r` metres wide whose top is `top` metres over its feet. */
+  solid?: { r: number; top: number };
   /** Drawn as the dream sees it: every colour at once (render/Materials patchTrippy). */
   trippy?: boolean;
   /**
-   * A giant eye (the Blood Eye): its iris and pupil are drawn over the model and follow the hero (render/EyeIris): the
-   * eyeball's radius out to just over its painted pupil and the iris's radius (fractions of the model's height), and
-   * the way the eye looks (x, y of a unit vector, z forward). blood-eye.glb, measured from its mesh and texture: the
-   * painted pupil is a dome 0.2 across centred on (0.03, 0.22) with its peak 0.66 out (of 1.893), so the eye looks
-   * 19 degrees up; the eye tilts to put that on the hero.
+   * A giant eye (the Blood Eye): the body tilts so its own painted pupil looks at the hero. `axis` is the way the eye
+   * looks (x, y of a unit vector, z forward): blood-eye.glb's painted pupil is centred on (0.03, 0.22), so the eye
+   * looks 19 degrees up. (A drawn iris laid over it was removed on 2026-11-14: it read as
+   * a second pupil.)
    */
-  eye?: { iris: number; ball: number; size: number; axis: [number, number] };
+  eye?: { axis: [number, number] };
   /** Colour of its eye beam (default the dream's cyan). */
   beamColor?: number;
   /** Its texture glows (emissive from its own colours) at this strength: the Blood Eye burns in the night. */
@@ -105,7 +106,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   // its thorns, and pins whoever meets its glare.
   'blood-eye': {
     kind: 'blood-eye', name: 'The Blood Eye', title: 'That Watches the Chasm', maxHp: 7600, def: 60, atk: 150, speed: 3.5, element: 'blood', hover: 0, bodyRadius: 2.6, height: 6, boss: true,
-    flying: true, flyAbove: 14, floatAt: 10, eye: { iris: 0x3a5cff, ball: 0.35, size: 0.135, axis: [0.035, 0.32] }, beamColor: 0xff2a2a, glow: 1.0,
+    flying: true, flyAbove: 14, floatAt: 10, eye: { axis: [0.035, 0.32] }, beamColor: 0xff2a2a, glow: 1.0,
     brain: { aggroRange: 34, attackRange: 30, windup: 1.0, recover: 1.2, attackCooldown: 0.9, preferredRange: 16 }, respawn: 300, leash: 40, shards: [220, 320],
     attacks: [{ kind: 'eyebeam', range: 30, windup: 1.0, recover: 1.2, weight: 3 }, { kind: 'thorns', range: 26, windup: 1.0, recover: 1.2, weight: 2 }, { kind: 'glare', range: 30, windup: 1.4, recover: 1.0, weight: 2 }],
     drops: [{ itemId: 'lurker-eye', chance: 1 }, { itemId: 'star-chart', chance: 1 }],
@@ -128,7 +129,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   // The Frog King as he really is, in his dream: a seven-metre god of every colour, floating over the fractal floor.
   // Rings of tripping orbs, a sweeping stare, a leap that lands where you stand, and reflections of himself.
   'dmt-entity': {
-    kind: 'dmt-entity', name: 'The Frog God', title: 'Who Dreams You Back', maxHp: 3400, def: 50, atk: 110, speed: 3, element: 'astral', hover: 0.5, bodyRadius: 2.4, height: 7, boss: true, trippy: true,
+    kind: 'dmt-entity', name: 'The Frog God', title: 'Who Dreams You Back', maxHp: 3400, def: 50, atk: 110, speed: 3, element: 'astral', hover: 0.5, bodyRadius: 2.4, height: 7, boss: true, trippy: true, solid: { r: 3.2, top: 5.4 },
     brain: { aggroRange: 55, attackRange: 30, windup: 1.0, recover: 1.1, attackCooldown: 0.6, preferredRange: 11 }, respawn: 20, leash: 60, shards: [420, 520],
     attacks: [
       { kind: 'kaleido', range: 30, windup: 1.0, recover: 1.0, weight: 3 },
@@ -142,7 +143,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   // The chapel on spider legs (DdmvaMvMvS4): it stalks the kingdom's snowfield past the graves on its own legs (no longer
   // hung in the sky over the island's west rim, 2026-11-03: dangling legs read as broken), and when you come near it spits webs that pin you where you stand and drops nets over where you are.
   spiderchapel: {
-    kind: 'spiderchapel', name: 'The Spider Chapel', title: 'That Walks the Snow', maxHp: 9500, def: 85, atk: 140, speed: 4.5, element: 'fog', hover: 0, bodyRadius: 7, height: 28, boss: true,
+    kind: 'spiderchapel', name: 'The Spider Chapel', title: 'That Walks the Snow', maxHp: 9500, def: 85, atk: 140, speed: 4.5, element: 'fog', hover: 4.5, bodyRadius: 7, height: 28, boss: true,
     brain: { aggroRange: 18, attackRange: 18, windup: 1.0, recover: 1.4, attackCooldown: 1.2, preferredRange: 14 }, respawn: 360, leash: 60, shards: [260, 360],
     attacks: [{ kind: 'web', range: 36, windup: 1.0, recover: 1.4, weight: 3 }, { kind: 'webdrop', range: 30, windup: 1.2, recover: 1.5, weight: 2 }],
     drops: [{ itemId: 'star-chart', chance: 1 }, { itemId: 'rune-shard', chance: 1 }],

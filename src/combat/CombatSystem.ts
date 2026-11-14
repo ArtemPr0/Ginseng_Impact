@@ -43,6 +43,7 @@ import { loadModel, ModelRig } from '../models/ModelRig';
 import { Vfx } from './Vfx';
 import { PRESENT_MODELS } from '../data/colliderGrids';
 import type { HeightWorld } from '../world/Colliders';
+import { SolidBodies } from './Solid';
 
 interface Projectile {
   pos: Vector3; vel: Vector3; life: number; owner: 'player' | 'enemy';
@@ -198,7 +199,7 @@ interface SmokeCloud { pos: Vector3; r: number; left: number; life: number; tick
 
 /** The Frog God's reflections: his body, a breath of his strength, gone at a touch. */
 const MIRROR_DEF: EnemyDef = {
-  ...ENEMY_DEFS['dmt-entity'], name: 'Reflection', title: undefined, boss: false, maxHp: 1, atk: 80, shards: [0, 0], drops: [],
+  ...ENEMY_DEFS['dmt-entity'], name: 'Reflection', title: undefined, boss: false, solid: undefined, maxHp: 1, atk: 80, shards: [0, 0], drops: [],
   brain: { aggroRange: 60, attackRange: 30, windup: 1.2, recover: 1.6, attackCooldown: 1.2, preferredRange: 12 },
   attacks: [{ kind: 'kaleido', range: 30, windup: 1.2, recover: 1.6, weight: 1 }],
 };
@@ -438,6 +439,13 @@ export class CombatSystem {
     let t = this.times.get(id);
     if (!t) { t = moveTimes(id); this.times.set(id, t); }
     return t;
+  }
+
+  /** Enemies you can stand on (EnemyDef.solid), as moving shapes in the height world (none without one). */
+  private solidBodies: SolidBodies | null | undefined;
+  private get solids(): SolidBodies | null {
+    if (this.solidBodies === undefined) { const m = (this.d.world as Partial<HeightWorld>).moving; this.solidBodies = m ? new SolidBodies(m) : null; }
+    return this.solidBodies;
   }
 
   /** The nearest spot to (x, z) on open ground: never inside a building's outline or over the void. */
@@ -966,7 +974,9 @@ export class CombatSystem {
       if (e.status.brawl > 0 && !e.brawling) e.brawlTarget = this.brawlFoe(e);
       const foe = e.brawling ? e.brawlTarget : null;
       if (foe) this.brawlMark[0] = foe.pos;
+      this.solids?.before(e);
       const action = e.update(dt, foe ? this.brawlMark : this.marks);
+      this.solids?.after(e);
       // Its wind-up's warning on the ground, filling with the wind-up (gone with a blow that will not come).
       this.warnWindup(e, foe !== null);
       const boss = !!e.def.boss && e.aggro && e.alive;
@@ -1025,7 +1035,9 @@ export class CombatSystem {
       d.audio.score.layer('fight', anyAggro, anyAggro ? 0.6 : 3);
     }
 
-    // --- projectiles ---
+    // --- projectiles --- (with the solid bodies stood aside: the Frog God's orbs start inside him, and a shot meets a
+    // body by its own hit test, not as ground; with him solid, every orb he threw died where it was born)
+    const shots = (): void => {
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
       p.life -= dt;
@@ -1153,6 +1165,8 @@ export class CombatSystem {
         this.removeProjectile(p);
       }
     }
+    };
+    if (this.solids) this.solids.aside(shots); else shots();
 
     // --- ground zones ---
     for (let i = this.zones.length - 1; i >= 0; i--) {

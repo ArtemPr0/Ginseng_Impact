@@ -1,5 +1,4 @@
-import { type Bone, Color, Group, Matrix4, type Mesh, type MeshStandardMaterial, Object3D, type SkinnedMesh, Vector3 } from 'three';
-import { socketsInBone } from '../characters/SkullEyes';
+import { Color, Group, type Mesh, type MeshStandardMaterial, Object3D, Vector3 } from 'three';
 import { blunt } from '../render/Blunt';
 import { PipeSmoke } from '../render/Smoke';
 import { REALM_SCULPTS } from '../data/sculpts';
@@ -9,7 +8,7 @@ import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
 import type { Events, Zone } from '../game/Events';
 import { PALETTE } from '../render/palette';
 import { glowSprite } from '../render/Glow';
-import { patchGait, patchGlowCap, patchLitWindows, patchWhiteBloom } from '../render/Materials';
+import { patchGait, patchGlowCap, patchGreenGlow, patchLitWindows, patchWhiteBloom } from '../render/Materials';
 import { PointLight } from 'three';
 import { CloudSea } from './CloudSea';
 import { GroundQuery } from './Ground';
@@ -127,36 +126,18 @@ function grillSparkle(npc: Npc): { group: Group; update(dt: number): void } {
 }
 
 /**
- * The crypt skeletons' eyes burn green in their sockets (DeldocTvFiB): two small points carried by the head bone
- * (SkullEyes), placed from the bind pose. (They were set from the body's yaw off the head joint, so a turned or bowed
- * head left a green blob hanging beside the skull: the playtest of 2026-11-12.)
+ * Rattlebones' green eyes, the ones painted on his model (skeleton-red, DeldocTvFiB), burning (Materials.patchGreenGlow).
+ * (Green glows hung in front of the skulls by a guessed socket offset missed the sockets: the playtests of 2026-11-12
+ * and 2026-11-14. The user: verify them or remove them. Removed; the model's own eyes glow instead.)
  */
-function skullEyes(npc: Npc): { group: Group; update(dt: number): void } {
-  const group = new Group();
-  const eyes = [0, 1].map(() => { const s = glowSprite(PALETTE.witch, 0.06, 0.95, true); group.add(s); return s; });
-  let head: Object3D | null = null;
-  let local: Vector3[] | null = null;
-  const at = new Vector3();
+function greenEyes(npc: Npc): { group: Group; update(dt: number): void } {
+  let done = false;
   return {
-    group,
+    group: new Group(),
     update: () => {
-      if (!head && npc.rig.model) head = npc.rig.model.bone(/head$/i);
-      if (head && !local) {
-        // The head's world matrix at bind, from the skinned mesh that it drives.
-        let skinned: SkinnedMesh | null = null;
-        npc.rig.model!.root.traverse((o) => { if (!skinned && (o as SkinnedMesh).isSkinnedMesh && (o as SkinnedMesh).skeleton.bones.includes(head as Bone)) skinned = o as SkinnedMesh; });
-        const sm = skinned as SkinnedMesh | null;
-        if (sm) {
-          sm.updateWorldMatrix(true, false);
-          const i = sm.skeleton.bones.indexOf(head as Bone);
-          const bind = new Matrix4().multiplyMatrices(sm.matrixWorld, sm.bindMatrix).multiply(sm.skeleton.boneInverses[i].clone().invert());
-          local = socketsInBone(bind, npc.yaw);
-        }
-      }
-      group.visible = !!local;
-      if (!head || !local) return;
-      head.updateWorldMatrix(true, false);
-      local.forEach((l, k) => eyes[k].position.copy(at.copy(l).applyMatrix4(head!.matrixWorld)));
+      if (done || !npc.rig.model) return;
+      for (const m of npc.rig.model.materials) patchGreenGlow(m);
+      done = true;
     },
   };
 }
@@ -951,10 +932,10 @@ export class World {
     if (brother) { this.enterZone(TREEHOUSE_ROOM.id); vfx(grillSparkle(brother)); }
     const diver = this.npcs.find((n) => n.def.id === 'diver');
     if (diver) { this.enterZone(SUNKEN.id); vfx(helmetGlow(diver)); }
-    // The crypt bar's skeletons: green eyes, and gold grills catching the candlelight.
+    // The crypt bar's skeletons: Rattlebones' painted green eyes burning, and gold grills catching the candlelight.
     // (Each effect goes into the group of the realm its body is in: vfx() builds into the zone entered last.)
     this.enterZone(CRYPT_ROOM.id);
-    for (const n of this.npcs) if (n.def.id.startsWith('crypt-')) { vfx(skullEyes(n)); if (n.def.id !== 'crypt-bones') vfx(grillSparkle(n)); }
+    for (const n of this.npcs) if (n.def.id.startsWith('crypt-')) { if (n.def.id === 'crypt-red') vfx(greenEyes(n)); if (n.def.id !== 'crypt-bones') vfx(grillSparkle(n)); }
     const skeletonLord = this.npcs.find((n) => n.def.id === 'skeleton-lord');
     if (skeletonLord) { this.enterZone(GALAXY.id); vfx(bluntInHand(skeletonLord)); }
     CARRIAGE.passenger = this.npcs.find((n) => n.def.id === 'carriage-count') ?? null;

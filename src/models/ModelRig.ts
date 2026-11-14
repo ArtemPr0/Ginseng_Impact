@@ -4,7 +4,7 @@ import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { MODELS, type ModelDef } from '../data/models';
 import type { ClipCut } from '../characters/heroClips';
-import { emotesFor } from './Emotes';
+import { emotesFor, withoutHead } from './Emotes';
 
 const loader = new GLTFLoader();
 const files = new Map<string, Promise<GLTF | null>>();
@@ -43,10 +43,10 @@ export function loadModel(id: string): Promise<GLTF | null> {
     p = fetchGlb(def.file).then(async (base) => {
       if (!base) return null;
       const fetchClips = (byKey: Record<string, string>) => Promise.all(Object.entries(byKey).map(([key, file]) => fetchGlb(file).then((g) => ({ key, g }))));
-      const append = (extra: Array<{ key: string; g: GLTF | null }>) => {
+      const append = (extra: Array<{ key: string; g: GLTF | null }>, shared = false) => {
         for (const { key, g } of extra) {
           if (!g) continue;
-          for (const clip of g.animations) { const c = clip.clone(); c.name = key; base.animations.push(c); }
+          for (const clip of g.animations) { const c = shared && def.emoteHead === false ? withoutHead(clip) : clip.clone(); c.name = key; base.animations.push(c); }
         }
       };
       // The model's own extra clips (a borrowed sit) come with it; the shared emotes (~7 MB, played only on rare
@@ -54,7 +54,7 @@ export function loadModel(id: string): Promise<GLTF | null> {
       const own = (def.clipFiles ?? {}) as Record<string, string>;
       if (Object.keys(own).length) append(await fetchClips(own));
       const emotes = emotesFor(def, base.animations.map((a) => a.name));
-      if (Object.keys(emotes).length) lateClips.set(id, fetchClips(emotes).then(append));
+      if (Object.keys(emotes).length) lateClips.set(id, fetchClips(emotes).then((e) => append(e, true)));
       return base;
     });
     models.set(id, p);

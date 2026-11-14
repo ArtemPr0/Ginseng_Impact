@@ -1,3 +1,5 @@
+import type { AnimationClip } from 'three';
+
 /**
  * Emotes every Meshy biped shares (the playtest of 2026-11-12: "better NPC interactions ... make it hilarious"):
  * Meshy presets added to one rig and exported once (2026-11-12, the Vale Knight's rig: Cheer_with_Both_Hands_Up,
@@ -15,6 +17,17 @@ export function emotesFor(def: { clipFiles?: Partial<Record<string, string>>; em
   if (def.emotes === false || !clipNames.some((n) => /^walking$/i.test(n))) return {};
   const out: Record<string, string> = {};
   for (const [k, f] of Object.entries(EMOTE_FILES)) if (!def.clipFiles?.[k]) out[k] = f;
+  return out;
+}
+
+/**
+ * An emote without its head and neck tracks, so the head rides the spine at rest. For skulls (ModelDef.emoteHead
+ * false): the shared clips come from a knight's rig, and the dance's head toss threw the skeletons' skulls back about
+ * 70 degrees (the playtest of 2026-11-14: "their head gets messed up").
+ */
+export function withoutHead(clip: AnimationClip): AnimationClip {
+  const out = clip.clone();
+  out.tracks = out.tracks.filter((t) => !/head|neck/i.test(t.name.split('.')[0]));
   return out;
 }
 
