@@ -204,3 +204,16 @@ body { font-family: var(--font-body); color: var(--moon); }
 /* The experience bar along the bottom of the hero card. */
 .hud-xp { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); width: 292px; height: 3px; background: var(--void); border: 1px solid rgba(223,230,255,0.18); }
 .hud-xp-fill { height: 100%; width: 0; background: linear-gradient(90deg, #ffc23a, #fff2b0); box-shadow: 0 0 6px rgba(255,194,58,0.6); transition: width 400ms cubic-bezier(.2,1.2,.4,1); }
+
+/* Big Gerald's ink on the screen (ui/InkSplat): blots slap on, run down a little, fade. */
+.ink-splat { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+.ink-blot { position: absolute; transform: translate(-50%, -50%) rotate(var(--turn)) scale(0); opacity: 0; }
+.ink-blot svg { width: 100%; height: 100%; display: block; }
+.ink-splat.on .ink-blot { animation: ink-slap 2.6s cubic-bezier(0.2, 1.4, 0.4, 1) forwards; }
+@keyframes ink-slap {
+  0% { transform: translate(-50%, -50%) rotate(var(--turn)) scale(0.2); opacity: 0; }
+  8% { transform: translate(-50%, -50%) rotate(var(--turn)) scale(1.12); opacity: 0.96; }
+  14% { transform: translate(-50%, -50%) rotate(var(--turn)) scale(1); opacity: 0.94; }
+  65% { transform: translate(-50%, -44%) rotate(var(--turn)) scale(1, 1.06); opacity: 0.85; }
+  100% { transform: translate(-50%, -38%) rotate(var(--turn)) scale(1, 1.1); opacity: 0; }
+}

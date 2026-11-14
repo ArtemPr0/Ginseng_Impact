@@ -27,6 +27,7 @@ import { SKIES, Sky } from './render/Sky';
 import { faceMoon } from './render/MoonFace';
 import { SkyEvents } from './render/SkyEvents';
 import { Weather } from './render/Weather';
+import { InkSplat } from './ui/InkSplat';
 import { Hud } from './ui/Hud';
 import { Minimap } from './ui/Minimap';
 import { Companion } from './world/Companion';
@@ -64,6 +65,7 @@ const debugAt = new URLSearchParams(location.search).has('at');
 const input = new Input(canvas, debugAt);
 const audio = new Audio();
 const hud = new Hud(document.getElementById('hud')!);
+const inkSplat = new InkSplat(document.getElementById('hud')!);
 const inventory = new Inventory();
 inventory.shards = 40;
 inventory.add('moon-dew', 2);
@@ -222,6 +224,7 @@ const combat = new CombatSystem({
   onPulse: (strength) => renderer.pulse(strength),
   weaponTips: (guard, tip) => rigs[party.activeIndex].weaponTips(guard, tip),
   onTrip: (strength, seconds) => renderer.trip(strength, seconds),
+  onInk: () => inkSplat.splash(),
   onKill: (kind) => {
     adventures.quests.kill(kind);
     const foe = ENEMY_DEFS[kind as keyof typeof ENEMY_DEFS];

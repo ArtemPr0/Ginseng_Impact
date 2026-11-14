@@ -1,13 +1,14 @@
 import type { BrainParams } from '../combat/EnemyBrain';
 import type { Element } from '../combat/Elements';
 
-export type EnemyKind = 'beast' | 'bucket' | 'crystalsentry' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity' | 'cyclops' | 'cyclops-lord' | 'blood-eye' | 'trip-wizard' | 'galaxy-knight' | 'mail-knight' | 'diamond-wizard' | 'fish-guard' | 'angler' | 'grave-skeleton' | 'koi' | 'jellyfish' | 'archway-shade' | 'brazier-hermit' | 'vale-knight' | 'grouper' | 'necromancer' | 'grave-witch';
+export type EnemyKind = 'beast' | 'bucket' | 'crystalsentry' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity' | 'cyclops' | 'cyclops-lord' | 'blood-eye' | 'trip-wizard' | 'galaxy-knight' | 'mail-knight' | 'diamond-wizard' | 'fish-guard' | 'angler' | 'grave-skeleton' | 'koi' | 'jellyfish' | 'archway-shade' | 'brazier-hermit' | 'vale-knight' | 'octopus' | 'necromancer' | 'grave-witch';
 
 /** What can circle a mob, and the projectile each flies as when thrown. */
-export type OrbitModel = 'gem' | 'lean-cup';
-export const ORBIT_SHOT: Record<OrbitModel, 'gem' | 'cup'> = { gem: 'gem', 'lean-cup': 'cup' };
+export type OrbitModel = 'gem' | 'lean-cup' | 'barrel';
+/** How a circling thing flies when thrown: a gem, a double cup, or the model itself tumbling (a barrel). */
+export const ORBIT_SHOT: Record<OrbitModel, 'gem' | 'cup' | 'prop'> = { gem: 'gem', 'lean-cup': 'cup', barrel: 'prop' };
 
-export type BossAttackKind = 'slam' | 'boulder' | 'roar' | 'volley' | 'summon' | 'blink' | 'roots' | 'sweep' | 'breath' | 'charge' | 'bite' | 'logthrow' | 'punch' | 'grab' | 'cupmortar' | 'cupvolley' | 'snowstorm' | 'web' | 'webdrop' | 'hop' | 'kaleido' | 'eyebeam' | 'mirror' | 'glare' | 'thorns' | 'rainbow' | 'diamond';
+export type BossAttackKind = 'slam' | 'boulder' | 'roar' | 'volley' | 'summon' | 'blink' | 'roots' | 'sweep' | 'breath' | 'charge' | 'bite' | 'logthrow' | 'punch' | 'grab' | 'cupmortar' | 'cupvolley' | 'snowstorm' | 'web' | 'webdrop' | 'hop' | 'kaleido' | 'eyebeam' | 'mirror' | 'glare' | 'thorns' | 'rainbow' | 'diamond' | 'tentacle' | 'ink' | 'whirlpool';
 
 export interface BossAttack { kind: BossAttackKind; range: number; windup: number; recover: number; weight: number }
 
@@ -73,7 +74,10 @@ export interface EnemyDef {
   /** Its texture glows (emissive from its own colours) at this strength: the Blood Eye burns in the night. */
   glow?: number;
   /** Things circling it (a model, this many): its 'diamond' attack throws the one nearest the hero (ORBIT_SHOT). */
-  orbit?: { model: OrbitModel; count: number };
+  /** What circles it, how far out (m, default 1.6) and how high over its feet (default 1.5), at what size (default 1). */
+  orbit?: { model: OrbitModel; count: number; radius?: number; height?: number; size?: number };
+  /** Its body is one unrigged octopus mesh whose arms move in the shader (combat/OctopusBody). */
+  tentacles?: boolean;
   /** Lines it says (ids in data/voices): when it spots you, as it throws, as it dies, and when you fall. */
   voices?: { aggro: string[]; attack: string[]; death: string[]; win: string[] };
 }
@@ -346,15 +350,25 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     brain: { aggroRange: 10, attackRange: 3.6, windup: 0.5, recover: 1.0, attackCooldown: 0.6 }, respawn: 60, shards: [8, 14], drops: [{ itemId: 'croc-hide', chance: 0.6 }],
   },
   // Decorative flyers you can shoot: they circle their pools and never fight back.
-  // The Sunken City's boss (the playtest of 2026-11-13): the drowned street's big blue grouper (DeVj-Z8POjl), grown to
-  // the size of a cart, circling the ruined church; it calls the city's anglers when it is losing.
-  grouper: {
-    kind: 'grouper', summons: 'angler', name: 'Big Gerald', title: 'The Grouper Who Swallowed the Church Bell', maxHp: 7400, def: 60, atk: 145, speed: 5.5, element: 'tide', hover: 0, bodyRadius: 2.4, height: 3.2, boss: true,
-    flying: true, flyAbove: 3.5, leash: 30,
-    brain: { aggroRange: 18, attackRange: 12, windup: 0.8, recover: 1.1, attackCooldown: 0.9, preferredRange: 6 }, respawn: 240, shards: [150, 220],
-    attacks: [{ kind: 'bite', range: 5, windup: 0.6, recover: 0.9, weight: 3 }, { kind: 'charge', range: 16, windup: 0.8, recover: 1.4, weight: 2 }, { kind: 'volley', range: 16, windup: 0.8, recover: 1.0, weight: 2 }, { kind: 'summon', range: 18, windup: 1.2, recover: 1.5, weight: 1 }],
+  // The Sunken City's boss: Big Gerald, a massive octopus floating round the drowned church (the playtest of
+  // 2026-11-14: "make a massive octapus as the boss and make his attacks look very cool and animated (not just circles
+  // flying out of it)"). He lifts an arm and slams it where you stand, jets ink, spins the water into a whirlpool that
+  // drags you in, and hurls the barrels he juggles; his anglers come when he calls.
+  octopus: {
+    kind: 'octopus', summons: 'angler', name: 'Big Gerald', title: 'The Octopus Who Stole the Church Bell', maxHp: 8200, def: 60, atk: 145, speed: 4.2, element: 'tide', hover: 0, bodyRadius: 5, height: 3.9, boss: true,
+    flying: true, flyAbove: 3.2, leash: 30, tentacles: true, glow: 0.2,
+    brain: { aggroRange: 20, attackRange: 15, windup: 0.9, recover: 1.0, attackCooldown: 0.8, preferredRange: 9 }, respawn: 240, shards: [170, 240],
+    attacks: [
+      { kind: 'tentacle', range: 15, windup: 0.9, recover: 0.8, weight: 4 },
+      { kind: 'diamond', range: 22, windup: 0.6, recover: 0.6, weight: 3 },
+      { kind: 'ink', range: 12, windup: 0.9, recover: 1.1, weight: 2 },
+      { kind: 'whirlpool', range: 14, windup: 1.1, recover: 1.4, weight: 1 },
+      { kind: 'summon', range: 20, windup: 1.2, recover: 1.5, weight: 1 },
+    ],
+    orbit: { model: 'barrel', count: 6, radius: 7, height: 4.5, size: 1.4 },
     drops: [{ itemId: 'church-bell', chance: 1 }, { itemId: 'tide-hook', chance: 0.5 }],
   },
+
   koi: {
     kind: 'koi', name: 'Flying Koi', maxHp: 80, def: 5, atk: 0, speed: 3.2, element: 'tide', hover: 0, bodyRadius: 0.55, height: 0.6,
     flying: true, flyAbove: 1.9, passive: true, neutral: true, leash: 40,
@@ -486,8 +500,9 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   // the courtyard's walls.
   { kind: 'fish-guard', x: -1006, z: -60.5, exact: true, yaw: Math.PI / 2 }, { kind: 'fish-guard', x: -994, z: -60.5, exact: true, yaw: Math.PI / 2 },
   { kind: 'angler', x: -1000, z: -80, exact: true, yaw: Math.PI / 2 }, { kind: 'angler', x: -1000, z: -88, exact: true, yaw: Math.PI / 2 },
-  // Big Gerald circles the drowned church behind the castle (Sunken.ts: the church at (-1000, -116)).
-  { kind: 'grouper', x: -1016, z: -116, exact: true, patrol: [[-1016, -116], [-1011.3, -127.3], [-1000, -132], [-988.7, -127.3], [-984, -116], [-988.7, -104.7], [-1000, -100], [-1011.3, -104.7]] },
+  // Big Gerald circles the drowned church behind the castle (Sunken.ts: the church at (-1000, -116)), 18 m out so his
+  // arms (5 m) stay clear of its walls.
+  { kind: 'octopus', x: -1018, z: -116, exact: true, patrol: [[-1018, -116], [-1012.7, -128.7], [-1000, -134], [-987.3, -128.7], [-982, -116], [-987.3, -103.3], [-1000, -98], [-1012.7, -103.3]] },
   // Flying koi over the lily pond and the heart's middle tier; dream koi and jellies over the Frog King's dream.
   ...[5, 7, 9, 11, 5, 7, 9].map((r, i) => ({ kind: 'koi' as const, x: -18 + Math.cos(i) * r, z: -18 + Math.sin(i) * r, exact: true, patrol: ring(-18, -18, r) })),
   ...[4, 6.5, 9, 4, 7].map((r, i) => ({ kind: 'koi' as const, x: -22 + Math.cos(i * 1.3) * r, z: 35 + Math.sin(i * 1.3) * r, exact: true, patrol: ring(-22, 35, r) })),

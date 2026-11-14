@@ -12,6 +12,7 @@ import { patchTrippy } from '../render/Materials';
 import { patchDissolve } from '../render/CombatFx';
 import { easeLean, slopeTarget, type Lean } from '../characters/SlopeLean';
 import type { EnemyDef, OrbitModel } from '../data/enemies';
+import { OctopusBody } from './OctopusBody';
 import { PALETTE } from '../render/palette';
 import type { WorldQuery } from '../player/CharacterController';
 import { type AttackTokens, EnemyBrain, type EnemyState } from './EnemyBrain';
@@ -170,6 +171,11 @@ export class Enemy {
   onStomp?: (x: number, y: number, z: number) => void;
   /** The boss attack chosen for the current windup. */
   currentAttack: BossAttack | null = null;
+  /** The octopus's arms (EnemyDef.tentacles), moved in the shader from what it is doing. */
+  octo: OctopusBody | null = null;
+  /** Where whom it fights stood at its last update. */
+  private readonly markAt = { x: 0, y: 0, z: 0 };
+  private octoPrev = { x: 0, z: 0 };
   private orbitAngle = Math.random() * Math.PI * 2;
   /** Set by the combat system when a bolt-summoned minion should vanish for good. */
   noRespawn = false;
@@ -315,6 +321,19 @@ export class Enemy {
       this.eyePivot.add(this.model.root);
       this.object.add(this.eyePivot);
     } else this.object.add(this.model.root);
+    if (this.def.tentacles) {
+      // (Its arms move far past the mesh's bounds: never culled for them.)
+      let mesh: Mesh | null = null;
+      this.model.root.traverse((o) => { if (!mesh && (o as Mesh).isMesh) mesh = o as Mesh; });
+      if (mesh) {
+        const m = mesh as Mesh;
+        m.frustumCulled = false;
+        m.geometry.computeBoundingBox();
+        const b = m.geometry.boundingBox!;
+        const R = Math.max(-b.min.x, b.max.x, -b.min.z, b.max.z);
+        this.octo = new OctopusBody(m, m.geometry, this.model.materials, R);
+      }
+    }
     this.object.scale.setScalar(1);
     if (!this.alive) this.model.play('death', true);
     const held = MODELS[id]?.held;
@@ -332,7 +351,7 @@ export class Enemy {
   }
 
   /** What circles the body (EnemyDef.orbit: diamonds or double cups), each with its glow, and when each grows back. */
-  private gems: { group: Group; list: Array<{ obj: Group; back: number }>; t: number; spin: boolean } | null = null;
+  private gems: { group: Group; list: Array<{ obj: Group; back: number }>; t: number; spin: boolean; tumble: boolean } | null = null;
 
   private buildGems(gltf: GLTF, model: OrbitModel, n: number): void {
     const group = new Group();
@@ -340,7 +359,12 @@ export class Enemy {
     for (let i = 0; i < n; i++) {
       const rig = new ModelRig(model, gltf, { cloneMaterials: true });
       const obj = new Group();
-      if (model === 'lean-cup') {
+      if (model === 'barrel') {
+        // Junk off the drowned street (the octopus juggles it): a barrel, tumbling slowly, a faint sea-glow under it.
+        rig.root.scale.setScalar(this.def.orbit?.size ?? 1);
+        litWood(rig.materials);
+        obj.add(rig.root, glowSprite(0x4ad8ff, 1.6, 0.3, true));
+      } else if (model === 'lean-cup') {
         // A double cup brimming with lean, upright (it turns about its own axis, nothing spills), glowing purple.
         rig.root.scale.setScalar(2.4);
         rig.root.position.y = -0.2;
@@ -355,7 +379,7 @@ export class Enemy {
       group.add(obj);
       list.push({ obj, back: 0 });
     }
-    this.gems = { group, list, t: Math.random() * 10, spin: model === 'gem' };
+    this.gems = { group, list, t: Math.random() * 10, spin: model === 'gem', tumble: model === 'barrel' };
     // (In the scene, not on the body: the body's turn and scale would carry them.)
     this.object.parent?.add(group);
   }
@@ -370,8 +394,12 @@ export class Enemy {
     const n = g.list.length;
     g.list.forEach((d, i) => {
       const a = g.t * 0.7 + (i / n) * Math.PI * 2;
-      d.obj.position.set(this.pos.x + Math.cos(a) * 1.6, this.pos.y + 1.5 + Math.sin(g.t * 1.3 + i) * 0.45, this.pos.z + Math.sin(a) * 1.6);
+      const rad = this.def.orbit?.radius ?? 1.6;
+      const up = this.def.orbit?.height ?? 1.5;
+      // (A juggler's toss: each one rises and falls on its own beat, higher the farther out it circles.)
+      d.obj.position.set(this.pos.x + Math.cos(a) * rad, this.pos.y + up + Math.sin(g.t * 1.3 + i) * 0.45 * Math.max(1, rad / 1.6) * 0.6, this.pos.z + Math.sin(a) * rad);
       d.obj.rotation.y = g.t * (g.spin ? 2 : 0.6) + i;
+      if (g.tumble) d.obj.rotation.x = g.t * 1.7 + i;
       d.back = Math.max(0, d.back - dt);
       d.obj.scale.setScalar(d.back > 0 ? Math.max(0.001, 1 - d.back / 4) ** 3 : 1);
     });
@@ -487,6 +515,7 @@ export class Enemy {
   update(dt: number, marks: ReadonlyArray<Mark>): EnemyAction {
     const player = this.chooseMark(marks);
     this.heroY = player.y;
+    this.markAt.x = player.x; this.markAt.y = player.y; this.markAt.z = player.z;
     if (this.eyePivot) {
       const dist = Math.hypot(player.x - this.pos.x, player.z - this.pos.z);
       const dy = player.y + 1 - (this.pos.y + this.eyePivot.position.y);
@@ -860,6 +889,11 @@ export class Enemy {
     if (this.hopT >= 0) { this.hopT += dt; if (this.hopT >= this.hopLen) this.hopT = -1; }
     if (this.tauntT > 0) this.tauntT = Math.max(0, this.tauntT - dt);
     this.animateGems(dt);
+    if (this.octo && this.alive) {
+      const moved = dt > 0 ? Math.hypot(this.pos.x - this.octoPrev.x, this.pos.z - this.octoPrev.z) / dt : 0;
+      this.octoPrev.x = this.pos.x; this.octoPrev.z = this.pos.z;
+      this.octo.drive(dt, { state: this.brain.state, attack: this.currentAttack?.kind ?? null, mark: this.markAt, moving: moved > 0.5 });
+    }
     // Blown away by an overkill: the arc, tumbling, until it lands (Yeet.ts).
     if (this.yeet && !this.alive) {
       yeetStep(this.yeet, this.pos, dt, (x, z) => this.world.heightAt(x, z, this.pos.y + 1));
@@ -1396,3 +1430,12 @@ const STATIC_MOTION: Partial<Record<string, StaticMotion>> = {
   'dmt-entity': 'hover', koi: 'fly', jellyfish: 'hover',
   emberrider: 'gallop', croc: 'slither', rivershade: 'hover', lurker: 'wade', wyrm: 'fly', hollowking: 'seated', marshdemon: 'stride',
 };
+
+/** Wood that reads in the sunken city's murk (the octopus's barrels were black lumps there): its own texture, lit. */
+export function litWood(materials: readonly MeshStandardMaterial[]): void {
+  for (const m of materials) {
+    m.emissive.set(0xffffff);
+    m.emissiveMap = m.map;
+    m.emissiveIntensity = 0.45;
+  }
+}
