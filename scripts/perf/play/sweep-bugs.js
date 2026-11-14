@@ -37,7 +37,11 @@ const out = {};
   if (!c.driving) fail('no reins');
   else {
     const dir = (a, b) => { const n = Math.hypot(b.x - a.x, b.z - a.z) || 1; return { x: (b.x - a.x) / n, z: (b.z - a.z) / n }; };
+    // (Each turn from the carriage's own spot: since the kingdom was compacted a round tower stands 15 m off its right,
+    // and a carriage pressed against a wall can only back off, so the second turn would measure the tower.)
+    const home = { x: c.pos.x, y: c.pos.y, z: c.pos.z, heading: c.heading };
     const turn = async (key) => {
+      c.pos.set(home.x, home.y, home.z); c.heading = home.heading; c.speed = 0; await sleep(200);
       keyDown('KeyW'); await sleep(1100);
       let a = { x: c.pos.x, z: c.pos.z }; await sleep(250); let b = { x: c.pos.x, z: c.pos.z }; const d0 = dir(a, b);
       keyDown(key); await sleep(700); keyUp(key);
@@ -59,7 +63,7 @@ const out = {};
   const gy = G.groundOnly(d.pos.x, d.pos.z);
   out.doctor = { y: +d.pos.y.toFixed(2), ground: +gy.toFixed(2) };
   if (Math.abs(d.pos.y - gy) > 0.3) fail('plague doctor off the ground', out.doctor);
-  const off = G.area.npcs.filter((n) => !n.def.invisible && !n.seated && n.pos.x > 893 && n.pos.x < 993 && n.pos.z > 75 && n.pos.z < 175)
+  const off = G.area.npcs.filter((n) => !n.def.invisible && !n.seated && n.pos.x > 941.5 && n.pos.x < 996.2 && n.pos.z > 39 && n.pos.z < 94)
     .map((n) => [n.def.id, +(n.pos.y - G.groundOnly(n.pos.x, n.pos.z)).toFixed(2)]).filter((r) => Math.abs(r[1]) > 0.3);
   out.snowOff = off; if (off.length) note('snow npcs off ground', { off });
 }

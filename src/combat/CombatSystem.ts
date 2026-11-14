@@ -6,7 +6,7 @@ import type { Audio } from '../audio/Audio';
 import { CombatSfx, hitMaterial } from '../audio/CombatSfx';
 import type { CharacterDef } from '../characters/roster';
 import type { Game } from '../core/Game';
-import { ENEMY_DEFS, ENEMY_SPAWNS, ORBIT_SHOT, type BossAttackKind, type EnemyDef, type EnemyKind } from '../data/enemies';
+import { ENEMY_DEFS, ENEMY_SPAWNS, ORBIT_SHOT, type BossAttackKind, type EnemyDef, type EnemyKind, type ThrowLook } from '../data/enemies';
 import type { ClipName } from '../data/models';
 import { voiceUrl } from '../data/voices';
 import type { Events, HeroId } from '../game/Events';
@@ -17,6 +17,8 @@ import type { Party } from '../player/Party';
 import { PALETTE } from '../render/palette';
 import type { CombatFx } from '../render/CombatFx';
 import { crescentShot, starShot } from '../render/ShotFx';
+import { InkClouds, swirlDisc } from '../render/OctoFx';
+import { TRAIL_COLORS, throwBurst, throwScale, throwTrail } from './Throws';
 import { GRAVEYARD } from '../data/world';
 import { surface } from '../render/Materials';
 import type { Sky } from '../render/Sky';
@@ -24,15 +26,16 @@ import type { Hud } from '../ui/Hud';
 import { glowSprite } from '../render/Glow';
 import { CastCharge, ComboTracker, Cooldown, CRIT_CHANCE, computeDamage, cutWindow, HIT_ENERGY, HitStreak, inCone, inRadius, LockOn, patchHeight, pierceStop, RIDE_UP, rideBase, rollHit } from './Combat';
 import { ELEMENT_COLOR, REACTIONS, applyElement, type Element, type ReactionId } from './Elements';
-import { dissolveEdge, Enemy, separate, type EnemyHome, type Mark } from './Enemy';
+import { dissolveEdge, Enemy, litWood, separate, type EnemyHome, type Mark } from './Enemy';
 import { AttackTokens } from './EnemyBrain';
 import {
   BODY_REACH, BREATH_HALF, coneReach, CONTACT_REACH, GLARE_RADIUS, GRAB_HALF, HANDOFF, landing, landingWarn, MELEE_HALF, meleeReach, PUNCH_HALF, ROAR_REACH,
-  ROOTS_RADIUS, SHOT_RADIUS, slamRadius, SNOW_PATCHES, SNOW_RADIUS, SWEEP_HALF, WARN_COLOR, warnCount, WEBDROP_RADIUS, warnSpec,
+  INK_HALF, ROOTS_RADIUS, SHOT_RADIUS, slamRadius, TENTACLE_RADIUS, WHIRL_REACH, SNOW_PATCHES, SNOW_RADIUS, SWEEP_HALF, WARN_COLOR, warnCount, WEBDROP_RADIUS, warnSpec,
   type WarnShape, type WarnSpec,
 } from './Warnings';
 import { chainTo, steer, type Homing, type NearestQuarry } from './Homing';
 import { LootField, rollDrops } from './Loot';
+import { dressLoot } from './LootLooks';
 import { BURST, COMBO, CYCLONE, SKILLS, type AttackDef, type BurstKind, type CrescentShape, type GroundEffectDef, type HitShape, type StarfallShape, type VolleyShape } from './Skills';
 import { comboTiming, cutSpan, heavyTiming, heroClipsOf, moveCut, skillTiming } from '../characters/heroClips';
 import { atkMult, hpMult } from '../game/Progress';
@@ -43,9 +46,15 @@ import { loadModel, ModelRig } from '../models/ModelRig';
 import { Vfx } from './Vfx';
 import { PRESENT_MODELS } from '../data/colliderGrids';
 import type { HeightWorld } from '../world/Colliders';
+import { SolidBodies } from './Solid';
+import { bonkWord, lungeReach, SLOW_MO } from './Juice';
+import { ImpactStars } from '../render/ImpactStars';
+import { startLeap, startLunge } from '../player/CharacterController';
 
 interface Projectile {
   pos: Vector3; vel: Vector3; life: number; owner: 'player' | 'enemy';
+  /** A hero's shot: the move that loosed it (a combo hit, the heavy, the skill), for its comic word. */
+  blow?: number | 'heavy' | 'skill';
   /** The enemy kind that shot it (named in the hurt it does); null for a shot from the world (witches, the snail). */
   by: string | null;
   atk: number; mult: number; element: Element | null; radius: number; object: Group;
@@ -99,9 +108,15 @@ interface Projectile {
   /** A throw's landing warning on the ground where it comes down (throwAt), filling over `flight` seconds in the air. */
   warn: Warning | null;
   flight: number;
+  /** A boss's thrown thing (EnemyDef.throws): how it turns, trails and bursts (combat/Throws); the time since its last trail beat. */
+  look: ThrowLook | null;
+  trailAcc: number;
+  /** Flame halos streaming behind a burning throw (head first), flickering; the model turns inside `spinner`. */
+  flames: Sprite[];
+  spinner: Group | null;
 }
 
-type ProjectileKind = 'bolt' | 'arrow' | 'log' | 'ring' | 'fire' | 'cup' | 'trip' | 'web' | 'orb' | 'gem' | 'crescent' | 'star';
+type ProjectileKind = 'bolt' | 'arrow' | 'log' | 'ring' | 'fire' | 'cup' | 'trip' | 'web' | 'orb' | 'gem' | 'crescent' | 'star' | 'prop';
 
 /** A shot from something that is not an enemy (witches, the snail, the dragon), aimed at the hero. */
 export interface HostileShot { speed: number; color: number; atk: number; kind?: ProjectileKind; size?: number; radius?: number; poison?: { dps: number; seconds: number }; spread?: number }
@@ -137,6 +152,8 @@ interface BurnPath { def: GroundEffectDef; atk: number; every: number; next: num
 
 /** What else a blow is (see hitEnemy). */
 interface HitOpts {
+  /** The move that struck (a combo hit, the heavy, the skill): its comic word (Juice.bonkWord). Default: by `heavy`. */
+  blow?: number | 'heavy' | 'skill';
   /** Charges the burst (default); lingering zones, the smoke and the spin do not, or a burst would refill itself. */
   energy?: boolean;
   /** A heavy blow (the heavy, a finisher, the skill): a ground shock, a bigger kick, the fov punch, the boom. Default: hit-stop ≥ 0.08. */
@@ -167,6 +184,8 @@ export interface CombatDeps {
   onShake?: (amount: number) => void;
   /** The world swirls (Renderer.trip): a rainbow spell landed on the hero. */
   onTrip?: (strength: number, seconds: number) => void;
+  /** Big Gerald's ink caught the hero: it splats the screen (ui/InkSplat). */
+  onInk?: () => void;
   /** Dodge roll accepted: the caller applies the dash. */
   onDodge?: () => void;
   /** An enemy of this kind died (quests listen). */
@@ -198,7 +217,7 @@ interface SmokeCloud { pos: Vector3; r: number; left: number; life: number; tick
 
 /** The Frog God's reflections: his body, a breath of his strength, gone at a touch. */
 const MIRROR_DEF: EnemyDef = {
-  ...ENEMY_DEFS['dmt-entity'], name: 'Reflection', title: undefined, boss: false, maxHp: 1, atk: 80, shards: [0, 0], drops: [],
+  ...ENEMY_DEFS['dmt-entity'], name: 'Reflection', title: undefined, boss: false, solid: undefined, maxHp: 1, atk: 80, shards: [0, 0], drops: [],
   brain: { aggroRange: 60, attackRange: 30, windup: 1.2, recover: 1.6, attackCooldown: 1.2, preferredRange: 12 },
   attacks: [{ kind: 'kaleido', range: 30, windup: 1.2, recover: 1.6, weight: 1 }],
 };
@@ -210,6 +229,21 @@ const STAGGER_EVERY = 14;
 const SUMMON_CAP = 4;
 let thrownCup: GLTF | null = null;
 void loadModel('lean-cup').then((g) => { thrownCup = g; });
+/**
+ * The light inside a boss's thrown thing, by its trail, and how strong: a burning rock glows orange from its cracks, an
+ * iced one cold blue, a brew green; a skull barely (its bone must read, not a violet blob), a diamond barely (lit more
+ * it bloomed into a white ball); a fish or a lily pad just enough to read.
+ */
+const INNER_LIGHT: Record<ThrowLook['trail'], readonly [number, number]> = {
+  fire: [0xff5a1a, 0.6], witchfire: [0xb36bff, 0.18], poison: [0x6aff3a, 0.5], frost: [0x9fd8ff, 0.6], sparkle: [0x9fe8ff, 0], water: [0xffffff, 0.18],
+};
+/** Models thrown whole (EnemyDef.orbit 'prop' shots: the octopus's barrels), loaded when their thrower appears. */
+const thrownProps = new Map<string, GLTF | null>();
+function preloadProp(id: string): void {
+  if (thrownProps.has(id)) return;
+  thrownProps.set(id, null);
+  void loadModel(id).then((g) => { thrownProps.set(id, g); });
+}
 /** A diamond Old Hollowstaff throws (gem.glb). */
 let thrownGem: GLTF | null = null;
 void loadModel('gem').then((g) => { thrownGem = g; });
@@ -287,6 +321,8 @@ const CRESCENT_BASE = 0.2;
 /** The smoke's damage each 0.4 s tick, a share of Orlan's attack. */
 const SMOKE_TICK = 0.2;
 const UP = new Vector3(0, 1, 0);
+/** A thrown prop's stand-in before its model loads, shared by every shot (props keep their geometry when removed). */
+const PROP_STANDIN = new IcosahedronGeometry(1, 0);
 const NOOP = (): void => {};
 const _v = new Vector3();
 const _w = new Vector3();
@@ -295,6 +331,8 @@ const _t = new Vector3();
 const _side = new Vector3();
 const _col = new Color();
 const MOON = new Color(PALETTE.moon);
+/** The comic words' colour: a punchy gold that reads over the cobalt night and every element's glow. */
+const BONK_GOLD = 0xffd23a;
 
 /**
  * Something that is not an enemy but reacts to being shot (the sky eyes, the eye pool): player shots that pass within
@@ -332,7 +370,7 @@ export class CombatSystem {
    * Purple puddles of spilled lean, and how long the slow lasts: a cup's puddle slows the hero standing in it
    * (Sizzlin' Slowness); one the lean cyclone splashed slows the mobs that wade in instead.
    */
-  private readonly puddles: Array<{ pos: Vector3; r: number; left: number; mesh: Mesh; hero: boolean }> = [];
+  private readonly puddles: Array<{ pos: Vector3; r: number; left: number; mesh: Mesh; hero: boolean; poison: number }> = [];
   private slowLeft = 0;
   /** Caught in a spider's web: held where you stand (seconds left), and the web drawn around you. */
   private webLeft = 0;
@@ -360,10 +398,19 @@ export class CombatSystem {
   private frenzyLeft = 0;
   /** Callbacks due later (`cleanup` ones tidy the scene and still run when a wipe drops the rest). */
   private readonly delayed: Delayed[] = [];
+  /** The octopus's ink, hanging in the water (render/OctoFx). */
+  private readonly ink = new InkClouds();
+  /** Whirlpools spinning under the octopus: who spins it, where, how long it has left, its spiral. */
+  private readonly whirls: Array<{ e: Enemy; at: Vector3; left: number; total: number; swirl: ReturnType<typeof swirlDisc> }> = [];
   private readonly contact = new Map<number, number>();
   private readonly tmp = new Vector3();
   private readonly screen = new Vector3();
   private readonly fx: CombatFx;
+  /** The comic star where a blow lands (render/ImpactStars). */
+  private readonly stars: ImpactStars;
+  /** When the last comic word went up (one a beat, however many bodies a blow cuts), and how many so far. */
+  private bonkAt = -1;
+  private bonkN = 0;
   private readonly sfx: CombatSfx;
   private readonly rnd: () => number;
   /** The combo counter (hits in a row, 1.2 s apart at most). */
@@ -413,10 +460,12 @@ export class CombatSystem {
 
   constructor(private readonly d: CombatDeps) {
     this.fx = d.fx;
+    this.stars = new ImpactStars(d.scene);
     this.sfx = new CombatSfx(d.audio);
     this.rnd = d.rnd ?? Math.random;
     d.scene.add(this.vfx.group);
-    this.loot = new LootField(d.scene, (x, z, y) => d.world.heightAt(x, z, y));
+    d.scene.add(this.ink.group);
+    this.loot = new LootField(d.scene, (x, z, y) => d.world.heightAt(x, z, y), dressLoot);
     for (const s of ENEMY_SPAWNS) {
       // An enemy without its model would be an invisible attacker: it waits until the file exists.
       if (!PRESENT_MODELS.has(s.kind) && !ENEMY_DEFS[s.kind].body) continue;
@@ -438,6 +487,13 @@ export class CombatSystem {
     let t = this.times.get(id);
     if (!t) { t = moveTimes(id); this.times.set(id, t); }
     return t;
+  }
+
+  /** Enemies you can stand on (EnemyDef.solid), as moving shapes in the height world (none without one). */
+  private solidBodies: SolidBodies | null | undefined;
+  private get solids(): SolidBodies | null {
+    if (this.solidBodies === undefined) { const m = (this.d.world as Partial<HeightWorld>).moving; this.solidBodies = m ? new SolidBodies(m) : null; }
+    return this.solidBodies;
   }
 
   /** The nearest spot to (x, z) on open ground: never inside a building's outline or over the void. */
@@ -480,7 +536,7 @@ export class CombatSystem {
     if (p.warn) { this.fx.driveTelegraph(p.warn.id, 1, p.warn.at); p.warn = null; }
     this.d.scene.remove(p.object);
     // (The crescent's shape is shared, like the props' geometry.)
-    disposeObject(p.object, p.kind === 'cup' || p.kind === 'gem' || p.kind === 'crescent');
+    disposeObject(p.object, p.kind === 'cup' || p.kind === 'gem' || p.kind === 'crescent' || p.kind === 'prop');
     this.projectiles.splice(i, 1);
   }
 
@@ -515,6 +571,8 @@ export class CombatSystem {
 
   private spawnEnemy(def: EnemyDef, x: number, z: number, noRespawn = false, home: Partial<EnemyHome> = {}): Enemy {
     const e = new Enemy(def, { ...home, x, z }, this.d.world);
+    if (def.orbit && ORBIT_SHOT[def.orbit.model] === 'prop') preloadProp(def.orbit.model);
+    if (def.throws) preloadProp(def.throws.model);
     e.hpScale = this.plus;
     e.hp = def.maxHp * this.plus;
     e.noRespawn = noRespawn;
@@ -703,6 +761,8 @@ export class CombatSystem {
     // Whom the enemies fight this step: the hero, then every companion still standing.
     this.gatherMarks();
     this.updateGraveRising(dt);
+    this.ink.update(dt);
+    this.updateWhirls(dt);
     this.clock += dt;
     this.streak.update(dt);
     // The lock lets go of a target that fell or is too far to matter (despawn lets go of one that left the world).
@@ -765,6 +825,7 @@ export class CombatSystem {
       c.pos.y = e.pos.y + e.def.height * (0.35 + 0.25 * lift) + Math.sin(g.t * 26) * 0.06;
       c.vel.x = c.vel.y = c.vel.z = 0;
       c.mode = 'air';
+      c.flungGravity = 1;
       if (g.t >= 0.85 || !e.alive) {
         this.grab = null;
         // Thrown about twelve metres the way the giant faces.
@@ -793,7 +854,10 @@ export class CombatSystem {
         for (const e of this.enemies) {
           if (e.alive && !e.def.flying && Math.hypot(e.pos.x - p.pos.x, e.pos.z - p.pos.z) < p.r * k + e.def.bodyRadius * (e.def.scale ?? 1) && Math.abs(e.pos.y - p.pos.y) < 1.5) e.afflict('slow', 1, 0.5);
         }
-      } else if (c.mode === 'ground' && Math.hypot(c.pos.x - p.pos.x, c.pos.z - p.pos.z) < p.r * k && Math.abs(c.pos.y - p.pos.y) < 1) this.slowLeft = Math.max(this.slowLeft, 1.4);
+      } else if (c.mode === 'ground' && Math.hypot(c.pos.x - p.pos.x, c.pos.z - p.pos.z) < p.r * k && Math.abs(c.pos.y - p.pos.y) < 1) {
+        if (p.poison > 0) this.poisonPlayer(p.poison, 2);
+        else this.slowLeft = Math.max(this.slowLeft, 1.4);
+      }
       if (p.left <= 0) { this.d.scene.remove(p.mesh); disposeObject(p.mesh); this.puddles.splice(i, 1); }
     }
     // Spotting you: a talking mob says so as it starts the chase.
@@ -839,6 +903,12 @@ export class CombatSystem {
     if (prevSwinging && this.combo.swinging && this.combo.currentHit !== prevHit) begun = this.combo.currentHit;
     // The finisher takes some effort.
     if (begun !== null) d.events?.emit({ kind: 'feat', what: 'attack' });
+    // Cartoon: the blade lunges into each swing (stopping short of the body ahead), further into the spinning finisher;
+    // the bow's finisher hops back as it looses (Juice).
+    if (begun !== null && grounded) {
+      if (me.weapon === 'sword' || me.weapon === 'greatsword') this.lungeIn(begun === 2 ? 1.7 : 1.1);
+      else if (me.weapon === 'bow' && begun === 2) startLunge(c, { x: -Math.cos(c.yaw), z: -Math.sin(c.yaw) }, 1.3);
+    }
     if (begun === 2) this.sfx.effort(me.id);
     if (hit !== null) this.resolveAttack(me, COMBO[me.weapon].hits[hit], hit);
 
@@ -854,6 +924,12 @@ export class CombatSystem {
       this.heavy = { t: timing.startAt * timing.duration, fired: false, charge: this.heavyCharge };
       this.heavyCharge = 0;
       this.sfx.effort(me.id);
+      // Cartoon: a charged blade heavy leaps and comes down on its blow (Juice.leapVelocity), onto the body ahead.
+      const air = (timing.strike - timing.startAt) * timing.duration;
+      if ((me.weapon === 'sword' || me.weapon === 'greatsword') && this.heavy.charge > 0.5 && c.mode === 'ground' && air > 0.2) {
+        const gap = this.gapAhead();
+        startLeap(c, { x: Math.cos(c.yaw), z: Math.sin(c.yaw) }, air, this.safeLeap(gap === Infinity ? 2.5 : Math.max(0, Math.min(4, gap - 1.2))));
+      }
     }
     if (this.heavy) {
       const timing = this.timesOf(me.id).heavy;
@@ -876,7 +952,15 @@ export class CombatSystem {
           const at = _v.set(fx, this.d.world.heightAt(fx, fz, c.pos.y + 1), fz);
           this.fx.shock(at, color, 4 + ch * 3);
           this.fx.dust(at, 1.4 + ch);
-          d.onShake?.(0.1 + ch * 0.25);
+          this.stars.pop(_w.set(fx, at.y + 0.6, fz), color, 3.2);
+          d.onShake?.(0.15 + ch * 0.35);
+          // Everything small standing round the slam, on its floor, is bounced into the air (not the seated, the rooted
+          // or the bystanders).
+          const floor = at.y;
+          for (const e of this.enemies) {
+            if (!e.alive || e.def.boss || e.def.flying || e.def.seated || e.def.neutral || e.def.speed <= 0) continue;
+            if (Math.abs(e.pos.y - floor) < 1.5 && Math.hypot(e.pos.x - fx, e.pos.z - fz) < 3.5 + ch) e.leap(0.55, 0.9 + ch * 0.9);
+          }
         }
       }
       if (this.heavy.t >= timing.duration) this.heavy = null;
@@ -966,7 +1050,9 @@ export class CombatSystem {
       if (e.status.brawl > 0 && !e.brawling) e.brawlTarget = this.brawlFoe(e);
       const foe = e.brawling ? e.brawlTarget : null;
       if (foe) this.brawlMark[0] = foe.pos;
+      this.solids?.before(e);
       const action = e.update(dt, foe ? this.brawlMark : this.marks);
+      this.solids?.after(e);
       // Its wind-up's warning on the ground, filling with the wind-up (gone with a blow that will not come).
       this.warnWindup(e, foe !== null);
       const boss = !!e.def.boss && e.aggro && e.alive;
@@ -1025,7 +1111,9 @@ export class CombatSystem {
       d.audio.score.layer('fight', anyAggro, anyAggro ? 0.6 : 3);
     }
 
-    // --- projectiles ---
+    // --- projectiles --- (with the solid bodies stood aside: the Frog God's orbs start inside him, and a shot meets a
+    // body by its own hit test, not as ground; with him solid, every orb he threw died where it was born)
+    const shots = (): void => {
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
       p.life -= dt;
@@ -1057,7 +1145,9 @@ export class CombatSystem {
       }
       if (p.kind === 'arrow' || p.kind === 'ring' || p.kind === 'trip' || p.kind === 'web' || p.kind === 'crescent') p.object.lookAt(aim.copy(p.object.position).add(p.vel));
       if (p.kind === 'web') p.object.rotateZ(dt * 3);
-      else if (p.kind === 'log' || p.kind === 'cup') { p.object.rotation.x += dt * 7; p.object.rotation.y += dt * 1.3; }
+      else if (p.look) this.turnThrow(p, dt);
+      else if (p.flames.length) this.streamFlames(p);
+      else if (p.kind === 'log' || p.kind === 'cup' || p.kind === 'prop') { p.object.rotation.x += dt * 7; p.object.rotation.y += dt * 1.3; }
       else if (p.kind === 'gem') { p.object.rotation.y += dt * 12; p.object.rotation.x += dt * 3; }
       else if (p.kind === 'fire') p.object.scale.setScalar(1 + (2.5 - p.life) * 0.6);
       else if (p.kind === 'star') { if (p.twinkle) p.twinkle.rotation += dt * 4; }
@@ -1101,7 +1191,7 @@ export class CombatSystem {
           p.hit.add(e.id);
           // (The crescent freezes the fight on the first body it cuts and only catches on each after, a reaction there
           // too, its blows as heavy; a shot of a many-shot skill charges the burst through its cast.)
-          this.hitEnemy(e, p.atk, p.mult, p.element, p.knockback, p.hitStop, { at: p.object.position, heavy: p.hitStop >= 0.08, pierced: p.pierce ? p.hit.size : 0, cast: p.cast });
+          this.hitEnemy(e, p.atk, p.mult, p.element, p.knockback, p.hitStop, { at: p.object.position, heavy: p.hitStop >= 0.08, blow: p.blow, pierced: p.pierce ? p.hit.size : 0, cast: p.cast });
           p.onHit?.(e);
           // The crescent cuts on through.
           if (p.pierce) continue;
@@ -1148,11 +1238,32 @@ export class CombatSystem {
         } else if (p.owner === 'player') this.fx.flash(p.pos, _col.set(ELEMENT_COLOR[p.element ?? 'lunar']).multiplyScalar(0.6), 1.4);
         else this.fx.flash(p.pos, p.color, p.kind === 'log' ? 3.5 : 1.6);
         if (p.kind === 'log') { this.fx.dust(p.pos, 2.4); this.d.onShake?.(0.4); this.d.audio.stomp(); }
+        if (p.look) {
+          const r = throwBurst(this.fx, p.look, p.pos);
+          if (r.shake > 0) this.d.onShake?.(r.shake);
+          if (r.puddle) this.spawnPuddle(p.pos, 'enemy', 'poison', p.atk * p.mult * 0.12);
+          const b = p.look.burst;
+          if (b === 'crater' || b === 'frost') this.d.audio.stomp();
+          else if (b === 'splash') this.d.audio.slurp(1.4);
+          else if (b === 'witchfire') this.d.audio.cast();
+          else this.d.audio.clatter();
+        } else if (p.kind === 'prop') {
+          // The barrel bursts: staves and splinters everywhere, a ring of water, a thump.
+          this.fx.sparks(p.pos, UP, 26, 0x9a6a3a, 8, 1.3);
+          this.fx.sparks(p.pos, UP, 14, 0xbff4ff, 6, 1.0);
+          this.fx.shock(p.pos, p.color, 4.5, 0.35);
+          this.fx.dust(p.pos, 2.2);
+          this.d.onShake?.(0.45);
+          this.d.audio.clatter();
+          this.d.audio.stomp();
+        }
         if (p.kind === 'cup') this.spawnPuddle(p.pos);
         if (p.kind === 'trip') for (const col of [0xff5ad6, 0x37f5ff, 0x5dff3a, 0x8b3dff]) this.fx.sparks(p.pos, UP, 6, col, 4, 1.0);
         this.removeProjectile(p);
       }
     }
+    };
+    if (this.solids) this.solids.aside(shots); else shots();
 
     // --- ground zones ---
     for (let i = this.zones.length - 1; i >= 0; i--) {
@@ -1636,10 +1747,10 @@ export class CombatSystem {
    * the air, struck by within its SHOT_RADIUS; its landing warning lies on the ground there, filling on from HANDOFF
    * (the wind-up's share) as it falls.
    */
-  private throwAt(e: Enemy, kind: BossAttackKind, from: Vector3, to: { x: number; y: number; z: number }, T: number, g: number, mult: number, color: number, size: number, shot: ProjectileKind): void {
+  private throwAt(e: Enemy, kind: BossAttackKind, from: Vector3, to: { x: number; y: number; z: number }, T: number, g: number, mult: number, color: number, size: number, shot: ProjectileKind, look?: ThrowLook): void {
     const target = new Vector3(to.x, to.y, to.z);
     const vel = this.lob(from, target, T, g);
-    const p = this.spawnProjectile(from, vel, 'enemy', e.def.atk, mult, kind === 'cupmortar' || kind === 'cupvolley' ? 'astral' : 'stone', SHOT_RADIUS[kind] ?? 1, color, 0, 0, 0, 0, size, shot, { gravity: g, by: e.def.kind });
+    const p = this.spawnProjectile(from, vel, 'enemy', e.def.atk, mult, kind === 'cupmortar' || kind === 'cupvolley' ? 'astral' : 'stone', SHOT_RADIUS[kind] ?? 1, color, 0, 0, 0, 0, size, shot, { gravity: g, by: e.def.kind, look });
     // (The lob's own time in the air, a roof having flattened it: along the ground at its speed along the ground.)
     const across = Math.hypot(target.x - from.x, target.z - from.z);
     const speed = Math.hypot(vel.x, vel.z);
@@ -1673,6 +1784,16 @@ export class CombatSystem {
       const z = dir.x * sn + dir.z * cs;
       dir.x = x; dir.z = z;
     }
+    const look = e.def.throws;
+    if (look) {
+      // Its own thing, thrown (EnemyDef.throws): lobbed a little, so it falls on them after its time in the air.
+      const g = 9;
+      const T = Math.hypot(t.x - from.x, t.z - from.z) / speed;
+      const vel = dir.multiplyScalar(speed);
+      vel.y += 0.5 * g * T;
+      this.spawnProjectile(from, vel, 'enemy', e.def.atk, mult, e.def.element, 0.9, TRAIL_COLORS[look.trail][0], 0, 0, 0, 0, 1, 'prop', { by: e.def.kind, look, gravity: g });
+      return;
+    }
     this.spawnProjectile(from, dir.multiplyScalar(speed), 'enemy', e.def.atk, mult, e.def.element, 0.8, ELEMENT_COLOR[e.def.element], 0, 0, 0, 0, 0.24, 'bolt', { by: e.def.kind });
   }
 
@@ -1696,11 +1817,61 @@ export class CombatSystem {
         const to = landing('diamond', t);
         const vel = new Vector3(to.x, to.y, to.z).sub(from).normalize().multiplyScalar(17);
         const shot = ORBIT_SHOT[e.def.orbit?.model ?? 'gem'];
-        const gem = this.spawnProjectile(from, vel, 'enemy', e.def.atk, 1.15, e.def.element, SHOT_RADIUS.diamond ?? 0.75, shot === 'cup' ? 0xb36bff : 0xdff2ff, 0, 0, 1.5, 0, 1, shot, { by: e.def.kind });
+        // (A barrel off the octopus's juggling is thrown whole, at its own size, a little wider in what it hits.)
+        const prop = shot === 'prop';
+        const gem = this.spawnProjectile(from, vel, 'enemy', e.def.atk, prop ? 1.3 : 1.15, e.def.element, prop ? 1.2 : SHOT_RADIUS.diamond ?? 0.75, shot === 'cup' ? 0xb36bff : prop ? 0x4ad8ff : 0xdff2ff, 0, 0, 1.5, 0, prop ? e.def.orbit?.size ?? 1 : 1, shot, { by: e.def.kind, model: e.def.orbit?.model });
         // Its landing warning fills on as it flies (straight, at 17 m/s) and ends as it strikes.
         gem.flight = from.distanceTo(_g.set(to.x, to.y, to.z)) / 17;
         this.warnShot(gem, 'diamond', to);
         this.d.audio.swing(false);
+        break;
+      }
+      case 'tentacle': {
+        // An arm rises over its mark through the wind-up (OctopusBody), hangs there a beat, and comes down where they
+        // stood: the water bursts white, the ground shakes, the fight freezes for a blink.
+        const tx = t.x;
+        const tz = t.z;
+        const ty = this.d.world.heightAt(tx, tz, t.y + 1);
+        const p = new Vector3(tx, ty, tz);
+        const hold = 0.3;
+        e.octo?.slamAt(tx, ty, tz, hold);
+        this.d.audio.swing(true);
+        this.strikeLater(hold + 0.12, 'disc', TENTACLE_RADIUS, WARN_COLOR.blow, p, () => {
+          if (!e.alive) return false;
+          this.fx.shock(p, color, TENTACLE_RADIUS * 2.4, 0.5);
+          this.fx.shock(p, 0xffffff, TENTACLE_RADIUS * 1.2, 0.22);
+          this.fx.dust(p, 3.6);
+          this.fx.sparks(_v.set(tx, ty + 0.4, tz), UP, 30, 0xbff4ff, 9, 1.2);
+          this.d.onShake?.(0.9);
+          this.d.game.hitStop = Math.max(this.d.game.hitStop, 0.06);
+          this.d.audio.stomp();
+          this.strike(e, 1.35, (x, z) => Math.hypot(x - tx, z - tz) < TENTACLE_RADIUS);
+        });
+        break;
+      }
+      case 'ink': {
+        // The bell squeezes shut and ink billows out along its facing: a dark cloud that hangs in the water a while.
+        e.octo?.squirt();
+        const reach = coneReach(e.def, 'ink', e.currentAttack?.range ?? 12);
+        this.ink.jet(_v.set(e.pos.x, e.pos.y + e.def.height * 0.4, e.pos.z), e.yaw, reach, INK_HALF, this.feetOf(e));
+        this.d.audio.slurp(1.8);
+        this.d.audio.roar();
+        const c = this.d.controller;
+        if (this.iframes <= 0 && Math.abs(c.pos.y - e.pos.y) < 8 && inCone(e.pos, e.yaw, c.pos, reach, INK_HALF)) this.d.onInk?.();
+        this.strike(e, 0.9, (x, z, y) => Math.abs(y - e.pos.y) < 8 && inCone(e.pos, e.yaw, { x, z }, reach, INK_HALF));
+        break;
+      }
+      case 'whirlpool': {
+        // Every arm spins and the water turns with them: a spiral under it drags whoever stands near round and in,
+        // and at the end it bursts.
+        e.octo?.spinFor(2.8);
+        const at = new Vector3(e.pos.x, this.feetOf(e), e.pos.z);
+        const swirl = swirlDisc(WHIRL_REACH, color);
+        swirl.mesh.position.set(at.x, at.y + 0.15, at.z);
+        this.d.scene.add(swirl.mesh);
+        this.whirls.push({ e, at, left: 2.8, total: 2.8, swirl });
+        this.fx.shock(at, color, WHIRL_REACH, 0.6);
+        this.d.audio.roar();
         break;
       }
       case 'slam': {
@@ -1716,7 +1887,9 @@ export class CombatSystem {
       case 'boulder': {
         // Lobbed on an arc that lands where its mark is heading.
         const from = new Vector3(e.pos.x, e.pos.y + e.def.height * sc * 0.9, e.pos.z);
-        this.throwAt(e, 'boulder', from, landing('boulder', t), Math.max(0.8, Math.min(1.8, 0.6 + dist / 20)), 16, 1.3, 0x8a96c8, 2.2, 'bolt');
+        // (Its own rock, burning or iced: EnemyDef.throws; never the old pale glow.)
+        const look = e.def.throws;
+        this.throwAt(e, 'boulder', from, landing('boulder', t), Math.max(0.8, Math.min(1.8, 0.6 + dist / 20)), 16, 1.3, look ? TRAIL_COLORS[look.trail][0] : 0x8a96c8, look ? 1 : 2.2, look ? 'prop' : 'bolt', look);
         break;
       }
       case 'roar': {
@@ -1732,6 +1905,7 @@ export class CombatSystem {
           c.vel.z += (dz / l) * 14;
           c.vel.y = Math.max(c.vel.y, 5);
           c.mode = 'air';
+          c.flungGravity = 1;
         }
         this.strike(e, 0.4, inside);
         break;
@@ -2010,6 +2184,7 @@ export class CombatSystem {
           c.vel.z += (dz / l) * 9;
           c.vel.y = Math.max(c.vel.y, 4);
           c.mode = 'air';
+          c.flungGravity = 1;
         }
         break;
       }
@@ -2058,6 +2233,43 @@ export class CombatSystem {
    * A move lands, on the clip's blow. `phase` is which move: a light hit's index, the heavy or the skill (the swing's
    * crescent leans with it); `ground` is the skill's burning ground, laid by the crescent along its path.
    */
+  /** The gap (m) to the nearest body ahead (within 5 m and ±50° of the facing, about level), or Infinity. */
+  private gapAhead(): number {
+    const c = this.d.controller;
+    let best = Infinity;
+    for (const e of this.enemies) {
+      if (!e.alive || Math.abs(e.pos.y - c.pos.y) > 2.5) continue;
+      const r = e.def.bodyRadius * (e.def.scale ?? 1);
+      if (!inCone({ x: c.pos.x, z: c.pos.z }, c.yaw, { x: e.pos.x, z: e.pos.z }, 5 + r, 0.9)) continue;
+      best = Math.min(best, Math.hypot(e.pos.x - c.pos.x, e.pos.z - c.pos.z) - r);
+    }
+    return best;
+  }
+
+  /**
+   * How far along the facing a leap may go, up to `want` metres: never past a drop (off a bridge, a ledge, into the
+   * chasm) or into a wall; shortened half a metre at a time, down to a leap in place.
+   */
+  private safeLeap(want: number): number {
+    const c = this.d.controller;
+    const cx = Math.cos(c.yaw), cz = Math.sin(c.yaw);
+    for (let d = want; d > 0; d -= 0.5) {
+      let ok = true;
+      for (let t = 0.5; t <= d + 1e-6 && ok; t += 0.5) {
+        const g = this.d.world.heightAt(c.pos.x + cx * t, c.pos.z + cz * t, c.pos.y + 1);
+        ok = g > c.pos.y - 1.2 && g < c.pos.y + 0.8;
+      }
+      if (ok) return d;
+    }
+    return 0;
+  }
+
+  /** The blade's lunge into a swing: up to `max` metres along the facing, short of the body ahead (Juice.lungeReach). */
+  private lungeIn(max: number): void {
+    const c = this.d.controller;
+    startLunge(c, { x: Math.cos(c.yaw), z: Math.sin(c.yaw) }, lungeReach(this.gapAhead(), max));
+  }
+
   private resolveAttack(me: CharacterDef, def: AttackDef, phase: number | 'heavy' | 'skill', ground?: GroundEffectDef): void {
     const c = this.d.controller;
     const element: Element | null = def.element === 'own' ? this.elementOf(me) : null;
@@ -2073,9 +2285,14 @@ export class CombatSystem {
     if (shape.kind === 'cone') {
       // The swing's crescent at the blow, in the swing's plane: the light hits tilted one way then the other, the
       // heavy's chop leaning down across, the skill flat; as wide and as long as the cut's reach.
-      const pitch = phase === 'heavy' ? -0.6 : phase === 'skill' ? 0 : phase % 2 === 0 ? 0.35 : -0.35;
+      // (The blade's finisher spins the hero once round: its crescent is a whole ring, nearly flat, and the ground puffs.)
+      const pitch = phase === 'heavy' ? -0.6 : phase === 'skill' ? 0 : phase === 2 ? 0.08 : phase % 2 === 0 ? 0.35 : -0.35;
       const color = element ? ELEMENT_COLOR[element] : PALETTE.cloth;
       this.fx.arc(_v.set(c.pos.x, c.pos.y + 1.2, c.pos.z), c.yaw, pitch, shape.range, color, shape.halfAngle);
+      if (phase === 2 && shape.halfAngle >= Math.PI - 0.01) {
+        this.fx.arc(_v.set(c.pos.x, c.pos.y + 0.7, c.pos.z), c.yaw + Math.PI, -0.05, shape.range * 0.85, color, shape.halfAngle);
+        this.fx.shock(_v.set(c.pos.x, c.pos.y, c.pos.z), color, 2.4);
+      }
     }
     const origin = { x: c.pos.x, z: c.pos.z };
     const reach = shape.kind === 'cone' ? shape.range : shape.radius;
@@ -2089,7 +2306,7 @@ export class CombatSystem {
       const ok = shape.kind === 'cone'
         ? inCone(origin, c.yaw, t, shape.range + e.def.bodyRadius * sc, shape.halfAngle)
         : inRadius(origin, t, shape.radius + e.def.bodyRadius * sc);
-      if (ok) this.hitEnemy(e, atk, def.mult, element, def.knockback, def.hitStop, { heavy });
+      if (ok) this.hitEnemy(e, atk, def.mult, element, def.knockback, def.hitStop, { heavy, blow: phase });
     }
   }
 
@@ -2125,6 +2342,7 @@ export class CombatSystem {
       const shot = this.spawnProjectile(from, down, 'player', atk, def.mult, element, 1.0, color, shape.chains, shape.chainRange, def.knockback, def.hitStop, size, kind, {
         homing: { target, point: ahead, delay: 0.07, turn: 9, age: 0 }, ...look,
       });
+      shot.blow = phase;
       if (sky) shot.life = Math.max(shot.life, sky.pos.distanceTo(from) / 18 + 1);
       return;
     }
@@ -2133,6 +2351,7 @@ export class CombatSystem {
     if (sky) dir.copy(sky.pos).sub(from).normalize();
     const speed = arrow ? 26 : 22;
     const shot = this.spawnProjectile(from, dir.multiplyScalar(speed), 'player', atk, def.mult, element, 1.0, color, shape.chains, shape.chainRange, def.knockback, def.hitStop, size, kind, look);
+    shot.blow = phase;
     if (sky) shot.life = Math.max(shot.life, sky.pos.distanceTo(from) / speed + 0.4);
     this.fx.flash(from, _col.set(color).multiplyScalar(0.7), heavy ? 1.6 : 0.9);
   }
@@ -2198,9 +2417,9 @@ export class CombatSystem {
       const vel = new Vector3(Math.cos(a), 0.12, Math.sin(a)).normalize().multiplyScalar(24);
       const trail = !ribbons ? undefined : i === 0 ? 'arrow0' : i === shape.arrows - 1 ? 'arrow1' : undefined;
       // (A lighter hit-stop each: six freezes in a row would stutter the volley.)
-      this.spawnProjectile(from.clone(), vel, 'player', atk, def.mult, element, 1.0, color, shape.chains, shape.chainRange, def.knockback, def.hitStop * 0.4, 0.24, 'arrow', {
+      (this.spawnProjectile(from.clone(), vel, 'player', atk, def.mult, element, 1.0, color, shape.chains, shape.chainRange, def.knockback, def.hitStop * 0.4, 0.24, 'arrow', {
         homing: { target, point, delay: 0.12, turn: 5, age: 0 }, trail, trailW: 0.05, cast,
-      });
+      })).blow = 'skill';
     }
     this.sfx.swing('bow', true);
     this.fx.flash(from, _col.set(color).multiplyScalar(0.7), 1.5);
@@ -2243,9 +2462,9 @@ export class CombatSystem {
     const v0 = 4;
     const g = 28;
     const fall = (-v0 + Math.sqrt(v0 * v0 + 2 * g * h)) / g;
-    this.spawnProjectile(new Vector3(tx, gy + h, tz), new Vector3(0, -v0, 0), 'player', atk, def.mult, element, 0.6, color, 0, 0, def.knockback, def.hitStop, 1.5, 'star', {
+    (this.spawnProjectile(new Vector3(tx, gy + h, tz), new Vector3(0, -v0, 0), 'player', atk, def.mult, element, 0.6, color, 0, 0, def.knockback, def.hitStop, 1.5, 'star', {
       gravity: g, aoe: shape.radius, trail: `star${this.starTrails++ % 2}`, trailW: 0.16, life: fall + 0.6, cast,
-    });
+    })).blow = 'skill';
     const warn = () => this.fx.telegraph(-100 - i, 'disc', _v.set(tx, gy, tz), 0, shape.radius, 0.5, color);
     if (fall > 0.5) this.delayed.push({ t: fall - 0.5, fn: warn });
     else warn();
@@ -2333,6 +2552,14 @@ export class CombatSystem {
       if (heavy) this.fx.shock(_v.set(e.pos.x, e.pos.y, e.pos.z), color, 2.5 + 2 * weight);
     }
     this.showNumber(_v.copy(hitAt).add(_w.set(0, 0.5, 0)), dmg, crit ? PALETTE.moon : color, false, e.id, crit);
+    if (own) {
+      // Cartoon: a comic star where it struck, and the blow's sound written over it, one word a beat (Juice).
+      this.stars.pop(hitAt, crit ? PALETTE.moon : color, heavy ? 2.4 : crit ? 2 : 1.1 + Math.min(0.7, dmg / 400));
+      if (this.time - this.bonkAt > 0.14 || this.bonkAt < 0) {
+        this.bonkAt = this.time;
+        this.bonk(_v.copy(hitAt).add(_w.set(0, 1.1, 0)), bonkWord(this.active.weapon, o.blow ?? (heavy ? 'heavy' : 0), this.bonkN++));
+      }
+    }
     // (A piercing shot freezes the fight on the first body it cuts; on each after, the blow and any reaction there only
     // catch it: Combat.pierceStop. Not a piercing shot, 0: the full stop.)
     const nth = o.pierced ?? 0;
@@ -2388,6 +2615,8 @@ export class CombatSystem {
       this.loot.spawn(rollDrops(e.def.drops, e.def.shards), at);
     }
     if (e.def.boss) {
+      // The boss goes down in slow motion (Juice.SLOW_MO), the world easing back after.
+      this.d.game.slowMo = SLOW_MO.seconds;
       this.d.hud.announce(`${e.def.name} falls`);
       this.d.onShake?.(1);
       this.feel.pulse = Math.max(this.feel.pulse, 0.35);
@@ -2455,10 +2684,16 @@ export class CombatSystem {
       bright?: boolean;
       /** The burst charge of the cast it is a shot of (Combat.CastCharge). */
       cast?: CastCharge;
+      /** A 'prop' shot's model id (thrown whole). */
+      model?: string;
+      /** A boss's thrown thing: its model, size, trail, burst and spin (EnemyDef.throws). */
+      look?: ThrowLook;
     } = {},
   ): Projectile {
     const object = new Group();
     const rainbow: Projectile['rainbow'] = [];
+    const flames: Sprite[] = [];
+    let spinner: Group | null = null;
     let fade: Projectile['fade'] = null;
     let twinkle: Projectile['twinkle'] = null;
     if (kind === 'crescent') {
@@ -2490,6 +2725,49 @@ export class CombatSystem {
       // A glowing ring flying face-on (the snail's tentacle shots).
       const ring = new Mesh(new TorusGeometry(0.45 * size, 0.07 * size, 8, 28), new MeshBasicMaterial({ color, transparent: true, opacity: 0.9, blending: AdditiveBlending, side: DoubleSide, depthWrite: false, toneMapped: false }));
       object.add(ring, glowSprite(color, 1.6 * size, 0.5, true));
+      object.position.copy(from);
+    } else if (kind === 'prop') {
+      // Something thrown whole (the octopus's barrels, a boss's own throw): its model turning about its middle, lit so it
+      // reads, a halo of its trail's colour (a burning throw's halos flicker).
+      const look = extra.look;
+      const id = look?.model ?? extra.model;
+      const g = id ? thrownProps.get(id) : null;
+      const scale = look ? throwScale(look) : size;
+      const tall = look ? look.size : size;
+      const halo = look ? TRAIL_COLORS[look.trail][0] : color;
+      // (The model turns inside its own holder: the flames stream behind along the flight, never round with it.)
+      spinner = new Group();
+      object.add(spinner);
+      if (g && id) {
+        const rig = new ModelRig(id, g, { cloneMaterials: true });
+        if (!look) litWood(rig.materials);
+        else {
+          // Lit just enough to read; a burning rock glows hot from inside, an iced one cold.
+          const [hot, k] = INNER_LIGHT[look.trail];
+          litWood(rig.materials, k, hot);
+          if (look.tint !== undefined) for (const m of rig.materials) m.color.multiply(_col.set(look.tint));
+        }
+        rig.root.scale.setScalar(scale);
+        rig.root.position.y = -0.5 * rig.height * scale;
+        rig.root.rotation.y = look?.face ?? 0;
+        spinner.add(rig.root);
+      } else {
+        // (Its model not loaded yet: a stand-in rock on one shared shape, since a prop's geometry is kept on removal.)
+        const rock = new Mesh(PROP_STANDIN, surface({ color: PALETTE.void, emissive: halo, emissiveIntensity: 1.5 }));
+        rock.scale.setScalar(0.4 * tall);
+        spinner.add(rock);
+      }
+      if (look && (look.trail === 'fire' || look.trail === 'witchfire')) {
+        // A head of flame round it and three tongues streaming back, smaller each.
+        const [a, b] = TRAIL_COLORS[look.trail];
+        for (const [k, c, o] of [[1.5, a, 0.6], [1.15, b, 0.6], [0.85, a, 0.5], [0.6, b, 0.4]] as const) {
+          const f = glowSprite(c, k * tall, o, true);
+          f.userData.base = k * tall;
+          f.userData.step = 0.38 * look.size;
+          object.add(f);
+          flames.push(f);
+        }
+      } else object.add(glowSprite(halo, (look ? (look.trail === 'sparkle' ? 0.8 : 1.3) : 1.6) * tall, look?.trail === 'sparkle' ? 0.18 : 0.3, true));
       object.position.copy(from);
     } else if (kind === 'cup') {
       // A double cup of lean (lean-cup.glb), brimming purple, end over end, trailing its glow.
@@ -2573,6 +2851,19 @@ export class CombatSystem {
       }
       object.position.copy(from);
       object.lookAt(aim.copy(from).add(vel));
+    } else if (owner === 'enemy') {
+      // A fireball of its own colour: a hot heart, a head of flame and tongues streaming back along its flight, all
+      // flickering (a plain glowing ball read as the white circles the playtest of 2026-11-14 named).
+      const s = size / 0.24;
+      object.add(glowSprite(new Color(color).lerp(new Color(0xffffff), 0.4).getHex(), 0.55 * s, 0.95, true));
+      for (const [k, o] of [[1.3, 0.8], [0.95, 0.6], [0.7, 0.45], [0.5, 0.3]] as const) {
+        const f = glowSprite(color, k * s, o, true);
+        f.userData.base = k * s;
+        f.userData.step = 0.3 * s;
+        object.add(f);
+        flames.push(f);
+      }
+      object.position.copy(from);
     } else {
       // (A big shot is a rock with a faint heat, a small one all light: no cube.)
       const core = new Mesh(new IcosahedronGeometry(size * 0.6, 1), surface({ color: PALETTE.void, emissive: color, emissiveIntensity: 3 }));
@@ -2587,6 +2878,7 @@ export class CombatSystem {
       homing: extra.homing ?? null, wobble: extra.wobble ?? 0, onHit: extra.onHit ?? null, rainbow, seed: Math.random() * 10, web: extra.web ?? 0, by: extra.by ?? null,
       age: 0, from: from.clone(), trail: extra.trail ?? null, trailW: extra.trailW ?? 0.06, pierce: extra.pierce ?? false, aoe: extra.aoe ?? 0,
       ground: extra.ground ?? 0, burn: extra.burn ?? null, fade, twinkle, cast: extra.cast ?? null, warn: null, flight: 0,
+      look: extra.look ?? null, trailAcc: 0, flames, spinner,
     };
     this.projectiles.push(p);
     // A ribbon id is one shot's at a time: the shot that had it lets go (its ribbon fades) and this one starts afresh.
@@ -2619,6 +2911,90 @@ export class CombatSystem {
   hazard(atk: number, poison?: { dps: number; seconds: number }): void {
     this.damagePlayer(atk, 'rot');
     if (poison) this.poisonPlayer(poison.dps, poison.seconds);
+  }
+
+  /**
+   * A boss's thrown thing in the air (EnemyDef.throws): a rock or a bottle tumbles end over end, a lily pad spins flat
+   * like a plate, a fish flops along its line, a skull flies teeth first, chattering; a burning one's halos flicker;
+   * each leaves its trail (combat/Throws).
+   */
+  private turnThrow(p: Projectile, dt: number): void {
+    const look = p.look!;
+    const o = p.spinner ?? p.object;
+    switch (look.spin) {
+      case 'tumble': o.rotation.x += dt * 6; o.rotation.y += dt * 1.7; break;
+      case 'frisbee': o.rotation.set(0.25 * Math.sin(p.age * 3), o.rotation.y + dt * 16, 0); break;
+      case 'flop':
+        o.lookAt(aim.copy(p.object.position).add(p.vel));
+        o.rotateY(Math.sin(p.age * 16 + p.seed) * 0.6);
+        o.rotateZ(Math.sin(p.age * 8 + p.seed) * 0.35);
+        break;
+      case 'face':
+        o.lookAt(aim.copy(p.object.position).add(p.vel));
+        o.rotateX(Math.sin(p.age * 30) * 0.14);
+        break;
+    }
+    this.streamFlames(p);
+    p.trailAcc = throwTrail(this.fx, look, p.pos, p.vel, dt, p.trailAcc);
+  }
+
+  /** A shot's flames: the head round it, the tongues back along its flight (rising a little), smaller each, flickering. */
+  private streamFlames(p: Projectile): void {
+    if (!p.flames.length) return;
+    const l = p.vel.length() || 1;
+    for (let i = 0; i < p.flames.length; i++) {
+      const f = p.flames[i];
+      const back = i * f.userData.step;
+      f.position.set((-p.vel.x / l) * back, (-p.vel.y / l) * back + i * 0.21 * f.userData.step, (-p.vel.z / l) * back);
+      f.scale.setScalar(f.userData.base * (0.8 + Math.random() * 0.35));
+    }
+  }
+
+  /**
+   * The octopus's whirlpools: while one spins, whoever stands inside its reach is carried round it and drawn in
+   * (harder near the middle, never more than a run can beat), bubbles stream up the spiral; at the end it bursts.
+   */
+  private updateWhirls(dt: number): void {
+    const c = this.d.controller;
+    for (let i = this.whirls.length - 1; i >= 0; i--) {
+      const w = this.whirls[i];
+      w.left -= dt;
+      if (w.e.alive) { w.at.x = w.e.pos.x; w.at.z = w.e.pos.z; }
+      const k = w.left / w.total;
+      w.swirl.mesh.position.set(w.at.x, w.at.y + 0.15, w.at.z);
+      w.swirl.update(dt, Math.min(1, (1 - k) * 4, w.left * 2));
+      const dx = c.pos.x - w.at.x;
+      const dz = c.pos.z - w.at.z;
+      const l = Math.hypot(dx, dz);
+      // (Only a hero on its floor, walking or swimming and not down, is carried; never into a wall or up a step.)
+      const carried = (c.mode === 'ground' || c.mode === 'swim') && this.downed === null && Math.abs(c.pos.y - w.at.y) < 3;
+      if (w.e.alive && carried && l < WHIRL_REACH && l > 0.6) {
+        const near = 1 - l / WHIRL_REACH;
+        const inward = 2 + 3.5 * near;
+        const around = 2.5 + 3 * near;
+        const nx = c.pos.x + ((-dx / l) * inward + (-dz / l) * around) * dt;
+        const nz = c.pos.z + ((-dz / l) * inward + (dx / l) * around) * dt;
+        if (this.d.world.heightAt(nx, nz, c.pos.y + 1) <= c.pos.y + 0.5) { c.pos.x = nx; c.pos.z = nz; }
+      }
+      if (Math.random() < dt * 14) {
+        const a = Math.random() * Math.PI * 2;
+        const r = Math.random() * WHIRL_REACH * 0.9;
+        this.fx.sparks(_v.set(w.at.x + Math.cos(a) * r, w.at.y + 0.3, w.at.z + Math.sin(a) * r), UP, 2, 0xbff4ff, 3, 0.4);
+      }
+      if (w.left <= 0) {
+        if (w.e.alive) {
+          this.fx.shock(w.at, ELEMENT_COLOR[w.e.def.element], 7, 0.45);
+          this.fx.sparks(_v.set(w.at.x, w.at.y + 0.5, w.at.z), UP, 30, 0xbff4ff, 9, 1.0);
+          this.d.onShake?.(0.7);
+          this.d.audio.stomp();
+          const at = w.at;
+          this.strike(w.e, 1.2, (x, z) => Math.hypot(x - at.x, z - at.z) < 5.5);
+        }
+        this.d.scene.remove(w.swirl.mesh);
+        w.swirl.dispose();
+        this.whirls.splice(i, 1);
+      }
+    }
   }
 
   /** Skeletons risen in the Alley of Graves (alive or a heap), and the time to the next. */
@@ -2762,16 +3138,24 @@ export class CombatSystem {
   }
 
   /** A puddle of lean: a burst cup's slows the hero who stands in it; one off the lean cyclone (`hero`) slows the mobs instead. */
-  private spawnPuddle(at: Vector3, owner: 'hero' | 'enemy' = 'enemy'): void {
+  /**
+   * A puddle where a cup (or the cyclone's trail) spilled lean, which slows; or where a witch's bottle broke, a green
+   * brew that poisons whoever stands in it (`dps` a second).
+   */
+  private spawnPuddle(at: Vector3, owner: 'hero' | 'enemy' = 'enemy', brew: 'lean' | 'poison' = 'lean', dps = 0): void {
     const y = this.d.world.heightAt(at.x, at.z, at.y + 1) + 0.04;
-    const mesh = new Mesh(new CircleGeometry(2.4, 24), new MeshBasicMaterial({ map: puffTexture(), color: 0x8a2be2, transparent: true, opacity: 0.6, depthWrite: false, toneMapped: false }));
+    // (A bottle's pool is small, dim and quick to sink in: three witches' volleys of three flooded the ground green.)
+    const poison = brew === 'poison';
+    const r = poison ? 1.5 : 2.4;
+    const glow = poison ? 0x6aff3a : LEAN_PURPLE;
+    const mesh = new Mesh(new CircleGeometry(r, 24), new MeshBasicMaterial({ map: puffTexture(), color: poison ? 0x2a9a34 : 0x8a2be2, transparent: true, opacity: poison ? 0.5 : 0.6, depthWrite: false, toneMapped: false }));
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(at.x, y, at.z);
     // (A burst cup's puddle glows; the cyclone's trail goes without, a halo a puddle being as many planes again.)
-    if (owner !== 'hero') mesh.add(glowSprite(LEAN_PURPLE, 3.2, 0.35, true));
+    if (owner !== 'hero') mesh.add(glowSprite(glow, poison ? 1.6 : 3.2, poison ? 0.18 : 0.35, true));
     this.d.scene.add(mesh);
-    this.puddles.push({ pos: new Vector3(at.x, y, at.z), r: 2.4, left: 6, mesh, hero: owner === 'hero' });
-    this.fx.sparks(_v.set(at.x, y + 0.3, at.z), UP, 14, LEAN_PURPLE, 4, 1.0);
+    this.puddles.push({ pos: new Vector3(at.x, y, at.z), r, left: poison ? 4 : 6, mesh, hero: owner === 'hero', poison: poison ? dps : 0 });
+    this.fx.sparks(_v.set(at.x, y + 0.3, at.z), UP, poison ? 8 : 14, glow, 4, 1.0);
   }
 
   /** Poison: damage every half second for a while (refreshed, never stacked). */
@@ -2874,6 +3258,13 @@ export class CombatSystem {
   }
 
   /** A number (or a word) over `worldPos`; hits on one `targetId` merge on screen, a `crit` stands out. */
+  /** A blow's comic word over `worldPos` (Hud.bonk). */
+  private bonk(worldPos: Vector3, word: string): void {
+    this.screen.copy(worldPos).project(this.d.camera);
+    if (this.screen.z > 1) return;
+    this.d.hud.bonk((this.screen.x + 1) / 2 * window.innerWidth, (1 - this.screen.y) / 2 * window.innerHeight, word, BONK_GOLD);
+  }
+
   private showNumber(worldPos: Vector3, value: number | string, color: number, big: boolean, targetId: number | null = null, crit = false): void {
     this.screen.copy(worldPos).project(this.d.camera);
     if (this.screen.z > 1) return;
@@ -2885,6 +3276,7 @@ export class CombatSystem {
   /** Per-frame: enemy animation and HUD projection. */
   render(dt: number): void {
     const cam = this.d.camera;
+    this.stars.update(dt);
     for (const e of this.enemies) {
       e.animate(dt, !e.aggro && Math.hypot(e.pos.x - cam.position.x, e.pos.z - cam.position.z) > 110);
       if (!e.alive) continue;

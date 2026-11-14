@@ -15,6 +15,9 @@ import { glowSprite, glowTexture } from '../render/Glow';
 import { GLSL_HASH, GLSL_VNOISE } from '../render/glsl';
 import { PALETTE } from '../render/palette';
 import type { HostileShot } from '../combat/CombatSystem';
+import { modelLandmark } from './ModelLandmark';
+import { toxicBubbles, type BubbleSpot } from './ToxicBubbles';
+import type { Footprint } from './Colliders';
 import { STREAM_WATER, lowestBed } from './Terrain';
 import type { Landmark } from './Landmarks';
 
@@ -24,34 +27,55 @@ varying vec2 vUv; varying vec3 vWorld; varying vec3 vView;
 void main() {
   vUv = uv;
   vec4 w = modelMatrix * vec4(position, 1.0);
-  // A slow ripple running downstream.
-  w.y += sin(w.z * 0.9 - uTime * 2.2 + w.x * 0.6) * 0.03 + sin(w.z * 2.3 - uTime * 3.1) * 0.015;
+  // Thick, slow swells running downstream, calmer at the banks (a liquid with weight, not a sheet).
+  float mid = sin(uv.x * 3.14159);
+  w.y += (sin(w.z * 0.7 - uTime * 1.6 + w.x * 0.5) * 0.07 + sin(w.z * 1.9 - uTime * 2.6 - w.x * 0.8) * 0.035 + sin(w.x * 2.7 + uTime * 1.2) * 0.02) * mid;
   vWorld = w.xyz;
   vView = cameraPosition - w.xyz;
   gl_Position = projectionMatrix * viewMatrix * w;
 }`;
 const STREAM_FRAG = /* glsl */ `
-uniform float uTime; uniform vec3 uDeep; uniform vec3 uBright; uniform vec3 uFoam;
+uniform float uTime; uniform vec3 uDeep; uniform vec3 uBright; uniform vec3 uFoam; uniform vec3 uSky;
 varying vec2 vUv; varying vec3 vWorld; varying vec3 vView;
 // Sine-free hash (Hoskins): the sin() kind loses precision at world coordinates and draws stripes.
 ${GLSL_HASH}
 ${GLSL_VNOISE}
-void main() {
-  // Flow: swirling noise carried downstream at one speed (a speed that varied across the channel would shear the
-  // pattern further every second, into streaks), domain-warped so it eddies.
-  vec2 p = vec2(vWorld.x * 0.6, vWorld.z * 0.6 - uTime * 0.55);
+// The surface's swirl, carried downstream (one speed: a speed that varied across the channel would shear it into
+// streaks), domain-warped so it eddies.
+float swirl(vec2 q) {
+  vec2 p = vec2(q.x * 0.6, q.y * 0.6 - uTime * 0.5);
   vec2 warp = vec2(vnoise(p * 0.8 + vec2(0.0, uTime * 0.1)), vnoise(p * 0.8 + vec2(5.2, -uTime * 0.12))) - 0.5;
   p += warp * 1.6;
-  float n = vnoise(p) * 0.6 + vnoise(p * 2.3) * 0.28 + vnoise(p * 5.1) * 0.12;
-  // Mostly murky toxic green; bright where the scum gathers, and pin-point glints.
-  vec3 c = mix(uDeep, uBright, smoothstep(0.55, 0.95, n));
-  c += uFoam * pow(vnoise(p * 9.0 + uTime * 0.7), 14.0) * 0.8;
-  // Grazing light off the surface (fresnel) and foam where the water meets the banks.
-  float fres = pow(1.0 - clamp(normalize(vView).y, 0.0, 1.0), 3.0);
-  float edge = smoothstep(0.16, 0.0, vUv.x) + smoothstep(0.84, 1.0, vUv.x);
-  float foam = smoothstep(0.45, 0.9, edge * (0.6 + vnoise(p * 4.0 + 3.1)));
-  c = mix(c, uFoam, foam * 0.55) + uBright * fres * 0.25;
-  float alpha = 0.86 * smoothstep(0.0, 0.05, vUv.x) * smoothstep(1.0, 0.95, vUv.x);
+  return vnoise(p) * 0.6 + vnoise(p * 2.3) * 0.28 + vnoise(p * 5.1) * 0.12;
+}
+void main() {
+  vec3 V = normalize(vView);
+  // A normal from the broad swells only (the fine swirl made a glint per texel: white static): the moon slides along
+  // them as one soft sheen, the sky lies on their far sides.
+  float h0 = swirl(vWorld.xz);
+  vec2 sp = vec2(vWorld.x * 0.35, vWorld.z * 0.35 - uTime * 0.3);
+  float e = 0.35;
+  float s0 = vnoise(sp);
+  vec3 N = normalize(vec3((s0 - vnoise(sp + vec2(e, 0.0))) * 1.1, 1.0, (s0 - vnoise(sp + vec2(0.0, e))) * 1.1));
+  // Depth: a second, slower layer seen through the surface, shifted along the view (parallax), with the glowing veins of
+  // the brew sunk in it. The water reads as thick and deep, not painted on.
+  vec2 deepAt = vWorld.xz - V.xz / max(0.25, V.y) * 0.9;
+  float veins = smoothstep(0.62, 0.9, swirl(deepAt * 0.7 + 11.0));
+  float murk = vnoise(deepAt * 0.35 + uTime * 0.05);
+  vec3 c = mix(uDeep * 0.6, uDeep * 1.4, murk) + uBright * veins * 0.9;
+  // The scum on top, bright where it gathers, and pin-point fizz.
+  c = mix(c, uBright * 1.2, smoothstep(0.66, 0.95, h0) * 0.6);
+  c += uBright * pow(vnoise(vWorld.xz * 1.8 + uTime * 0.4), 10.0) * 0.6;
+  // Light: a cold moon from high in the south-east glints on the ripples; the sky's cobalt on the grazing water.
+  vec3 L = normalize(vec3(0.35, 0.85, -0.4));
+  float spec = pow(max(dot(reflect(-L, N), V), 0.0), 24.0);
+  float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 4.0);
+  c = mix(c, uSky, fres * 0.5) + vec3(0.55, 0.85, 0.6) * spec * 0.35;
+  // A thin wet scum line where the water laps the banks (a bright band all along read as a painted outline).
+  float edge = smoothstep(0.08, 0.0, vUv.x) + smoothstep(0.92, 1.0, vUv.x);
+  float foam = smoothstep(0.5, 0.95, edge * (0.5 + vnoise(vWorld.xz * 2.4 + 3.1 - vec2(0.0, uTime * 0.5))));
+  c = mix(c, uBright, foam * 0.35);
+  float alpha = (0.9 + fres * 0.08) * smoothstep(0.0, 0.05, vUv.x) * smoothstep(1.0, 0.95, vUv.x);
   gl_FragColor = vec4(c, alpha);
 }`;
 
@@ -100,7 +124,7 @@ export function witchStream(
   geo.setIndex(idx);
   geo.computeVertexNormals();
   const waterMat = new ShaderMaterial({
-    uniforms: { uTime: { value: 0 }, uDeep: { value: new Color(0x06260c) }, uBright: { value: new Color(PALETTE.witch).multiplyScalar(0.7) }, uFoam: { value: new Color(0xd9ffcf) } },
+    uniforms: { uTime: { value: 0 }, uDeep: { value: new Color(0x06260c) }, uBright: { value: new Color(PALETTE.witch).multiplyScalar(0.7) }, uFoam: { value: new Color(0xd9ffcf) }, uSky: { value: new Color(0x1a2a6a) } },
     vertexShader: STREAM_VERT, fragmentShader: STREAM_FRAG, transparent: true, depthWrite: false, side: DoubleSide, forceSinglePass: true,
   });
   const water = new Mesh(geo, waterMat);
@@ -142,6 +166,32 @@ export function witchStream(
   heroBubbles.visible = false;
   g.add(heroBubbles);
 
+  // Bubbles that swell out of the brew and pop: a splash ring and droplets each (ToxicBubbles), away from the bridge.
+  const spots: BubbleSpot[] = [];
+  for (let i = 0; spots.length < 44 && i < 200; i++) {
+    const z = zMin + 4 + ((i * 0.6180339) % 1) * (zMax - zMin - 6);
+    if (Math.abs(z - bridgeZ) < 4) continue;
+    const off = (((i * 0.7548776) % 1) - 0.5) * 2 * (half - 1.2);
+    spots.push({ x: centreAt(z) + off, y: levelAt(z), z, r: 0.14 + ((i * 0.381966) % 1) * 0.26 });
+  }
+  const popping = toxicBubbles(spots, 0x7dff4a);
+  g.add(popping.group);
+  // Bones in the brew: heaps of skulls breaking the surface, and two great skulls half sunk (both from the reels).
+  const solid: Footprint[] = [];
+  const bones: Array<[string, number, number, number, number]> = [
+    // [model, z, across, scale, how far under the surface the model's feet sit]
+    ['skull-pile', zMin + 10, -1.6, 0.6, 0.36], ['skull-pile', -14, 1.8, 0.55, 0.34], ['skull-pile', 22, -1.2, 0.62, 0.36],
+    ['skull-pile', 33, 1.5, 0.5, 0.3], ['skull-pile', zMax - 6, 0.4, 0.6, 0.36],
+    ['giant-skull', -24, -0.6, 0.3, 0.6], ['giant-skull', 28, 1.4, 0.26, 0.5],
+  ];
+  bones.forEach(([id, z, across, scale, under], i) => {
+    const lm = modelLandmark(id, centreAt(z) + across, z, levelAt(z) - under, { scale, yaw: id === 'giant-skull' ? (z < bridgeZ ? 0 : Math.PI) : i * 2.1 });
+    // The great skulls stare up out of the brew toward the bridge (from behind, only a white dome of cranium showed).
+    if (id === 'giant-skull') { lm.object.rotation.order = 'YXZ'; lm.object.rotation.x = -0.45; }
+    g.add(lm.object);
+    solid.push(...lm.footprints);
+  });
+
   const witches = [0, 1, 2].map(() => { const r = new Rig(WITCH); g.add(r.root); return { r, wait: 1 + Math.random() * 2, cast: -1 }; });
   let t = 0;
   let burn = 0;
@@ -149,7 +199,7 @@ export function witchStream(
   const muzzle = new Vector3();
   return {
     object: g,
-    footprints: [],
+    footprints: solid,
     update(dt, player) {
       t += dt;
       waterMat.uniforms.uTime.value = t;
@@ -168,6 +218,7 @@ export function witchStream(
         } else bubbleAttr.setXYZ(i, centreAt(z) + s.off + Math.sin(k * 6 + s.ph) * 0.05, levelAt(z) - 0.25 + k * 0.4, z + k * 0.6);
       }
       bubbleAttr.needsUpdate = true;
+      popping.update(dt);
       // In the water: it burns, poisons, and fizzes around you.
       const inStream = player.z > zMin && player.z < zMax && Math.abs(player.x - centreAt(player.z)) < half - 0.4 && player.y < levelAt(player.z) + 0.1;
       wading = inStream ? Math.min(1, wading + dt * 4) : Math.max(0, wading - dt * 2);
@@ -184,15 +235,17 @@ export function witchStream(
       }
       burn -= dt;
       if (inStream && burn <= 0) { burn = BURN_EVERY; hooks.hurt(BURN.atk, BURN.poison); }
-      // The coven: circling the cauldron; near the bridge, each in turn raises her staff and throws an orb.
+      // The coven: standing round the cauldron, facing it; near the bridge, each in turn turns, raises her staff and throws
+      // an orb. (They stood still on 2026-11-14: witch.glb has no skeleton, and circling slid a stiff body round with no
+      // steps, which the user saw as legs that never move.)
       const near = Math.hypot(player.x - centreAt(bridgeZ), player.z - bridgeZ) < NOTICE;
       for (let i = 0; i < witches.length; i++) {
         const w = witches[i];
-        const a = t * 0.55 + (i / 3) * Math.PI * 2;
-        const rad = 2.6 + Math.sin(t * 1.3 + i) * 0.3;
+        const a = (i / 3) * Math.PI * 2 + 0.5;
+        const rad = 2.6;
         const r = w.r;
-        r.root.position.set(centreAt(bridgeZ) + Math.cos(a) * rad, deckY + 0.45 + Math.abs(Math.sin(t * 2.2 + i * 2)) * 0.12, bridgeZ + Math.sin(a) * rad * 0.7);
-        let yaw = Math.atan2(Math.cos(a) * 0.7, -Math.sin(a));
+        r.root.position.set(centreAt(bridgeZ) + Math.cos(a) * rad, deckY + 0.45, bridgeZ + Math.sin(a) * rad * 0.7);
+        let yaw = Math.atan2(bridgeZ - r.root.position.z, centreAt(bridgeZ) - r.root.position.x);
         let attack: number | undefined;
         if (w.cast >= 0) {
           // Facing the hero for the cast; the orb leaves the staff at the top of the swing.
@@ -209,7 +262,7 @@ export function witchStream(
           if (w.wait <= 0) { w.cast = 0; w.wait = 2.2 + Math.random() * 1.6; }
         }
         r.root.rotation.y = yawToRotation(yaw);
-        r.animate({ mode: 'ground', speed: w.cast >= 0 ? 0 : 1.6 + Math.sin(t * 1.1 + i) * 0.4, attack, attackKind: 'skill' }, dt);
+        r.animate({ mode: 'ground', speed: 0, attack, attackKind: 'skill' }, dt);
       }
     },
   };

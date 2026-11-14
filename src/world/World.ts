@@ -1,5 +1,4 @@
-import { type Bone, Color, Group, Matrix4, type Mesh, type MeshStandardMaterial, Object3D, type SkinnedMesh, Vector3 } from 'three';
-import { socketsInBone } from '../characters/SkullEyes';
+import { Color, Group, type Mesh, type MeshStandardMaterial, Object3D, Vector3 } from 'three';
 import { blunt } from '../render/Blunt';
 import { PipeSmoke } from '../render/Smoke';
 import { REALM_SCULPTS } from '../data/sculpts';
@@ -9,7 +8,7 @@ import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
 import type { Events, Zone } from '../game/Events';
 import { PALETTE } from '../render/palette';
 import { glowSprite } from '../render/Glow';
-import { patchGait, patchGlowCap, patchLitWindows, patchWhiteBloom } from '../render/Materials';
+import { patchGait, patchGlowCap, patchGreenGlow, patchLitWindows, patchWhiteBloom } from '../render/Materials';
 import { PointLight } from 'three';
 import { CloudSea } from './CloudSea';
 import { GroundQuery } from './Ground';
@@ -38,7 +37,7 @@ import { buildTreeHouse } from './TreeHouse';
 import { buildDream, dreamWatchers } from './Dream';
 import { buildKingdom } from './Kingdom';
 import { buildLeanQuarter } from './LeanQuarter';
-import { type Bouncer, buildHeart } from './Heart';
+import { type Bouncer, buildHeart, dressBridge } from './Heart';
 import { buildGraveyard } from './Graveyard';
 import type { ModelRig } from '../models/ModelRig';
 import type { Interactable, Teleport } from './Interact';
@@ -50,7 +49,7 @@ import { buildRealms, type RealmApi } from './Realms';
 import type { PortalLink } from './Portal';
 import { deadAt, EYE, eyeDistance, frozenAt, pathAt, RIVER, RIVER_LEVEL, riverAt, riverDistance, sandAt, streamAt, Terrain, WORLD } from './Terrain';
 import { mistLayers } from '../render/LeanFx';
-import { stoneArch, witchBridgeDeck, type StoneArch } from './Walkways';
+import { witchBridgeDeck, woodArch } from './Walkways';
 import { floatingLeaf, lilyPond, mudPool, river } from './Water';
 
 /**
@@ -127,36 +126,19 @@ function grillSparkle(npc: Npc): { group: Group; update(dt: number): void } {
 }
 
 /**
- * The crypt skeletons' eyes burn green in their sockets (DeldocTvFiB): two small points carried by the head bone
- * (SkullEyes), placed from the bind pose. (They were set from the body's yaw off the head joint, so a turned or bowed
- * head left a green blob hanging beside the skull: the playtest of 2026-11-12.)
+ * Rattlebones' green eyes, the ones painted on his model (skeleton-red, DeldocTvFiB), burning (Materials.patchGreenGlow).
+ * (Green glows hung in front of the skulls by a guessed socket offset missed the sockets: the playtests of 2026-11-12
+ * and 2026-11-14. The user: verify them or remove them. Removed; the model's own eyes glow instead.)
  */
-function skullEyes(npc: Npc): { group: Group; update(dt: number): void } {
-  const group = new Group();
-  const eyes = [0, 1].map(() => { const s = glowSprite(PALETTE.witch, 0.06, 0.95, true); group.add(s); return s; });
-  let head: Object3D | null = null;
-  let local: Vector3[] | null = null;
-  const at = new Vector3();
+function greenEyes(npc: Npc): { group: Group; update(dt: number): void } {
+  let done = false;
   return {
-    group,
+    group: new Group(),
     update: () => {
-      if (!head && npc.rig.model) head = npc.rig.model.bone(/head$/i);
-      if (head && !local) {
-        // The head's world matrix at bind, from the skinned mesh that it drives.
-        let skinned: SkinnedMesh | null = null;
-        npc.rig.model!.root.traverse((o) => { if (!skinned && (o as SkinnedMesh).isSkinnedMesh && (o as SkinnedMesh).skeleton.bones.includes(head as Bone)) skinned = o as SkinnedMesh; });
-        const sm = skinned as SkinnedMesh | null;
-        if (sm) {
-          sm.updateWorldMatrix(true, false);
-          const i = sm.skeleton.bones.indexOf(head as Bone);
-          const bind = new Matrix4().multiplyMatrices(sm.matrixWorld, sm.bindMatrix).multiply(sm.skeleton.boneInverses[i].clone().invert());
-          local = socketsInBone(bind, npc.yaw);
-        }
-      }
-      group.visible = !!local;
-      if (!head || !local) return;
-      head.updateWorldMatrix(true, false);
-      local.forEach((l, k) => eyes[k].position.copy(at.copy(l).applyMatrix4(head!.matrixWorld)));
+      if (done || !npc.rig.model) return;
+      // (Once per material: the plaza's skeleton-red shares Rattlebones' file and its materials.)
+      for (const m of npc.rig.model.materials) if (!m.userData.greenEyes) { patchGreenGlow(m); m.userData.greenEyes = true; }
+      done = true;
     },
   };
 }
@@ -337,7 +319,7 @@ export class World {
     /** Yung Lean's quest: is the lost sound there to find, and the hero took it. */
     soundWanted?: () => boolean; foundSound?: () => void;
     /** A small prize for a feat in the world ('eyes': every sky eye shot). */
-    reward?: (what: string) => void;
+    reward?: (what: string, line?: string) => void;
     /** The world swirls (a sip from the Lean Quarter's fountains). */
     trip?: (strength: number, seconds: number) => void;
     /** The game's event bus: zone changes and the world's own feats (a fountain sip) are announced on it. */
@@ -430,15 +412,14 @@ export class World {
     const vfx = (f: { group: Group; update: (dt: number) => void }) => { this.target.add(f.group); this.extras.push(f); this.zoneOf.set(f, this.zone); };
 
     // --- walkways ---
-    // The two crossings over the chasm are stone arches like the gorge's (the playtest of 2026-11-13): the causeway on
-    // the road to the head, and the west one by the cathedral. Each is the witches' bridge model scaled whole to its
-    // span; its stepped deck is the collider, and the lower bank climbs to it by treads.
-    const arches: StoneArch[] = [];
+    // The two crossings over the chasm are the eye's wooden arched footbridge, like the gorge's (stone arches until the
+    // playtest of 2026-11-14: "put this kind of bridge in here instead of that big wide bridge"): the causeway on the
+    // road to the head, and the west one by the cathedral. The lower bank climbs to each by treads.
     const arch = (cx: number, cz: number, length: number) => {
-      const a = stoneArch(cx, cz, length, 'z', h, { steps: true });
+      const a = woodArch(cx, cz, length, 'z', h, MODELS['chasm-bridge'].height, { steps: true });
       this.place(a);
-      this.place(modelLandmark('witch-bridge', cx, cz, a.baseY, { yaw: a.yaw, scale: a.scale, collider: 'none', onLoad: () => { a.object.visible = false; a.object.userData.hidden = true; } }));
-      arches.push(a);
+      flora('chasm-bridge', a.tiles);
+      dressBridge({ flora, vfx }, a.posts, rnd);
     };
     const cw = LAYOUT.causeway;
     arch(cw.x, (cw.zStart + cw.zEnd) / 2, cw.zStart - cw.zEnd);
@@ -674,7 +655,7 @@ export class World {
       const at = new Vector3();
       this.interactables.push({ pos: at, range: 3.6, zone: null, label: () => { at.copy(boat.root.position); return 'Climb into the boat'; }, act: () => this.hooks.board?.(b) });
     }
-    this.place(witchStream((z) => terrain.streamCentre(z), LAYOUT.coven.zMin, LAYOUT.coven.zMax, LAYOUT.coven.bridgeZ, deck.deckY, h, {
+    this.place(witchStream((z) => terrain.streamCentre(z), LAYOUT.coven.zMin, LAYOUT.coven.tail.zTo, LAYOUT.coven.bridgeZ, deck.deckY, h, {
       shoot: (from, s) => this.hooks.shoot?.(from, s),
       hurt: (atk, poison) => this.hooks.hurt?.(atk, poison),
     }));
@@ -749,16 +730,6 @@ export class World {
     this.place(modelLandmark('cauldron', pot.x, pot.z, potY, { color: PALETTE.witch }));
     vfx(fire(pot.x, potY - 0.1, pot.z, 0.7, 14));
     for (const l of LANDMARKS) if (!spotted.has(l.id)) console.error(`LANDMARKS entry ${l.id} was never placed`);
-    // Lanterns and candles along the arches' parapets.
-    const lanternSpots: Placement[] = [];
-    const candleSpots: Placement[] = [];
-    arches.flatMap((a) => a.posts).forEach((p, i) => {
-      if (i % 6 === 0) lanternSpots.push({ x: p.x, y: p.y, z: p.z, yaw: 0, scale: 1 });
-      else if (i % 2 === 0) { candleSpots.push({ x: p.x, y: p.y, z: p.z, yaw: 0, scale: 1 }); vfx(fire(p.x, p.y + 0.3, p.z, 0.1, 1.2)); }
-    });
-    flora('lantern-post', lanternSpots);
-    flora('candle', candleSpots, { shadows: false });
-    for (const p of lanternSpots) { const halo = glowSprite(PALETTE.blood, 2.4, 0.45, true); halo.position.set(p.x, p.y + 2.1, p.z); this.group.add(halo); }
 
     // --- flora and biomes ---
     // (The view from the spawn down the mushroom road to the eye stays open: no pines in it.)
@@ -872,7 +843,7 @@ export class World {
     // The vale tavern's taproom behind its front door.
     this.interactables.push(...buildTavernRoom(realmApi, (x, y, z, yaw, name) => this.hooks.teleport?.(x, y, z, yaw, name)));
     // Inside the island castle, by its gate: the Moon Throne Hall.
-    this.interactables.push(...buildCastleHall(realmApi, (x, y, z, yaw, name) => this.hooks.teleport?.(x, y, z, yaw, name), (what) => this.hooks.reward?.(what), h));
+    this.interactables.push(...buildCastleHall(realmApi, (x, y, z, yaw, name) => this.hooks.teleport?.(x, y, z, yaw, name), (what, line) => this.hooks.reward?.(what, line), h));
     // The crypt bar under the Lean Quarter's snow chapel.
     this.interactables.push(...buildCryptRoom(realmApi, (x, y, z, yaw, name) => this.hooks.teleport?.(x, y, z, yaw, name)));
     buildDream(realmApi);
@@ -951,10 +922,13 @@ export class World {
     if (brother) { this.enterZone(TREEHOUSE_ROOM.id); vfx(grillSparkle(brother)); }
     const diver = this.npcs.find((n) => n.def.id === 'diver');
     if (diver) { this.enterZone(SUNKEN.id); vfx(helmetGlow(diver)); }
-    // The crypt bar's skeletons: green eyes, and gold grills catching the candlelight.
+    // The crypt bar's skeletons: Rattlebones' painted green eyes burning, and gold grills catching the candlelight.
     // (Each effect goes into the group of the realm its body is in: vfx() builds into the zone entered last.)
     this.enterZone(CRYPT_ROOM.id);
-    for (const n of this.npcs) if (n.def.id.startsWith('crypt-')) { vfx(skullEyes(n)); if (n.def.id !== 'crypt-bones') vfx(grillSparkle(n)); }
+    for (const n of this.npcs) if (n.def.id.startsWith('crypt-')) { if (n.def.id === 'crypt-red') vfx(greenEyes(n)); if (n.def.id !== 'crypt-bones') vfx(grillSparkle(n)); }
+    // Their two kin sipping on the kingdom's plaza (data/folk.ts, the playtest of 2026-11-14): the same eyes and grills.
+    this.enterZone(GALAXY.id);
+    for (const n of this.npcs) if (n.def.id === 'folk-k-f' || n.def.id === 'folk-k-g') { if (n.def.model === 'skeleton-red') vfx(greenEyes(n)); vfx(grillSparkle(n)); }
     const skeletonLord = this.npcs.find((n) => n.def.id === 'skeleton-lord');
     if (skeletonLord) { this.enterZone(GALAXY.id); vfx(bluntInHand(skeletonLord)); }
     CARRIAGE.passenger = this.npcs.find((n) => n.def.id === 'carriage-count') ?? null;
@@ -1202,4 +1176,6 @@ const LANDMARK_CLEARINGS = [
   { x: 88, z: -103, r: 12 }, // the colossus's shore walk
   { x: LAYOUT.worldTree.x, z: LAYOUT.worldTree.z, r: 23 }, { x: LAYOUT.church.x, z: LAYOUT.church.z, r: 17 }, { x: LAYOUT.treehouse.x, z: LAYOUT.treehouse.z, r: 13 },
   { x: LAYOUT.cathedral.x, z: LAYOUT.cathedral.z, r: 34 }, { x: LAYOUT.floodedRuin.x, z: LAYOUT.floodedRuin.z, r: 11 },
+  // A seated giant's swing and a crown's width more (the Hollow King's arms went through the pines: 2026-11-14).
+  ...ENEMY_SPAWNS.filter((sp) => ENEMY_DEFS[sp.kind].reach).map((sp) => ({ x: sp.x, z: sp.z, r: ENEMY_DEFS[sp.kind].reach! + 4 })),
 ];

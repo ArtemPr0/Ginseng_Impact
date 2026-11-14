@@ -8,7 +8,7 @@
 import { dressGraveyard } from './Pois';
 import { Color, Mesh, type MeshStandardMaterial, Vector3 } from 'three';
 import { ENEMY_SPAWNS } from '../data/enemies';
-import { GRAVE_RING, GRAVEYARD } from '../data/world';
+import { GRAVE_CASTLE, GRAVE_RING, GRAVEYARD } from '../data/world';
 import { MODELS } from '../data/models';
 import { fireflies } from '../render/Fireflies';
 import { patchRetint } from '../render/Materials';
@@ -145,7 +145,7 @@ export function buildGraveyard(api: GraveyardApi): { links: PortalLink[]; intera
   api.place(modelLandmark('ring-portal', R.x, R.z - 45, y0, { collider: 'none', scale: 1.6 }));
 
   // The end: the cyclops's arena before the gothic tower and its two round towers.
-  api.place(modelLandmark('tower', R.x, zArena - 27, y0 - 0.5, { onLoad: (m) => restyle(m, (mat) => { mat.color.multiplyScalar(0.4); }) }));
+  api.place(modelLandmark('tower', GRAVE_CASTLE.x, GRAVE_CASTLE.z, y0 - 0.5, { onLoad: (m) => restyle(m, (mat) => { mat.color.multiplyScalar(0.4); }) }));
   for (const side of [-1, 1]) api.place(modelLandmark('round-tower', R.x + side * 14, zArena - 20, y0 - 0.3));
   for (const [x, z] of [[-8, zArena + 6], [8, zArena + 6], [-10, zArena - 10], [10, zArena - 10]] as const) {
     api.place(modelLandmark('brazier', R.x + x, z, y0, { collider: 'none' }));

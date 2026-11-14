@@ -340,6 +340,27 @@ export function patchLitWindows(mat: MeshStandardMaterial, strength = 2.2, glow 
 }
 
 /**
+ * Makes a model's painted green glow (skeleton-red's green eyes: the crypt bar, DeldocTvFiB). Texels whose green
+ * clearly beats red and blue light up in that green; the bloom does the rest. Nothing is added on top of the model.
+ */
+export function patchGreenGlow(mat: MeshStandardMaterial, strength = 2.4): void {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (shader, renderer) => {
+    prev?.call(mat, shader, renderer);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        {
+          vec3 c = diffuseColor.rgb;
+          float green = smoothstep(0.06, 0.2, c.g - max(c.r, c.b)) * smoothstep(0.15, 0.4, c.g);
+          totalEmissiveRadiance += vec3(0.35, 1.0, 0.3) * green * ${strength.toFixed(2)};
+        }`);
+  };
+  const prevKey = mat.customProgramCacheKey.bind(mat);
+  mat.customProgramCacheKey = () => `${prevKey()}|greenglow:${strength}`;
+  mat.needsUpdate = true;
+}
+
+/**
  * Re-colours a model's texture: its colours drain to their brightness and take `tint` instead, keeping its warm bright
  * texels (painted fire, candle flames) as they are. The drowned tavern's blue-green stone becomes the vale tavern's
  * soot-warm hearth wall this way.

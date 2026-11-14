@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { stoneArch, WITCH_BRIDGE } from './Walkways';
+import { stoneArch, WITCH_BRIDGE, woodArch } from './Walkways';
 import type { Footprint } from './Colliders';
 
 // A chasm between two banks, like the island's (rims at z -34 and -79, the cloud sea at -90 below): the south bank at
@@ -63,5 +63,60 @@ describe('a humpback footbridge sized to its crossing', () => {
     for (const e of ends) expect(Math.abs(e.top - bank)).toBeLessThan(0.45);
     expect(d.deckY - bank).toBeGreaterThan(1.2);
     expect(deck[0].hd).toBeCloseTo(2.3 * 18 / 22, 6);
+  });
+});
+
+// The wooden arched footbridge of the eye (#28) at the chasm's and the gorge's lengths (the playtest of 2026-11-14:
+// "put this kind of bridge in here as well, instead of that big wide bridge").
+describe('a wooden arched footbridge across a chasm', () => {
+  const TILE = 0.2;
+  const a = woodArch(0, -56, 52, 'z', ground, TILE, { steps: true });
+  const deck = boxes(a.footprints).filter((f) => Math.abs(f.x) < 0.01 && f.top - f.bottom! < 1).sort((p, q) => q.z - p.z);
+
+  it('runs along z from rim to rim, narrow like the eye bridge', () => {
+    const zs = deck.map((f) => f.z);
+    expect(Math.max(...zs) - Math.min(...zs)).toBeGreaterThan(51);
+    expect(Math.max(...zs)).toBeLessThan(-29);
+    expect(Math.min(...zs)).toBeGreaterThan(-83);
+    expect(deck[0].hw).toBeLessThan(1.6);
+  });
+
+  it('starts both ends at the higher bank and arches a few metres over the middle', () => {
+    expect(Math.abs(deck[0].top - 4.3)).toBeLessThan(0.3);
+    expect(Math.abs(deck.at(-1)!.top - 4.3)).toBeLessThan(0.3);
+    expect(a.deckY - 4.3).toBeGreaterThan(3);
+    expect(a.deckY - 4.3).toBeLessThan(8);
+  });
+
+  it('has a deck with no step a walker would trip on, and railings both sides', () => {
+    for (let i = 1; i < deck.length; i++) expect(Math.abs(deck[i].top - deck[i - 1].top)).toBeLessThan(0.15);
+    const rails = boxes(a.footprints).filter((f) => Math.abs(f.x) > 1 && Math.abs(f.x) < 2 && f.z < -31 && f.z > -81);
+    expect(rails.filter((f) => f.x > 0).length).toBeGreaterThan(20);
+    expect(rails.filter((f) => f.x < 0).length).toBeGreaterThan(20);
+  });
+
+  it('climbs from the lower bank onto the deck by steps no higher than a stair', () => {
+    const north = boxes(a.footprints).filter((f) => f.z < -82).sort((p, q) => q.z - p.z);
+    expect(north.length).toBeGreaterThan(1);
+    expect(north.at(-1)!.top - 3.2).toBeLessThan(0.4);
+    for (let i = 1; i < north.length; i++) expect(north[i - 1].top - north[i].top).toBeLessThan(0.4);
+  });
+
+  it('lays plank tiles end to end along the arch, pitched with it, and posts along both rails', () => {
+    const zs = a.tiles.map((t) => t.z).sort((p, q) => p - q);
+    expect(zs.at(-1)! - zs[0]).toBeGreaterThan(48);
+    for (let i = 1; i < zs.length; i++) expect(zs[i] - zs[i - 1]).toBeLessThan(3.5);
+    // Rising toward the crown from the south end (z -30, heading -z): nose up there, down past the middle.
+    const south = a.tiles.find((t) => t.z > -40)!;
+    const north = a.tiles.find((t) => t.z < -72)!;
+    expect(Math.sign(south.pitch)).toBe(-Math.sign(north.pitch));
+    expect(a.posts.length).toBeGreaterThan(20);
+  });
+
+  it('runs along x too (the gorge), its tiles turned to the span', () => {
+    const g = woodArch(-65, -124, 28, 'x', (x) => (Math.abs(x + 65) < 13 ? -20 : 6), TILE);
+    const xs = g.tiles.map((t) => t.x);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(24);
+    for (const t of g.tiles) { expect(t.z).toBeCloseTo(-124, 6); expect(Math.abs(Math.sin(t.yaw))).toBeCloseTo(1, 6); }
   });
 });

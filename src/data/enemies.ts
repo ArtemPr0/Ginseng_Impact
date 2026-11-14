@@ -1,13 +1,25 @@
 import type { BrainParams } from '../combat/EnemyBrain';
 import type { Element } from '../combat/Elements';
 
-export type EnemyKind = 'beast' | 'bucket' | 'crystalsentry' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity' | 'cyclops' | 'cyclops-lord' | 'blood-eye' | 'trip-wizard' | 'galaxy-knight' | 'mail-knight' | 'diamond-wizard' | 'fish-guard' | 'angler' | 'grave-skeleton' | 'koi' | 'jellyfish' | 'archway-shade' | 'brazier-hermit' | 'vale-knight' | 'grouper';
+export type EnemyKind = 'beast' | 'bucket' | 'crystalsentry' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity' | 'cyclops' | 'cyclops-lord' | 'blood-eye' | 'trip-wizard' | 'galaxy-knight' | 'mail-knight' | 'diamond-wizard' | 'fish-guard' | 'angler' | 'grave-skeleton' | 'koi' | 'jellyfish' | 'archway-shade' | 'brazier-hermit' | 'vale-knight' | 'octopus' | 'necromancer' | 'grave-witch';
 
 /** What can circle a mob, and the projectile each flies as when thrown. */
-export type OrbitModel = 'gem' | 'lean-cup';
-export const ORBIT_SHOT: Record<OrbitModel, 'gem' | 'cup'> = { gem: 'gem', 'lean-cup': 'cup' };
+/** How a thrown thing trails, bursts and turns in the air (combat/Throws). */
+export type ThrowTrail = 'fire' | 'witchfire' | 'water' | 'poison' | 'frost' | 'sparkle';
+export type ThrowBurst = 'crater' | 'witchfire' | 'splash' | 'poison' | 'frost' | 'shatter';
+export type ThrowSpin = 'tumble' | 'frisbee' | 'flop' | 'face';
+/**
+ * A thing of its own place a boss throws (the playtest of 2026-11-14: no more plain bolts and pale glows): a model id,
+ * how tall it is (m), its trail, its burst, how it turns; `face` turns the model so its front leads (radians), `tint`
+ * recolours it.
+ */
+export interface ThrowLook { model: string; size: number; trail: ThrowTrail; burst: ThrowBurst; spin: ThrowSpin; face?: number; tint?: number }
 
-export type BossAttackKind = 'slam' | 'boulder' | 'roar' | 'volley' | 'summon' | 'blink' | 'roots' | 'sweep' | 'breath' | 'charge' | 'bite' | 'logthrow' | 'punch' | 'grab' | 'cupmortar' | 'cupvolley' | 'snowstorm' | 'web' | 'webdrop' | 'hop' | 'kaleido' | 'eyebeam' | 'mirror' | 'glare' | 'thorns' | 'rainbow' | 'diamond';
+export type OrbitModel = 'gem' | 'lean-cup' | 'barrel';
+/** How a circling thing flies when thrown: a gem, a double cup, or the model itself tumbling (a barrel). */
+export const ORBIT_SHOT: Record<OrbitModel, 'gem' | 'cup' | 'prop'> = { gem: 'gem', 'lean-cup': 'cup', barrel: 'prop' };
+
+export type BossAttackKind = 'slam' | 'boulder' | 'roar' | 'volley' | 'summon' | 'blink' | 'roots' | 'sweep' | 'breath' | 'charge' | 'bite' | 'logthrow' | 'punch' | 'grab' | 'cupmortar' | 'cupvolley' | 'snowstorm' | 'web' | 'webdrop' | 'hop' | 'kaleido' | 'eyebeam' | 'mirror' | 'glare' | 'thorns' | 'rainbow' | 'diamond' | 'tentacle' | 'ink' | 'whirlpool';
 
 export interface BossAttack { kind: BossAttackKind; range: number; windup: number; recover: number; weight: number }
 
@@ -55,22 +67,30 @@ export interface EnemyDef {
   flyAbove?: number;
   /** A body that is not a model: a living bubble of lean (render/LeanBubble), `bodyRadius` across. */
   body?: 'bubble';
+  /** You can stand on it (combat/Solid): a cylinder `r` metres wide whose top is `top` metres over its feet. */
+  solid?: { r: number; top: number };
+  /** A seated giant's sweep, metres from its feet (arms and weapon at full swing): trees and landmarks keep beyond it (World.ts). */
+  reach?: number;
   /** Drawn as the dream sees it: every colour at once (render/Materials patchTrippy). */
   trippy?: boolean;
   /**
-   * A giant eye (the Blood Eye): its iris and pupil are drawn over the model and follow the hero (render/EyeIris): the
-   * eyeball's radius out to just over its painted pupil and the iris's radius (fractions of the model's height), and
-   * the way the eye looks (x, y of a unit vector, z forward). blood-eye.glb, measured from its mesh and texture: the
-   * painted pupil is a dome 0.2 across centred on (0.03, 0.22) with its peak 0.66 out (of 1.893), so the eye looks
-   * 19 degrees up; the eye tilts to put that on the hero.
+   * A giant eye (the Blood Eye): the body tilts so its own painted pupil looks at the hero. `axis` is the way the eye
+   * looks (x, y of a unit vector, z forward): blood-eye.glb's painted pupil is centred on (0.03, 0.22), so the eye
+   * looks 19 degrees up. (A drawn iris laid over it was removed on 2026-11-14: it read as
+   * a second pupil.)
    */
-  eye?: { iris: number; ball: number; size: number; axis: [number, number] };
+  eye?: { axis: [number, number] };
   /** Colour of its eye beam (default the dream's cyan). */
   beamColor?: number;
   /** Its texture glows (emissive from its own colours) at this strength: the Blood Eye burns in the night. */
   glow?: number;
   /** Things circling it (a model, this many): its 'diamond' attack throws the one nearest the hero (ORBIT_SHOT). */
-  orbit?: { model: OrbitModel; count: number };
+  /** What circles it, how far out (m, default 1.6) and how high over its feet (default 1.5), at what size (default 1). */
+  orbit?: { model: OrbitModel; count: number; radius?: number; height?: number; size?: number };
+  /** Its body is one unrigged octopus mesh whose arms move in the shader (combat/OctopusBody). */
+  tentacles?: boolean;
+  /** What its volley and its boulder throw instead of a plain bolt (combat/Throws). */
+  throws?: ThrowLook;
   /** Lines it says (ids in data/voices): when it spots you, as it throws, as it dies, and when you fall. */
   voices?: { aggro: string[]; attack: string[]; death: string[]; win: string[] };
 }
@@ -88,6 +108,8 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   // stamps, throws stones, and sweeps the bank with the yellow beam of his eye.
   cyclops: {
     kind: 'cyclops', stomp: true, name: 'The Cyclops', title: 'Who Wades the Eye', maxHp: 8800, def: 85, atk: 160, speed: 2.4, element: 'stone', hover: 0, bodyRadius: 2.2, height: 9, boss: true,
+    // A flaming boulder (the boulder was a 10 m pale glow: the playtest of 2026-11-14).
+    throws: { model: 'boulder', size: 1.8, trail: 'fire', burst: 'crater', spin: 'tumble' },
     neutral: true, floatAt: 0.9, beamColor: 0xffd23a, glow: 1.1,
     brain: { aggroRange: 22, attackRange: 7, windup: 1.0, recover: 1.4, attackCooldown: 1.0 }, respawn: 300, leash: 8, shards: [200, 300],
     attacks: [{ kind: 'slam', range: 8, windup: 1.0, recover: 1.4, weight: 3 }, { kind: 'boulder', range: 24, windup: 1.0, recover: 1.1, weight: 2 }, { kind: 'eyebeam', range: 26, windup: 1.1, recover: 1.3, weight: 2 }, { kind: 'roar', range: 14, windup: 1.0, recover: 1.4, weight: 1 }],
@@ -96,6 +118,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   // The cyclops at the end of the Alley of Graves (01.16.54), before the gothic tower: he throws the graves.
   'cyclops-lord': {
     kind: 'cyclops-lord', stomp: true, name: 'The Grave Cyclops', title: 'Keeper of the Alley', maxHp: 10500, def: 95, atk: 175, speed: 3.0, element: 'stone', hover: 0, bodyRadius: 1.9, height: 7, boss: true,
+    throws: { model: 'boulder', size: 2.3, trail: 'fire', burst: 'crater', spin: 'tumble' },
     beamColor: 0xffd23a, glow: 1.0,
     brain: { aggroRange: 24, attackRange: 6, windup: 0.9, recover: 1.3, attackCooldown: 0.9 }, respawn: 300, leash: 22, shards: [260, 360],
     attacks: [{ kind: 'slam', range: 7, windup: 0.9, recover: 1.3, weight: 3 }, { kind: 'boulder', range: 24, windup: 0.9, recover: 1.0, weight: 3 }, { kind: 'eyebeam', range: 26, windup: 1.0, recover: 1.2, weight: 2 }, { kind: 'roar', range: 14, windup: 1.0, recover: 1.4, weight: 1 }],
@@ -105,7 +128,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   // its thorns, and pins whoever meets its glare.
   'blood-eye': {
     kind: 'blood-eye', name: 'The Blood Eye', title: 'That Watches the Chasm', maxHp: 7600, def: 60, atk: 150, speed: 3.5, element: 'blood', hover: 0, bodyRadius: 2.6, height: 6, boss: true,
-    flying: true, flyAbove: 14, floatAt: 10, eye: { iris: 0x3a5cff, ball: 0.35, size: 0.135, axis: [0.035, 0.32] }, beamColor: 0xff2a2a, glow: 1.0,
+    flying: true, flyAbove: 14, floatAt: 10, eye: { axis: [0.035, 0.32] }, beamColor: 0xff2a2a, glow: 1.0,
     brain: { aggroRange: 34, attackRange: 30, windup: 1.0, recover: 1.2, attackCooldown: 0.9, preferredRange: 16 }, respawn: 300, leash: 40, shards: [220, 320],
     attacks: [{ kind: 'eyebeam', range: 30, windup: 1.0, recover: 1.2, weight: 3 }, { kind: 'thorns', range: 26, windup: 1.0, recover: 1.2, weight: 2 }, { kind: 'glare', range: 30, windup: 1.4, recover: 1.0, weight: 2 }],
     drops: [{ itemId: 'lurker-eye', chance: 1 }, { itemId: 'star-chart', chance: 1 }],
@@ -128,7 +151,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   // The Frog King as he really is, in his dream: a seven-metre god of every colour, floating over the fractal floor.
   // Rings of tripping orbs, a sweeping stare, a leap that lands where you stand, and reflections of himself.
   'dmt-entity': {
-    kind: 'dmt-entity', name: 'The Frog God', title: 'Who Dreams You Back', maxHp: 3400, def: 50, atk: 110, speed: 3, element: 'astral', hover: 0.5, bodyRadius: 2.4, height: 7, boss: true, trippy: true,
+    kind: 'dmt-entity', name: 'The Frog God', title: 'Who Dreams You Back', maxHp: 3400, def: 50, atk: 110, speed: 3, element: 'astral', hover: 0.5, bodyRadius: 2.4, height: 7, boss: true, trippy: true, solid: { r: 3.2, top: 5.4 },
     brain: { aggroRange: 55, attackRange: 30, windup: 1.0, recover: 1.1, attackCooldown: 0.6, preferredRange: 11 }, respawn: 20, leash: 60, shards: [420, 520],
     attacks: [
       { kind: 'kaleido', range: 30, windup: 1.0, recover: 1.0, weight: 3 },
@@ -142,7 +165,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   // The chapel on spider legs (DdmvaMvMvS4): it stalks the kingdom's snowfield past the graves on its own legs (no longer
   // hung in the sky over the island's west rim, 2026-11-03: dangling legs read as broken), and when you come near it spits webs that pin you where you stand and drops nets over where you are.
   spiderchapel: {
-    kind: 'spiderchapel', name: 'The Spider Chapel', title: 'That Walks the Snow', maxHp: 9500, def: 85, atk: 140, speed: 4.5, element: 'fog', hover: 0, bodyRadius: 7, height: 28, boss: true,
+    kind: 'spiderchapel', name: 'The Spider Chapel', title: 'That Walks the Snow', maxHp: 9500, def: 85, atk: 140, speed: 4.5, element: 'fog', hover: 4.5, bodyRadius: 7, height: 28, boss: true,
     brain: { aggroRange: 18, attackRange: 18, windup: 1.0, recover: 1.4, attackCooldown: 1.2, preferredRange: 14 }, respawn: 360, leash: 60, shards: [260, 360],
     attacks: [{ kind: 'web', range: 36, windup: 1.0, recover: 1.4, weight: 3 }, { kind: 'webdrop', range: 30, windup: 1.2, recover: 1.5, weight: 2 }],
     drops: [{ itemId: 'star-chart', chance: 1 }, { itemId: 'rune-shard', chance: 1 }],
@@ -173,6 +196,8 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   // Yung Lean himself, off his throne when you challenge him: digital snow, cups, his ghouls.
   'rift-king': {
     kind: 'rift-king', summons: 'styro-ghoul', name: 'Yung Lean', title: 'King of the Sad Side of the World', maxHp: 9000, def: 80, atk: 135, speed: 3.6, element: 'astral', hover: 0, bodyRadius: 0.7, height: 1.85, boss: true,
+    // Diamonds (the Lean Quarter's own sparkle), cut and glinting.
+    throws: { model: 'gem', size: 0.8, trail: 'sparkle', burst: 'shatter', spin: 'tumble', tint: 0x8fc8ff },
     brain: { aggroRange: 34, attackRange: 14, windup: 1.0, recover: 1.2, attackCooldown: 0.7, preferredRange: 7 }, respawn: 1e9, leash: 45, shards: [300, 400],
     attacks: [{ kind: 'snowstorm', range: 24, windup: 1.2, recover: 1.0, weight: 3 }, { kind: 'cupmortar', range: 20, windup: 0.8, recover: 1.0, weight: 2 }, { kind: 'summon', range: 30, windup: 1.3, recover: 1.5, weight: 1 }, { kind: 'volley', range: 18, windup: 0.9, recover: 1.0, weight: 2 }],
     drops: [{ itemId: 'moon-dew', chance: 1 }],
@@ -206,6 +231,26 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     kind: 'vale-knight', name: 'Vale Knight', maxHp: 950, def: 46, atk: 104, speed: 3.6, element: 'lunar', hover: 0, bodyRadius: 0.5, height: 1.9,
     brain: { aggroRange: 12, attackRange: 2.4, windup: 0.5, recover: 0.9, attackCooldown: 0.7 }, respawn: 120, leash: 22, shards: [12, 22],
     drops: [{ itemId: 'beast-fang', chance: 0.3 }, { itemId: 'moon-dew', chance: 0.3 }],
+  },
+  // The castle at the end of the Alley of Graves (the playtest of 2026-11-14: "add some witchcraft, necromancy, skeleton
+  // mobs on and around the mountain castle"): necromancers in the reel's hooded robes, purple bolts, raising the risen
+  // dead; witches on the castle's rock who never walk (their model has no rig: a walk only slid them along) but hex the
+  // ground under you and throw green bolts.
+  necromancer: {
+    kind: 'necromancer', summons: 'grave-skeleton', name: 'Grave Necromancer', maxHp: 900, def: 34, atk: 96, speed: 3.0, element: 'astral', hover: 0, bodyRadius: 0.5, height: 2.0,
+    // Skulls in violet witchfire, teeth first.
+    throws: { model: 'giant-skull', size: 0.75, trail: 'witchfire', burst: 'witchfire', spin: 'face' },
+    brain: { aggroRange: 14, attackRange: 14, windup: 0.7, recover: 1.0, attackCooldown: 0.9, preferredRange: 8 }, respawn: 120, leash: 14, shards: [14, 24],
+    attacks: [{ kind: 'volley', range: 14, windup: 0.8, recover: 1.0, weight: 3 }, { kind: 'summon', range: 16, windup: 1.2, recover: 1.5, weight: 1 }, { kind: 'blink', range: 8, windup: 0.4, recover: 0.4, weight: 1 }, { kind: 'sweep', range: 2.6, windup: 0.6, recover: 1.0, weight: 2 }],
+    drops: [{ itemId: 'old-bone', chance: 0.6 }, { itemId: 'moon-dew', chance: 0.3 }], glow: 0.35,
+  },
+  'grave-witch': {
+    kind: 'grave-witch', name: 'Grave Witch', maxHp: 700, def: 26, atk: 88, speed: 0, element: 'rot', hover: 0, bodyRadius: 0.5, height: 1.85,
+    // Her brews, bottle and all: they smash and pool poison where they land.
+    throws: { model: 'potion-bottle', size: 0.7, trail: 'poison', burst: 'poison', spin: 'tumble', tint: 0x6aff3a },
+    brain: { aggroRange: 16, attackRange: 18, windup: 0.8, recover: 1.2, attackCooldown: 1.1, preferredRange: 10 }, respawn: 120, leash: 4, shards: [12, 20],
+    attacks: [{ kind: 'roots', range: 18, windup: 0.9, recover: 1.2, weight: 3 }, { kind: 'volley', range: 16, windup: 0.8, recover: 1.0, weight: 2 }],
+    drops: [{ itemId: 'moon-dew', chance: 0.4 }], glow: 0.35,
   },
   // The giant who hauls logs on his back: leave him be and he walks his road; hit him and he throws the logs.
   loggiant: {
@@ -266,12 +311,15 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   },
   yeti: {
     kind: 'yeti', stomp: true, name: 'The Yeti', title: 'Lord of the Frozen Grove', maxHp: 7000, def: 80, atk: 160, speed: 3.4, element: 'lunar', hover: 0, bodyRadius: 1.3, height: 3.2, boss: true,
+    // A chunk of ice off the March (a crystal, iced blue; the frosted rock stayed a dark rock), shedding snow.
+    throws: { model: 'purple-crystal', size: 1.4, trail: 'frost', burst: 'frost', spin: 'tumble', tint: 0x9fd8ff },
     brain: { aggroRange: 18, attackRange: 4, windup: 0.8, recover: 1.3, attackCooldown: 0.9 }, respawn: 240, leash: 30, shards: [160, 240],
     attacks: [{ kind: 'slam', range: 5, windup: 0.9, recover: 1.4, weight: 3 }, { kind: 'boulder', range: 20, windup: 0.9, recover: 1.0, weight: 2 }, { kind: 'roar', range: 12, windup: 1.0, recover: 1.5, weight: 1 }],
     drops: [{ itemId: 'glacier-maul', chance: 1 }, { itemId: 'yeti-pelt', chance: 1 }, { itemId: 'moon-dew', chance: 1 }],
   },
   shade: {
     // (4.5 m, haunting the cathedral's nave: at 10 m out on the shore he towered over everything.)
+    throws: { model: 'giant-skull', size: 0.85, trail: 'witchfire', burst: 'witchfire', spin: 'face' },
     kind: 'shade', name: 'The Horned Shade', title: 'Who Haunts the Cathedral', maxHp: 6200, def: 50, atk: 130, speed: 3.0, element: 'astral', hover: 0.3, bodyRadius: 1.5, height: 4.5, boss: true,
     brain: { aggroRange: 14, attackRange: 12, windup: 0.8, recover: 1.1, attackCooldown: 0.7, preferredRange: 7 }, respawn: 240, leash: 11, shards: [160, 240],
     attacks: [{ kind: 'volley', range: 14, windup: 0.9, recover: 1.0, weight: 3 }, { kind: 'summon', range: 16, windup: 1.2, recover: 1.6, weight: 1 }, { kind: 'blink', range: 10, windup: 0.5, recover: 0.4, weight: 2 }, { kind: 'sweep', range: 3, windup: 0.6, recover: 1.0, weight: 3 }],
@@ -279,6 +327,8 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   },
   rivershade: {
     kind: 'rivershade', name: 'The River Shade', title: 'What Rises from the Water', maxHp: 3800, def: 40, atk: 110, speed: 2.4, element: 'tide', hover: 0.2, bodyRadius: 1.0, height: 3, boss: true, leash: 14,
+    // Koi out of the river, flopping all the way.
+    throws: { model: 'koi', size: 1.1, trail: 'water', burst: 'splash', spin: 'flop' },
     brain: { aggroRange: 15, attackRange: 13, windup: 0.8, recover: 1.0, attackCooldown: 0.8, preferredRange: 7 }, respawn: 200, shards: [90, 140],
     attacks: [{ kind: 'volley', range: 14, windup: 0.8, recover: 1.0, weight: 3 }, { kind: 'summon', range: 18, windup: 1.2, recover: 1.5, weight: 1 }, { kind: 'sweep', range: 4, windup: 0.6, recover: 0.9, weight: 2 }],
     drops: [{ itemId: 'tide-blade', chance: 1 }, { itemId: 'river-pearl', chance: 1 }],
@@ -299,12 +349,15 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   },
   troll: {
     kind: 'troll', stomp: true, name: 'The Gorge Troll', title: 'Red-Eyed Keeper of the Chasm', maxHp: 6400, def: 85, atk: 150, speed: 4.6, element: 'stone', hover: 0, bodyRadius: 1.3, height: 3.2, boss: true, leash: 26,
+    throws: { model: 'boulder', size: 1.7, trail: 'fire', burst: 'crater', spin: 'tumble' },
     brain: { aggroRange: 18, attackRange: 4.5, windup: 0.7, recover: 1.2, attackCooldown: 0.8 }, respawn: 240, shards: [150, 220],
     attacks: [{ kind: 'slam', range: 5, windup: 0.8, recover: 1.3, weight: 3 }, { kind: 'charge', range: 18, windup: 0.7, recover: 1.4, weight: 2 }, { kind: 'boulder', range: 20, windup: 0.9, recover: 1.0, weight: 2 }],
     drops: [{ itemId: 'troll-club', chance: 1 }, { itemId: 'troll-hide', chance: 1 }, { itemId: 'moon-dew', chance: 1 }],
   },
   lurker: {
     kind: 'lurker', name: 'The Lake Lurker', title: 'What Watches from the Shallows', maxHp: 5200, def: 55, atk: 125, speed: 2.2, element: 'tide', hover: 0, floatAt: 0.6, bodyRadius: 1.2, height: 2.8, boss: true, leash: 8,
+    // Lily pads off its own pond, spun flat like plates.
+    throws: { model: 'lily-pad', size: 0.6, trail: 'water', burst: 'splash', spin: 'frisbee' },
     brain: { aggroRange: 14, attackRange: 12, windup: 0.8, recover: 1.0, attackCooldown: 0.8, preferredRange: 7 }, respawn: 220, shards: [130, 200],
     attacks: [{ kind: 'volley', range: 14, windup: 0.8, recover: 1.0, weight: 3 }, { kind: 'sweep', range: 4, windup: 0.6, recover: 0.9, weight: 2 }, { kind: 'summon', range: 16, windup: 1.2, recover: 1.5, weight: 1 }],
     drops: [{ itemId: 'tide-hook', chance: 1 }, { itemId: 'moonstring-bow', chance: 1 }, { itemId: 'lurker-eye', chance: 1 }],
@@ -317,7 +370,8 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   },
   hollowking: {
     // (25 m seated: a king the size of a hill.)
-    kind: 'hollowking', name: 'The Hollow King', title: 'Whose Heart Is a Kingdom', maxHp: 12000, def: 110, atk: 180, speed: 0, element: 'astral', hover: 0, bodyRadius: 6.2, height: 25, boss: true, leash: 1,
+    throws: { model: 'giant-skull', size: 1.1, trail: 'witchfire', burst: 'witchfire', spin: 'face' },
+    kind: 'hollowking', name: 'The Hollow King', title: 'Whose Heart Is a Kingdom', maxHp: 12000, def: 110, atk: 180, speed: 0, element: 'astral', hover: 0, bodyRadius: 6.2, height: 25, boss: true, leash: 1, reach: 26,
     brain: { aggroRange: 34, attackRange: 34, windup: 1.2, recover: 1.6, attackCooldown: 1.0 }, respawn: 400, shards: [320, 460],
     attacks: [{ kind: 'volley', range: 34, windup: 1.2, recover: 1.4, weight: 3 }, { kind: 'summon', range: 34, windup: 1.4, recover: 1.8, weight: 2 }, { kind: 'roar', range: 26, windup: 1.2, recover: 1.6, weight: 1 }],
     drops: [{ itemId: 'hollow-crown', chance: 1 }, { itemId: 'king-rib', chance: 1 }, { itemId: 'star-chart', chance: 1 }],
@@ -327,15 +381,25 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     brain: { aggroRange: 10, attackRange: 3.6, windup: 0.5, recover: 1.0, attackCooldown: 0.6 }, respawn: 60, shards: [8, 14], drops: [{ itemId: 'croc-hide', chance: 0.6 }],
   },
   // Decorative flyers you can shoot: they circle their pools and never fight back.
-  // The Sunken City's boss (the playtest of 2026-11-13): the drowned street's big blue grouper (DeVj-Z8POjl), grown to
-  // the size of a cart, circling the ruined church; it calls the city's anglers when it is losing.
-  grouper: {
-    kind: 'grouper', summons: 'angler', name: 'Big Gerald', title: 'The Grouper Who Swallowed the Church Bell', maxHp: 7400, def: 60, atk: 145, speed: 5.5, element: 'tide', hover: 0, bodyRadius: 2.4, height: 3.2, boss: true,
-    flying: true, flyAbove: 3.5, leash: 30,
-    brain: { aggroRange: 18, attackRange: 12, windup: 0.8, recover: 1.1, attackCooldown: 0.9, preferredRange: 6 }, respawn: 240, shards: [150, 220],
-    attacks: [{ kind: 'bite', range: 5, windup: 0.6, recover: 0.9, weight: 3 }, { kind: 'charge', range: 16, windup: 0.8, recover: 1.4, weight: 2 }, { kind: 'volley', range: 16, windup: 0.8, recover: 1.0, weight: 2 }, { kind: 'summon', range: 18, windup: 1.2, recover: 1.5, weight: 1 }],
+  // The Sunken City's boss: Big Gerald, a massive octopus floating round the drowned church (the playtest of
+  // 2026-11-14: "make a massive octapus as the boss and make his attacks look very cool and animated (not just circles
+  // flying out of it)"). He lifts an arm and slams it where you stand, jets ink, spins the water into a whirlpool that
+  // drags you in, and hurls the barrels he juggles; his anglers come when he calls.
+  octopus: {
+    kind: 'octopus', summons: 'angler', name: 'Big Gerald', title: 'The Octopus Who Stole the Church Bell', maxHp: 8200, def: 60, atk: 145, speed: 4.2, element: 'tide', hover: 0, bodyRadius: 5, height: 3.9, boss: true,
+    flying: true, flyAbove: 3.2, leash: 30, tentacles: true, glow: 0.2,
+    brain: { aggroRange: 20, attackRange: 15, windup: 0.9, recover: 1.0, attackCooldown: 0.8, preferredRange: 9 }, respawn: 240, shards: [170, 240],
+    attacks: [
+      { kind: 'tentacle', range: 15, windup: 0.9, recover: 0.8, weight: 4 },
+      { kind: 'diamond', range: 22, windup: 0.6, recover: 0.6, weight: 3 },
+      { kind: 'ink', range: 12, windup: 0.9, recover: 1.1, weight: 2 },
+      { kind: 'whirlpool', range: 14, windup: 1.1, recover: 1.4, weight: 1 },
+      { kind: 'summon', range: 20, windup: 1.2, recover: 1.5, weight: 1 },
+    ],
+    orbit: { model: 'barrel', count: 6, radius: 7, height: 4.5, size: 1.4 },
     drops: [{ itemId: 'church-bell', chance: 1 }, { itemId: 'tide-hook', chance: 0.5 }],
   },
+
   koi: {
     kind: 'koi', name: 'Flying Koi', maxHp: 80, def: 5, atk: 0, speed: 3.2, element: 'tide', hover: 0, bodyRadius: 0.55, height: 0.6,
     flying: true, flyAbove: 1.9, passive: true, neutral: true, leash: 40,
@@ -379,7 +443,7 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'rivershade', x: -67, z: 38 },    // rising from the witch stream, upstream of the bridge and Old Moss
   { kind: 'passbeast', x: -36, z: -140 },
   // The spider chapel walks its loop in the sky over the west cliffs (it used to be scenery).
-  { kind: 'spiderchapel', x: 965, z: 170, exact: true, patrol: [[965, 170], [977, 162], [975, 188], [955, 182]] },   // the kingdom's snowfield past the graves (off its old perch over the void)
+  { kind: 'spiderchapel', x: 974.3, z: 91.25, exact: true, patrol: [[974.3, 91.25], [980.9, 86.85], [979.8, 101.15], [968.9, 97.85]] },   // the kingdom's snowfield past the graves (off its old perch over the void)
   { kind: 'troll', x: -64, z: -133, exact: true }, // on the gorge floor under the stone bridge
   { kind: 'lurker', x: -24, z: -14 },       // the lily pond's shallows (west of the whirlpool)
   { kind: 'marshdemon', x: 106, z: -13, exact: true },   // waist-deep in his mud pool, east of the cathedral
@@ -403,37 +467,38 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'beast', x: -57, z: 44 }, { kind: 'beast', x: -63, z: 47 },      // west meadow, by the stream (not in it, and off Old Moss's bank)
   // More to meet on the island (2026-11-10: it had ten roaming hostiles): risen dead in the dead wood and by the ruined
   // nave, fog beasts at the gorge's head, crocodiles along the river and in the Marsh Sovereign's mud (DeJj8CDhL2f).
-  { kind: 'grave-skeleton', x: 4, z: -104 }, { kind: 'grave-skeleton', x: 28, z: -112 }, { kind: 'grave-skeleton', x: -14, z: -108 },
+  { kind: 'grave-skeleton', x: 8, z: -108 }, { kind: 'grave-skeleton', x: 28, z: -112 }, { kind: 'grave-skeleton', x: -14, z: -108 },
   { kind: 'beast', x: -61, z: -112 }, { kind: 'beast', x: -65, z: -115 }, // (on the gorge floor below the gorge-head hoard; the head's step and the west wall are cliffs)
   { kind: 'croc', x: 46, z: 12 }, { kind: 'croc', x: 84, z: 8 }, { kind: 'croc', x: 110, z: -6 }, { kind: 'croc', x: 100, z: -8 },
   // Round 9: the archway shades in the dead wood and on the gorge's east rim, the brazier hermits in the kingdom, the
   // vale's knights on its street's far side.
   { kind: 'archway-shade', x: 20, z: -92 }, { kind: 'archway-shade', x: -50, z: -118 },
-  // (The hermits by the Void Monk's ring portals on the kingdom's plaza: their reel is the galaxy cave, not the island.)
-  { kind: 'brazier-hermit', x: 1030, z: 62 }, { kind: 'brazier-hermit', x: 985, z: 70 },
+  // (The hermits behind the Void Monk's ring portals on the kingdom's plaza: their reel is the galaxy cave, not the island.)
+  { kind: 'brazier-hermit', x: 1012, z: 46 }, { kind: 'brazier-hermit', x: 980, z: 44 },
   { kind: 'vale-knight', x: 1035, z: 945 }, { kind: 'vale-knight', x: 960, z: 955 },
   { kind: 'crystalsentry', x: 74, z: 52 }, { kind: 'crystalsentry', x: 70, z: 59 }, // the desert's east end, off the Pale Bride's walk
   // Yung Lean's kingdom: Styro-Ghouls on the lean cups and round the plaza; the Lean-Chucker on the pavilion's throne.
-  // (Off the cups: by the Lean-Chucker's pavilion and along the plaza; the cups belong to the lean bubbles.)
-  { kind: 'styro-ghoul', x: 1028, z: -46 }, { kind: 'styro-ghoul', x: 1043, z: -47 }, { kind: 'styro-ghoul', x: 1040, z: -64 },
-  { kind: 'styro-ghoul', x: 1046, z: 12 },
+  // (Off the cups: by the Lean-Chucker's pavilion and along the plaza; the cups belong to the lean bubbles. Since the
+  // compaction of 2026-11-14 each stands 12 m or more from anyone you talk to and from the plaza's skeletons.)
+  { kind: 'styro-ghoul', x: 1024.5, z: -27 }, { kind: 'styro-ghoul', x: 1026.5, z: -34 }, { kind: 'styro-ghoul', x: 1019, z: -40 },
+  { kind: 'styro-ghoul', x: 1030.5, z: -27.5 },
   // Bubbles bobbing in the lean of each giant cup.
-  { kind: 'lean-bubble', x: 1080, z: 12, exact: true }, { kind: 'lean-bubble', x: 1084, z: 8, exact: true },
-  { kind: 'lean-bubble', x: 1106, z: -10, exact: true }, { kind: 'lean-bubble', x: 1110, z: -14, exact: true }, { kind: 'lean-bubble', x: 1108, z: -9, exact: true },
-  { kind: 'lean-bubble', x: 1134, z: 12, exact: true }, { kind: 'lean-bubble', x: 1138, z: 16, exact: true },
+  { kind: 'lean-bubble', x: 1050.5, z: 5.25, exact: true }, { kind: 'lean-bubble', x: 1054.5, z: 1.25, exact: true },
+  { kind: 'lean-bubble', x: 1063.5, z: -6.85, exact: true }, { kind: 'lean-bubble', x: 1067.5, z: -10.85, exact: true }, { kind: 'lean-bubble', x: 1065.5, z: -5.85, exact: true },
+  { kind: 'lean-bubble', x: 1078, z: 3.45, exact: true }, { kind: 'lean-bubble', x: 1082, z: 7.45, exact: true },
   // The Frog God waits in the middle of the dream.
   { kind: 'dmt-entity', x: 0, z: 2570, exact: true, yaw: Math.PI / 2 },
-  { kind: 'styro-ghoul', x: 978, z: -32 }, { kind: 'styro-ghoul', x: 1022, z: -30 }, { kind: 'styro-ghoul', x: 1045, z: 48 },
-  { kind: 'styro-ghoul', x: 990, z: 52 }, { kind: 'styro-ghoul', x: 1015, z: 44 },
-  // On the front of the pavilion's throne: its seat (x 1034.5–1036.5) is 0.82 m above the dais and his hips sit 0.58 m
+  { kind: 'styro-ghoul', x: 979, z: -23 }, { kind: 'styro-ghoul', x: 1010.5, z: 19 }, { kind: 'styro-ghoul', x: 1000, z: 14 },
+  { kind: 'styro-ghoul', x: 990, z: 20.3 }, { kind: 'styro-ghoul', x: 990, z: 33 },
+  // On the front of the pavilion's throne: its seat (x 1018.64–1020.64) is 0.82 m above the dais and his hips sit 0.58 m
   // above his feet, so a small imp on a big throne sits with his legs dangling over the edge.
-  { kind: 'lean-chucker', x: 1034.3, z: -55, yaw: Math.PI, exact: true, sitY: 24.56 },
+  { kind: 'lean-chucker', x: 1018.44, z: -32.5, yaw: Math.PI, exact: true, sitY: 24.56 },
   // Bucket Street in the kingdom's west quarter (LEAN_QUARTER in data/world.ts): the mimics and the chain-mail knights.
   // (Up and down the street's ends: the stalls and their keepers stand clear of them.)
-  { kind: 'bucket', x: 967, z: 60 }, { kind: 'bucket', x: 951, z: 66 }, { kind: 'bucket', x: 929, z: 58 },
-  { kind: 'bucket', x: 917, z: -24 }, { kind: 'bucket', x: 897, z: -28 }, { kind: 'bucket', x: 881, z: 62 },
-  { kind: 'mail-knight', x: 941, z: 52 }, { kind: 'mail-knight', x: 893, z: 52 }, { kind: 'mail-knight', x: 909, z: 6 },
-  { kind: 'diamond-wizard', x: 933, z: 18, exact: true, yaw: 0 },  // mid-street, where Old Hollowstaff stood
+  { kind: 'bucket', x: 981.96, z: 30.75 }, { kind: 'bucket', x: 973.21, z: 34.05 }, { kind: 'bucket', x: 961.18, z: 29.65 },
+  { kind: 'bucket', x: 936, z: -20.5 }, { kind: 'bucket', x: 966.5, z: -19.5 }, { kind: 'bucket', x: 934.94, z: 31.85 },
+  { kind: 'mail-knight', x: 967.74, z: 25.25 }, { kind: 'mail-knight', x: 941.5, z: 25.25 }, { kind: 'mail-knight', x: 941, z: -21 },
+  { kind: 'diamond-wizard', x: 963.37, z: 7.65, exact: true, yaw: 0 },  // mid-street, where Old Hollowstaff stood
   // The Dragon's Vale's fields (it stood empty): fog beasts roaming the east meadow and the river's far bank, crystal
   // sentries in the stones under the crowned head, a pack by the floating castle's cliff.
   { kind: 'beast', x: 1045, z: 960 }, { kind: 'beast', x: 1052, z: 966 }, { kind: 'beast', x: 1060, z: 900 },
@@ -448,22 +513,28 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'grave-skeleton', x: 911, z: 833 }, { kind: 'grave-skeleton', x: 922, z: 842 }, { kind: 'grave-skeleton', x: 908, z: 842 },
   { kind: 'crystalsentry', x: 1008, z: 850.1 }, { kind: 'crystalsentry', x: 992, z: 842.9 },
   // The kingdom's margins: imps in the purple wood, the dead at their graves.
-  { kind: 'styro-ghoul', x: 913, z: -56 }, { kind: 'styro-ghoul', x: 933, z: -50 }, { kind: 'styro-ghoul', x: 950, z: -60 },
-  { kind: 'mail-knight', x: 865, z: -48 }, { kind: 'grave-skeleton', x: 998, z: 112 }, { kind: 'grave-skeleton', x: 869, z: 88 },
+  { kind: 'styro-ghoul', x: 952.43, z: -33.05 }, { kind: 'styro-ghoul', x: 963.37, z: -29.75 }, { kind: 'styro-ghoul', x: 972.66, z: -35.25 },
+  { kind: 'mail-knight', x: 926.19, z: -28.65 }, { kind: 'grave-skeleton', x: 998.91, z: 58.6 }, { kind: 'grave-skeleton', x: 928.37, z: 46.15 },
   // The drowned land beyond the city: anglers among the wrecks.
   { kind: 'angler', x: -1062, z: -52 }, { kind: 'angler', x: -938, z: -92 }, { kind: 'angler', x: -1066, z: 42 }, { kind: 'angler', x: -942, z: 50 },
   // Beyond the alley's walls.
   { kind: 'grave-skeleton', x: -21, z: -1090 }, { kind: 'grave-skeleton', x: 26, z: -1034 }, { kind: 'grave-skeleton', x: -27, z: -978 }, { kind: 'grave-skeleton', x: 27, z: -918 },
+  // The castle at the alley's end (GRAVE_CASTLE): necromancers round its foot and behind it, witches on its rock (two on
+  // the lower slope, a jump up; one on the ledge 12 m up), risen skeletons either side.
+  { kind: 'necromancer', x: -10, z: -1084 }, { kind: 'necromancer', x: 10, z: -1084 }, { kind: 'necromancer', x: 0, z: -1110 },
+  { kind: 'grave-witch', x: -4.5, z: -1083, exact: true, yaw: Math.PI / 2 }, { kind: 'grave-witch', x: 4.5, z: -1083, exact: true, yaw: Math.PI / 2 }, { kind: 'grave-witch', x: 0, z: -1088.5, exact: true, yaw: Math.PI / 2 },
+  { kind: 'grave-skeleton', x: -12, z: -1081 }, { kind: 'grave-skeleton', x: 12, z: -1081 }, { kind: 'grave-skeleton', x: -15, z: -1097 }, { kind: 'grave-skeleton', x: 15, z: -1097 },
   // The snow quarter of the Lean Quarter: skeletons stalking the graves round the chapel.
-  { kind: 'grave-skeleton', x: 913, z: 140 }, { kind: 'grave-skeleton', x: 958, z: 160 }, { kind: 'grave-skeleton', x: 973, z: 100 }, { kind: 'grave-skeleton', x: 908, z: 165 },
+  { kind: 'grave-skeleton', x: 946.5, z: 78 }, { kind: 'grave-skeleton', x: 980, z: 88 }, { kind: 'grave-skeleton', x: 985.24, z: 52.25 }, { kind: 'grave-skeleton', x: 949.7, z: 88.5 },
   // The Skeleton Court's treasury.
-  { kind: 'galaxy-knight', x: 958, z: -148 }, { kind: 'galaxy-knight', x: 968, z: -160 },
+  { kind: 'galaxy-knight', x: 977.04, z: -88.65 }, { kind: 'galaxy-knight', x: 982.5, z: -95.25 },
   // The sea king's castle (Sunken.ts): two guards at its gate, two anglers in the lane behind the throne, two more by
   // the courtyard's walls.
   { kind: 'fish-guard', x: -1006, z: -60.5, exact: true, yaw: Math.PI / 2 }, { kind: 'fish-guard', x: -994, z: -60.5, exact: true, yaw: Math.PI / 2 },
   { kind: 'angler', x: -1000, z: -80, exact: true, yaw: Math.PI / 2 }, { kind: 'angler', x: -1000, z: -88, exact: true, yaw: Math.PI / 2 },
-  // Big Gerald circles the drowned church behind the castle (Sunken.ts: the church at (-1000, -116)).
-  { kind: 'grouper', x: -1016, z: -116, exact: true, patrol: [[-1016, -116], [-1011.3, -127.3], [-1000, -132], [-988.7, -127.3], [-984, -116], [-988.7, -104.7], [-1000, -100], [-1011.3, -104.7]] },
+  // Big Gerald circles the drowned church behind the castle (Sunken.ts: the church at (-1000, -116)), 18 m out so his
+  // arms (5 m) stay clear of its walls.
+  { kind: 'octopus', x: -1018, z: -116, exact: true, patrol: [[-1018, -116], [-1012.7, -128.7], [-1000, -134], [-987.3, -128.7], [-982, -116], [-987.3, -103.3], [-1000, -98], [-1012.7, -103.3]] },
   // Flying koi over the lily pond and the heart's middle tier; dream koi and jellies over the Frog King's dream.
   ...[5, 7, 9, 11, 5, 7, 9].map((r, i) => ({ kind: 'koi' as const, x: -18 + Math.cos(i) * r, z: -18 + Math.sin(i) * r, exact: true, patrol: ring(-18, -18, r) })),
   ...[4, 6.5, 9, 4, 7].map((r, i) => ({ kind: 'koi' as const, x: -22 + Math.cos(i * 1.3) * r, z: 35 + Math.sin(i * 1.3) * r, exact: true, patrol: ring(-22, 35, r) })),

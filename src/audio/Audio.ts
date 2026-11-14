@@ -567,6 +567,20 @@ export class Audio {
     else synth(this.master!, this.now);
   }
 
+  /**
+   * The castle throne's whoopee cushion (the playtest of 2026-11-14: "something hilarious"): a low buzzing flutter that
+   * sags in pitch, then a slide whistle as the sitter is launched.
+   */
+  fart(): void {
+    if (!this.ctx) return;
+    for (let i = 0; i < 16; i++) {
+      const f = 105 - i * 2.4 + Math.random() * 14;
+      this.tone('sawtooth', f, f * 0.85, 0.05, 0.16 * (1 - i / 22), i * 0.042, 0.004, 0.02);
+    }
+    this.noise(0.75, 'lowpass', 320, 140, 1, 0.1, 0, 0.01);
+    this.tone('sine', 380, 1500, 0.55, 0.12, 0.62, 0.02, 0.08);
+  }
+
   /** A hand rummaging in a leather pouch. */
   rustle(): void {
     if (!this.ctx) return;
@@ -598,10 +612,33 @@ export class Audio {
     const buf = await p;
     // (A newer line took the channel while this one loaded: it plays, this one does not.)
     if (!buf || !this.ctx || this.voiceSeq.get(channel) !== seq) return 0;
-    const src = this.ctx.createBufferSource();
+    return this.sayBuffer(buf, gain, channel, rate);
+  }
+
+  /**
+   * An NPC's babble (audio/Babble: its line as samples) on `channel`, taking over from what that channel was saying,
+   * like a recorded line. Resolves to its length in seconds (0 before unlock() or when too quiet to hear).
+   */
+  /** Whether a voice at `gain` would be heard (audio unlocked, loud enough): ask before synthesising one. */
+  canSpeak(gain: number): boolean {
+    return !!this.ctx && gain > 0.01;
+  }
+
+  babble(samples: Float32Array, sampleRate: number, gain = 1, channel: VoiceChannel = 'npc'): number {
+    if (!this.ctx || !this.canSpeak(gain) || !samples.length) return 0;
+    this.voiceSeq.set(channel, (this.voiceSeq.get(channel) ?? 0) + 1);
+    const buf = this.ctx.createBuffer(1, samples.length, sampleRate);
+    buf.getChannelData(0).set(samples);
+    return this.sayBuffer(buf, gain * 0.55, channel, 1);
+  }
+
+  /** Plays a line's buffer on `channel`, fading out the one it takes over from. */
+  private sayBuffer(buf: AudioBuffer, gain: number, channel: VoiceChannel, rate: number): number {
+    const ctx = this.ctx!;
+    const src = ctx.createBufferSource();
     src.buffer = buf;
     src.playbackRate.value = rate;
-    const g = this.ctx.createGain();
+    const g = ctx.createGain();
     g.gain.value = Math.min(1.5, gain * 1.2);
     src.connect(g).connect(this.master!);
     this.hush(channel);

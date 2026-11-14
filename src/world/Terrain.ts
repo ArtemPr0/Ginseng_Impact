@@ -414,7 +414,31 @@ export function terrainHeight(x: number, z: number, noise: Noise2D, relief = tru
     plateau = lerp(plateau, y, t);
     padLand = Math.max(padLand, t);
   }
+  // The witch stream's tail, cut after the footings: on from its ravine's end into the church's north wall.
+  if (relief && footings) plateau = streamTail(x, z, plateau, noise);
   return lerp(WORLD.abyssY, plateau, Math.max(land, padLand));
+}
+
+/**
+ * The witch stream's tail (LAYOUT.coven.tail): a channel from a little before the ravine's end on to `zTo`, its bed at
+ * `bed` across the ribbon's width and its sides blending up to the ground over 2.5 m, cut through the church's footing.
+ */
+function streamTail(x: number, z: number, y: number, noise: Noise2D): number {
+  const t = streamTailWeight(x, z, noise);
+  return t > 0 ? Math.min(y, lerp(y, LAYOUT.coven.tail.bed, t)) : y;
+}
+
+/** 0..1: how far the stream's tail cuts the ground at (x, z) (1 across its bed, 0 outside the channel). */
+function streamTailWeight(x: number, z: number, noise: Noise2D): number {
+  const z0 = WORLD.streamZ.max - 6;
+  if (z < z0 || z > LAYOUT.coven.tail.zTo) return 0;
+  const d = Math.abs(x - streamCentre(z, noise));
+  return (1 - smoothstep(STREAM_WATER.half, STREAM_WATER.half + 2.5, d)) * smoothstep(z0, z0 + 4, z);
+}
+
+/** In the witch stream's tail channel (it runs under the church's north wall by design: the audits leave it be). */
+export function inStreamTail(x: number, z: number, noise: Noise2D): boolean {
+  return streamTailWeight(x, z, noise) > 0;
 }
 
 /** Half-width of the witch stream's water ribbon (Stream.ts) and its depth over the lowest point of the bed. */
@@ -443,7 +467,7 @@ export function waterLevelAt(x: number, z: number, noise: Noise2D): number | nul
   if (Math.hypot(x - WORLD.pond.x, z - WORLD.pond.z) < WORLD.pond.r) lift(1.0);
   const mud = LAYOUT.floodedRuin;
   if (Math.hypot(x - mud.x, z - mud.z) < mud.r) lift(mud.mud);
-  if (z > WORLD.streamZ.min && z < WORLD.streamZ.max) {
+  if (z > WORLD.streamZ.min && z < LAYOUT.coven.tail.zTo) {
     const cx = streamCentre(z, noise);
     if (Math.abs(x - cx) < STREAM_WATER.half) lift(lowestBed((px, pz) => terrainHeight(px, pz, noise), cx, z, STREAM_WATER.half) + STREAM_WATER.depth);
   }

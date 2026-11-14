@@ -11,6 +11,7 @@ import {
   UniformsUtils, Vector3,
 } from 'three';
 import { CLOUD_LEVEL, GALAXY, LEAN_QUARTER } from '../data/world';
+import { CUPS } from '../data/sculpts';
 import { MODELS } from '../data/models';
 import { glowSprite } from '../render/Glow';
 import { PALETTE } from '../render/palette';
@@ -673,11 +674,11 @@ export function buildKingdom(api: RealmApi, hooks: { soundWanted(): boolean; fou
   } });
   // A humpback whale flying slow loops over the plaza and the cups (DeSEl9PvPG_), its body flexing as it swims.
   {
-    const cx = R.x + 20;
-    const cz = R.z - 10;
+    const cx = R.x + 12;
+    const cz = R.z - 7.75;
     const wy = gy + 38;
     let a = 0;
-    const whale = modelLandmark('whale', cx + 85, cz, wy, {
+    const whale = modelLandmark('whale', cx + 48, cz, wy, {
       collider: 'none',
       onLoad: (m) => {
         // The swim wave along the body's long axis (measured from its mesh, whichever way Meshy laid it).
@@ -694,9 +695,9 @@ export function buildKingdom(api: RealmApi, hooks: { soundWanted(): boolean; fou
       },
       update: (dt, root) => {
         a += dt * 0.11;
-        root.position.set(cx + Math.cos(a) * 85, wy + Math.sin(a * 2.3) * 5, cz + Math.sin(a) * 60);
+        root.position.set(cx + Math.cos(a) * 48, wy + Math.sin(a * 2.3) * 5, cz + Math.sin(a) * 33);
         // Facing along the loop (its front is local +z), banking a little into the turn.
-        root.rotation.set(0, Math.atan2(-Math.sin(a) * 85, Math.cos(a) * 60), 0.12);
+        root.rotation.set(0, Math.atan2(-Math.sin(a) * 48, Math.cos(a) * 33), 0.12);
       },
     });
     api.place(whale);
@@ -708,18 +709,19 @@ export function buildKingdom(api: RealmApi, hooks: { soundWanted(): boolean; fou
   const snowGroup = new Group();
   snowGroup.add(snow.points);
   api.place({ object: snowGroup, footprints: [], update: (dt, player) => snow.update(dt, player) });
-  api.group.add(blossomFog(R.x, R.z - 5, 120, 160, gy));
+  api.group.add(blossomFog(R.x, R.z - 5, 66, 88, gy));
   // The plaza stands on the kingdom sculpt (marble in the ground layers). Its walls are LeanQuarter's.
   // Two tea streams down the length of the plaza, either side of the road.
-  // (The west stream stops short of the purple houses' street at x 966-974, z 5-35.)
-  teaStream(api, [[R.x - 24, R.z - 2], [R.x - 30, R.z - 20], [R.x - 25, R.z - 50]], gy);
-  teaStream(api, [[R.x + 27, R.z - 50], [R.x + 33, R.z - 20], [R.x + 26, R.z + 10], [R.x + 32, R.z + 40], [R.x + 27, R.z + 66]], gy);
+  // (Each 2 m outside the towers either side of the road: the west one from the head of Bucket Street, clear of its
+  // first house, to Yung Lean's hall; the east one from south of the Lean-Chucker's pavilion to the ring portals.)
+  teaStream(api, [[R.x - 17.5, R.z - 8], [R.x - 19, R.z - 16], [R.x - 17.5, R.z - 27]], gy);
+  teaStream(api, [[R.x + 18.5, R.z - 26.5], [R.x + 20.5, R.z - 13.25], [R.x + 18.5, R.z + 3.25], [R.x + 20.5, R.z + 19.75], [R.x + 18.5, R.z + 34.05]], gy);
   // The cup islands east of the plaza, joined by waves of lean (they used to be blocks with rope bridges).
-  const cups: Array<[number, number]> = [[1082, 10], [1108, -12], [1136, 14]];
+  const cups: Array<[number, number]> = CUPS.map(([x, z]) => [x, z]);
   const radii = cups.map(([x, z]) => leanCupIsland(api, x, z, gy));
   // From the plaza's edge into the first cup, then cup to cup: each end comes down WAVE_INSIDE inside a rim.
   const into = (i: number, fx: number, fz: number) => { const [x, z] = cups[i]; const d = Math.hypot(fx - x, fz - z); const k = (radii[i] - WAVE_INSIDE) / d; return [x + (fx - x) * k, z + (fz - z) * k] as const; };
-  { const [bx, bz] = into(0, 1057, 10); leanWave(api, 1057, 10, bx, bz, gy); }
+  { const [bx, bz] = into(0, 1031.2, 3.25); leanWave(api, 1031.2, 3.25, bx, bz, gy); }
   for (let i = 0; i < cups.length - 1; i++) {
     const [ax, az] = into(i, cups[i + 1][0], cups[i + 1][1]);
     const [bx, bz] = into(i + 1, cups[i][0], cups[i][1]);
@@ -734,7 +736,7 @@ export function buildKingdom(api: RealmApi, hooks: { soundWanted(): boolean; fou
     leanWave(api, ax, az, D.x + ((ax - D.x) / d) * (D.r - 2), D.z + ((az - D.z) / d) * (D.r - 2), gy);
   }
   // The lost sound, humming in the mist on the far cup (Yung Lean's quest).
-  const soundAt = new Vector3(1136, gy + 1.6, 14);
+  const soundAt = new Vector3(CUPS[2][0], gy + 1.6, CUPS[2][1]);
   const sound = new Group();
   const core = glowSprite(PALETTE.rune, 1.2, 0.9, true);
   const halo = glowSprite(PALETTE.dusk, 3.4, 0.4, true);

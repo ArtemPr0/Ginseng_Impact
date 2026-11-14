@@ -45,3 +45,23 @@ describe('the carriage at the lean castle\'s bridge (the review of 2026-11-13: l
     expect(Math.hypot(A['carriage-count'].x - CARRIAGE_STAND.x, A['carriage-count'].z - CARRIAGE_STAND.z)).toBeLessThan(1);
   });
 });
+
+describe('Yung Lean\'s kingdom closed in (the playtest of 2026-11-14: "make the land smaller", about half the walking)', async () => {
+  const { GALAXY, LEAN_QUARTER: Q, ANCHORS: A } = await import('./world');
+  const plaza = { x: GALAXY.x, z: GALAXY.z - 5 };
+  const far = (p: { x: number; z: number }) => Math.hypot(p.x - plaza.x, p.z - plaza.z);
+  // Before: the castle, the snow chapel, the Skeleton King on his throne and the sky dock, as they stood until then.
+  const before = { castle: { x: 833, z: 18 }, chapel: { x: 933, z: 152 }, throne: { x: 1000, z: -159 }, dock: { x: 1180, z: 12 } };
+  const now = { castle: Q.castle, chapel: Q.chapel, throne: A['skeleton-king'], dock: Q.dock };
+  const keys = Object.keys(before) as Array<keyof typeof before>;
+  it('from the middle of the plaza to the castle, the chapel, the throne and the dock: each 60% of the way or less', () => {
+    for (const k of keys) expect(far(now[k]) / far(before[k]), `${k}: ${far(now[k]).toFixed(1)} m, was ${far(before[k]).toFixed(1)} m`).toBeLessThanOrEqual(0.6);
+  });
+  it('the quarters still meet edge to edge, each on its own ground, none of them on top of the plaza', () => {
+    expect(Q.castleYard[1]).toBe(Q.moat[0]);
+    expect(Q.moat[1]).toBe(Q.street[0]);
+    expect(Q.snow[2]).toBe(Q.street[3]);
+    expect(Q.court[3]).toBeLessThan(Q.street[2] - 20);
+    for (const k of keys) expect(far(now[k]), k).toBeGreaterThan(50);
+  });
+});

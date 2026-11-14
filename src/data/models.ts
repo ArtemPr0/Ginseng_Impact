@@ -15,6 +15,8 @@ export interface ModelDef {
   clipFiles?: Partial<Record<ClipName, string>>;
   /** false: no shared emotes (models/Emotes.ts) even though it is a Meshy biped. */
   emotes?: boolean;
+  /** False for skulls: the shared emotes play without their head and neck tracks (Emotes.withoutHead). */
+  emoteHead?: boolean;
   /** Size the model should be scaled to, metres: its height, or the extent along `fit` when set. */
   height: number;
   /** Which bounding-box axis `height` measures (default y). Walkway segments fit their length. */
@@ -171,16 +173,18 @@ export const MODELS: Record<string, ModelDef> = {
   'knight-npc': { file: 'knight-npc.glb', height: 1.9, label: 'armoured knight: tavern, rowing, kneeling, watching (DdfKgLsBmoA, DdjlyzyOcnK, DdKl7fKMO75)', clips: NPC_CLIPS('idle') },
   'knight-seated': { file: 'knight-seated.glb', height: 1.95, label: 'caped greatsword knight sitting on the cliff (Sir Halvard)', clips: NPC_CLIPS('sit') },
   'knight-rose': { file: 'knight-rose.glb', height: 1.95, label: 'black knight offering a rose (Sir Corvin)', clips: NPC_CLIPS('offer') },
-  skeleton: { file: 'skeleton.glb', height: 1.75, label: 'skeletons at the campfire (DdjlyzyOcnK)', clips: { ...NPC_CLIPS('sit'), attack: 'attack', hit: 'hit_reaction|hit', stand: 'sit_to_stand|stand', death: 'dying|death' } },
+  skeleton: { file: 'skeleton.glb', height: 1.75, label: 'skeletons at the campfire (DdjlyzyOcnK)', clips: { ...NPC_CLIPS('sit'), attack: 'attack', hit: 'hit_reaction|hit', stand: 'sit_to_stand|stand', death: 'dying|death' }, emoteHead: false },
   // The skeletons that climb out of the Alley of Graves (enemy kind = model id): the campfire skeleton's body, standing.
   // Round 9 mobs (biped rigs with the preset clips).
   'archway-shade': { file: 'archway-shade.glb', height: 2.0, label: 'hooded dark figure with an armoured gauntlet in a gothic archway (DdnJDwBMUoj)', clips: BOSS_CLIPS },
+  necromancer: { file: 'archway-shade.glb', height: 2.0, tint: 0xb48cff, label: 'grave necromancer: the hooded figure with the armoured gauntlet from the gothic archway, in violet (DdnJDwBMUoj)', clips: BOSS_CLIPS },
+  'grave-witch': { file: 'witch.glb', height: 1.85, label: 'grave witch: the coven witch in a pointed hat (DeWji_1PuKW)' },
   'brazier-hermit': { file: 'brazier-hermit.glb', height: 1.9, label: 'brown-robed hooded figure lifting a fire brazier on a ledge (DdyN2PNyIxb)', clips: BOSS_CLIPS },
   // (Its rig came out facing -x: turned a quarter so its front is local +z like every other body. The toe test reads
   // +x because the cape drags the centre back; the lineup shot, anim/lineup.mjs, shows its face.)
   'vale-knight': { file: 'vale-knight.glb', height: 1.9, yaw: Math.PI / 2, label: 'red-caped blue-armoured knight on the village street (Dd5Bqt7vQ5T)', clips: BOSS_CLIPS },
-  'grave-skeleton': { file: 'skeleton.glb', height: 1.75, label: 'skeletons rising from the graves (the Alley of Graves)', clips: { ...NPC_CLIPS('idle'), idle: 'idle_02|combat_stance|idle', attack: 'attack', hit: 'hit_reaction|hit', stand: 'sit_to_stand|stand', death: 'dying|death' } },
-  'skeleton-banner': { file: 'skeleton-banner.glb', height: 1.85, label: 'skeleton standard-bearer with banner and trident (Hollow Jack)', clips: NPC_CLIPS('banner') },
+  'grave-skeleton': { file: 'skeleton.glb', height: 1.75, label: 'skeletons rising from the graves (the Alley of Graves)', clips: { ...NPC_CLIPS('idle'), idle: 'idle_02|combat_stance|idle', attack: 'attack', hit: 'hit_reaction|hit', stand: 'sit_to_stand|stand', death: 'dying|death' }, emoteHead: false },
+  'skeleton-banner': { file: 'skeleton-banner.glb', height: 1.85, label: 'skeleton standard-bearer with banner and trident (Hollow Jack)', clips: NPC_CLIPS('banner'), emoteHead: false },
   'witch-cook': { file: 'witch-cook.glb', height: 1.8, label: 'skeleton cook in a chef hat with a spoon (Mother Marrow)', clips: NPC_CLIPS('stir') },
   bride: { file: 'bride.glb', height: 1.8, legDamp: 0.65, label: 'the Pale Bride', clips: NPC_CLIPS('walk') },
   maiden: { file: 'maiden.glb', height: 1.68, legDamp: 0.6, label: 'Elowen of the flower garden', clips: NPC_CLIPS('bow') },
@@ -250,12 +254,12 @@ export const MODELS: Record<string, ModelDef> = {
   'market-stall': stat('market-stall.glb', 3.2, 'thatched goblin market stall with lanterns (DdnJDwBMUoj)'),
   'crystal-ball': stat('crystal-ball.glb', 0.5, 'purple crystal ball on a stand (DdnJDwBMUoj)'),
   'dragon-riders': { file: 'dragon-riders.glb', height: 5, label: 'black dragon with gold horns carrying the skeleton lord and the blue knight (DeYtKbMh76x)', clips: { idle: 'fly|idle', fly: 'fly' } },
-  'skeleton-lord': { file: 'skeleton-lord.glb', height: 1.9, label: 'skeleton lord in a black fur cloak and gold chains (DeXn5rSPxR8)', clips: NPC_CLIPS('sit') },
+  'skeleton-lord': { file: 'skeleton-lord.glb', height: 1.9, label: 'skeleton lord in a black fur cloak and gold chains (DeXn5rSPxR8)', clips: NPC_CLIPS('sit'), emoteHead: false },
   'blue-knight': { file: 'blue-knight.glb', height: 1.95, label: 'blue plate knight with a goblet (DeXn5rSPxR8)', clips: NPC_CLIPS('drink') },
-  'skeleton-king': { file: 'skeleton-king.glb', height: 2.0, label: 'crowned skeleton king with gold chains and a galaxy cloak (DeOemU1BOZF)', clips: NPC_CLIPS('sit') },
+  'skeleton-king': { file: 'skeleton-king.glb', height: 2.0, label: 'crowned skeleton king with gold chains and a galaxy cloak (DeOemU1BOZF)', clips: NPC_CLIPS('sit'), emoteHead: false },
   // Old Hollowstaff as the boss he became (enemy kind = model id): his casting clip throws the diamonds.
-  'diamond-wizard': { file: 'skeleton-wizard.glb', height: 1.9, label: 'Old Hollowstaff, the diamond-throwing skeleton wizard (DeaqHWJBBPw)', faceForward: 0.5, clips: { idle: 'idle_02|idle', walk: 'walking|walk', run: 'running|run', attack: 'mage_soell_cast|cast', cast: 'mage_soell_cast|cast' } },
-  'skeleton-wizard': { file: 'skeleton-wizard.glb', height: 1.9, label: 'skeleton wizard with a gold crystal staff (DeaqHWJBBPw)', clips: NPC_CLIPS('idle') },
+  'diamond-wizard': { file: 'skeleton-wizard.glb', height: 1.9, label: 'Old Hollowstaff, the diamond-throwing skeleton wizard (DeaqHWJBBPw)', faceForward: 0.5, clips: { idle: 'idle_02|idle', walk: 'walking|walk', run: 'running|run', attack: 'mage_soell_cast|cast', cast: 'mage_soell_cast|cast' }, emoteHead: false },
+  'skeleton-wizard': { file: 'skeleton-wizard.glb', height: 1.9, label: 'skeleton wizard with a gold crystal staff (DeaqHWJBBPw)', clips: NPC_CLIPS('idle'), emoteHead: false },
   'galaxy-wizard': { file: 'galaxy-wizard.glb', height: 1.9, label: 'galaxy-robed wizard pouring a glowing potion (DeQ-NnpvqF6)', clips: NPC_CLIPS('idle') },
   'galaxy-king': { file: 'galaxy-king.glb', height: 2.2, label: 'crowned galaxy king with glowing eyes (Dd0wR9Jh2lH)', clips: NPC_CLIPS('sit') },
   'void-monk': { file: 'void-monk.glb', height: 1.85, label: 'hooded monk whose face is a galaxy (DdyN2PNyIxb)', clips: NPC_CLIPS('idle') },
@@ -299,8 +303,8 @@ export const MODELS: Record<string, ModelDef> = {
   // Yung Lean's kingdom, the Lean Quarter.
   'galaxy-knight': { file: 'galaxy-knight.glb', height: 2.2, faceForward: 0.3, label: 'knight in galaxy-patterned plate with a spiked helm and a galaxy-swirl greatsword (DeOemU1BOZF)', held: { model: 'greatsword', tint: 0x6a4dff, glow: 0.55 }, clips: BOSS_CLIPS },
   'mail-knight': { file: 'mail-knight.glb', height: 1.95, faceForward: 0.3, label: 'knight in faceted blue chain mail and a gold chain with a crystal spear (DeaqHWJBBPw)', held: { model: 'staff', tint: 0x9fd4ff, glow: 0.35 }, clips: BOSS_CLIPS },
-  'skeleton-red': { file: 'skeleton-red.glb', height: 1.85, label: 'green-eyed skeleton with gold grills in a red fur coat sipping a double cup (DeldocTvFiB)', clips: NPC_CLIPS('drink') },
-  'skeleton-witch': { file: 'skeleton-witch.glb', height: 2.1, label: 'skeleton in a tall black witch hat and gold chain sipping a double cup (DeldocTvFiB)', clips: NPC_CLIPS('drink') },
+  'skeleton-red': { file: 'skeleton-red.glb', height: 1.85, label: 'green-eyed skeleton with gold grills in a red fur coat sipping a double cup (DeldocTvFiB)', clips: NPC_CLIPS('drink'), emoteHead: false },
+  'skeleton-witch': { file: 'skeleton-witch.glb', height: 2.1, label: 'skeleton in a tall black witch hat and gold chain sipping a double cup (DeldocTvFiB)', clips: NPC_CLIPS('drink'), emoteHead: false },
   'gold-knight': { file: 'gold-knight.glb', height: 2.0, label: 'dark blue knight with gold trim and a skull medallion raising a glowing cup (DeldocTvFiB)', clips: NPC_CLIPS('drink') },
   // One piece with the treasure chest he sits on (the reel's wagon): a still body.
   'plague-doctor': stat('plague-doctor.glb', 2.4, 'plague doctor with glowing eyes, black hat and gold chain lounging on a riveted treasure chest with lanterns, sipping a lidded cup (DeldocTvFiB)'),
@@ -333,8 +337,9 @@ export const MODELS: Record<string, ModelDef> = {
   diver: { file: 'diver.glb', height: 1.9, label: 'figure in a brass diving helmet with a glowing porthole and a long dark robe (DeVj-Z8POjl)', clips: NPC_CLIPS('walk') },
   'drowned-house': stat('drowned-house.glb', 7, 'narrow half-timbered house with a slate roof and warm lit windows, under the sea (DeVj-Z8POjl)'),
   'blue-fish': { ...stat('blue-fish.glb', 1.4, 'big blue grouper swimming between the houses (DeVj-Z8POjl)'), tint: 0x3a5f8f },
-  // (The same grouper grown to a boss: Big Gerald, round the drowned church.)
-  grouper: { ...stat('blue-fish.glb', 4.6, 'the big blue grouper as a boss, Big Gerald (DeVj-Z8POjl)'), tint: 0x3a5f8f },
+  // Big Gerald, the Sunken City's boss: a massive octopus, arms spread (the user asked for it: the playtest of
+  // 2026-11-14). 12 m across; its arms move in the shader (combat/OctopusBody).
+  octopus: stat('octopus.glb', 3.9, 'Big Gerald, the massive octopus round the drowned church (asked for in the playtest of 2026-11-14)'),
   'jelly-lantern': stat('jelly-lantern.glb', 4.2, 'iron post with a hanging cage lantern holding a glowing jellyfish (DeVj-Z8POjl)'),
   'bottle-shelf': { ...stat('bottle-shelf.glb', 2.6, 'wooden shelves of glowing orange bottles (DeVj-Z8POjl)'), tint: 0x6a4a2c },
   'orb-lamp': { ...stat('orb-lamp.glb', 2.2, 'iron lamp stand with glowing red glass orbs (DeVj-Z8POjl)'), tint: 0x2e2a28 },

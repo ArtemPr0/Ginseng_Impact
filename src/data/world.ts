@@ -66,7 +66,9 @@ export const LAYOUT = {
     { x: -43, z: -19, r: 11, count: 100 },
   ],
   frog: { x: -54, z: -26 },
-  coven: { streamX: -67, zMin: -42, zMax: 40, bridgeZ: 9 },
+  // (The tail: past zMax the stream runs on in a channel cut to `bed`, under the church's north wall, z 49..52.5 on
+  // its line, and ends inside it: it stopped in the middle of the land before, the playtest of 2026-11-14.)
+  coven: { streamX: -67, zMin: -42, zMax: 40, bridgeZ: 9, tail: { zTo: 52, bed: 2.2 } },
   /**
    * On the plateau north-west of the chasm, its whole rock base on land (castle.glb is 29 × 31 m: at z = -24 its north
    * wall hung over the chasm's cliff, which begins around z = -34).
@@ -142,10 +144,10 @@ export const LANDMARKS: readonly LandmarkSpot[] = [
   { id: 'cloister', x: 33.5, z: 64.5, at: { x: 33.5, z: 68 } },
   { id: 'observatory', x: LAYOUT.observatory.x, z: LAYOUT.observatory.z, sink: 0.2 },
   { id: 'cauldron', x: 24, z: 77 },
-  // The gothic gate (DeSEl9PvPG_) beside the road to the stone head, a ruined gate into the old precinct: its steps
-  // face the road (local +z turned to -x), the arch is walked through. (On the road itself it sat in the 4 m climb to
-  // the head's chin, and its footing made a bank across the path.)
-  { id: 'candle-gate', x: 37, z: -128, yaw: -Math.PI / 2, sink: 0.3 },
+  // The gothic gate (DeSEl9PvPG_) across the road to the stone head, where the causeway's road reaches the old
+  // precinct: its steps face the causeway (local +z to +z) and the road runs through the arch. (Beside the road at
+  // (37, -128) it stood 18 m from the Hollow King, inside his 26 m swing: the playtest of 2026-11-14.)
+  { id: 'candle-gate', x: -1, z: -103, yaw: 0, sink: 0.3 },
 ];
 
 /**
@@ -168,8 +170,11 @@ export const VILLAGE = {
  * Where each standing/sitting NPC lives (world metres). `dy` lifts a seated pose onto its seat; `y` pins an
  * absolute height (a balcony perch). Loop NPCs start at the first point of their path instead.
  */
-/** Where the carriage stands before the lean castle's bridge, facing the street (World.ts builds it; the Count rides in it). */
-export const CARRIAGE_STAND = { x: 873, z: 12, heading: -Math.PI / 2 } as const;
+/**
+ * Where the carriage stands before the lean castle's bridge, facing the street (World.ts builds it; the Count rides in it):
+ * between the bridge's east end (x 930) and Bucket Street's first house (x 937), 6 m off the bridge's line.
+ */
+export const CARRIAGE_STAND = { x: 933, z: 1.65, heading: -Math.PI / 2 } as const;
 
 export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: number }> = {
   // The Stone Head (bodiless, LAYOUT.head): where you stand before its face, on the rise 4 m short of its chin (the
@@ -192,7 +197,7 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   standard: { x: -54, z: -93 },
   'rose-knight': { x: 16, z: 34 }, maiden: { x: 18.2, z: 33 },
   // Dunmar guards the door of Yung Lean's hall; Sel watches the head of Bucket Street (both in the kingdom).
-  'watcher-knight': { x: 1000, z: -51.8 }, 'watcher-mage': { x: 970, z: 24 },
+  'watcher-knight': { x: 1000, z: -24.35 }, 'watcher-mage': { x: 984, z: 7.65 },
   'cup-gnome': { x: 6.5, z: 64 },
   // Fifth batch of reels.
   // (Beside the middle tavern table, not inside it: the table at (-40, -24) is solid once its model exists.)
@@ -200,31 +205,35 @@ export const ANCHORS: Record<string, { x: number; z: number; dy?: number; y?: nu
   priest: { x: 36, z: -96 },
   'lantern-witch': { x: -106, z: 14 },
   // The Lean Quarter (round 6, see LEAN_QUARTER): the Skeleton Court, Bucket Street, the snow chapel, the sky dock.
-  // On the dragon throne's seat (ray-probed: 25.38, its front edge at z -171.1), hips 0.12 over it, 0.3 in from the edge.
-  'skeleton-king': { x: 1000, z: -159, y: 24.76 },
-  'galaxy-wizard': { x: 905, z: -18 },
-  // The lord at the front of the pavilion's settee (ray-probed: seat 25.03, 1.8 m deep, front edge x 1042.4; sat at
-  // its back his shins sank into it), Sir Cobalt on a stool at his side.
-  'skeleton-lord': { x: 1042.15, z: -148, y: 24.53 }, 'court-knight': { x: 1042.3, z: -146.3, dy: 0.02 },
-  'potion-brewer': { x: 1026, z: -115 },
-  bartender: { x: 1173.0, z: 10.1 }, 'dock-knight': { x: 1181, z: 7.5, dy: 0.06 },
-  // On the snow flat at snowY(124.6) ≈ 26.1 (SNOW_FLATS plague-doctor); GroundQuery sets y.
-  'plague-doctor': { x: 964, z: 124.6, dy: 0 },
+  // On the dragon throne's seat (ray-probed: 25.38), hips 0.12 over it, 0.3 in from its front edge (1 m in front of
+  // the throne at (1000, -95.25)).
+  'skeleton-king': { x: 1000, z: -94.25, y: 24.76 },
+  // Before the star brewer's round tower (948.06, -16.55), 6.5 m south of it.
+  'galaxy-wizard': { x: 948.06, z: -10 },
+  // The lord at the front of the pavilion's settee (ray-probed: seat 25.03, 1.8 m deep, its front edge 0.6 m west of
+  // the pavilion at (1023.51, -88.65); sat at its back his shins sank into it), Sir Cobalt on a stool at his side.
+  'skeleton-lord': { x: 1022.66, z: -88.65, y: 24.53 }, 'court-knight': { x: 1022.81, z: -86.95, dy: 0.02 },
+  'potion-brewer': { x: 1014.22, z: -70.5 },
+  // On the sky dock (LEAN_QUARTER.dock), where they stood on it before the compaction of 2026-11-14.
+  bartender: { x: 1099, z: 2.45 }, 'dock-knight': { x: 1107, z: -0.15, dy: 0.06 },
+  // On the snow flat at snowY(64.9) ≈ 25.95 (SNOW_FLATS plague-doctor), 5.9 m east of the path; GroundQuery sets y.
+  'plague-doctor': { x: 985.5, z: 64.9, dy: 0 },
   // Down in the crypt bar (Interiors.ts, CRYPT_ROOM): two along the west counter facing the way in, Knuckles on a
   // barrel against the east counter facing them; Sir Gilt before the back counter's skulls.
   'crypt-red': { x: -1001.9, z: 1299.6 }, 'crypt-witch': { x: -1001.9, z: 1301.3 }, 'crypt-bones': { x: -998.7, z: 1300.6, dy: 0.02 },
   'gold-knight': { x: -1000.4, z: 1297.4 },
-  yunglean: { x: 1000, z: -74.6, dy: 0.8 },
-  'void-monk': { x: 1008, z: 66 },
-  // Behind their stalls between the purple houses of the bucket street (Realms.ts places the stalls).
-  'market-a': { x: 948, z: 6.4 }, 'market-b': { x: 912, z: 29.6 },
+  yunglean: { x: 1000, z: -47.15, dy: 0.8 },
+  // By the ring portals (Realms.ts), 4 m in front of the east one.
+  'void-monk': { x: 1008, z: 32.5 },
+  // Behind their stalls between the purple houses of the bucket street (LeanQuarter.ts places the stalls).
+  'market-a': { x: 971.99, z: -0.95 }, 'market-b': { x: 953.99, z: 16.25 },
   // Inside the vale's tavern (Interiors.ts, TAVERN_ROOM): Waxwick behind the long table with the hearth at his back,
   // a dwarf at each end of it (the table: x -1001.6..-998.4, z 999.6..1000.8).
   waxwick: { x: -1000, z: 999.05 }, brannoc: { x: -1002.2, z: 1000.3 }, hilde: { x: -997.8, z: 1000.3 },
   // The Dragon's Vale (Vale.ts): the reader on the dragon's claw, the street's folk.
   'dragon-reader': { x: 995.0, z: 904.6, dy: 0.02 },
   // Inside the carriage at the lean castle's bridge (world/Carriage.ts moves him with it).
-  'carriage-count': { x: 873, z: 12.8, y: 24.8 }, // (CARRIAGE_STAND + 0.8 m in z)
+  'carriage-count': { x: 933, z: 2.45, y: 24.8 }, // (CARRIAGE_STAND + 0.8 m in z)
   // Before the green dragon's head (his neck turns to watch you; Vale.ts).
   'vale-dragon': { x: 996.5, z: 908 },
   'vale-knight': { x: 1004.5, z: 958 }, 'vale-beggar': { x: 994.4, z: 966, dy: 0.02 }, 'vale-merchant': { x: 1005.0, z: 941.4 },
@@ -260,24 +269,33 @@ export interface RealmDef {
 /** Beyond the portal: Yung Lean's kingdom (it was the galaxy city; the id stays). */
 export const GALAXY: RealmDef = { id: 'galaxy', name: "Yung Lean's Kingdom", x: 1000, z: 0, y: 24, radius: 300, fog: { color: 0x3a1a52, density: 0.0055 }, ownSky: true };
 
-/** The kingdom's checkered road (DeOemU1BOZF, Realms.ts) from the plaza's south end north to the court: [z0, z1] along x. */
-export const KINGDOM_ROAD = { x: GALAXY.x, z0: GALAXY.z - 44, z1: GALAXY.z + 72, half: 5 } as const;
+/**
+ * The kingdom's checkered road (DeOemU1BOZF, Realms.ts) from the ring portals at the plaza's south end north to the
+ * concert spot before Yung Lean's hall door (z -25.15): [z0, z1] along x.
+ */
+export const KINGDOM_ROAD = { x: GALAXY.x, z0: GALAXY.z - 21, z1: GALAXY.z + 37.35, half: 5 } as const;
 
 /**
- * The kingdom's quarters (round 6, the @returndark reels), each a walkable floor off the plaza (x 940..1060,
- * z -85..75): the Skeleton Court north, Bucket Street and the lean castle west, the snow chapel south-west, the sky
+ * The kingdom's quarters (round 6, the @returndark reels), each a walkable floor off the plaza (x 982..1032.8,
+ * z -49..39): the Skeleton Court north, Bucket Street and the lean castle west, the snow chapel south-west, the sky
  * dock east beyond the cup islands. Rectangles are [x0, x1, z0, z1].
+ *
+ * (Compacted on 2026-11-14, the playtest: "make the yung lean world smaller ... compact everything on the land to a
+ * smaller land size", about half the walking: every spot east of the castle's moat closed in on the plaza's middle,
+ * x by 76/139 about x 1000 out to x 1060 and 0.6 past it, z by 0.55 about z -5, the court 5 m further north to clear
+ * Yung Lean's hall; the castle, its moat and its yard moved whole, 67.5 m east, Bucket Street's houses 9 m apart;
+ * buildings kept their size.)
  */
 export const LEAN_QUARTER = {
-  court: [940, 1060, -173, -85] as const,
-  street: [861, 973, -40, 75] as const,
+  court: [967.2, 1032.8, -102.4, -54] as const,
+  street: [928.5, 985.2, -24.25, 39] as const,
   /** The lean moat in front of the castle (a sunken channel) and the castle's own ground behind it. */
-  moat: [849, 861, -40, 75] as const,
-  castleYard: [813, 849, -40, 75] as const,
-  snow: [893, 993, 75, 175] as const,
-  castle: { x: 833, z: 18 },
-  chapel: { x: 933, z: 152 },
-  dock: { x: 1180, z: 12, r: 12 },
+  moat: [916.5, 928.5, -24.25, 39] as const,
+  castleYard: [880.5, 916.5, -24.25, 39] as const,
+  snow: [942, 996.2, 39, 94] as const,
+  castle: { x: 900.5, z: 7.65 },
+  chapel: { x: 963.4, z: 81.35 },
+  dock: { x: 1106, z: 4.35, r: 12 },
 };
 
 export type LeanDistrict = 'court' | 'street' | 'castle' | 'snow' | 'dock';
@@ -290,7 +308,8 @@ export function leanDistrict(x: number, z: number): LeanDistrict | null {
   if (inside(Q.snow)) return 'snow';
   if (inside(Q.castleYard) || inside(Q.moat)) return 'castle';
   if (inside(Q.street)) return 'street';
-  if (Math.hypot(x - Q.dock.x, z - Q.dock.z) < Q.dock.r + 25) return 'dock';
+  // (4 m past its rim: the far cup's rim is 5 m further, and the cups keep the vaporwave.)
+  if (Math.hypot(x - Q.dock.x, z - Q.dock.z) < Q.dock.r + 4) return 'dock';
   return null;
 }
 
@@ -339,6 +358,8 @@ export const GRAVEYARD: RealmDef = { id: 'graveyard', name: 'The Alley of Graves
  * The candle ring on the alley's floor between two braziers (Graveyard.ts): step into it and the Grave Cyclops climbs
  * out of the ground up the alley ahead of you (Adventures; he no longer waits at the alley's end). `rise` is where.
  */
+/** The rock with the gothic tower at the end of the Alley of Graves (Graveyard.ts), behind the cyclops's arena. */
+export const GRAVE_CASTLE = { x: 0, z: -1095 } as const;
 export const GRAVE_RING = { x: 0, z: -980, r: 1.6, rise: { x: 0, z: -998, yaw: Math.PI / 2 } } as const;
 /**
  * The Dragon's Vale (reel Dd5Bqt7vQ5T), through the lantern arch at the east end of the island's village street: a
@@ -485,7 +506,7 @@ export const FLATS: {
     { x: KNOLL.x, z: KNOLL.z, r: KNOLL.r + 2 },
     // Model slots waiting for their GLB (they render nothing yet): the frozen arch gate, the colossus statue by the dead
     // wood, and the ruins.
-    { x: 37, z: -128, r: 6 }, // the candle gate
+    { x: -1, z: -103, r: 6 }, // the candle gate
     { x: 56, z: -84, r: 5 },
     { x: 10, z: -96, r: 6 },
     ...LAYOUT.ruins.map((r) => ({ x: r.x, z: r.z, r: 3.5 })),
@@ -530,6 +551,6 @@ export const FOOTINGS: ReadonlyArray<{ x: number; z: number; r: number; blend: n
   { x: 56, z: -84, r: 4.5, blend: 2 },   // the arch gate on the Frost March
   { x: LAYOUT.treehouse.x, z: LAYOUT.treehouse.z, r: 10, blend: 2.5 },
   { x: 10, z: -96, r: 4.6, blend: 2 },   // the colossus statue
-  { x: 37, z: -128, r: 5, blend: 2.5 },  // the candle gate (beside the road it sat in the Ember Rider's pad)
+  { x: -1, z: -103, r: 5, blend: 2.5 },  // the candle gate, across the road to the head
   ...LAYOUT.ruins.map((r) => ({ x: r.x, z: r.z, r: r.arch ? 3.2 : 1.6, blend: r.arch ? 1.8 : 1.2 })),
 ];

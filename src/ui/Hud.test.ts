@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BannerQueue, DamageNumbers, Hud, type HudActions, type NumberStyle } from './Hud';
 import { Inventory } from '../items/Inventory';
 import { ROSTER } from '../characters/roster';
+import { BABBLE_CPS } from '../audio/Babble';
 
 // ---------- the banner queue (pure) ----------
 
@@ -217,6 +218,16 @@ describe('DamageNumbers', () => {
     expect(texts()).toEqual(['400 ×3', '50']);
   });
 
+  it('shows a blow\'s comic word (BONK) in its own style, never merged, gone after a beat', () => {
+    const { n, up, advance, texts } = numbers();
+    n.push('BONK', 0xffd23a, 0, 0, { target: 3, bonk: true });
+    n.push('WHACK', 0xffd23a, 0, 0, { target: 3, bonk: true });
+    expect(texts()).toEqual(['BONK', 'WHACK']);
+    expect(up.map((e) => e.style)).toEqual(['bonk', 'bonk']);
+    advance(1);
+    expect(texts()).toEqual([]);
+  });
+
   it('keeps targets apart, never merges a crit with a plain hit, words or untargeted numbers', () => {
     const { n, up, texts } = numbers();
     n.push(10, 0, 0, 0, { target: 1 });
@@ -413,5 +424,20 @@ describe('Hud hype', () => {
     expect(root.querySelector('#hud-xp-fill').style.width).toBe('40%');
     hud.setXp(2);
     expect(root.querySelector('#hud-xp-fill').style.width).toBe('100%');
+  });
+});
+
+// The playtest of 2026-11-14 ("NPC interactions are boring… add unique voices"): a line types out letter by letter
+// while the NPC babbles it (audio/Babble), at the babble's pace.
+describe('Hud dialogue', () => {
+  it('types the line out letter by letter at the babble pace, escaped', () => {
+    const root = stubContainer();
+    const hud = new Hud(root as unknown as HTMLElement);
+    hud.bind(actions, new Inventory());
+    hud.dialogue({ name: 'Gerald', title: 'Octopus' }, { line: 'Hi <you>!', choices: [] });
+    const html = root.querySelector('#hud-dialog').innerHTML;
+    const chars = [...html.matchAll(/<span class="dlg-ch" style="animation-delay:([\d.]+)s">([^<]*)<\/span>/g)];
+    expect(chars.map((m) => m[2]).join('')).toBe('Hi &lt;you&gt;!');
+    expect(Number(chars[3][1])).toBeCloseTo(3 / BABBLE_CPS, 2);
   });
 });

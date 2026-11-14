@@ -52,12 +52,27 @@ describe('the Moon Throne Hall inside the island castle', async () => {
     expect(treads.at(-1)!.top).toBeCloseTo(3 - SINK.castle + CASTLE_DOOR.rise, 6);
   });
 
-  it('has a throne at the far end that blesses whoever sits on it', () => {
+  it('has a skeleton on the throne wearing the crown: asked three times, he throws it to you, and then you may sit (the playtest of 2026-11-14)', () => {
     const throne = doors.find((d) => /throne/i.test(d.label() ?? ''))!;
     expect(throne.zone).toBe(CASTLE_HALL.id);
+    expect(throne.label()).toMatch(/ask/i);
     throne.act();
-    expect(reward).toHaveBeenCalledWith('throne');
+    throne.act();
+    expect(reward).toHaveBeenCalledWith('keeper', expect.any(String));
+    expect(reward).not.toHaveBeenCalledWith('crown', expect.any(String));
+    throne.act();
+    expect(reward).toHaveBeenCalledWith('crown', expect.any(String));
+    expect(throne.label()).toMatch(/sit/i);
+    throne.act();
+    expect(reward).toHaveBeenCalledWith('throne', expect.any(String));
     expect(throne.label()).toBeNull(); // spent for a while
+  });
+
+  it('gives the crown back to the skeleton when you leave', () => {
+    const out = doors.find((d) => d.zone === CASTLE_HALL.id && /leave/i.test(d.label() ?? ''))!;
+    out.act();
+    const throne = doors.find((d) => d.zone === CASTLE_HALL.id && d !== out && d.label() !== null && /ask|sit/i.test(d.label()!));
+    expect(throne?.label()).toMatch(/ask/i);
   });
 
   it('has a floor, walls and a vault, and its pillars stand solid', () => {

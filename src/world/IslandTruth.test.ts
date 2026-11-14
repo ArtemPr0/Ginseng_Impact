@@ -8,11 +8,12 @@
 import { describe, expect, it } from 'vitest';
 import { ANCHORS, ISLAND_PORTALS, LANDMARKS, LAYOUT, SINK, SKY_EYES, VILLAGE, type LandmarkSpot } from '../data/world';
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
+import { CHESTS } from '../data/chests';
 import { MODELS } from '../data/models';
-import { gridFootprint, type GridFootprint } from './Colliders';
+import { footprintContains, gridFootprint, type GridFootprint } from './Colliders';
 import { Noise2D } from './noise';
-import { terrainHeight, waterLevelAt } from './Terrain';
-import { stoneArch } from './Walkways';
+import { inStreamTail, lowestBed, STREAM_WATER, streamCentre, terrainHeight, waterLevelAt } from './Terrain';
+import { woodArch } from './Walkways';
 
 const noise = new Noise2D(1337);
 const h = (x: number, z: number) => terrainHeight(x, z, noise);
@@ -60,6 +61,8 @@ function measure(p: Placed): Report | null {
   const cells = groundCells(f);
   const rep: Report = { id: p.id, at: `(${p.x},${p.z})`, buried: -Infinity, floating: -Infinity, wet: 0, void: 0, cells: cells.length };
   for (const [x, z] of cells) {
+    // (The witch stream runs on under the church's north wall into it, by design: the playtest of 2026-11-14.)
+    if (inStreamTail(x, z, noise)) continue;
     const g = h(x, z);
     rep.buried = Math.max(rep.buried, g - p.base);
     rep.floating = Math.max(rep.floating, p.base - g);
@@ -169,24 +172,23 @@ describe('one eye at a time', () => {
   });
 });
 
-describe('the stone arches (the playtest of 2026-11-13: the chasm crossings arched like the gorge\'s, the gorge\'s reaching its rims)', () => {
-  const ends = (a: ReturnType<typeof stoneArch>) => {
-    const deck = a.footprints.filter((f) => f.kind === 'box' && f.top - (f.bottom ?? -Infinity) < 1);
-    return deck;
-  };
-  it('the causeway and the west crossing are stone arches from rim to rim over the chasm', () => {
+describe('the wooden arches (the playtest of 2026-11-14: the eye\'s footbridge over the chasm and the gorge, rim to rim)', () => {
+  const deckOf = (a: ReturnType<typeof woodArch>) => a.footprints.filter((f) => f.kind === 'box' && f.top - (f.bottom ?? -Infinity) < 1 && f.hw < 2 && f.hd < 2);
+  const TILE = MODELS['chasm-bridge'].height;
+  it('the causeway and the west crossing are wooden arches from rim to rim over the chasm', () => {
     const c = LAYOUT.causeway;
     for (const b of [{ x: c.x, z: (c.zStart + c.zEnd) / 2, length: c.zStart - c.zEnd }, LAYOUT.chasmBridge]) {
-      const a = stoneArch(b.x, b.z, b.length, 'z', h, { steps: true });
+      const a = woodArch(b.x, b.z, b.length, 'z', h, TILE, { steps: true });
       for (const side of [-1, 1]) expect(h(b.x, b.z + side * (b.length / 2 + 0.5)), `rim beyond ${b.x}, ${b.z + side * b.length / 2}`).toBeGreaterThan(1);
       expect(h(b.x, b.z)).toBeLessThan(-50);
-      expect(ends(a).length).toBeGreaterThan(80);
+      expect(deckOf(a).length).toBeGreaterThan(80);
+      expect(a.tiles.length).toBeGreaterThan(10);
     }
   });
   it('the gorge bridge reaches both rims: the ground meets each end, no gap under it and the deck not buried', () => {
     const b = LAYOUT.gorgeBridge;
-    const a = stoneArch(b.x, b.z, b.length, 'x', h, { steps: true });
-    const deck = ends(a).filter((f) => Math.abs(f.z - b.z) < 0.01).sort((p, q) => p.x - q.x);
+    const a = woodArch(b.x, b.z, b.length, 'x', h, TILE, { steps: true });
+    const deck = deckOf(a).filter((f) => Math.abs(f.z - b.z) < 0.01).sort((p, q) => p.x - q.x);
     for (const end of [deck[0], deck.at(-1)!]) {
       const g = h(end.x, b.z);
       expect(end.top - g, `deck end at x ${end.x.toFixed(1)} over ground ${g.toFixed(2)}`).toBeLessThan(1.2);
@@ -212,5 +214,50 @@ describe('the Hollow King', () => {
   it('has his ground to himself: no island building inside his body (48 m across at 25 m tall)', () => {
     const king = ENEMY_SPAWNS.find((s) => s.kind === 'hollowking')!;
     for (const l of LANDMARKS) expect(Math.hypot(l.x - king.x, l.z - king.z), l.id).toBeGreaterThan(17);
+  });
+});
+
+describe('room for the giants', () => {
+  // The Hollow King sits 25 m tall and swings 26 m out (measured headless, 2026-11-14): the candle gate stood 18 m
+  // from him and his arms went through it (the playtest of 2026-11-14).
+  it('keeps every island landmark out of a seated giant\'s reach', () => {
+    const giants = ENEMY_SPAWNS.filter((sp) => ENEMY_DEFS[sp.kind].reach);
+    expect(giants.length).toBeGreaterThan(0);
+    for (const g of giants) {
+      const reach = ENEMY_DEFS[g.kind].reach!;
+      for (const l of LANDMARKS) expect({ id: l.id, d: Math.hypot(l.x - g.x, l.z - g.z) > reach + 6 }).toEqual({ id: l.id, d: true });
+    }
+  });
+
+  it('keeps every island chest out of a seated giant\'s reach (the world tree\'s hoard sat 25 m from the Hollow King)', () => {
+    for (const g of ENEMY_SPAWNS.filter((sp) => ENEMY_DEFS[sp.kind].reach)) {
+      const reach = ENEMY_DEFS[g.kind].reach!;
+      for (const c of CHESTS.filter((q) => q.zone === 'island')) expect({ id: c.id, d: Math.hypot(c.x - g.x, c.z - g.z) > reach + 3 }).toEqual({ id: c.id, d: true });
+    }
+  });
+});
+
+describe('the witch stream runs into the church (the playtest of 2026-11-14: it stopped in the middle of the land)', () => {
+  const ch = LAYOUT.church;
+  const floor = h(ch.x, ch.z);
+  const walls = gridFootprint('church', ch.x, 0, ch.z, Math.PI / 2)!;
+  it('carries its water on past the old end, under the church floor, into the walls', () => {
+    let inside = 0;
+    for (let z = LAYOUT.coven.zMax - 4; z < LAYOUT.coven.tail.zTo; z += 0.5) {
+      const cx = streamCentre(z, noise);
+      const w = waterLevelAt(cx, z, noise);
+      expect(w, `water at z ${z}`).not.toBeNull();
+      expect(w!, `under the church floor at z ${z}`).toBeLessThan(floor - 0.3);
+      expect(lowestBed(h, cx, z, STREAM_WATER.half), `a bed under the water at z ${z}`).toBeLessThan(w! - 0.4);
+      if (footprintContains(walls, cx, z)) inside++;
+    }
+    expect(inside).toBeGreaterThan(2);
+  });
+  it('keeps its banks over the water from the old end to the wall (a channel, not a sheet on the grass)', () => {
+    for (let z = LAYOUT.coven.zMax; z < 49; z += 1) {
+      const cx = streamCentre(z, noise);
+      const w = waterLevelAt(cx, z, noise)!;
+      for (const side of [-1, 1]) expect(h(cx + side * (STREAM_WATER.half + 2.5), z), `bank at z ${z}`).toBeGreaterThan(w + 0.3);
+    }
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CONTROLLER, createControllerState, haltController, startDash, stepController, type ControllerInput, type WorldQuery } from './CharacterController';
+import { CONTROLLER, createControllerState, haltController, startDash, startLeap, startLunge, stepController, type ControllerInput, type WorldQuery } from './CharacterController';
 
 const flat: WorldQuery = { heightAt: () => 0 };
 const idle = (): ControllerInput => ({ move: { x: 0, z: 0 }, sprint: false, jump: false, jumpHeld: false, fly: false });
@@ -384,5 +384,61 @@ describe('haltController — a panel opens mid-stride', () => {
     expect(Math.hypot(s.vel.x, s.vel.z)).toBeGreaterThan(1);
     haltController(s);
     expect(Math.hypot(s.vel.x, s.vel.z)).toBe(0);
+  });
+});
+
+describe('the attack lunge and leap (cartoon combat)', () => {
+  it('lunges the asked distance along the swing in a blink, then stands', () => {
+    const s = createControllerState({ x: 0, y: 0, z: 0 });
+    startLunge(s, { x: 1, z: 0 }, 1.2);
+    run(idle(), 6, flat, s);
+    expect(s.pos.x).toBeGreaterThan(0.8);
+    run(idle(), 60, flat, s);
+    expect(s.pos.x).toBeCloseTo(1.2, 0);
+    expect(Math.abs(s.pos.x - 1.2)).toBeLessThan(0.25);
+    expect(s.dashLeft).toBe(0);
+  });
+
+  it('an attack never cuts a dodge roll short: no lunge or leap while it runs', () => {
+    const s = createControllerState({ x: 0, y: 0, z: 0 });
+    startDash(s, { x: 0, z: 1 });
+    startLunge(s, { x: 1, z: 0 }, 1.2);
+    startLeap(s, { x: 1, z: 0 }, 0.4, 3);
+    expect(s.mode).toBe('ground');
+    run(idle(), 60, flat, s);
+    expect(s.pos.z).toBeGreaterThan(CONTROLLER.dashSpeed * CONTROLLER.dashTime * 0.8);
+    expect(Math.abs(s.pos.x)).toBeLessThan(0.1);
+  });
+
+  it('a dodge after a lunge rolls its own full length again', () => {
+    const s = createControllerState({ x: 0, y: 0, z: 0 });
+    startLunge(s, { x: 1, z: 0 }, 0.5);
+    run(idle(), 60, flat, s);
+    const x0 = s.pos.x;
+    startDash(s, { x: 1, z: 0 });
+    run(idle(), 60, flat, s);
+    expect(s.pos.x - x0).toBeGreaterThan(CONTROLLER.dashSpeed * CONTROLLER.dashTime * 0.8);
+  });
+
+  it('leaps up and forward, unsteered, and lands about when and where it was aimed', () => {
+    const s = createControllerState({ x: 0, y: 0, z: 0 });
+    startLeap(s, { x: 0, z: 1 }, 0.5, 3);
+    expect(s.mode).toBe('air');
+    let t = 0;
+    while (s.mode !== 'ground' && t < 2) { stepController(s, { ...idle(), move: { x: -1, z: 0 } }, flat, 1 / 60); t += 1 / 60; }
+    expect(t).toBeGreaterThan(0.4);
+    expect(t).toBeLessThan(0.62);
+    expect(s.pos.z).toBeGreaterThan(2.2);
+    expect(Math.abs(s.pos.x)).toBeLessThan(0.3);
+  });
+
+  it('a quick leap still rises high (a cartoon leap), lands on time, and then falls as usual again', () => {
+    const s = createControllerState({ x: 0, y: 0, z: 0 });
+    startLeap(s, { x: 1, z: 0 }, 0.35, 2);
+    let t = 0, top = 0;
+    while (s.mode !== 'ground' && t < 2) { stepController(s, idle(), flat, 1 / 60); t += 1 / 60; top = Math.max(top, s.pos.y); }
+    expect(top).toBeGreaterThan(1.3);
+    expect(t).toBeLessThan(0.48);
+    expect(s.flungGravity).toBe(1);
   });
 });

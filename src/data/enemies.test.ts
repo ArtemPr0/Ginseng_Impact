@@ -26,19 +26,31 @@ describe('the Sunken City\'s water boss (the playtest of 2026-11-13: "some sort 
     expect(d.flying).toBe(true);
     expect(boss!.patrol?.length).toBeGreaterThan(2);
     for (const [x, z] of boss!.patrol!) expect(Math.hypot(x - church.x, z - church.z)).toBeLessThan(30);
-    // Every leg keeps the 4.6 m fish clear of the church (its collider reaches ~9.7 m from the middle: the review).
+    // Every leg keeps the octopus's arms clear of the church (its collider reaches ~9.7 m from the middle: the review).
+    const reach = d.bodyRadius + 0.5;
     const P = boss!.patrol!;
     for (let i = 0; i < P.length; i++) {
       const [ax, az] = P[i], [bx, bz] = P[(i + 1) % P.length];
-      for (let t = 0; t <= 1; t += 0.05) expect(Math.hypot(ax + (bx - ax) * t - church.x, az + (bz - az) * t - church.z), `leg ${i} at ${t}`).toBeGreaterThan(12.5);
+      for (let t = 0; t <= 1; t += 0.05) expect(Math.hypot(ax + (bx - ax) * t - church.x, az + (bz - az) * t - church.z), `leg ${i} at ${t}`).toBeGreaterThan(9.7 + reach);
     }
   });
 
-  it('is a reel subject: the city\'s big blue grouper (DeVj-Z8POjl), grown huge', () => {
-    const m = MODELS[boss!.kind];
-    expect(m.file).toBe(MODELS['blue-fish'].file);
-    expect(m.label).toMatch(/DeVj-Z8POjl/);
-    expect(m.height).toBeGreaterThan(MODELS['blue-fish'].height * 3);
+  it('is a massive octopus (the playtest of 2026-11-14: "make a massive octapus as the boss"), its arms alive in the shader', () => {
+    const d = ENEMY_DEFS[boss!.kind];
+    expect(boss!.kind).toBe('octopus');
+    expect(MODELS.octopus.file).toBe('octopus.glb');
+    expect(d.name).toBe('Big Gerald');
+    expect(d.tentacles).toBe(true);
+    expect(d.bodyRadius * 2).toBeGreaterThan(9);
+  });
+
+  it('fights with its arms, ink, a whirlpool and the junk it juggles, not just shots', () => {
+    const d = ENEMY_DEFS[boss!.kind];
+    expect(d.attacks!.map((a) => a.kind)).toEqual(expect.arrayContaining(['tentacle', 'ink', 'whirlpool', 'diamond', 'summon']));
+    expect(d.attacks!.map((a) => a.kind)).not.toContain('volley');
+    expect(d.orbit?.model).toBe('barrel');
+    expect(d.orbit!.radius).toBeGreaterThan(d.bodyRadius);
+    expect(ORBIT_SHOT.barrel).toBe('prop');
   });
 
   it('calls the city\'s anglers to help, not island beasts', () => {

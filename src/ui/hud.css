@@ -76,6 +76,8 @@ body { font-family: var(--font-body); color: var(--moon); }
 .hud-num.big { font-size: 28px; animation-duration: 900ms; text-transform: uppercase; letter-spacing: 0.12em; }
 @keyframes numpop { 0% { transform: translate(-50%, -50%) scale(1.3); opacity: 1; } 100% { transform: translate(-50%, calc(-50% - 28px)) scale(1); opacity: 0; } }
 /* A crit: bigger, moon-white whatever the element, one stepped pop (the first 100 ms), then the same drift. */
+.hud-num.bonk { font-family: var(--font-title); font-size: 34px; font-weight: 900; letter-spacing: 0.02em; -webkit-text-stroke: 2px var(--void); paint-order: stroke fill; text-shadow: 3px 3px 0 var(--void), 0 0 14px currentColor; animation: bonkpop 750ms cubic-bezier(.2, 1.6, .4, 1) forwards; }
+@keyframes bonkpop { 0% { transform: translate(-50%, -50%) rotate(var(--tilt, -8deg)) scale(0.2); opacity: 1; } 22% { transform: translate(-50%, -60%) rotate(var(--tilt, -8deg)) scale(1.25); } 40% { transform: translate(-50%, -62%) rotate(var(--tilt, -8deg)) scale(1); opacity: 1; } 100% { transform: translate(-50%, -95%) rotate(var(--tilt, -8deg)) scale(0.9); opacity: 0; } }
 .hud-num.crit { font-size: 32px; letter-spacing: 0.06em; color: var(--moon) !important; animation: critpop 900ms steps(9, end) forwards; }
 @keyframes critpop { 0% { transform: translate(-50%, -50%) scale(1.6); opacity: 1; } 11% { transform: translate(-50%, -50%) scale(1); opacity: 1; } 100% { transform: translate(-50%, calc(-50% - 30px)) scale(1); opacity: 0; } }
 /* The combo counter over the hero card (above the F prompt), popping a step on each new count. */
@@ -131,6 +133,10 @@ body { font-family: var(--font-body); color: var(--moon); }
 .dlg-name { font-family: var(--font-title); font-weight: 700; font-size: 20px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--moon); }
 .dlg-title { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cloth); margin-top: 2px; }
 .dlg-line { font-size: 16px; line-height: 1.5; color: var(--moon); min-height: 48px; }
+/* The line types out as the NPC babbles it (Hud typed()). */
+.dlg-ch { opacity: 0; animation: dlg-in 0.06s ease-out forwards; }
+@keyframes dlg-in { to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .dlg-ch { opacity: 1; animation: none; } }
 .dlg-buttons { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
 .hud-panel button { font-family: var(--font-title); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--moon); background: rgba(26,44,255,0.18); border: 1px solid var(--panel-border); padding: 7px 14px; cursor: pointer; transition: background 80ms steps(2, end); }
 .hud-panel button:hover { background: rgba(79,124,255,0.35); border-color: var(--electric); }
@@ -204,3 +210,16 @@ body { font-family: var(--font-body); color: var(--moon); }
 /* The experience bar along the bottom of the hero card. */
 .hud-xp { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); width: 292px; height: 3px; background: var(--void); border: 1px solid rgba(223,230,255,0.18); }
 .hud-xp-fill { height: 100%; width: 0; background: linear-gradient(90deg, #ffc23a, #fff2b0); box-shadow: 0 0 6px rgba(255,194,58,0.6); transition: width 400ms cubic-bezier(.2,1.2,.4,1); }
+
+/* Big Gerald's ink on the screen (ui/InkSplat): blots slap on, run down a little, fade. */
+.ink-splat { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+.ink-blot { position: absolute; transform: translate(-50%, -50%) rotate(var(--turn)) scale(0); opacity: 0; }
+.ink-blot svg { width: 100%; height: 100%; display: block; }
+.ink-splat.on .ink-blot { animation: ink-slap 2.6s cubic-bezier(0.2, 1.4, 0.4, 1) forwards; }
+@keyframes ink-slap {
+  0% { transform: translate(-50%, -50%) rotate(var(--turn)) scale(0.2); opacity: 0; }
+  8% { transform: translate(-50%, -50%) rotate(var(--turn)) scale(1.12); opacity: 0.96; }
+  14% { transform: translate(-50%, -50%) rotate(var(--turn)) scale(1); opacity: 0.94; }
+  65% { transform: translate(-50%, -44%) rotate(var(--turn)) scale(1, 1.06); opacity: 0.85; }
+  100% { transform: translate(-50%, -38%) rotate(var(--turn)) scale(1, 1.1); opacity: 0; }
+}

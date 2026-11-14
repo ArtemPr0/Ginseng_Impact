@@ -1,4 +1,5 @@
 import type { CharacterDef } from '../characters/roster';
+import { BABBLE_CPS } from '../audio/Babble';
 import { ELEMENT_COLOR, ROSTER } from '../characters/roster';
 import type { Element } from '../combat/Elements';
 import { ITEMS, RARITY_NAME, canWield } from '../items/Items';
@@ -109,9 +110,10 @@ export const NUMBER_MERGE = 0.25;
 /** The most numbers one target shows at once: the oldest gives way. */
 export const NUMBERS_PER_TARGET = 3;
 /** How a number is drawn: a plain hit, a word or a big number (reactions), a crit (bigger, moon-white, one pop). */
-export type NumberStyle = 'hit' | 'big' | 'crit';
+/** A plain hit, a big one (a reaction's name), a crit, or a blow's comic word (Juice.bonkWord: BONK, ZAP). */
+export type NumberStyle = 'hit' | 'big' | 'crit' | 'bonk';
 /** Seconds a number stays up (the CSS animations run as long). */
-const NUMBER_LIFE: Record<NumberStyle, number> = { hit: 0.65, big: 0.9, crit: 0.9 };
+const NUMBER_LIFE: Record<NumberStyle, number> = { hit: 0.65, big: 0.9, crit: 0.9, bonk: 0.75 };
 
 export interface NumberIo<T> {
   /** Puts a number up at (x, y) on screen. */
@@ -135,8 +137,8 @@ export class DamageNumbers<T> {
 
   constructor(private readonly io: NumberIo<T>) {}
 
-  push(value: number | string, color: number, x: number, y: number, { big = false, crit = false, target = null }: { big?: boolean; crit?: boolean; target?: number | null } = {}): void {
-    const style: NumberStyle = crit ? 'crit' : big ? 'big' : 'hit';
+  push(value: number | string, color: number, x: number, y: number, { big = false, crit = false, bonk = false, target = null }: { big?: boolean; crit?: boolean; bonk?: boolean; target?: number | null } = {}): void {
+    const style: NumberStyle = bonk ? 'bonk' : crit ? 'crit' : big ? 'big' : 'hit';
     const now = this.io.now();
     const list = target === null ? null : this.byTarget.get(target) ?? [];
     const last = list?.[list.length - 1];
@@ -171,6 +173,16 @@ export class DamageNumbers<T> {
 /** The lock-on marker: a ring with four ticks and a dotted inner ring, in the rune colour (the CSS turns it in steps). */
 const LOCK_SVG = `<svg viewBox="0 0 36 36" width="36" height="36" aria-hidden="true"><circle cx="18" cy="18" r="11" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="18" cy="18" r="6.5" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="2 3"/><path d="M18 1.5v6M18 28.5v6M1.5 18h6M28.5 18h6" stroke="currentColor" stroke-width="1.5"/></svg>`;
 
+
+const ESC: Record<string, string> = { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' };
+/**
+ * A dialogue line typed out letter by letter at the pace the NPC babbles it (audio/Babble, the playtest of 2026-11-14:
+ * "add unique voices"): each letter fades in 1/BABBLE_CPS s after the one before.
+ */
+function typed(line: string): string {
+  return [...line].map((ch, i) => `<span class="dlg-ch" style="animation-delay:${(i / BABBLE_CPS).toFixed(3)}s">${ESC[ch] ?? ch}</span>`).join('');
+}
+
 /** DOM HUD: Genshin layout, dark-fantasy skin. Panels (talk, shop, inventory) take the pointer. */
 export class Hud {
   private readonly root: HTMLElement;
@@ -189,6 +201,8 @@ export class Hud {
       el.style.color = hex(color);
       el.style.left = `${Math.round(x + (Math.random() - 0.5) * 24)}px`;
       el.style.top = `${Math.round(y)}px`;
+      // (A comic word leans its own way, one way or the other.)
+      if (style === 'bonk') el.style.setProperty('--tilt', `${Math.round((Math.random() - 0.5) * 28)}deg`);
       this.q('#hud-numbers').appendChild(el);
       return el;
     },
@@ -405,6 +419,11 @@ export class Hud {
     this.numbers.push(value, color, x, y, { big, crit, target: targetId });
   }
 
+  /** A blow's comic word over where it struck (BONK, ZAP, KA-THOOM!), tilted and chunky. */
+  bonk(x: number, y: number, word: string, color: number): void {
+    this.numbers.push(word, color, x, y, { bonk: true });
+  }
+
   /** The combo counter over the hero card ("×3"), shown from the second hit in a row; each new count pops it. */
   setCombo(count: number): void {
     if (!this.changed('combo', String(count))) return;
@@ -614,7 +633,7 @@ export class Hud {
       return c;
     });
     el.innerHTML = `<div class="dlg-head"><div class="dlg-name">${head.name}</div><div class="dlg-title">${head.title}</div></div>
-      <div class="dlg-line">“${node.line}”</div>
+      <div class="dlg-line">“${typed(node.line)}”</div>
       <div class="dlg-choices">${choices.map((c, i) => `<button data-act="c${i}"><span class="dlg-choice-n">${i + 1}</span>${c.label}</button>`).join('')}</div>`;
     this.wire(el, (act) => {
       const choice = node.choices[Number(act.slice(1))];

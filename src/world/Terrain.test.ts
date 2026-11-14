@@ -2,7 +2,7 @@ import { FOOTINGS } from '../data/world';
 import { describe, expect, it } from 'vitest';
 import { Noise2D, smoothstep } from './noise';
 import { FLATS, KNOLL, LAYOUT, PADS } from '../data/world';
-import { EYE, RIVER, RIVER_LEVEL, STREAM_WATER, Terrain, WORLD, knollAt, lowestBed, meadowAt, reliefAt, rimLip, riverAt, riverDistance, streamCentre, terrainHeight, waterLevelAt } from './Terrain';
+import { EYE, RIVER, RIVER_LEVEL, STREAM_WATER, Terrain, WORLD, inStreamTail, knollAt, lowestBed, meadowAt, reliefAt, rimLip, riverAt, riverDistance, streamCentre, terrainHeight, waterLevelAt } from './Terrain';
 
 describe('Noise2D', () => {
   it('is deterministic for a seed and bounded in [-1, 1]', () => {
@@ -156,6 +156,7 @@ describe('island relief', () => {
     // No hills anywhere on these (reliefAt 0); where the knoll does not reach, the ground is the bare sculpt exactly.
     const flat: string[] = [];
     const level = (x: number, z: number, what: string) => {
+      if (inStreamTail(x, z, noise)) return;
       if (reliefAt(x, z, noise) !== 0) flat.push(`${what} (${x.toFixed(1)}, ${z.toFixed(1)}) relief ${reliefAt(x, z, noise).toFixed(3)}`);
       else if (knollAt(x, z) === 0 && !FOOTINGS.some((f) => Math.hypot(x - f.x, z - f.z) < f.r + f.blend) && H(x, z) !== B(x, z)) flat.push(`${what} (${x.toFixed(1)}, ${z.toFixed(1)}) moved ${(H(x, z) - B(x, z)).toFixed(3)}`);
     };
@@ -349,6 +350,7 @@ describe('building footings', () => {
     for (const f of FOOTINGS) {
       const y = f.y ?? terrainHeight(f.x, f.z, n, true, false);
       for (let a = 0; a < 8; a++) {
+        if (inStreamTail(f.x + Math.cos(a) * f.r, f.z + Math.sin(a) * f.r, n)) continue;
         const g = terrainHeight(f.x + Math.cos(a) * f.r, f.z + Math.sin(a) * f.r, n);
         expect(Math.abs(g - y), `footing at ${f.x},${f.z}`).toBeLessThan(0.25);
       }

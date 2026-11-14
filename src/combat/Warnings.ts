@@ -45,6 +45,12 @@ export const ROOTS_RADIUS = 3.2;
 export const WEBDROP_RADIUS = 4;
 /** The glare's ring round whom it holds (m). */
 export const GLARE_RADIUS = 1.6;
+/** Where the octopus's arm comes down (the tentacle slam): a disc under its mark. */
+export const TENTACLE_RADIUS = 3.4;
+/** How far the octopus's whirlpool drags you in from (round its body). */
+export const WHIRL_REACH = 14;
+/** The ink jet's half-width (wider than a breath: it billows). */
+export const INK_HALF = 0.55;
 /** The snowstorm: four patches of static round whom it was cast at (offsets in m), each this wide. */
 export const SNOW_PATCHES: ReadonlyArray<readonly [number, number]> = [[0, 0], [4, 2], [-3, 4], [2, -4]];
 export const SNOW_RADIUS = 2.6;
@@ -97,6 +103,7 @@ export function coneReach(def: EnemyDef, kind: BossAttackKind, range: number): n
   const r = def.bodyRadius * scaleOf(def);
   switch (kind) {
     case 'breath': return range + r + 4;
+    case 'ink': return range + r;
     case 'punch': return range + r * 0.5;
     default: return range + r; // sweep, grab
   }
@@ -146,6 +153,10 @@ export function warnSpec(def: EnemyDef, attack: BossAttack | null, dist: number)
     case 'web': return { shape: 'cone', anchor: 'lunge', size: Math.min(attack.range, dist + 2), half: 0.2, color: WARN_COLOR.hold };
     // The glare holds whoever faces the eye as it opens: a ring round its mark (the banner says to look away).
     case 'glare': return { shape: 'ring', anchor: 'mark', size: GLARE_RADIUS, half: 0, color: WARN_COLOR.hold, handoff: true };
+    // The octopus: an arm's shadow under its mark; the ink fanned out like a breath; the whirlpool round its body.
+    case 'tentacle': return { shape: 'disc', anchor: 'mark', size: TENTACLE_RADIUS, half: 0, color: WARN_COLOR.blow, handoff: true };
+    case 'ink': return { shape: 'cone', anchor: 'body', size: coneReach(def, k, attack.range), half: INK_HALF, color: WARN_COLOR.hold };
+    case 'whirlpool': return { shape: 'ring', anchor: 'body', size: WHIRL_REACH, half: 0, color: WARN_COLOR.hold };
     default: return null;
   }
 }

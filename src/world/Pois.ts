@@ -73,10 +73,13 @@ export function ruin(api: RealmApi, x: number, z: number, yaw: number, avoid: Re
   api.flora('boulder', ring(api, x, z, 16, 5, 11, [0.7, 1.6]).filter((p) => !avoid.some(([ax, az, r]) => Math.hypot(p.x - ax, p.z - az) < r)));
 }
 
-/** The throne dragons' ground in the Skeleton Court (LeanQuarter: 8.5 m either side of (1000, -172), 5.5 m long). */
-export const COURT_DRAGONS: ReadonlyArray<readonly [number, number, number]> = [[991.5, -160, 5.5], [1008.5, -160, 5.5]];
-/** The court's fallen gatehouse. */
-export const COURT_RUIN = { x: 990, z: -148, yaw: 0.6 } as const;
+/** The throne dragons' ground in the Skeleton Court (LeanQuarter: 8.5 m either side of the throne at (1000, -95.25), 5.5 m long). */
+export const COURT_DRAGONS: ReadonlyArray<readonly [number, number, number]> = [[991.5, -95.25, 5.5], [1008.5, -95.25, 5.5]];
+/**
+ * The court's fallen gatehouse: at its south-west way in since the compaction of 2026-11-14 (the court closed in on
+ * its throne left no room for it inside), between the court's west fountains and the purple wood.
+ */
+export const COURT_RUIN = { x: 972, z: -47, yaw: 0.6 } as const;
 
 /** A little graveyard under a dead tree. */
 export function graves(api: RealmApi, x: number, z: number, r = 11): void {
@@ -152,49 +155,56 @@ export function dressKingdom(realm: RealmApi): void {
   // (And nothing on the cliff past the rim: the land ends 10 m past the pads since 2026-11-13, and a field or a ring
   // reaching past it would hang its pieces on the 70 m drop.)
   const onLand = (p: Placement) => p.y > GALAXY.y - 1.5;
-  const api: RealmApi = Object.assign(Object.create(realm) as RealmApi, { flora: (id: string, ps: Placement[], opts?: Parameters<RealmApi['flora']>[2]) => realm.flora(id, ps.filter((p) => offRoad(p) && onLand(p)), opts) });
+  // (Nor in the court's fallen gatehouse: its arch and the pieces round it.)
+  const gate = ruinPieces(COURT_RUIN.x, COURT_RUIN.z, COURT_RUIN.yaw, COURT_DRAGONS);
+  const offRuin = (p: Placement) => Math.hypot(p.x - COURT_RUIN.x, p.z - COURT_RUIN.z) > 4 && [...gate.columns, ...gate.walls].every(([x, z]) => Math.hypot(p.x - x, p.z - z) > 2.5);
+  const api: RealmApi = Object.assign(Object.create(realm) as RealmApi, { flora: (id: string, ps: Placement[], opts?: Parameters<RealmApi['flora']>[2]) => realm.flora(id, ps.filter((p) => offRoad(p) && onLand(p) && offRuin(p)), opts) });
   // (A wood you walk into, not a tree every 24 m; clear of the camp and the lamps.)
   // (On the land: the margins were cut back on 2026-11-12, so a field reaching past them stops at the rim.)
-  const clear = (p: Placement) => p.y > 20 && Math.hypot(p.x - 863, p.z + 56) > 9 && ![[893, -56], [963, -56], [980, -58]].some(([x, z]) => Math.hypot(p.x - x, p.z - z) < 3.5);
-  api.flora('purple-mushroom', field(api, 833, 985, -72, -42, 9).filter(clear), { trunk: 0.08 });
-  api.flora('dead-forest-tree', [...field(api, 839, 980, -70, -44, 12).filter(clear), ...field(api, 823, 893, 80, 102, 12).filter((p) => p.y > 20)], { trunk: 0.05 });
-  api.flora('purple-crystal', [...field(api, 928, 944, -170, -86, 13), ...field(api, 1058, 1074, -170, -86, 13)], { shadows: false });
-  for (const [x, z] of [[893, -56], [963, -56], [980, -58]]) { prop(api, 'gothic-lamp', x, z, 0.3, 3); const g = glowSprite(0xc070ff, 2.4, 0.55, true); g.position.set(x, api.h(x, z) + 3.1, z); api.group.add(g); }
-  camp(api, 863, -56);
+  // (Since the compaction of 2026-11-14 each field keeps its count on its smaller ground: its step shrank with it.)
+  const woodLamps = [[941.5, -33.05], [979.77, -33.05], [984.5, -34.15]] as const;
+  const clear = (p: Placement) => p.y > 20 && Math.hypot(p.x - 925.12, p.z + 33.05) > 9 && !woodLamps.some(([x, z]) => Math.hypot(p.x - x, p.z - z) < 3.5);
+  api.flora('purple-mushroom', field(api, 896, 978, -41.85, -25.35, 5).filter(clear), { trunk: 0.08 });
+  api.flora('dead-forest-tree', [...field(api, 902, 978, -40.75, -26.45, 6.5).filter(clear), ...field(api, 886, 936, 41.75, 53.85, 9).filter((p) => p.y > 20)], { trunk: 0.05 });
+  api.flora('purple-crystal', [...field(api, 960.63, 969.38, -100.75, -54.55, 7.1), ...field(api, 1031.71, 1041.21, -100.75, -54.55, 7.1)], { shadows: false });
+  for (const [x, z] of woodLamps) { prop(api, 'gothic-lamp', x, z, 0.3, 3); const g = glowSprite(0xc070ff, 2.4, 0.55, true); g.position.set(x, api.h(x, z) + 3.1, z); api.group.add(g); }
+  camp(api, 925.12, -33.05);
   // (The bare south slab and the east dunes, empty on the 2026-11-03 walk: a fallen gatehouse, a toadstool ring, a
   // stand of dead trees.)
   // (Its pieces keep off the throne dragons: a column stood in the west one's claw.)
   ruin(api, COURT_RUIN.x, COURT_RUIN.z, COURT_RUIN.yaw, COURT_DRAGONS);
-  shrooms(api, 1040, 80);
-  api.flora('dead-forest-tree', field(api, 1004, 1062, 62, 96, 13).filter((p) => Math.hypot(p.x - 1040, p.z - 80) > 12 && p.y > 10), { trunk: 0.05 });
-  graves(api, 1000, 124, 11);
-  graves(api, 867, 86, 9);
+  shrooms(api, 1021.87, 41.75);
+  // (Not in the ring portals at the plaza's south end, Realms.ts.)
+  const offPortals = (p: Placement) => [[988, 36.25], [1000, 37.35], [1012, 36.25]].every(([x, z]) => Math.hypot(p.x - x, p.z - z) > 4);
+  api.flora('dead-forest-tree', field(api, 1002.19, 1034, 31.85, 50.55, 7.1).filter((p) => Math.hypot(p.x - 1021.87, p.z - 41.75) > 11 && p.y > 10 && offPortals(p)), { trunk: 0.05 });
+  graves(api, 1000, 65.95, 7);
+  graves(api, 927.28, 45.05, 6);
   // (The dunes either side of the Skeleton Court, bare on the 2026-11-04 walk: a burial ground under dead trees west,
   // a fallen gatehouse east, the trees thinning out to the void.)
   // (The west burial ground went with the court's west dunes on 2026-11-13; the gatehouse came in off the new rim.)
-  ruin(api, 1056, -120, 2.1);
-  const courtSide = (p: Placement) => p.y > 23.5 && Math.hypot(p.x - 1056, p.z + 120) > 17;
-  api.flora('dead-forest-tree', [...field(api, 906, 936, -172, -84, 11), ...field(api, 1064, 1096, -172, -84, 11)].filter(courtSide), { trunk: 0.05 });
+  ruin(api, 1030.62, -73.25, 2.1);
+  const courtSide = (p: Placement) => p.y > 23.5 && Math.hypot(p.x - 1030.62, p.z + 73.25) > 13;
+  api.flora('dead-forest-tree', [...field(api, 948.6, 965.01, -101.85, -53.45, 6), ...field(api, 1035.21, 1054.41, -101.85, -53.45, 6)].filter(courtSide), { trunk: 0.05 });
   // (After the compaction of 2026-11-13, what the empty-space audit still found bare, each with its quarter's own things.)
   const lamp = (x: number, z: number) => { prop(api, 'gothic-lamp', x, z, 0.3, 3); const g = glowSprite(0xc070ff, 2.4, 0.55, true); g.position.set(x, api.h(x, z) + 3.1, z); api.group.add(g); };
   const brazier = (x: number, z: number) => { prop(api, 'brazier', x, z, 0.6, 1.3); api.vfx(fire(x, api.h(x, z) + 1.5, z, 0.7, 10, PURPLE_FIRE)); };
   // The castle's rock behind it, out to the rim: crystals and dead trees.
-  api.flora('purple-crystal', field(api, 796, 812, -30, 70, 9).filter(onLand), { shadows: false });
-  api.flora('dead-forest-tree', field(api, 800, 812, -20, 60, 16).filter(onLand), { trunk: 0.05 });
+  api.flora('purple-crystal', field(api, 863.5, 879.5, -18.75, 36.25, 6.7).filter(onLand), { shadows: false });
+  api.flora('dead-forest-tree', field(api, 867.5, 879.5, -13.25, 30.75, 12).filter(onLand), { trunk: 0.05 });
   // The street's north side between the round tower and the plaza: a brazier corner with its barrels.
-  brazier(926, -24); brazier(942, -20);
-  for (const [dx, dz] of [[-1.2, 2], [0.4, 2.8], [1.8, 1.6]]) prop(api, 'barrel', 933 + dx, -26 + dz, 0.45, 1, dx);
+  brazier(959.54, -15.45); brazier(968.29, -13.25);
+  for (const [dx, dz] of [[-1.2, 2], [0.4, 2.8], [1.8, 1.6]]) prop(api, 'barrel', 963.37 + dx, -16.55 + dz, 0.45, 1, dx);
   // The moat's east bank at the street's corner.
-  lamp(868, -30); lamp(868, 66);
-  api.flora('purple-crystal', ring(api, 872, -20, 4, 5, 1.5, [0.7, 1.4]), { shadows: false });
+  lamp(932.33, -18.75); lamp(932.33, 34.05);
+  api.flora('purple-crystal', ring(api, 934.51, -13.25, 4, 5, 1.5, [0.7, 1.4]), { shadows: false });
   // The street's south side, where the bucket men wait.
-  camp(api, 902, 62);
+  camp(api, 946.42, 31.85);
   // The plaza's north-east rim and the court's north-east corner.
-  lamp(1052, -62); lamp(1052, -30); lamp(1050, 40);
-  brazier(1048, -170); brazier(1048, -150);
-  api.flora('purple-crystal', field(api, 1036, 1058, -178, -160, 6).filter(onLand), { shadows: false });
+  lamp(1028.43, -36.35); lamp(1028.43, -18.75); lamp(1027.34, 19.75);
+  brazier(1026.24, -100.75); brazier(1029.5, -89.75);
+  api.flora('purple-crystal', field(api, 1019.68, 1031.71, -105.15, -95.25, 3.3).filter(onLand), { shadows: false });
   // The snow's south rim.
-  api.flora('dead-forest-tree', field(api, 905, 945, 176, 188, 10).filter(onLand), { trunk: 0.05 });
+  api.flora('dead-forest-tree', field(api, 948.06, 969.93, 94.55, 101.15, 5.5).filter(onLand), { trunk: 0.05 });
 }
 
 /** The drowned land round the sea king's city: wrecks, weed and old stones. */

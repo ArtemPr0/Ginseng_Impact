@@ -10,15 +10,16 @@ import { launch, type Yeet, yeetStep } from './Yeet';
 import { LeanBubble } from '../render/LeanBubble';
 import { patchTrippy } from '../render/Materials';
 import { patchDissolve } from '../render/CombatFx';
-import { EyeIris } from '../render/EyeIris';
 import { easeLean, slopeTarget, type Lean } from '../characters/SlopeLean';
 import type { EnemyDef, OrbitModel } from '../data/enemies';
+import { OctopusBody } from './OctopusBody';
 import { PALETTE } from '../render/palette';
 import type { WorldQuery } from '../player/CharacterController';
 import { type AttackTokens, EnemyBrain, type EnemyState } from './EnemyBrain';
 import type { BossAttack, BossAttackKind } from '../data/enemies';
 import { ELEMENT_COLOR, tickAura, type Aura, type Element } from './Elements';
 import { KNOCK_DECAY, lungePush, lungeRoom } from './Warnings';
+import { squash } from './Juice';
 
 export type EnemyAction = { kind: 'melee' } | { kind: 'boss'; attack: BossAttackKind } | null;
 
@@ -171,6 +172,11 @@ export class Enemy {
   onStomp?: (x: number, y: number, z: number) => void;
   /** The boss attack chosen for the current windup. */
   currentAttack: BossAttack | null = null;
+  /** The octopus's arms (EnemyDef.tentacles), moved in the shader from what it is doing. */
+  octo: OctopusBody | null = null;
+  /** Where whom it fights stood at its last update. */
+  private readonly markAt = { x: 0, y: 0, z: 0 };
+  private octoPrev = { x: 0, z: 0 };
   private orbitAngle = Math.random() * Math.PI * 2;
   /** Set by the combat system when a bolt-summoned minion should vanish for good. */
   noRespawn = false;
@@ -197,6 +203,9 @@ export class Enemy {
   private gaitPhase = Math.random() * 6;
   private lunge = 0;
   private flinch = 0;
+  /** Seconds since the last hit (its squash, Juice.squash), -1 when settled; and how hard it squashes. */
+  private hitT = -1;
+  private hitK = 0;
   /** Walking back to its spot after losing the player (it heals and ignores the player on the way). */
   returning = false;
   /** How far from its spot this enemy will follow (its def's leash, or a default by size). */
@@ -292,9 +301,8 @@ export class Enemy {
 
   /** When a marker standing in for a model began to shrink (deadFor), or -1 (a model burns away instead: burnAway). */
   private shrinkFrom = -1;
-  /** A giant eye's tilt pivot and living iris (def.eye). */
+  /** A giant eye's tilt pivot (def.eye). */
   private eyePivot: Group | null = null;
-  private eyeIris: EyeIris | null = null;
   private eyeTilt = 0;
 
   /** Installs the loaded glTF as the body (its own material copies, so hit flashes stay per enemy). */
@@ -311,15 +319,25 @@ export class Enemy {
       this.eyePivot = new Group();
       this.eyePivot.position.y = cy;
       this.model.root.position.y -= cy;
-      // Laid on the eyeball over its painted iris and pupil (one pupil, not two drifting apart).
-      const H = box.max.y - box.min.y, eye = this.def.eye;
-      this.eyeIris = new EyeIris(eye.size * H, eye.iris, eye.ball * H);
-      const [ax, ay] = eye.axis;
-      this.eyeIris.group.quaternion.setFromUnitVectors(new Vector3(0, 0, 1), new Vector3(ax, ay, Math.sqrt(Math.max(0, 1 - ax * ax - ay * ay))));
+      // Just the model's own painted iris and pupil (the user, 2026-11-14: a drawn iris over it read as a second pupil).
+      const [, ay] = this.def.eye.axis;
       this.eyeTilt = Math.asin(ay);
-      this.eyePivot.add(this.model.root, this.eyeIris.group);
+      this.eyePivot.add(this.model.root);
       this.object.add(this.eyePivot);
     } else this.object.add(this.model.root);
+    if (this.def.tentacles) {
+      // (Its arms move far past the mesh's bounds: never culled for them.)
+      let mesh: Mesh | null = null;
+      this.model.root.traverse((o) => { if (!mesh && (o as Mesh).isMesh) mesh = o as Mesh; });
+      if (mesh) {
+        const m = mesh as Mesh;
+        m.frustumCulled = false;
+        m.geometry.computeBoundingBox();
+        const b = m.geometry.boundingBox!;
+        const R = Math.max(-b.min.x, b.max.x, -b.min.z, b.max.z);
+        this.octo = new OctopusBody(m, m.geometry, this.model.materials, R);
+      }
+    }
     this.object.scale.setScalar(1);
     if (!this.alive) this.model.play('death', true);
     const held = MODELS[id]?.held;
@@ -337,7 +355,7 @@ export class Enemy {
   }
 
   /** What circles the body (EnemyDef.orbit: diamonds or double cups), each with its glow, and when each grows back. */
-  private gems: { group: Group; list: Array<{ obj: Group; back: number }>; t: number; spin: boolean } | null = null;
+  private gems: { group: Group; list: Array<{ obj: Group; back: number }>; t: number; spin: boolean; tumble: boolean } | null = null;
 
   private buildGems(gltf: GLTF, model: OrbitModel, n: number): void {
     const group = new Group();
@@ -345,7 +363,12 @@ export class Enemy {
     for (let i = 0; i < n; i++) {
       const rig = new ModelRig(model, gltf, { cloneMaterials: true });
       const obj = new Group();
-      if (model === 'lean-cup') {
+      if (model === 'barrel') {
+        // Junk off the drowned street (the octopus juggles it): a barrel, tumbling slowly, a faint sea-glow under it.
+        rig.root.scale.setScalar(this.def.orbit?.size ?? 1);
+        litWood(rig.materials);
+        obj.add(rig.root, glowSprite(0x4ad8ff, 1.6, 0.3, true));
+      } else if (model === 'lean-cup') {
         // A double cup brimming with lean, upright (it turns about its own axis, nothing spills), glowing purple.
         rig.root.scale.setScalar(2.4);
         rig.root.position.y = -0.2;
@@ -360,7 +383,7 @@ export class Enemy {
       group.add(obj);
       list.push({ obj, back: 0 });
     }
-    this.gems = { group, list, t: Math.random() * 10, spin: model === 'gem' };
+    this.gems = { group, list, t: Math.random() * 10, spin: model === 'gem', tumble: model === 'barrel' };
     // (In the scene, not on the body: the body's turn and scale would carry them.)
     this.object.parent?.add(group);
   }
@@ -375,8 +398,12 @@ export class Enemy {
     const n = g.list.length;
     g.list.forEach((d, i) => {
       const a = g.t * 0.7 + (i / n) * Math.PI * 2;
-      d.obj.position.set(this.pos.x + Math.cos(a) * 1.6, this.pos.y + 1.5 + Math.sin(g.t * 1.3 + i) * 0.45, this.pos.z + Math.sin(a) * 1.6);
+      const rad = this.def.orbit?.radius ?? 1.6;
+      const up = this.def.orbit?.height ?? 1.5;
+      // (A juggler's toss: each one rises and falls on its own beat, higher the farther out it circles.)
+      d.obj.position.set(this.pos.x + Math.cos(a) * rad, this.pos.y + up + Math.sin(g.t * 1.3 + i) * 0.45 * Math.max(1, rad / 1.6) * 0.6, this.pos.z + Math.sin(a) * rad);
       d.obj.rotation.y = g.t * (g.spin ? 2 : 0.6) + i;
+      if (g.tumble) d.obj.rotation.x = g.t * 1.7 + i;
       d.back = Math.max(0, d.back - dt);
       d.obj.scale.setScalar(d.back > 0 ? Math.max(0.001, 1 - d.back / 4) ** 3 : 1);
     });
@@ -492,13 +519,13 @@ export class Enemy {
   update(dt: number, marks: ReadonlyArray<Mark>): EnemyAction {
     const player = this.chooseMark(marks);
     this.heroY = player.y;
-    if (this.eyePivot && this.eyeIris) {
+    this.markAt.x = player.x; this.markAt.y = player.y; this.markAt.z = player.z;
+    if (this.eyePivot) {
       const dist = Math.hypot(player.x - this.pos.x, player.z - this.pos.z);
       const dy = player.y + 1 - (this.pos.y + this.eyePivot.position.y);
       const pitch = Math.max(-0.9, Math.min(0.9, Math.atan2(dy, Math.max(1, dist))));
       // (Plus the tilt that brings the eye's own line of sight, not the ball's front, onto the hero.)
       this.eyePivot.rotation.x += (this.eyeTilt - pitch - this.eyePivot.rotation.x) * Math.min(1, dt * 3);
-      this.eyeIris.update(dt, this.hp / this.def.maxHp, 1 - Math.min(1, dist / 30));
     }
     this.time += dt;
     this.aura = tickAura(this.aura, dt);
@@ -780,7 +807,6 @@ export class Enemy {
   }
 
   takeDamage(amount: number, kb: { x: number; z: number }, strength: number): boolean {
-    this.eyeIris?.hurt();
     if (!this.alive) return false;
     // Hit: a neutral mob turns on you (passive flyers never fight back), a seated one jumps up at once.
     if (this.def.neutral && !this.def.passive && !this.provoked) { this.provoked = true; if (this.brain.state === 'idle') { this.brain.state = 'chase'; this.brain.stateTime = 0; } }
@@ -789,6 +815,9 @@ export class Enemy {
     this.knock.x += kb.x * strength;
     this.knock.z += kb.z * strength;
     this.flashLeft = 0.09;
+    // The squash: harder the harder the blow; a boss's half as much.
+    this.hitT = 0;
+    this.hitK = Math.min(1, 0.45 + strength * 0.12) * (this.def.boss ? 0.5 : 1);
     // Flinch: every hit for small mobs; bosses only now and then, so their attacks are not interrupted constantly.
     if (!this.def.boss || this.time - this.lastFlinch > 3) { this.wantFlinch = true; this.flinch = 1; this.lastFlinch = this.time; }
     if (this.hp <= 0) {
@@ -836,12 +865,12 @@ export class Enemy {
       for (const o of this.dissolve.shadows) o.castShadow = true;
       this.dissolve = null;
     }
-    if (this.eyeIris) this.eyeIris.group.visible = true;
     this.markRef = null;
     this.brain.state = 'idle';
     this.brain.stateTime = 0;
     this.lastState = 'idle';
     this.object.visible = true;
+    this.hitT = -1;
     this.object.scale.setScalar(this.model || this.bubble ? 1 : this.def.scale ?? 1);
     this.model?.play('idle');
   }
@@ -868,6 +897,11 @@ export class Enemy {
     if (this.hopT >= 0) { this.hopT += dt; if (this.hopT >= this.hopLen) this.hopT = -1; }
     if (this.tauntT > 0) this.tauntT = Math.max(0, this.tauntT - dt);
     this.animateGems(dt);
+    if (this.octo && this.alive) {
+      const moved = dt > 0 ? Math.hypot(this.pos.x - this.octoPrev.x, this.pos.z - this.octoPrev.z) / dt : 0;
+      this.octoPrev.x = this.pos.x; this.octoPrev.z = this.pos.z;
+      this.octo.drive(dt, { state: this.brain.state, attack: this.currentAttack?.kind ?? null, mark: this.markAt, moving: moved > 0.5 });
+    }
     // Blown away by an overkill: the arc, tumbling, until it lands (Yeet.ts).
     if (this.yeet && !this.alive) {
       yeetStep(this.yeet, this.pos, dt, (x, z) => this.world.heightAt(x, z, this.pos.y + 1));
@@ -904,6 +938,14 @@ export class Enemy {
     if (entered && st === 'attack') { this.lunge = 1; if (this.def.stomp) this.onStomp?.(this.pos.x, this.pos.y, this.pos.z); }
     if (m && m.hasClips) this.driveClips(m, st, entered);
     this.lastState = st;
+    // A hit squashes the body flat and it springs back, cartoon-style (Juice.squash); a killing blow's settles as it falls.
+    if (this.hitT >= 0) {
+      this.hitT += dt;
+      const sq = squash(this.hitT, this.hitK);
+      const base = this.model || this.bubble ? 1 : this.def.scale ?? 1;
+      if (this.hitT > 0.7) { this.hitT = -1; this.object.scale.setScalar(base); }
+      else this.object.scale.set(base * sq.xz, base * sq.y, base * sq.xz);
+    }
     if (!this.alive) {
       if (this.heap) this.fallApart(dt);
       else if (this.toppleT >= 0) this.toppleOver(dt);
@@ -995,7 +1037,6 @@ export class Enemy {
       // (Its shadow would stay whole while the body burns: the depth pass knows nothing of the dissolve.)
       const shadows = d.shadows;
       m.root.traverse((o) => { if (o.castShadow) { o.castShadow = false; shadows.push(o); } });
-      if (this.eyeIris) this.eyeIris.group.visible = false;
       this.onDissolve?.();
     }
     if (!d.on) return;
@@ -1405,3 +1446,15 @@ const STATIC_MOTION: Partial<Record<string, StaticMotion>> = {
   'dmt-entity': 'hover', koi: 'fly', jellyfish: 'hover',
   emberrider: 'gallop', croc: 'slither', rivershade: 'hover', lurker: 'wade', wyrm: 'fly', hollowking: 'seated', marshdemon: 'stride',
 };
+
+/**
+ * A thrown thing that reads in the dark (the octopus's barrels were black lumps in the sunken city's murk): its own
+ * texture, lit (`glow` tints that light: a burning rock's is orange).
+ */
+export function litWood(materials: readonly MeshStandardMaterial[], intensity = 0.45, glow = 0xffffff): void {
+  for (const m of materials) {
+    m.emissive.set(glow);
+    m.emissiveMap = m.map;
+    m.emissiveIntensity = intensity;
+  }
+}

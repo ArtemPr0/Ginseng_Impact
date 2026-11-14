@@ -120,8 +120,8 @@ export const NPC_DEFS: NpcDef[] = [
     // (The chain-mail knight of Bucket Street, DeaqHWJBBPw: the court's guard wears the faceted mail now.)
     model: 'mail-knight', accent: PALETTE.electric,
     lines: ['The King is inside. Mind the porcelain.', 'I stand here so the snow stays out. Mostly it does not.'],
-    // In the doorway of Yung Lean's hall (its opening is x 997-1003 at z -53.5), stepping aside for the hero.
-    behaviour: { kind: 'guard', yaw: Math.PI / 2, aside: [1004.6, -51.8], asideYaw: Math.PI, trigger: 7, line: 'guard-cool', pose: 'watch' },
+    // In the doorway of Yung Lean's hall (its opening is x 997-1003 at z -26.05), stepping aside for the hero.
+    behaviour: { kind: 'guard', yaw: Math.PI / 2, aside: [1004.6, -24.35], asideYaw: Math.PI, trigger: 7, line: 'guard-cool', pose: 'watch' },
   },
   {
     id: 'watcher-mage', name: 'Sel', title: 'Who Watches the Snow', weapon: 'staff',
@@ -448,7 +448,12 @@ export class Npc {
   private wanderWait = 0;
   private speed = 0;
   /** Sound hooks, set once by main.ts (NPCs never import the audio engine). */
-  static sound: { voice(url: string, gain: number, channel?: 'npc' | 'mob' | 'head'): Promise<number>; slurp(gain: number, pos?: { x: number; y: number; z: number }): void } | null = null;
+  static sound: {
+    voice(url: string, gain: number, channel?: 'npc' | 'mob' | 'head'): Promise<number>;
+    slurp(gain: number, pos?: { x: number; y: number; z: number }): void;
+    /** Says a line it has no recording of in its own babble (audio/Babble). */
+    babble?(npcId: string, text: string, gain: number): void;
+  } | null = null;
   private speech: SpeechBubble | null = null;
   private voiceWait = 4;
   private speaking = 0;
@@ -540,6 +545,7 @@ export class Npc {
     const text = this.def.lines[line] ?? this.def.lines[0];
     if (bubble.sprite.visible || !text) return;
     bubble.say(text, 2.4);
+    Npc.sound?.babble?.(this.def.id, text, gain);
   }
 
   /**

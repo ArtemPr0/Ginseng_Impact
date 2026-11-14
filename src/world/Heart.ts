@@ -23,7 +23,7 @@ import { landableIsland } from './Islands';
 import type { ModelRig } from '../models/ModelRig';
 import type { RealmApi } from './Realms';
 import { EYE, RIVER_LEVEL, WORLD } from './Terrain';
-import { archBridge, stoneArch } from './Walkways';
+import { archBridge, woodArch } from './Walkways';
 import { eyePool, poolWater, waterRibbon } from './Water';
 
 /** The floating island's rock top (where its waterfalls spill and things stand), as a fraction of its height. */
@@ -55,6 +55,27 @@ const glowCaps = (color?: Color) => (mat: MeshStandardMaterial, geo: { boundingB
   patchGlowCap(mat, bb.min.y + (bb.max.y - bb.min.y) * 0.55, color);
 };
 
+/**
+ * A wooden arched bridge's railing posts as the eye bridge has them (the reference's bridge, #28): a short torch post
+ * at every one, a flame on every other and a candle with its flame on the rest.
+ */
+export function dressBridge(api: Pick<HeartApi, 'flora' | 'vfx'>, at: Array<{ x: number; y: number; z: number }>, rnd: () => number): void {
+  const postH = MODELS['torch-post'].height * 0.5;
+  const posts: Placement[] = [];
+  const candles: Placement[] = [];
+  at.forEach((p, i) => {
+    posts.push({ x: p.x, y: p.y - 0.1, z: p.z, yaw: 0, scale: 0.5 });
+    if (i % 2 === 0) {
+      api.vfx(fire(p.x, p.y + postH * 0.86, p.z, 0.16, 1.2));
+    } else {
+      candles.push({ x: p.x, y: p.y + postH * 0.9, z: p.z, yaw: rnd() * 6, scale: 1 });
+      api.vfx(fire(p.x, p.y + postH * 0.9 + 0.3, p.z, 0.1, 1));
+    }
+  });
+  api.flora('torch-post', posts, { shadows: false });
+  api.flora('candle', candles, { shadows: false });
+}
+
 export function buildHeart(api: HeartApi): { eye: ReturnType<typeof eyePool>; bouncers: Bouncer[] } {
   const { h, rnd } = api;
   const bouncers: Bouncer[] = [];
@@ -68,21 +89,7 @@ export function buildHeart(api: HeartApi): { eye: ReturnType<typeof eyePool>; bo
   const bridge = archBridge(0, zA, zB, endY, endY + 3.8, 1.3, MODELS['chasm-bridge'].height);
   api.place(bridge);
   api.flora('chasm-bridge', bridge.tiles);
-  // Railing posts with candles on every other one (the reference's bridge has small flames on its posts).
-  const postH = MODELS['torch-post'].height * 0.5;
-  const posts: Placement[] = [];
-  const candles: Placement[] = [];
-  bridge.posts.forEach((p, i) => {
-    posts.push({ x: p.x, y: p.y - 0.1, z: p.z, yaw: 0, scale: 0.5 });
-    if (i % 2 === 0) {
-      api.vfx(fire(p.x, p.y + postH * 0.86, p.z, 0.16, 1.2));
-    } else {
-      candles.push({ x: p.x, y: p.y + postH * 0.9, z: p.z, yaw: rnd() * 6, scale: 1 });
-      api.vfx(fire(p.x, p.y + postH * 0.9 + 0.3, p.z, 0.1, 1));
-    }
-  });
-  api.flora('torch-post', posts, { shadows: false });
-  api.flora('candle', candles, { shadows: false });
+  dressBridge(api, bridge.posts, rnd);
 
   // --- the flagstone road from the spawn to the bridge, two stones abreast ---
   const stones: Placement[] = [];
@@ -164,12 +171,13 @@ export function buildHeart(api: HeartApi): { eye: ReturnType<typeof eyePool>; bo
   // Over the cliff at the mouth, down into the cloud sea.
   const mouthY = h(G.x, G.zMouth - 4) + 0.3;
   api.place(cascade({ x: G.x, z: G.zMouth - 5, top: mouthY, height: mouthY - LAYOUT.cloudSea.y + 4, width: 5, yaw: Math.PI, curve: 2, foot: false }));
-  // The stone arch across it (the witches' bridge model scaled to the gorge's full width, crest to crest: at 22 m its
-  // ends stood on the walls' slopes, 5 m over the ground, the playtest of 2026-11-13); the lower rim climbs to it by treads.
+  // The eye's wooden arched footbridge across it, crest to crest (a stone arch until the playtest of 2026-11-14: "put
+  // this kind of bridge in here instead of that big wide bridge"); the lower rim climbs to it by treads.
   const GB = LAYOUT.gorgeBridge;
-  const deck = stoneArch(GB.x, GB.z, GB.length, 'x', h, { steps: true });
+  const deck = woodArch(GB.x, GB.z, GB.length, 'x', h, MODELS['chasm-bridge'].height, { steps: true });
   api.place(deck);
-  api.place(modelLandmark('witch-bridge', GB.x, GB.z, deck.baseY, { scale: deck.scale, collider: 'none', onLoad: () => { deck.object.visible = false; deck.object.userData.hidden = true; } }));
+  api.flora('chasm-bridge', deck.tiles);
+  dressBridge(api, deck.posts, rnd);
   // Pines on both rims, dead trees leaning over the edges; the walls stay bare.
   const rims: Placement[] = [];
   const dead: Placement[] = [];

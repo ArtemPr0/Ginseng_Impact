@@ -90,4 +90,18 @@ describe('landing / lunges', () => {
   it('the snow\'s whole reach covers its farthest patch', () => {
     for (const [x, z] of SNOW_PATCHES) expect(Math.hypot(x, z) + SNOW_RADIUS).toBeLessThanOrEqual(snowReach() + 1e-9);
   });
+
+describe('the octopus moves (the playtest of 2026-11-14)', async () => {
+  const { ENEMY_DEFS } = await import('../data/enemies');
+  const { warnSpec, TENTACLE_RADIUS, WHIRL_REACH } = await import('./Warnings');
+  const octo = ENEMY_DEFS.octopus;
+  const move = (kind: 'tentacle' | 'ink' | 'whirlpool') => octo.attacks!.find((a) => a.kind === kind)!;
+  it('warns where an arm will come down, under whom it fights, and strikes after the wind-up', () => {
+    expect(warnSpec(octo, move('tentacle'), 10)).toMatchObject({ shape: 'disc', anchor: 'mark', size: TENTACLE_RADIUS, handoff: true });
+  });
+  it('rings its whirlpool round its own body, and fans its ink like a breath', () => {
+    expect(warnSpec(octo, move('whirlpool'), 10)).toMatchObject({ shape: 'ring', anchor: 'body', size: WHIRL_REACH });
+    expect(warnSpec(octo, move('ink'), 10)).toMatchObject({ shape: 'cone', anchor: 'body' });
+  });
+});
 });
