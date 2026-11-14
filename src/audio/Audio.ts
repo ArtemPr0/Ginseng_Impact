@@ -567,6 +567,20 @@ export class Audio {
     else synth(this.master!, this.now);
   }
 
+  /**
+   * The castle throne's whoopee cushion (the playtest of 2026-11-14: "something hilarious"): a low buzzing flutter that
+   * sags in pitch, then a slide whistle as the sitter is launched.
+   */
+  fart(): void {
+    if (!this.ctx) return;
+    for (let i = 0; i < 16; i++) {
+      const f = 105 - i * 2.4 + Math.random() * 14;
+      this.tone('sawtooth', f, f * 0.85, 0.05, 0.16 * (1 - i / 22), i * 0.042, 0.004, 0.02);
+    }
+    this.noise(0.75, 'lowpass', 320, 140, 1, 0.1, 0, 0.01);
+    this.tone('sine', 380, 1500, 0.55, 0.12, 0.62, 0.02, 0.08);
+  }
+
   /** A hand rummaging in a leather pouch. */
   rustle(): void {
     if (!this.ctx) return;

@@ -22,6 +22,7 @@ import type { Footprint } from './Colliders';
 import { fire } from './Fire';
 import type { Interactable, Teleport } from './Interact';
 import { modelLandmark } from './ModelLandmark';
+import { ThroneKeeper } from './ThroneKeeper';
 import type { RealmApi } from './Realms';
 import { waterRibbon } from './Water';
 
@@ -48,7 +49,7 @@ function restyle(model: ModelRig, fn: (mat: MeshStandardMaterial) => void): void
   });
 }
 
-export function buildCastleHall(api: RealmApi, teleport: Teleport, reward: (what: string) => void, groundAt: (x: number, z: number) => number): Interactable[] {
+export function buildCastleHall(api: RealmApi, teleport: Teleport, reward: (what: string, line?: string) => void, groundAt: (x: number, z: number) => number): Interactable[] {
   const R = CASTLE_HALL;
   const x = R.x, z = R.z, y = R.y;
   api.realm(R.id);
@@ -70,29 +71,84 @@ export function buildCastleHall(api: RealmApi, teleport: Teleport, reward: (what
   ];
   for (const px of PILLAR_X) for (const pz of PILLAR_Z) solid.push({ kind: 'cyl', x: x + px, z: z + pz, r: 1.2, top: y + 11 });
 
+  // The hall model's own throne at the far end: a pedestal 2.1 m high with a tall back (measured by rays down its mesh).
+  // It had no collider; now it is solid. The moon hangs over it.
+  const DAIS = { x, z: z - 10.4 };
+  solid.push({ kind: 'box', x, z: DAIS.z - 0.3, hw: 2.6, hd: 2.0, top: y + 2.1 }, { kind: 'box', x, z: DAIS.z - 0.6, hw: 3, hd: 0.5, top: y + 5.6 });
+
+  // The marble throne stands on the floor before it, facing the door (it was sunk inside that pedestal, only its arch
+  // and two armrests showing: the playtest of 2026-11-14).
+  const T = { x, z: z - 6.6 };
+
   // The river of light down the aisle, from the door to the throne's step.
   const river: Array<[number, number, number]> = [];
-  for (let k = 12; k >= -8; k -= 2) river.push([x, z + k, floor - 0.05]);
+  for (let k = 12; k >= -4; k -= 2) river.push([x, z + k, floor - 0.05]);
+  river.push([x, T.z + 1.5, floor - 0.05]);
   api.place(waterRibbon(river, 1.1, [0x0a1a6a, 0x4a8cff, 0xe0ecff], 1.2));
 
-  // The empty marble throne at the far end, on a step, facing the door.
-  const T = { x, z: z - 10.4 };
   api.place(modelLandmark('marble-throne', T.x, T.z, floor + 0.3, { yaw: face(Math.PI / 2), collider: 'manual', footprints: [{ kind: 'box', x: T.x, z: T.z - 0.2, hw: 1.0, hd: 0.8, top: floor + 0.8 }] }));
   solid.push({ kind: 'box', x: T.x, z: T.z, hw: 2.6, hd: 1.8, top: floor + 0.3 });
   api.place({ object: new Group(), footprints: solid });
 
-  // Over it, the island's moon held captive (moon-grin), and under it the lost crown, turning.
+  // Over it, the island's moon held captive, grinning (moon-grin); when something funny happens it laughs (moon-laugh).
   const moon = faceMoon('moon-grin', 3.2, { glow: 0.85, crescent: 0.15, light: new Vector3(0, 0.3, 1) });
-  moon.group.position.set(T.x, y + 7.6, T.z - 1.6);
+  moon.group.position.set(DAIS.x, y + 7.6, DAIS.z - 1.6);
   api.group.add(moon.group);
+  const laugh = faceMoon('moon-laugh', 3.2, { glow: 0.95, crescent: 0.15, light: new Vector3(0, 0.3, 1) });
+  laugh.group.position.copy(moon.group.position);
+  laugh.group.visible = false;
+  api.group.add(laugh.group);
   const moonLight = new PointLight(0x9fb8ff, 30, 34, 1.4);
-  moonLight.position.set(T.x, y + 6.5, T.z + 2);
+  moonLight.position.set(DAIS.x, y + 6.5, DAIS.z + 2);
   api.group.add(moonLight);
-  const halo = glow(0x8fb0ff, 9, T.x, y + 7.6, T.z - 1.8, 0.35);
-  const crownAt = { x: T.x, y: y + 4.6, z: T.z + 0.2 };
-  let crownRoot: Group | null = null;
-  api.place(modelLandmark('giant-crown', crownAt.x, crownAt.z, crownAt.y, { collider: 'none', scale: 1.1 / MODELS['giant-crown'].height, update: (_dt, root) => { crownRoot = root; } }));
-  glow(0xffc23a, 1.6, crownAt.x, crownAt.y + 0.5, crownAt.z, 0.4);
+  const halo = glow(0x8fb0ff, 9, DAIS.x, y + 7.6, DAIS.z - 1.8, 0.35);
+
+  // Sir Bonesworth on the throne, the lost crown on his skull (ThroneKeeper: ask him three times). The crown is a real
+  // crown now, 0.4 m tall and too wide for any head, slipping over his brow; it hung huge over the empty throne before (the playtest of
+  // 2026-11-14: "the crown is massive and looks strange as its not on anyones head").
+  const keeper = new ThroneKeeper();
+  const seat = { x: T.x, y: floor + 0.5, z: T.z + 0.3 };
+  const aside = { x: T.x + 3.3, y: floor, z: T.z + 2.2 };
+  let keeperRig: ModelRig | null = null;
+  let keeperRoot: Group | null = null;
+  api.place(modelLandmark('skeleton', seat.x, seat.z, seat.y, {
+    yaw: face(Math.PI / 2), clip: 'sit', collider: 'none',
+    update: (_dt, root, model) => { keeperRoot = root; keeperRig = model; },
+  }));
+  const CROWN_H = 0.4;
+  const head = new Vector3();
+  const from = new Vector3();
+  let fly = -1;
+  let laughFor = 0;
+  let crownTilt = 0;
+  api.place(modelLandmark('giant-crown', seat.x, seat.z, seat.y + 1.5, {
+    collider: 'none', scale: CROWN_H / MODELS['giant-crown'].height,
+    update: (dt, root, _m, player) => {
+      crownTilt += dt;
+      if (keeper.crown === 'keeper') {
+        const bone = (keeperRig as ModelRig | null)?.bone(/head$/i);
+        if (bone) { bone.getWorldPosition(head); head.y += 0.1; } else head.set(seat.x, seat.y + 1.45, seat.z);
+        root.position.copy(head);
+        // Too big: it rides low and tipped, rocking as he breathes.
+        root.rotation.set(0.12, crownTilt * 0.1, 0.28 + Math.sin(crownTilt * 1.3) * 0.05);
+        fly = -1;
+        return;
+      }
+      // Thrown to the hero: an arc over 0.9 s, spinning, then it sits on their head wherever they go.
+      const onHero = head.set(player.x, player.y + 1.82, player.z);
+      if (fly < 0) { fly = 0; from.copy(root.position); }
+      if (fly < 1) {
+        fly = Math.min(1, fly + dt / 0.9);
+        root.position.lerpVectors(from, onHero, fly);
+        root.position.y += Math.sin(fly * Math.PI) * 2.6;
+        root.rotation.set(0, fly * Math.PI * 6, 0);
+      } else {
+        root.position.copy(onHero);
+        root.rotation.set(0.06, crownTilt * 0.3, 0.1);
+      }
+    },
+  }));
+  glow(0xffc23a, 1.2, seat.x, seat.y + 1.6, seat.z, 0.3);
 
   // Blue flames in braziers along the aisle, between the inner pillars, and two chandeliers of candles.
   const flames: Array<{ group: Group; update: (dt: number) => void }> = [];
@@ -113,19 +169,34 @@ export function buildCastleHall(api: RealmApi, teleport: Teleport, reward: (what
   api.place(modelLandmark('treehouse-door', x, exitZ + 0.6, floor, { yaw: face(-Math.PI / 2), collider: 'none', scale: 3 / MODELS['treehouse-door'].height }));
   glow(0x9fb4ff, 2.4, x, floor + 3.2, exitZ + 0.4, 0.3);
 
-  // The throne's blessing: once a minute.
+  // The throne's blessing: once a minute; the moon laughs at every bit of the act.
   let rest = 0;
   let flare = 0;
+  let danced = 0;
   api.vfx({ group: new Group(), update: (dt) => {
     rest = Math.max(0, rest - dt);
     flare = Math.max(0, flare - dt);
+    laughFor = Math.max(0, laughFor - dt);
     const k = flare > 0 ? Math.sin((flare / 3) * Math.PI) : 0;
+    moon.group.visible = laughFor <= 0;
+    laugh.group.visible = laughFor > 0;
+    const shake = laughFor > 0 ? 1 + 0.06 * Math.sin(laughFor * 40) : 1;
     moon.group.scale.setScalar(1 + 0.18 * k);
-    moonLight.intensity = 30 + 60 * k;
+    laugh.group.scale.setScalar((1 + 0.18 * k) * shake);
+    moonLight.intensity = 30 + 60 * k + (laughFor > 0 ? 25 : 0);
     halo.scale.setScalar(9 * (1 + k));
     for (const f of flames) f.group.scale.setScalar(1 + 0.8 * k);
-    if (crownRoot) crownRoot.rotation.y += dt * (0.25 + 2 * k);
+    // The keeper: on the throne with his crown, or beside it dancing once he has given it up.
+    const kr = keeperRoot as Group | null;
+    const rig = keeperRig as ModelRig | null;
+    if (kr && rig) {
+      const off = keeper.crown === 'hero';
+      kr.position.set(off ? aside.x : seat.x, off ? aside.y : seat.y, off ? aside.z : seat.z);
+      if (off && danced <= 0) { danced = 1; if (!rig.play('dance')) rig.play('idle'); }
+      if (!off && danced > 0) { danced = 0; rig.play('sit'); }
+    }
     moon.update(dt);
+    laugh.update(dt);
   } });
   api.realm(null);
 
@@ -144,11 +215,22 @@ export function buildCastleHall(api: RealmApi, teleport: Teleport, reward: (what
   api.place({ object: new Group(), footprints: treads });
   return [
     { pos: new Vector3(CASTLE_DOOR.x, doorY, CASTLE_DOOR.z), range: 2.8, zone: null, label: () => 'Enter the castle', act: () => teleport(x, floor, exitZ - 2, -Math.PI / 2, R.name) },
-    { pos: new Vector3(x, floor, exitZ - 0.4), range: 1.6, zone: R.id, label: () => 'Leave the castle', act: () => teleport(CASTLE_DOOR.x, doorY, CASTLE_DOOR.z + run / n / 2, Math.PI / 2) },
+    { pos: new Vector3(x, floor, exitZ - 0.4), range: 1.6, zone: R.id, label: () => 'Leave the castle', act: () => { keeper.leave(); teleport(CASTLE_DOOR.x, doorY, CASTLE_DOOR.z + run / n / 2, Math.PI / 2); } },
     {
       pos: new Vector3(T.x, floor, T.z + 1.6), range: 2.4, zone: R.id,
-      label: () => (rest > 0 ? null : 'Sit on the empty throne'),
-      act: () => { if (rest > 0) return; rest = 60; flare = 3; reward('throne'); },
+      label: () => (keeper.crown === 'keeper' ? keeper.prompt() : rest > 0 ? null : keeper.prompt()),
+      act: () => {
+        if (keeper.crown === 'keeper') {
+          const r = keeper.ask();
+          if (r.give) { laughFor = 5; reward('crown', r.line); } else reward('keeper', r.line);
+          return;
+        }
+        if (rest > 0) return;
+        const r = keeper.sit();
+        if (!r.ok) return;
+        rest = 60; flare = 3; laughFor = 4;
+        reward('throne', r.line);
+      },
     },
   ];
 }

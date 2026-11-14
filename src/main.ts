@@ -285,13 +285,30 @@ area.hooks.hurt = (atk, poison) => combat.hazard(atk, poison);
 area.hooks.mire = (seconds) => combat.mire(seconds);
 // Shootable things in the world (sky eyes, the eye pool), and the prize for shooting every sky eye.
 combat.targets.push(...area.shotTargets);
-area.hooks.reward = (what) => {
+area.hooks.reward = (what, line) => {
+  // The Moon Throne Hall (CastleHall.ts, ThroneKeeper): Sir Bonesworth keeps the throne and the crown.
+  if (what === 'keeper') { audio.clatter(); hud.announce(`Sir Bonesworth: ${line}`, { seconds: 3.2 }); return; }
+  if (what === 'crown') {
+    // He throws the crown onto your head: gold rains, the moon laughs.
+    audio.clatter();
+    audio.jackpot();
+    const at = new Vector3(controller.pos.x, controller.pos.y + 2.2, controller.pos.z);
+    for (const col of [0xffc23a, 0xffe08a, 0xfff4d0]) combatFx.sparks(at, new Vector3(0, 1, 0), 26, col, 6, 1.2);
+    hud.announce(`Sir Bonesworth: ${line}`, { seconds: 3.6 });
+    return;
+  }
   if (what === 'throne') {
-    // The Moon Throne Hall's empty throne (CastleHall.ts): the hall takes you for its king for a moment.
+    // The throne: a whoopee cushion that launches its king into the air; then it heals the party.
+    audio.fart();
+    // (Thrown like a mushroom bounce: without `bouncing` the short-hop cut ate the launch, jump not being held.)
+    controller.vel.y = 14;
+    controller.mode = 'air';
+    controller.modeTime = 0;
+    controller.bouncing = true;
     combat.healActive(1e6);
     renderer.trip(0.4, 4);
-    audio.cast();
-    hud.announce('The castle knows its king tonight');
+    combatFx.dust(new Vector3(controller.pos.x, controller.pos.y, controller.pos.z), 2.5);
+    hud.announce(line ? `Sir Bonesworth: ${line}` : 'The castle knows its king tonight', { seconds: 3.4 });
     return;
   }
   if (what !== 'eyes') return;

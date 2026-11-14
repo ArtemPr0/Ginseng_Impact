@@ -318,7 +318,7 @@ export class World {
     /** Yung Lean's quest: is the lost sound there to find, and the hero took it. */
     soundWanted?: () => boolean; foundSound?: () => void;
     /** A small prize for a feat in the world ('eyes': every sky eye shot). */
-    reward?: (what: string) => void;
+    reward?: (what: string, line?: string) => void;
     /** The world swirls (a sip from the Lean Quarter's fountains). */
     trip?: (strength: number, seconds: number) => void;
     /** The game's event bus: zone changes and the world's own feats (a fountain sip) are announced on it. */
@@ -842,7 +842,7 @@ export class World {
     // The vale tavern's taproom behind its front door.
     this.interactables.push(...buildTavernRoom(realmApi, (x, y, z, yaw, name) => this.hooks.teleport?.(x, y, z, yaw, name)));
     // Inside the island castle, by its gate: the Moon Throne Hall.
-    this.interactables.push(...buildCastleHall(realmApi, (x, y, z, yaw, name) => this.hooks.teleport?.(x, y, z, yaw, name), (what) => this.hooks.reward?.(what), h));
+    this.interactables.push(...buildCastleHall(realmApi, (x, y, z, yaw, name) => this.hooks.teleport?.(x, y, z, yaw, name), (what, line) => this.hooks.reward?.(what, line), h));
     // The crypt bar under the Lean Quarter's snow chapel.
     this.interactables.push(...buildCryptRoom(realmApi, (x, y, z, yaw, name) => this.hooks.teleport?.(x, y, z, yaw, name)));
     buildDream(realmApi);
