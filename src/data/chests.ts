@@ -42,8 +42,9 @@ export const CHESTS: ChestDef[] = [
   // the castle's rock and off the worn road up to the gate (LAYOUT.paths[3]: 3.8 m from its centreline).
   { id: 'castle-terrace', zone: 'island', x: -80, z: 2, kind: 'hoard', respawn: CHEST_RESPAWN, shards: [40, 100],
     table: [{ itemId: 'sentinel-core', chance: 0.3 }, { itemId: 'rune-shard', chance: 0.6 }, { itemId: 'lotus-tea', chance: 0.4 }, { itemId: 'moon-dew', chance: 0.4 }, { itemId: 'crown-blade', chance: 0.05 }] },
-  // Past the world tree's roots on the north side (they end at z -117), away from the graves and the priest.
-  { id: 'world-tree', zone: 'island', x: 44, z: -122, kind: 'hoard', respawn: CHEST_RESPAWN, shards: [40, 110],
+  // Past the world tree's roots on its north-east side, away from the graves and the priest, and out of the Hollow
+  // King's swing (at (44, -122) it sat 25 m from him, inside his arms' 26 m: the playtest of 2026-11-14).
+  { id: 'world-tree', zone: 'island', x: 52, z: -116, kind: 'hoard', respawn: CHEST_RESPAWN, shards: [40, 110],
     table: [{ itemId: 'rune-shard', chance: 0.8 }, { itemId: 'wisp-ember', chance: 0.5 }, { itemId: 'rot-salve', chance: 0.3 }, { itemId: 'moon-dew', chance: 0.4 }, { itemId: 'warden-bough', chance: 0.03 }] },
   // The ruined arch in the dead wood east of the causeway's end.
   { id: 'ruin-north', zone: 'island', x: 12, z: -99, kind: 'cache', respawn: CHEST_RESPAWN, shards: [15, 35],

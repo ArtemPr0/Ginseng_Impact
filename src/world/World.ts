@@ -1183,4 +1183,6 @@ const LANDMARK_CLEARINGS = [
   { x: 88, z: -103, r: 12 }, // the colossus's shore walk
   { x: LAYOUT.worldTree.x, z: LAYOUT.worldTree.z, r: 23 }, { x: LAYOUT.church.x, z: LAYOUT.church.z, r: 17 }, { x: LAYOUT.treehouse.x, z: LAYOUT.treehouse.z, r: 13 },
   { x: LAYOUT.cathedral.x, z: LAYOUT.cathedral.z, r: 34 }, { x: LAYOUT.floodedRuin.x, z: LAYOUT.floodedRuin.z, r: 11 },
+  // A seated giant's swing and a crown's width more (the Hollow King's arms went through the pines: 2026-11-14).
+  ...ENEMY_SPAWNS.filter((sp) => ENEMY_DEFS[sp.kind].reach).map((sp) => ({ x: sp.x, z: sp.z, r: ENEMY_DEFS[sp.kind].reach! + 4 })),
 ];

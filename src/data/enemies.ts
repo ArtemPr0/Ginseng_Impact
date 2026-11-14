@@ -57,6 +57,8 @@ export interface EnemyDef {
   body?: 'bubble';
   /** You can stand on it (combat/Solid): a cylinder `r` metres wide whose top is `top` metres over its feet. */
   solid?: { r: number; top: number };
+  /** A seated giant's sweep, metres from its feet (arms and weapon at full swing): trees and landmarks keep beyond it (World.ts). */
+  reach?: number;
   /** Drawn as the dream sees it: every colour at once (render/Materials patchTrippy). */
   trippy?: boolean;
   /**
@@ -318,7 +320,7 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   },
   hollowking: {
     // (25 m seated: a king the size of a hill.)
-    kind: 'hollowking', name: 'The Hollow King', title: 'Whose Heart Is a Kingdom', maxHp: 12000, def: 110, atk: 180, speed: 0, element: 'astral', hover: 0, bodyRadius: 6.2, height: 25, boss: true, leash: 1,
+    kind: 'hollowking', name: 'The Hollow King', title: 'Whose Heart Is a Kingdom', maxHp: 12000, def: 110, atk: 180, speed: 0, element: 'astral', hover: 0, bodyRadius: 6.2, height: 25, boss: true, leash: 1, reach: 26,
     brain: { aggroRange: 34, attackRange: 34, windup: 1.2, recover: 1.6, attackCooldown: 1.0 }, respawn: 400, shards: [320, 460],
     attacks: [{ kind: 'volley', range: 34, windup: 1.2, recover: 1.4, weight: 3 }, { kind: 'summon', range: 34, windup: 1.4, recover: 1.8, weight: 2 }, { kind: 'roar', range: 26, windup: 1.2, recover: 1.6, weight: 1 }],
     drops: [{ itemId: 'hollow-crown', chance: 1 }, { itemId: 'king-rib', chance: 1 }, { itemId: 'star-chart', chance: 1 }],
@@ -404,7 +406,7 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'beast', x: -57, z: 44 }, { kind: 'beast', x: -63, z: 47 },      // west meadow, by the stream (not in it, and off Old Moss's bank)
   // More to meet on the island (2026-11-10: it had ten roaming hostiles): risen dead in the dead wood and by the ruined
   // nave, fog beasts at the gorge's head, crocodiles along the river and in the Marsh Sovereign's mud (DeJj8CDhL2f).
-  { kind: 'grave-skeleton', x: 4, z: -104 }, { kind: 'grave-skeleton', x: 28, z: -112 }, { kind: 'grave-skeleton', x: -14, z: -108 },
+  { kind: 'grave-skeleton', x: 8, z: -108 }, { kind: 'grave-skeleton', x: 28, z: -112 }, { kind: 'grave-skeleton', x: -14, z: -108 },
   { kind: 'beast', x: -61, z: -112 }, { kind: 'beast', x: -65, z: -115 }, // (on the gorge floor below the gorge-head hoard; the head's step and the west wall are cliffs)
   { kind: 'croc', x: 46, z: 12 }, { kind: 'croc', x: 84, z: 8 }, { kind: 'croc', x: 110, z: -6 }, { kind: 'croc', x: 100, z: -8 },
   // Round 9: the archway shades in the dead wood and on the gorge's east rim, the brazier hermits in the kingdom, the

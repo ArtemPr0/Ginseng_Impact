@@ -142,10 +142,10 @@ export const LANDMARKS: readonly LandmarkSpot[] = [
   { id: 'cloister', x: 33.5, z: 64.5, at: { x: 33.5, z: 68 } },
   { id: 'observatory', x: LAYOUT.observatory.x, z: LAYOUT.observatory.z, sink: 0.2 },
   { id: 'cauldron', x: 24, z: 77 },
-  // The gothic gate (DeSEl9PvPG_) beside the road to the stone head, a ruined gate into the old precinct: its steps
-  // face the road (local +z turned to -x), the arch is walked through. (On the road itself it sat in the 4 m climb to
-  // the head's chin, and its footing made a bank across the path.)
-  { id: 'candle-gate', x: 37, z: -128, yaw: -Math.PI / 2, sink: 0.3 },
+  // The gothic gate (DeSEl9PvPG_) across the road to the stone head, where the causeway's road reaches the old
+  // precinct: its steps face the causeway (local +z to +z) and the road runs through the arch. (Beside the road at
+  // (37, -128) it stood 18 m from the Hollow King, inside his 26 m swing: the playtest of 2026-11-14.)
+  { id: 'candle-gate', x: -1, z: -103, yaw: 0, sink: 0.3 },
 ];
 
 /**
@@ -485,7 +485,7 @@ export const FLATS: {
     { x: KNOLL.x, z: KNOLL.z, r: KNOLL.r + 2 },
     // Model slots waiting for their GLB (they render nothing yet): the frozen arch gate, the colossus statue by the dead
     // wood, and the ruins.
-    { x: 37, z: -128, r: 6 }, // the candle gate
+    { x: -1, z: -103, r: 6 }, // the candle gate
     { x: 56, z: -84, r: 5 },
     { x: 10, z: -96, r: 6 },
     ...LAYOUT.ruins.map((r) => ({ x: r.x, z: r.z, r: 3.5 })),
@@ -530,6 +530,6 @@ export const FOOTINGS: ReadonlyArray<{ x: number; z: number; r: number; blend: n
   { x: 56, z: -84, r: 4.5, blend: 2 },   // the arch gate on the Frost March
   { x: LAYOUT.treehouse.x, z: LAYOUT.treehouse.z, r: 10, blend: 2.5 },
   { x: 10, z: -96, r: 4.6, blend: 2 },   // the colossus statue
-  { x: 37, z: -128, r: 5, blend: 2.5 },  // the candle gate (beside the road it sat in the Ember Rider's pad)
+  { x: -1, z: -103, r: 5, blend: 2.5 },  // the candle gate, across the road to the head
   ...LAYOUT.ruins.map((r) => ({ x: r.x, z: r.z, r: r.arch ? 3.2 : 1.6, blend: r.arch ? 1.8 : 1.2 })),
 ];

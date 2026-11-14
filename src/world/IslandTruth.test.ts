@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { ANCHORS, ISLAND_PORTALS, LANDMARKS, LAYOUT, SINK, SKY_EYES, VILLAGE, type LandmarkSpot } from '../data/world';
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
+import { CHESTS } from '../data/chests';
 import { MODELS } from '../data/models';
 import { gridFootprint, type GridFootprint } from './Colliders';
 import { Noise2D } from './noise';
@@ -212,5 +213,25 @@ describe('the Hollow King', () => {
   it('has his ground to himself: no island building inside his body (48 m across at 25 m tall)', () => {
     const king = ENEMY_SPAWNS.find((s) => s.kind === 'hollowking')!;
     for (const l of LANDMARKS) expect(Math.hypot(l.x - king.x, l.z - king.z), l.id).toBeGreaterThan(17);
+  });
+});
+
+describe('room for the giants', () => {
+  // The Hollow King sits 25 m tall and swings 26 m out (measured headless, 2026-11-14): the candle gate stood 18 m
+  // from him and his arms went through it (the playtest of 2026-11-14).
+  it('keeps every island landmark out of a seated giant\'s reach', () => {
+    const giants = ENEMY_SPAWNS.filter((sp) => ENEMY_DEFS[sp.kind].reach);
+    expect(giants.length).toBeGreaterThan(0);
+    for (const g of giants) {
+      const reach = ENEMY_DEFS[g.kind].reach!;
+      for (const l of LANDMARKS) expect({ id: l.id, d: Math.hypot(l.x - g.x, l.z - g.z) > reach + 6 }).toEqual({ id: l.id, d: true });
+    }
+  });
+
+  it('keeps every island chest out of a seated giant\'s reach (the world tree\'s hoard sat 25 m from the Hollow King)', () => {
+    for (const g of ENEMY_SPAWNS.filter((sp) => ENEMY_DEFS[sp.kind].reach)) {
+      const reach = ENEMY_DEFS[g.kind].reach!;
+      for (const c of CHESTS.filter((q) => q.zone === 'island')) expect({ id: c.id, d: Math.hypot(c.x - g.x, c.z - g.z) > reach + 3 }).toEqual({ id: c.id, d: true });
+    }
   });
 });
