@@ -252,29 +252,27 @@ function smoothstepInverse(v: number): number {
 
 const Q = LEAN_QUARTER;
 const GY = GALAXY.y;
-/** The plaza (Kingdom.ts: the porcelain floor and its box, x 940..1060, z -85..75). */
-export const PLAZA: Rect = [967, 1060, -85, 75];
+/** The plaza (Kingdom.ts: the porcelain floor, from Bucket Street's head to the lean waves, Yung Lean's hall to the ring portals). */
+export const PLAZA: Rect = [982, 1032.8, -49, 39];
 /** The lean moat's water and bed (LeanQuarter.ts: the sheet and `api.water` at gy − 0.35 over Q.moat, the channel's floor box at gy − 2.2). */
 export const MOAT_LEVEL = GY - 0.35;
 export const MOAT_BED = GY - 2.2;
 /**
- * The moat's level bed: Q.moat (x 816..828, z −40..75) on the grid and one cell in. Its walls are linear one-cell
- * rises from it to the banks' grid lines (x 816 and 828, z −39 and 75: −40 is off the grid), so the drawn channel is
+ * The moat's level bed: Q.moat (x 916.5..928.5, z −24.25..39) on the grid and one cell in. Its walls are linear one-cell
+ * rises from it to the banks' grid lines (x 916.5 and 928.5, z −24 and 39: −24.25 is off the grid), so the drawn channel is
  * exactly the sculpt's and lies inside the water sheet, and the banks outside it stay level above the water (no dry
- * trench along them; between z −40 and −39 the sheet's end is under the bank).
+ * trench along them; between z −24.25 and −24 the sheet's end is under the bank).
  */
 export const MOAT_BED_RECT: Rect = onGrid(Q.moat, 1);
 /**
- * The snow quarter climbs 3 m from the plaza's level toward the chapel, level again from z 150 (the quarter's top,
- * Q.snow's x 860..960, z 150..175, is all at CHAPEL_Y).
+ * The snow quarter climbs 3 m from the plaza's level toward the chapel, level again from z 80.25 (the quarter's top,
+ * Q.snow's x 942..996.2, z 80.25..94, is all at CHAPEL_Y; drawn, from the grid line at z 81).
  *
  * Step 6's notes for the snow quarter (here, on CHAPEL_PAD and on SNOW_FLATS). LeanQuarter.ts stands all of it at gy
  * (24): each placement listed moves to h(), and every height written gy + k for it (a footprint's top, a fire, a glow)
  * becomes h() + k at its own x, z. On the slope:
- * - the path's snow pillars (scale 0.8; box footprints hw 0.45, top gy + 2.1) at (940.85, 110.41) 25.21,
- *   (935.36, 106.39) 24.96, (920.63, 133.30) 26.57 and (916.02, 128.30) 26.31;
- * - its torches (cyl footprints r 0.25, top gy + 2.4; fires at gy + 2.3) at (941.75, 95.56) 24.38, (947.71, 98.84)
- *   24.53 and (926.83, 117.27) 25.65, and the fourth, (931.79, 121.93), on the plague doctor's flat at 26.10;
+ * - the path's snow pillars (scale 0.8; box footprints hw 0.45, top gy + 2.1) and its torches (cyl footprints r 0.25,
+ *   top gy + 2.4; fires at gy + 2.3), one torch on the plague doctor's flat (sculpts.test.ts lists them);
  * - the seeded graves (at gy − 0.05) and dead trees (at gy − 0.1; cyl footprints, top gy + 6);
  * - the snow's mistLayers, laid over all of Q.snow at gy, would lie up to 3 m under the slope, and the plan allows mist
  *   on flat pads only: step 6 lays it level over the quarter's top at CHAPEL_Y (sculpted 27 all over, drawn 27 but in
@@ -286,37 +284,39 @@ export const MOAT_BED_RECT: Rect = onGrid(Q.moat, 1);
  *   into a rise or hang 3 m over a dip. Step 6 drives uFloor, the petals' y and the respawn floor from h() at the hero
  *   every frame (or each petal's own h()), so both stay the 0.4..2.6 m over the ground they are today.
  */
-export const snowY = (z: number): number => GY + 3 * smoothstep(80, 150, z);
+export const snowY = (z: number): number => GY + 3 * smoothstep(41.75, 80.25, z);
 /**
  * The chapel's own level ground (LEAN_QUARTER.chapel), at CHAPEL_Y: 3 m above the gy LeanQuarter.ts and Interiors.ts
  * use today. Step 6 puts at h() everything on it: the snow-chapel model, whose 832 floor-touching collider cells (all
  * within 5.3 m of where it stands) read exactly 27, sculpted and drawn, so it sits level; Interiors.ts's crypt door
- * (its interactable at (902.6, 146.5)) and the crypt's way back up (a teleport to (904.8, 144.1)), both still on
- * GALAXY.y; and the candlelight LeanQuarter.ts hangs at the door at gy + 1.4, 1.6 m under the pad until it is
- * h() + 1.4.
+ * (its interactable at CHAPEL_DOOR, 6.1 m from the middle) and the crypt's way back up (a teleport 9.2 m from it);
+ * and the candlelight LeanQuarter.ts hangs at the door at gy + 1.4, 1.6 m under the pad until it is h() + 1.4.
  */
-export const CHAPEL_PAD: Disc = { x: Q.chapel.x, z: Q.chapel.z, r: 14 };
+export const CHAPEL_PAD: Disc = { x: Q.chapel.x, z: Q.chapel.z, r: 11 };
 export const CHAPEL_Y = 27;
+/** The snow quarter's gate, where the path from the plaza comes in (LeanQuarter.ts): pillars 3.5 m either side, the broken gate 5.6 m east. */
+export const SNOW_GATE = { x: 990.71, z: 45.05 } as const;
 /**
- * Level ground under the snow quarter's clusters, each at the slope's height at its middle: the four cottages
- * (LeanQuarter.ts: box footprints hw 3.3, top gy + 6, and window glows at gy + 2.4) and the plague doctor on his chest
- * at (931, 124.6), at 26.10 (ANCHORS['plague-doctor'].y, world.ts:154, and the chest's cyl footprint, r 1.15, whose
- * top gy + 1.3 = 25.3 lies under the ground there), all in the plan's h() sweep with their tops at h() + k (see snowY);
- * and the gate the path comes in by (its pillars at (950 ± 3.5, 86), footprint tops gy + 2.6, the broken gate at
- * (955.6, 87.8)) at the floor's own GY, so it stays where it stands and its tops hold.
+ * Level ground under the snow quarter's clusters, each at the slope's height at its middle (`blend` 4 m unless given):
+ * the four cottages (LeanQuarter.ts: box footprints hw 3.3, top gy + 6, and window glows at gy + 2.4) and the plague
+ * doctor on his chest, at snowY(64.9) ≈ 25.95 (his anchor, and the chest's cyl footprint, r 1.15, whose top gy + 1.3 =
+ * 25.3 lies under the ground there), all in the plan's h() sweep with their tops at h() + k (see snowY); and the gate
+ * the path comes in by (its pillars and the broken gate, footprint tops gy + 2.6) at the floor's own GY, so it stays
+ * where it stands and its tops hold. (The gate's flat is off to the east of the path and eases back within 1.5 m, so
+ * the path's first torches, 7.9 m off, stand on the slope.)
  */
-export const SNOW_FLATS: ReadonlyArray<Disc & { name: string; y: number }> = [
-  { name: 'cottage-nw', x: 898.5, z: 100, r: 5, y: snowY(100) }, { name: 'cottage-w', x: 898.5, z: 120, r: 5, y: snowY(120) },
-  { name: 'cottage-e', x: 987.5, z: 150, r: 5, y: snowY(150) }, { name: 'cottage-se', x: 987.5, z: 168, r: 5, y: snowY(168) },
-  { name: 'plague-doctor', x: 964, z: 124.6, r: 3, y: snowY(124.6) },
-  { name: 'snow-gate', x: 984, z: 86.5, r: 6, y: GY },
+export const SNOW_FLATS: ReadonlyArray<Disc & { name: string; y: number; blend?: number }> = [
+  { name: 'cottage-nw', x: 946, z: 52.75, r: 5, y: snowY(52.75) }, { name: 'cottage-w', x: 946, z: 63.75, r: 5, y: snowY(63.75) },
+  { name: 'cottage-e', x: 991.5, z: 80.25, r: 5, y: snowY(80.25) }, { name: 'cottage-se', x: 991.5, z: 90.15, r: 5, y: snowY(90.15) },
+  { name: 'plague-doctor', x: 985.5, z: 64.9, r: 3, y: snowY(64.9) },
+  { name: 'snow-gate', x: SNOW_GATE.x + 1.5, z: SNOW_GATE.z - 1, r: 5.3, y: GY, blend: 1.5 },
 ];
 /** The path from the snow gate to before the chapel's door (LeanQuarter.ts builds it the same way): its pillars and torches stand 3.4 m off it. */
 export const SNOW_PATH: ReadonlyArray<readonly [number, number]> = (() => {
-  const gate = { x: 983, z: 86 }, CH = Q.chapel, out: Array<[number, number]> = [];
+  const gate = SNOW_GATE, CH = Q.chapel, out: Array<[number, number]> = [];
   for (let k = 0; k <= 10; k++) {
     const t = k / 10;
-    out.push([gate.x + (CH.x + 6 - gate.x) * t + Math.sin(t * Math.PI) * 6, gate.z + (CH.z - 10 - gate.z) * t]);
+    out.push([gate.x + (CH.x + 6 - gate.x) * t + Math.sin(t * Math.PI) * 3.5, gate.z + (CH.z - 10 - gate.z) * t]);
   }
   return out;
 })();
@@ -328,12 +328,12 @@ let driftNoise: Noise2D | null = null;
  * Snow drifts over the quarter, 0..DRIFT_MAX metres on top of the slope: soft mounds in the open, banked up toward the
  * quarter's edges where the dead trees stand; none on the path and its pillars and torches (5 m either side), on the
  * level flats (the cottages, the plague doctor, the gate) or the chapel's pad, and none by the plaza (it eases in from
- * z 80 to 95). The graves and trees are placed through h() and ride them.
+ * z 41.75 to 50). The graves and trees are placed through h() and ride them.
  */
 export function snowDrift(x: number, z: number): number {
   const n = driftNoise;
   if (!n) return 0;
-  let m = smoothstep(80, 95, z);
+  let m = smoothstep(41.75, 50, z);
   if (m <= 0) return 0;
   let dp = Infinity;
   for (let i = 0; i < SNOW_PATH.length - 1; i++) {
@@ -353,8 +353,14 @@ export function snowDrift(x: number, z: number): number {
   return DRIFT_MAX * m * Math.min(1, 0.75 * mound + 0.6 * bank);
 }
 
-/** The cup islands (Kingdom.ts `cups`): 22 m lean cups floating east of the plaza, their lean at gy, their foot at gy − 0.96 H. */
-export const CUPS: ReadonlyArray<readonly [number, number]> = [[1082, 10], [1108, -12], [1136, 14]];
+/**
+ * The cup islands (Kingdom.ts `cups`): 22 m lean cups floating east of the plaza, their lean at gy, their foot at
+ * gy − 0.96 H. (The first keeps 19.7 m off the plaza's edge, so the cliff has fallen past its foot before the land is
+ * cut back to the plaza: the rest close in on it and the dock, about 20 m apart.)
+ */
+export const CUPS: ReadonlyArray<readonly [number, number]> = [[1052.5, 3.25], [1065.5, -8.85], [1080, 5.45]];
+/** The two landable islands in the sky off the plaza's north-east (LeanQuarter.ts): one with a dead tree, one carrying a tower. */
+export const SKY_ISLANDS = { tree: { x: 1049.6, z: -29.75 }, tower: { x: 1076, z: -30 } } as const;
 const CUP_H = MODELS['lean-cup-island'].height;
 /** The cup's lean (its walkable floor) radius: Kingdom.ts ISLAND_R × H. */
 export const CUP_R = 0.28 * CUP_H;
@@ -378,8 +384,8 @@ export const DOCK: Floater = {
 /** The kingdom's things over the void east of the plaza: the cups, the two sky islands and the dock of LeanQuarter.ts. */
 const GALAXY_FLOATERS: Floater[] = [
   ...CUPS.map(([x, z], i): Floater => ({ name: `cup-${i}`, disc: { x, z, r: 0.29 * CUP_H + 0.4 }, below: CUP_FOOT })),
-  { name: 'island-tree', disc: { x: 1088, z: -50, r: ISLAND_HALF * 1.2 + 0.4 }, below: GY + 4 },
-  { name: 'island-tower', disc: { x: 1124, z: -40, r: ISLAND_HALF * 1.4 + 0.4 }, below: GY - 4 },
+  { name: 'island-tree', disc: { x: SKY_ISLANDS.tree.x, z: SKY_ISLANDS.tree.z, r: ISLAND_HALF * 1.2 + 0.4 }, below: GY + 4 },
+  { name: 'island-tower', disc: { x: SKY_ISLANDS.tower.x, z: SKY_ISLANDS.tower.z, r: ISLAND_HALF * 1.4 + 0.4 }, below: GY - 4 },
   DOCK,
 ];
 
@@ -392,26 +398,30 @@ const GALAXY_SCULPT: RealmSculpt = {
     { name: 'court', rect: Q.court, y: GY, blend: 8 },
     { name: 'street', rect: Q.street, y: GY, blend: 8 },
     { name: 'castle-yard', rect: Q.castleYard, y: GY, blend: 8 },
+    // (The moat's own strip and a metre round it at the floors' level, its bed cut into it below: past its ends,
+    // between the yard and the street, the hills dipped under the water once the west block moved again on 2026-11-14.)
+    { name: 'moat-banks', rect: [Q.moat[0] - 1, Q.moat[1] + 1, Q.moat[2] - 1, Q.moat[3] + 1], y: GY, blend: 8 },
     { name: 'snow', rect: Q.snow, y: (x, z) => snowY(z) + snowDrift(x, z), blend: 8 },
     { name: 'chapel', disc: CHAPEL_PAD, y: CHAPEL_Y, blend: 6 },
-    ...SNOW_FLATS.map((d): Pad => ({ name: d.name, disc: { x: d.x, z: d.z, r: d.r }, y: d.y, blend: 4 })),
+    ...SNOW_FLATS.map((d): Pad => ({ name: d.name, disc: { x: d.x, z: d.z, r: d.r }, y: d.y, blend: d.blend ?? 4 })),
     // Last: the sunken channel, its walls one-cell linear rises on grid lines inside the sheet (the water leaves it be).
     { name: 'moat-bed', rect: MOAT_BED_RECT, y: MOAT_BED, blend: REALM_CELL, ease: 'linear' },
   ],
   // No hills on the plaza's open east edge, where the lean waves leave for the cups.
-  hills: { amp: 3, wavelength: 60, seed: 11, mask: (x) => 1 - smoothstep(1040, 1058, x) },
+  hills: { amp: 3, wavelength: 60, seed: 11, mask: (x) => 1 - smoothstep(1021.9, 1031.7, x) },
   land: {
     // (28 m left bare dunes either side of Bucket Street: the playtest of 2026-11-12, "shrink it so every step has
     // something".)
     // (18 m still left the quarters far apart over bare rock: the playtest of 2026-11-13, "you didn't compact them". The
     // west block now stands 33 m nearer the plaza, the court 12 m, and the land ends 10 m past the pads.)
+    // (And on 2026-11-14 the whole kingdom closed in to about half the walking: LEAN_QUARTER.)
     kind: 'pads', margin: 10, wobble: 4,
     // Rolling ground south of the plaza (behind the ring portals), held back from the cups' line.
     extra: [
-      { name: 'plaza-south', rect: [967, 1044, 76, 80], margin: 10, wobble: 3 },
+      { name: 'plaza-south', rect: [982, 1024, 39.55, 41.75], margin: 10, wobble: 3 },
       // The purple wood north of the street (its camp, lamps and ghouls, Pois.ts) and the graves south of the castle.
-      { name: 'north-wood', rect: [840, 985, -60, -40], margin: 6, wobble: 3 },
-      { name: 'castle-graves', rect: [840, 893, 75, 94], margin: 6, wobble: 3 },
+      { name: 'north-wood', rect: [903, 984, -35.25, -24.25], margin: 6, wobble: 3 },
+      { name: 'castle-graves', rect: [903, 942, 39, 49.45], margin: 6, wobble: 3 },
     ],
   },
   edge: { kind: 'cliff', drop: 70, width: 22, lip: 1.2 },

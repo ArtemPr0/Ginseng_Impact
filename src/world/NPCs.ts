@@ -120,8 +120,8 @@ export const NPC_DEFS: NpcDef[] = [
     // (The chain-mail knight of Bucket Street, DeaqHWJBBPw: the court's guard wears the faceted mail now.)
     model: 'mail-knight', accent: PALETTE.electric,
     lines: ['The King is inside. Mind the porcelain.', 'I stand here so the snow stays out. Mostly it does not.'],
-    // In the doorway of Yung Lean's hall (its opening is x 997-1003 at z -53.5), stepping aside for the hero.
-    behaviour: { kind: 'guard', yaw: Math.PI / 2, aside: [1004.6, -51.8], asideYaw: Math.PI, trigger: 7, line: 'guard-cool', pose: 'watch' },
+    // In the doorway of Yung Lean's hall (its opening is x 997-1003 at z -26.05), stepping aside for the hero.
+    behaviour: { kind: 'guard', yaw: Math.PI / 2, aside: [1004.6, -24.35], asideYaw: Math.PI, trigger: 7, line: 'guard-cool', pose: 'watch' },
   },
   {
     id: 'watcher-mage', name: 'Sel', title: 'Who Watches the Snow', weapon: 'staff',

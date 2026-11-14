@@ -57,18 +57,19 @@ export const CHESTS: ChestDef[] = [
     table: [{ itemId: 'sentinel-core', chance: 0.35 }, { itemId: 'croc-hide', chance: 0.5 }, { itemId: 'rot-salve', chance: 0.3 }, { itemId: 'witch-staff', chance: 0.06 }] },
   // ----- Yung Lean's kingdom -----
   // At the threshold of the Skeleton Court's treasury (its west wing: the stone throne, the coin blocks, the galaxy
-  // knights 21 m south), 4 m north of the crystals seeded over x 945..973, z -180..-144 (LeanQuarter.ts, a scatter no
-  // test can reproduce) and 8 m west of the west dragon fountain's basin (962, -138).
-  { id: 'court-treasury', zone: 'galaxy', x: 952, z: -128, kind: 'hoard', respawn: CHEST_RESPAWN, shards: [60, 120],
+  // knights 11 m north), 2.2 m south of the crystals seeded over x 969.9..985.2, z -99.65..-79.85 (LeanQuarter.ts, a
+  // scatter no test can reproduce) and 5.5 m west of the south-west dragon fountain (979.22, -76.55).
+  { id: 'court-treasury', zone: 'galaxy', x: 973.76, z: -77.65, kind: 'hoard', respawn: CHEST_RESPAWN, shards: [60, 120],
     table: [{ itemId: 'sentinel-core', chance: 0.4 }, { itemId: 'rune-shard', chance: 0.6 }, { itemId: 'rot-salve', chance: 0.4 }, { itemId: 'lotus-tea', chance: 0.4 }, { itemId: 'crown-blade', chance: 0.06 }] },
-  // In the snow at the chapel's west front corner: 3.4 m from its wall and 6.6 m west of its door (902.6, 146.5),
+  // In the snow at the chapel's west front corner: 3.4 m from its wall and 6.6 m west of its door (966, 75.85),
   // inside the ring round the chapel that its graves (10 m) and bare trees (9 m) are seeded clear of (LeanQuarter.ts,
   // a scatter no test can reproduce), so nothing grows into the chest; the first graves stand 3.6 m off.
-  { id: 'chapel-graves', zone: 'galaxy', x: 929, z: 147, kind: 'hoard', respawn: CHEST_RESPAWN, shards: [40, 100],
+  { id: 'chapel-graves', zone: 'galaxy', x: 959.4, z: 76.35, kind: 'hoard', respawn: CHEST_RESPAWN, shards: [40, 100],
     table: [{ itemId: 'old-bone', chance: 0.7 }, { itemId: 'wisp-ember', chance: 0.5 }, { itemId: 'rot-salve', chance: 0.3 }, { itemId: 'moon-dew', chance: 0.4 }, { itemId: 'tide-blade', chance: 0.03 }] },
-  // Bucket Street: one more bucket among the buckets, at the head of the street between the purple mushrooms' line
-  // (z 11, every 7 m) and the diamond wizard mid-street (900, 18): 4 m from the nearest mushroom, 5.3 m from him.
-  { id: 'street-mimic', zone: 'galaxy', x: 937, z: 14.5, kind: 'mimic', respawn: CHEST_RESPAWN, shards: [40, 100],
+  // Bucket Street: one more bucket among the buckets, at the head of the street between the purple mushrooms' north
+  // line (z 2.65, every 3.54 m) and the diamond wizard mid-street (963.37, 7.65): 2.9 m from the nearest mushroom, 6.8 m
+  // from him.
+  { id: 'street-mimic', zone: 'galaxy', x: 969.6, z: 4.9, kind: 'mimic', respawn: CHEST_RESPAWN, shards: [40, 100],
     table: [{ itemId: 'lotus-tea', chance: 0.5 }, { itemId: 'rune-shard', chance: 0.5 }, { itemId: 'wisp-ember', chance: 0.5 }, { itemId: 'witch-staff', chance: 0.06 }] },
   // ----- The Sunken City -----
   // The square before the sea castle's gate, between the long tables of goblets.

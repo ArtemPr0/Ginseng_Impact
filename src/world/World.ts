@@ -136,7 +136,8 @@ function greenEyes(npc: Npc): { group: Group; update(dt: number): void } {
     group: new Group(),
     update: () => {
       if (done || !npc.rig.model) return;
-      for (const m of npc.rig.model.materials) patchGreenGlow(m);
+      // (Once per material: the plaza's skeleton-red shares Rattlebones' file and its materials.)
+      for (const m of npc.rig.model.materials) if (!m.userData.greenEyes) { patchGreenGlow(m); m.userData.greenEyes = true; }
       done = true;
     },
   };
@@ -925,6 +926,9 @@ export class World {
     // (Each effect goes into the group of the realm its body is in: vfx() builds into the zone entered last.)
     this.enterZone(CRYPT_ROOM.id);
     for (const n of this.npcs) if (n.def.id.startsWith('crypt-')) { if (n.def.id === 'crypt-red') vfx(greenEyes(n)); if (n.def.id !== 'crypt-bones') vfx(grillSparkle(n)); }
+    // Their two kin sipping on the kingdom's plaza (data/folk.ts, the playtest of 2026-11-14): the same eyes and grills.
+    this.enterZone(GALAXY.id);
+    for (const n of this.npcs) if (n.def.id === 'folk-k-f' || n.def.id === 'folk-k-g') { if (n.def.model === 'skeleton-red') vfx(greenEyes(n)); vfx(grillSparkle(n)); }
     const skeletonLord = this.npcs.find((n) => n.def.id === 'skeleton-lord');
     if (skeletonLord) { this.enterZone(GALAXY.id); vfx(bluntInHand(skeletonLord)); }
     CARRIAGE.passenger = this.npcs.find((n) => n.def.id === 'carriage-count') ?? null;

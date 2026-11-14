@@ -149,7 +149,7 @@ const AT = {
   frogGod: mark(spawn('dmt-entity'), 'dream'),
   yungLean: mark(anchor('yunglean'), 'galaxy'),
   /** The far lean cup where the lost sound hums in the mist (world/Kingdom.ts soundAt). */
-  farCup: mark({ x: 1136, z: 14 }, 'galaxy'),
+  farCup: mark({ x: 1080, z: 5.45 }, 'galaxy'),
   skeletonKing: mark(anchor('skeleton-king'), 'galaxy'),
   glintgrin: mark(TREEHOUSE_ROOM, 'treehouse'),
   fishKing: mark(anchor('fish-king'), 'sunken'),
