@@ -66,7 +66,9 @@ export const LAYOUT = {
     { x: -43, z: -19, r: 11, count: 100 },
   ],
   frog: { x: -54, z: -26 },
-  coven: { streamX: -67, zMin: -42, zMax: 40, bridgeZ: 9 },
+  // (The tail: past zMax the stream runs on in a channel cut to `bed`, under the church's north wall, z 49..52.5 on
+  // its line, and ends inside it: it stopped in the middle of the land before, the playtest of 2026-11-14.)
+  coven: { streamX: -67, zMin: -42, zMax: 40, bridgeZ: 9, tail: { zTo: 52, bed: 2.2 } },
   /**
    * On the plateau north-west of the chasm, its whole rock base on land (castle.glb is 29 × 31 m: at z = -24 its north
    * wall hung over the chasm's cliff, which begins around z = -34).

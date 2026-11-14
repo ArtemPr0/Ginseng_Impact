@@ -654,7 +654,7 @@ export class World {
       const at = new Vector3();
       this.interactables.push({ pos: at, range: 3.6, zone: null, label: () => { at.copy(boat.root.position); return 'Climb into the boat'; }, act: () => this.hooks.board?.(b) });
     }
-    this.place(witchStream((z) => terrain.streamCentre(z), LAYOUT.coven.zMin, LAYOUT.coven.zMax, LAYOUT.coven.bridgeZ, deck.deckY, h, {
+    this.place(witchStream((z) => terrain.streamCentre(z), LAYOUT.coven.zMin, LAYOUT.coven.tail.zTo, LAYOUT.coven.bridgeZ, deck.deckY, h, {
       shoot: (from, s) => this.hooks.shoot?.(from, s),
       hurt: (atk, poison) => this.hooks.hurt?.(atk, poison),
     }));

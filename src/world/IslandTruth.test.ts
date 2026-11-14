@@ -10,9 +10,9 @@ import { ANCHORS, ISLAND_PORTALS, LANDMARKS, LAYOUT, SINK, SKY_EYES, VILLAGE, ty
 import { ENEMY_DEFS, ENEMY_SPAWNS } from '../data/enemies';
 import { CHESTS } from '../data/chests';
 import { MODELS } from '../data/models';
-import { gridFootprint, type GridFootprint } from './Colliders';
+import { footprintContains, gridFootprint, type GridFootprint } from './Colliders';
 import { Noise2D } from './noise';
-import { terrainHeight, waterLevelAt } from './Terrain';
+import { inStreamTail, lowestBed, STREAM_WATER, streamCentre, terrainHeight, waterLevelAt } from './Terrain';
 import { woodArch } from './Walkways';
 
 const noise = new Noise2D(1337);
@@ -61,6 +61,8 @@ function measure(p: Placed): Report | null {
   const cells = groundCells(f);
   const rep: Report = { id: p.id, at: `(${p.x},${p.z})`, buried: -Infinity, floating: -Infinity, wet: 0, void: 0, cells: cells.length };
   for (const [x, z] of cells) {
+    // (The witch stream runs on under the church's north wall into it, by design: the playtest of 2026-11-14.)
+    if (inStreamTail(x, z, noise)) continue;
     const g = h(x, z);
     rep.buried = Math.max(rep.buried, g - p.base);
     rep.floating = Math.max(rep.floating, p.base - g);
@@ -231,6 +233,31 @@ describe('room for the giants', () => {
     for (const g of ENEMY_SPAWNS.filter((sp) => ENEMY_DEFS[sp.kind].reach)) {
       const reach = ENEMY_DEFS[g.kind].reach!;
       for (const c of CHESTS.filter((q) => q.zone === 'island')) expect({ id: c.id, d: Math.hypot(c.x - g.x, c.z - g.z) > reach + 3 }).toEqual({ id: c.id, d: true });
+    }
+  });
+});
+
+describe('the witch stream runs into the church (the playtest of 2026-11-14: it stopped in the middle of the land)', () => {
+  const ch = LAYOUT.church;
+  const floor = h(ch.x, ch.z);
+  const walls = gridFootprint('church', ch.x, 0, ch.z, Math.PI / 2)!;
+  it('carries its water on past the old end, under the church floor, into the walls', () => {
+    let inside = 0;
+    for (let z = LAYOUT.coven.zMax - 4; z < LAYOUT.coven.tail.zTo; z += 0.5) {
+      const cx = streamCentre(z, noise);
+      const w = waterLevelAt(cx, z, noise);
+      expect(w, `water at z ${z}`).not.toBeNull();
+      expect(w!, `under the church floor at z ${z}`).toBeLessThan(floor - 0.3);
+      expect(lowestBed(h, cx, z, STREAM_WATER.half), `a bed under the water at z ${z}`).toBeLessThan(w! - 0.4);
+      if (footprintContains(walls, cx, z)) inside++;
+    }
+    expect(inside).toBeGreaterThan(2);
+  });
+  it('keeps its banks over the water from the old end to the wall (a channel, not a sheet on the grass)', () => {
+    for (let z = LAYOUT.coven.zMax; z < 49; z += 1) {
+      const cx = streamCentre(z, noise);
+      const w = waterLevelAt(cx, z, noise)!;
+      for (const side of [-1, 1]) expect(h(cx + side * (STREAM_WATER.half + 2.5), z), `bank at z ${z}`).toBeGreaterThan(w + 0.3);
     }
   });
 });
