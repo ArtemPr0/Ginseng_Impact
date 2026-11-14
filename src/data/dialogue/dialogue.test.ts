@@ -22,7 +22,11 @@ const FLAGS: Record<Flag, true> = {
 };
 /** The fewest lines a slot needs so an NPC does not repeat itself. */
 const SLOT_MIN: Record<Slot, number> = { greet: 3, react: 10, topic: 2, bye: 2, bark: 3 };
-const MAX_TEXT = 160;
+/**
+ * The longest a spoken line may be (the playtest of 2026-11-14: "NPC interactions are boring… not too long"): two
+ * short sentences at most. A line with a recorded voice keeps the words it was recorded with.
+ */
+const MAX_TEXT = 100;
 const MAX_BARK = 60;
 const TEMPLATES = new Set(['hero', 'heroTitle', 'lastKill', 'lastBoss', 'district', 'shards', 'level', 'met']);
 const PLAIN_ACTIONS = new Set(['close', 'trade', 'hire', 'home', 'lick', 'ale', 'challenge', 'bag-croak', 'follow']);
@@ -137,7 +141,7 @@ describe('dialogue books', () => {
     const problems: string[] = [];
     for (const [id, line] of allLines()) {
       const max = line.slot === 'bark' ? MAX_BARK : MAX_TEXT;
-      if (line.text.length > max) problems.push(`${id}/${line.id}: ${line.text.length} chars, at most ${max}: "${line.text}"`);
+      if (line.text.length > max && line.voice === undefined) problems.push(`${id}/${line.id}: ${line.text.length} chars, at most ${max}: "${line.text}"`);
       if (!line.text.trim()) problems.push(`${id}/${line.id}: empty text`);
     }
     expect(problems, problems.join('\n')).toEqual([]);
