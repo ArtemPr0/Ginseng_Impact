@@ -180,6 +180,78 @@ export function stoneArch(cx: number, cz: number, length: number, along: 'x' | '
   return { object: g, footprints, deckY: surface(0.5), baseY, scale: k, yaw: along === 'x' ? 0 : Math.PI / 2, posts };
 }
 
+/** The wooden arch's tiles, rails and candle posts (Heart.dressBridge lays them). */
+export interface WoodArch extends Landmark {
+  /** The crown's walk surface. */
+  deckY: number;
+  /** `chasm-bridge` plank tiles end to end along the arch, pitched with it. */
+  tiles: Array<{ x: number; y: number; z: number; yaw: number; scale: number; pitch: number }>;
+  /** The railing posts, every 3.6 m each side (torches and candles go on them). */
+  posts: Array<{ x: number; y: number; z: number }>;
+}
+
+/** The wooden arch's walk width each side of its centre line (the eye bridge's). */
+export const WOOD_ARCH_HALF = 1.3;
+
+/**
+ * The eye's arched wooden footbridge (#28) as a crossing of any length, centred on (cx, cz), running along x or z: plank
+ * tiles on a sine arch that rises `rise` (12% of the span, 3..6 m) over the higher bank, railings both sides, posts for
+ * candles. With `steps`, the lower bank climbs to its end by stair treads. (It replaced the wide stone arches over the
+ * chasm and the gorge: the playtest of 2026-11-14.)
+ */
+export function woodArch(cx: number, cz: number, length: number, along: 'x' | 'z', heightAt: HeightAt, tileHeight: number, opts: { steps?: boolean } = {}): WoodArch {
+  const half = WOOD_ARCH_HALF;
+  const at = (u: number, v: number): [number, number] => (along === 'x' ? [cx + u, cz + v] : [cx + v, cz + u]);
+  const box = (u: number, v: number, hu: number, hv: number, top: number, bottom: number): Footprint => {
+    const [x, z] = at(u, v);
+    return along === 'x' ? { kind: 'box', x, z, hw: hu, hd: hv, top, bottom } : { kind: 'box', x, z, hw: hv, hd: hu, top, bottom };
+  };
+  const groundAt = (u: number) => heightAt(...at(u, 0));
+  const endY = Math.max(groundAt(-length / 2 - 0.5), groundAt(length / 2 + 0.5)) + 0.1;
+  const rise = Math.min(6, Math.max(3, length * 0.12));
+  // The walk surface `u` metres along from the centre.
+  const surface = (u: number) => endY + rise * Math.sin(Math.min(1, Math.max(0, u / length + 0.5)) * Math.PI);
+  const footprints: Footprint[] = [];
+  // (0.35 m slices: at the ends of a 52 m arch the deck climbs 0.36 m a metre, and no slice may step past 0.15.)
+  const slices = Math.ceil(length / 0.35);
+  const du = length / slices;
+  for (let s = 0; s < slices; s++) {
+    const u = -length / 2 + (s + 0.5) * du;
+    const top = surface(u);
+    footprints.push(box(u, 0, du / 2 + 0.02, half, top, top - DECK_DEPTH));
+    for (const side of [-1, 1]) footprints.push(box(u, side * (half + 0.15), du / 2 + 0.02, 0.15, top + 1.0, top - DECK_DEPTH));
+  }
+  if (opts.steps) {
+    for (const side of [-1, 1]) {
+      const ground = groundAt(side * (length / 2 + 1.5));
+      const climb = endY - ground;
+      if (climb < 0.3) continue;
+      const n = Math.ceil(climb / 0.35);
+      for (let i = 0; i < n; i++) {
+        const top = endY - (climb * i) / n;
+        footprints.push(box(side * (length / 2 + 0.225 + i * 0.45), 0, 0.25, half, top, top - 1.5));
+      }
+    }
+  }
+  const n = Math.ceil(length / BRIDGE_TILE);
+  const step = length / n;
+  const yaw = along === 'x' ? Math.PI / 2 : 0;
+  const tiles: WoodArch['tiles'] = [];
+  for (let i = 0; i < n; i++) {
+    const u = -length / 2 + (i + 0.5) * step;
+    const slope = (surface(u + 0.25) - surface(u - 0.25)) / 0.5;
+    const [x, z] = at(u, 0);
+    tiles.push({ x, y: surface(u) - tileHeight * BRIDGE_DECK, z, yaw, scale: step / BRIDGE_TILE, pitch: -Math.atan(slope) });
+  }
+  const posts: WoodArch['posts'] = [];
+  const nPosts = Math.max(2, Math.round(length / 3.6));
+  for (let i = 0; i <= nPosts; i++) {
+    const u = -length / 2 + (length * i) / nPosts;
+    for (const side of [-1, 1]) { const [x, z] = at(u, side * (half + 0.15)); posts.push({ x, y: surface(u), z }); }
+  }
+  return { object: new Group(), footprints, deckY: endY + rise, tiles, posts };
+}
+
 /** A flat stone floor slab whose top is at `top` (the realms' ground until their floor models exist). */
 export function floorSlab(x: number, z: number, top: number, w: number, d: number, rotY = 0): Landmark {
   const g = new Group();

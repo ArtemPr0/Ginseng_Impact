@@ -37,7 +37,7 @@ import { buildTreeHouse } from './TreeHouse';
 import { buildDream, dreamWatchers } from './Dream';
 import { buildKingdom } from './Kingdom';
 import { buildLeanQuarter } from './LeanQuarter';
-import { type Bouncer, buildHeart } from './Heart';
+import { type Bouncer, buildHeart, dressBridge } from './Heart';
 import { buildGraveyard } from './Graveyard';
 import type { ModelRig } from '../models/ModelRig';
 import type { Interactable, Teleport } from './Interact';
@@ -49,7 +49,7 @@ import { buildRealms, type RealmApi } from './Realms';
 import type { PortalLink } from './Portal';
 import { deadAt, EYE, eyeDistance, frozenAt, pathAt, RIVER, RIVER_LEVEL, riverAt, riverDistance, sandAt, streamAt, Terrain, WORLD } from './Terrain';
 import { mistLayers } from '../render/LeanFx';
-import { stoneArch, witchBridgeDeck, type StoneArch } from './Walkways';
+import { witchBridgeDeck, woodArch } from './Walkways';
 import { floatingLeaf, lilyPond, mudPool, river } from './Water';
 
 /**
@@ -411,15 +411,14 @@ export class World {
     const vfx = (f: { group: Group; update: (dt: number) => void }) => { this.target.add(f.group); this.extras.push(f); this.zoneOf.set(f, this.zone); };
 
     // --- walkways ---
-    // The two crossings over the chasm are stone arches like the gorge's (the playtest of 2026-11-13): the causeway on
-    // the road to the head, and the west one by the cathedral. Each is the witches' bridge model scaled whole to its
-    // span; its stepped deck is the collider, and the lower bank climbs to it by treads.
-    const arches: StoneArch[] = [];
+    // The two crossings over the chasm are the eye's wooden arched footbridge, like the gorge's (stone arches until the
+    // playtest of 2026-11-14: "put this kind of bridge in here instead of that big wide bridge"): the causeway on the
+    // road to the head, and the west one by the cathedral. The lower bank climbs to each by treads.
     const arch = (cx: number, cz: number, length: number) => {
-      const a = stoneArch(cx, cz, length, 'z', h, { steps: true });
+      const a = woodArch(cx, cz, length, 'z', h, MODELS['chasm-bridge'].height, { steps: true });
       this.place(a);
-      this.place(modelLandmark('witch-bridge', cx, cz, a.baseY, { yaw: a.yaw, scale: a.scale, collider: 'none', onLoad: () => { a.object.visible = false; a.object.userData.hidden = true; } }));
-      arches.push(a);
+      flora('chasm-bridge', a.tiles);
+      dressBridge({ flora, vfx }, a.posts, rnd);
     };
     const cw = LAYOUT.causeway;
     arch(cw.x, (cw.zStart + cw.zEnd) / 2, cw.zStart - cw.zEnd);
@@ -730,16 +729,6 @@ export class World {
     this.place(modelLandmark('cauldron', pot.x, pot.z, potY, { color: PALETTE.witch }));
     vfx(fire(pot.x, potY - 0.1, pot.z, 0.7, 14));
     for (const l of LANDMARKS) if (!spotted.has(l.id)) console.error(`LANDMARKS entry ${l.id} was never placed`);
-    // Lanterns and candles along the arches' parapets.
-    const lanternSpots: Placement[] = [];
-    const candleSpots: Placement[] = [];
-    arches.flatMap((a) => a.posts).forEach((p, i) => {
-      if (i % 6 === 0) lanternSpots.push({ x: p.x, y: p.y, z: p.z, yaw: 0, scale: 1 });
-      else if (i % 2 === 0) { candleSpots.push({ x: p.x, y: p.y, z: p.z, yaw: 0, scale: 1 }); vfx(fire(p.x, p.y + 0.3, p.z, 0.1, 1.2)); }
-    });
-    flora('lantern-post', lanternSpots);
-    flora('candle', candleSpots, { shadows: false });
-    for (const p of lanternSpots) { const halo = glowSprite(PALETTE.blood, 2.4, 0.45, true); halo.position.set(p.x, p.y + 2.1, p.z); this.group.add(halo); }
 
     // --- flora and biomes ---
     // (The view from the spawn down the mushroom road to the eye stays open: no pines in it.)
