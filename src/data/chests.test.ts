@@ -7,6 +7,7 @@ import type { Zone } from '../game/Events';
 import { footprintContains, gridFootprint, type Footprint } from '../world/Colliders';
 import { Noise2D } from '../world/noise';
 import { WORLD, terrainHeight } from '../world/Terrain';
+import { SNOW_GATE } from './sculpts';
 
 const ZONES: Record<Zone, true> = { island: true, galaxy: true, sunken: true, treehouse: true, dream: true, graveyard: true, vale: true, 'tavern-room': true, 'crypt-room': true, 'castle-hall': true };
 
@@ -47,10 +48,10 @@ const WALKS: Array<{ zone: Zone; path: ReadonlyArray<readonly [number, number]>;
   ...LAYOUT.paths.map((path) => ({ zone: 'island' as Zone, path, clearance: 2.5 })),
 ];
 
-/** Bucket Street's purple mushrooms with their glows (LeanQuarter.ts): every 7 m along z 11 and z 25 from x 967, except by the stalls. */
-const STALLS = [{ x: 948, z: 8.6 }, { x: 912, z: 27.4 }];
+/** Bucket Street's purple mushrooms with their glows (LeanQuarter.ts): every 3.54 m along z 2.65 and z 12.65 from x 982, except by the stalls. */
+const STALLS = [{ x: 971.99, z: 1.25 }, { x: 953.99, z: 14.05 }];
 const STREET_MUSHROOMS: XZ[] = [];
-for (let x = 967; x > 875; x -= 7) for (const z of [11, 25]) if (!STALLS.some((st) => Math.hypot(st.x - x, st.z - z) < 3)) STREET_MUSHROOMS.push({ x, z });
+for (let x = 982; x > 935; x -= 3.54) for (const z of [2.65, 12.65]) if (!STALLS.some((st) => Math.hypot(st.x - x, st.z - z) < 3)) STREET_MUSHROOMS.push({ x, z });
 
 /**
  * The buildings the chests sit by, placed as the world places them (World.ts, LeanQuarter.ts, Sunken.ts, Vale.ts), by
@@ -71,10 +72,10 @@ const GRIDS: Array<[string, Footprint | null]> = [
   ['treehouse', gridFootprint('treehouse', LAYOUT.treehouse.x, 0, LAYOUT.treehouse.z, Math.PI / 2)],
   ['observatory', gridFootprint('observatory', LAYOUT.observatory.x, 0, LAYOUT.observatory.z)],
   ...LAYOUT.ruins.map((r): [string, Footprint | null] => [ruinKind(r), gridFootprint(ruinKind(r), r.x, 0, r.z, r.yaw)]),
-  ['snow-chapel', gridFootprint('snow-chapel', Q.chapel.x, GY, Q.chapel.z, face(Math.atan2(86 - Q.chapel.z, 983 - Q.chapel.x)))],
-  ['gothic-pavilion', gridFootprint('gothic-pavilion', 1043, GY, -148, face(Math.PI))],
-  ['dragon-throne', gridFootprint('dragon-throne', 1000, GY, -160, face(Math.PI / 2))],
-  ['stone-throne', gridFootprint('stone-throne', 956, GY, -164, face(Math.PI / 2))],
+  ['snow-chapel', gridFootprint('snow-chapel', Q.chapel.x, GY, Q.chapel.z, face(Math.atan2(SNOW_GATE.z - Q.chapel.z, SNOW_GATE.x - Q.chapel.x)))],
+  ['gothic-pavilion', gridFootprint('gothic-pavilion', 1023.51, GY, -88.65, face(Math.PI))],
+  ['dragon-throne', gridFootprint('dragon-throne', 1000, GY, -95.25, face(Math.PI / 2))],
+  ['stone-throne', gridFootprint('stone-throne', 975.94, GY, -97.45, face(Math.PI / 2))],
   ['lean-castle', gridFootprint('castle', Q.castle.x, GY, Q.castle.z, face(0))],
   ['sea-castle', gridFootprint('sea-castle', -1000, -48, -80, 0)],
   ['crowned-head', gridFootprint('crowned-head', 1000 - 85, 0, 900 + 20, face(0.25), 1.5)],
@@ -83,7 +84,7 @@ const GRIDS: Array<[string, Footprint | null]> = [
 const GRIDS_RESOLVED = GRIDS.length;
 const BUILDINGS: Footprint[] = [
   ...GRIDS.map(([, f]) => f).filter((f): f is Footprint => f !== null),
-  ...[957, 939, 921, 903, 885].flatMap((x) => [4, 32].map((z): Footprint => ({ kind: 'box', x, z, hw: 3.4, hd: 3.4, top: GY + 9 }))),
+  ...[976.49, 967.49, 958.49, 949.49, 940.49].flatMap((x) => [-3.35, 18.65].map((z): Footprint => ({ kind: 'box', x, z, hw: 3.4, hd: 3.4, top: GY + 9 }))),
   ...STALLS.map((st): Footprint => ({ kind: 'box', x: st.x, z: st.z, hw: 1.8, hd: 1.2, top: GY + 1.1 })),
   ...[12, 2, -8, -18, -28, -38, -48].flatMap((z, i) => [-1, 1].map((side): Footprint => ({ kind: 'box', x: -1000 + side * (10.5 + (i % 2) * 0.8), z, hw: 3.3, hd: 3.3, top: -42 }))),
 ];
@@ -156,21 +157,22 @@ describe('CHESTS', () => {
       if (c.zone === 'island') for (const r of LAYOUT.ruins) expect(dist(c, r), `${c.id} on the ${ruinKind(r)} at ${r.x},${r.z}`).toBeGreaterThanOrEqual(4);
       // The small pads level the ground under one creature or NPC each; the big ones (the castle's rock, the world tree) are ground.
       if (c.zone === 'island') for (const p of PADS) if (p.r < 10) expect(dist(c, p), `${c.id} on the pad at ${p.x},${p.z}`).toBeGreaterThan(p.r);
-      // Bucket Street's mushrooms stand every 7 m along both kerbs: a chest keeps 2.5 m from each.
+      // Bucket Street's mushrooms stand every 3.54 m along both kerbs: a chest keeps 2.5 m from each.
       if (c.zone === 'galaxy') for (const m of STREET_MUSHROOMS) expect(dist(c, m), `${c.id} on the mushroom at ${m.x},${m.z}`).toBeGreaterThanOrEqual(2.5);
     }
     expect(STREET_MUSHROOMS.length).toBeGreaterThan(20);
   });
 
   it('keeps clear of the seeded flora no test can reproduce (LeanQuarter.ts, rng 5150 through the whole realm build)', () => {
-    // The treasury's twelve crystals land anywhere in x 945..973, z -168..-132: the court chest stays 2 m outside that.
+    // The treasury's twelve crystals land anywhere in x 969.9..985.2, z -99.65..-79.85: the court chest stays 2 m
+    // outside that.
     const court = chestById('court-treasury')!;
-    expect(court.x < 943 || court.x > 975 || court.z < -170 || court.z > -130, `court-treasury at ${court.x},${court.z}`).toBe(true);
-    // The graveyard's 36 graves and 16 bare trees fill x 899..987, z 92..170 except within 10 m (graves) and 9 m (trees)
-    // of the chapel: the chapel chest sits inside that ring, 2 m or more short of where a tree may stand.
+    expect(court.x < 967.9 || court.x > 987.2 || court.z < -101.65 || court.z > -77.85, `court-treasury at ${court.x},${court.z}`).toBe(true);
+    // The graveyard's 36 graves and 16 bare trees fill x 944.8..992.9, z 48.35..91.25 except within 10 m (graves) and
+    // 9 m (trees) of the chapel: the chapel chest sits inside that ring, 2 m or more short of where a tree may stand.
     const graves = chestById('chapel-graves')!;
     expect(dist(graves, LEAN_QUARTER.chapel), `chapel-graves at ${graves.x},${graves.z}`).toBeLessThanOrEqual(7);
-    expect(dist(graves, { x: 935.6, z: 146.5 }), 'chapel-graves vs the chapel door').toBeGreaterThanOrEqual(4);
+    expect(dist(graves, { x: 966, z: 75.85 }), 'chapel-graves vs the chapel door').toBeGreaterThanOrEqual(4);
   });
 
   it('sits on the island\'s ground, not in the chasm or over the cliff', () => {

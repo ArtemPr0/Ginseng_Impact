@@ -92,7 +92,7 @@ export function buildRealms(api: RealmApi): PortalLink[] {
     glowAt(api, PALETTE.dusk, 1.4, x, ftY + 3.8, z);
   }
   api.flora('hanging-lantern', lanterns);
-  links.push(link(new Vector3(P.x, py + 1, P.z), 1.8, 3, G.x, G.z + 60, -Math.PI / 2, G.name));
+  links.push(link(new Vector3(P.x, py + 1, P.z), 1.8, 3, G.x, G.z + 30.75, -Math.PI / 2, G.name));
 
   // ===== Island: the whirlpool in the lily pond, the way down to the sunken city (DeVj-Z8POjl) =====
   const pond = ISLAND_PORTALS.pond;
@@ -178,13 +178,13 @@ export function buildRealms(api: RealmApi): PortalLink[] {
   const road: Placement[] = [];
   for (let z = KINGDOM_ROAD.z1 - 3; z > KINGDOM_ROAD.z0; z -= 6) road.push({ x: KINGDOM_ROAD.x, y: gy + 0.02, z, yaw: 0, scale: 1 });
   api.flora('checker-road', road, { shadows: false });
-  for (const z of [52, 30, 8, -14]) {
+  for (const z of [26.35, 14.25, 2.15, -10.05]) {
     for (const side of [-1, 1]) {
       const x = G.x + side * 11;
       api.place(modelLandmark('round-tower', x, G.z + z, gy, { yaw: face(side < 0 ? 0 : Math.PI), footprints: [{ kind: 'cyl', x, z: G.z + z, r: 3.6, top: gy + 22 }] }));
     }
   }
-  for (let z = 60; z > -40; z -= 16) {
+  for (let z = 30.75; z > -24; z -= 8.8) {
     for (const side of [-1, 1]) {
       const x = G.x + side * 4.6;
       api.place(modelLandmark('brazier', x, G.z + z, gy, { footprints: [{ kind: 'cyl', x, z: G.z + z, r: 0.6, top: gy + 1.3 }] }));
@@ -192,21 +192,21 @@ export function buildRealms(api: RealmApi): PortalLink[] {
     }
   }
   // Return portal in a ring, the ring portals and the void monk (DdyN2PNyIxb).
-  api.place(modelLandmark('ring-portal', G.x, G.z + 72, gy, { yaw: face(-Math.PI / 2) }));
-  api.place(portal(G.x, gy + 3.9, G.z + 72, 1.65, { vertical: true, facing: -Math.PI / 2 }));
-  links.push(link(new Vector3(G.x, gy + 1, G.z + 72), 1.6, 3, -49, -13, 0, 'The Island'));
+  api.place(modelLandmark('ring-portal', G.x, G.z + 37.35, gy, { yaw: face(-Math.PI / 2) }));
+  api.place(portal(G.x, gy + 3.9, G.z + 37.35, 1.65, { vertical: true, facing: -Math.PI / 2 }));
+  links.push(link(new Vector3(G.x, gy + 1, G.z + 37.35), 1.6, 3, -49, -13, 0, 'The Island'));
   // Two more either side of it, standing on the plaza's floor (they hovered 9-16 m up on their stone feet, one over the
   // void past the plaza's edge).
   for (const dx of [-12, 12]) {
-    api.place(modelLandmark('ring-portal', G.x + dx, G.z + 70, gy, { yaw: face(-Math.PI / 2) }));
-    api.place(portal(G.x + dx, gy + 3.9, G.z + 70, 1.65, { vertical: true, facing: -Math.PI / 2, colors: [PALETTE.void, PALETTE.electric] }));
+    api.place(modelLandmark('ring-portal', G.x + dx, G.z + 36.25, gy, { yaw: face(-Math.PI / 2) }));
+    api.place(portal(G.x + dx, gy + 3.9, G.z + 36.25, 1.65, { vertical: true, facing: -Math.PI / 2, colors: [PALETTE.void, PALETTE.electric] }));
   }
   // The river hall of the galaxy king (Dd0wR9Jh2lH).
-  api.place(modelLandmark('galaxy-hall', G.x, G.z - 66, gy, { yaw: face(Math.PI / 2) }));
-  api.place(modelLandmark('marble-throne', G.x, G.z - 75, gy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'box', x: G.x, z: G.z - 75.6, hw: 1.8, hd: 1.2, top: gy + 0.8 }] }));
+  api.place(modelLandmark('galaxy-hall', G.x, G.z - 38.55, gy, { yaw: face(Math.PI / 2) }));
+  api.place(modelLandmark('marble-throne', G.x, G.z - 47.55, gy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'box', x: G.x, z: G.z - 48.15, hw: 1.8, hd: 1.2, top: gy + 0.8 }] }));
   // (The treasury, Bucket Street and the rest of the Lean Quarter: LeanQuarter.ts.)
   // The Lean-Chucker's pavilion, east (DeXn5rSPxR8's dome; the skeleton lord has his own in the court).
-  api.place(modelLandmark('gothic-pavilion', 1035, G.z - 55, gy, { yaw: face(Math.PI) }));
+  api.place(modelLandmark('gothic-pavilion', 1019.14, G.z - 32.5, gy, { yaw: face(Math.PI) }));
   // Dragon riders circling the city (DeYtKbMh76x): wings beating (the mesh has no bones: a vertex flap), and purple
   // fire for anyone who flies up close.
   let da = 0;
@@ -219,7 +219,7 @@ export function buildRealms(api: RealmApi): PortalLink[] {
     update: (dt, root, _m, player) => {
       da += dt * 0.09;
       // A wide loop over every quarter: the court, the castle, the snow chapel, the sky dock.
-      root.position.set(G.x - 40 + Math.cos(da) * 130, gy + 42 + Math.sin(da * 3) * 4, G.z - 20 + Math.sin(da) * 120);
+      root.position.set(G.x - 28 + Math.cos(da) * 80, gy + 42 + Math.sin(da * 3) * 4, G.z - 13 + Math.sin(da) * 66);
       root.rotation.y = face(da + Math.PI / 2);
       root.rotation.z = -0.25;
       // A hero in the air near it gets a gout of fire (bursts of bolts from the jaws, then a breath).

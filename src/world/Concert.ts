@@ -12,7 +12,8 @@ import { GALAXY, REALMS } from '../data/world';
 import type { Npc, NpcBehaviour } from './NPCs';
 import type { World } from './World';
 
-const STAGE = { x: 1000, z: -47.5 };
+/** Before Yung Lean's hall door (Realms.ts: the hall at (1000, -38.55), its door at z -25.15). */
+const STAGE = { x: 1000, z: -20.05 };
 const FIREWORKS = [PALETTE.rune, PALETTE.dusk, PALETTE.moon, PALETTE.electric, 0xff6ec7];
 const UP = new Vector3(0, 1, 0);
 const _at = new Vector3();
@@ -43,8 +44,8 @@ export class Concert {
 
   start(): void {
     const { area } = this.d;
-    this.gy = this.d.heightAt(STAGE.x, -30, GALAXY.y + 0.5);
-    this.d.place(STAGE.x, this.gy, -10);
+    this.gy = this.d.heightAt(STAGE.x, STAGE.z + 8, GALAXY.y + 0.5);
+    this.d.place(STAGE.x, this.gy, STAGE.z + 20.6);
     // The plaza's mobs go home for the night.
     for (const m of this.d.enemies()) {
       if (Math.hypot(m.pos.x - GALAXY.x, m.pos.z - GALAXY.z) > GALAXY.radius) continue;
@@ -55,7 +56,7 @@ export class Concert {
     const people = area.npcs.filter((n) => !n.def.invisible && n.def.id !== 'yunglean')
       .sort((a, b) => Number(b.def.id === 'cup-gnome') - Number(a.def.id === 'cup-gnome'));
     const clear = (x: number, z: number) => Math.abs(this.d.heightAt(x, z, this.gy + 0.5) - this.gy) < 0.35;
-    const spots = crowdSpots([{ rect: [976, 1024, -42, -14], look: STAGE, keep: 5 }], people.length, clear, { spacing: 1.6, step: 0.9 });
+    const spots = crowdSpots([{ rect: [976, 1024, STAGE.z + 4.5, STAGE.z + 28], look: STAGE, keep: 5 }], people.length, clear, { spacing: 1.6, step: 0.9 });
     const put = (n: Npc, x: number, z: number, yaw: number) => {
       this.saved.push({ npc: n, x: n.pos.x, y: n.pos.y, z: n.pos.z, behaviour: n.def.behaviour, hidden: n.hidden });
       area.moveNpcToZone(n, GALAXY.id);
@@ -77,12 +78,13 @@ export class Concert {
     const g = this.gy;
     if (t < PLAZA_SHOT) {
       const u = t / PLAZA_SHOT;
-      camera.position.set(1012 - 22 * u, g + 9 - 2 * u, 6 - 12 * u);
-      _look.set(1000, g + 4, -50);
+      // (Between the towers' rows behind the crowd.)
+      camera.position.set(1006 - 12 * u, g + 9 - 2 * u, 12 - 6 * u);
+      _look.set(1000, g + 4, STAGE.z - 2);
     } else {
       const u = Math.min(1, (t - PLAZA_SHOT) / 8);
       const s = u * u * (3 - 2 * u);
-      camera.position.set(1003.5 - 2.5 * s, g + 2 - 0.2 * s, -36 - 6.5 * s);
+      camera.position.set(1003.5 - 2.5 * s, g + 2 - 0.2 * s, STAGE.z + 11.5 - 6.5 * s);
       _look.set(1000, g + 1.5, STAGE.z);
     }
     camera.lookAt(_look);
@@ -90,7 +92,7 @@ export class Concert {
     if (this.wait <= 0) {
       this.wait = 0.35 + Math.random() * 0.5;
       const c = FIREWORKS[Math.floor(Math.random() * FIREWORKS.length)];
-      _at.set(1000 + (Math.random() - 0.5) * 60, g + 20 + Math.random() * 16, -62 + (Math.random() - 0.5) * 30);
+      _at.set(1000 + (Math.random() - 0.5) * 60, g + 20 + Math.random() * 16, -34.5 + (Math.random() - 0.5) * 30);
       fx.flash(_at, c, 7);
       fx.sparks(_at, UP, 26, c, 11, 3);
     }

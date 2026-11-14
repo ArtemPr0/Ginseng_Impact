@@ -17,7 +17,7 @@ import { dressKingdom } from './Pois';
 import { Color, Group, type MeshStandardMaterial, type Mesh, Vector3 } from 'three';
 import { GALAXY, LEAN_QUARTER } from '../data/world';
 import { MODELS } from '../data/models';
-import { CHAPEL_Y, snowY } from '../data/sculpts';
+import { CHAPEL_Y, SKY_ISLANDS, SNOW_FLATS, SNOW_GATE, snowY } from '../data/sculpts';
 import { rockTop } from '../render/Floors';
 import { CHAPEL_DOOR } from './Interiors';
 import { fountain } from '../render/Fountain';
@@ -134,21 +134,21 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   // ===== The Skeleton Court, north (Def4LDkxikA) =====
   api.group.add(mistLayers(court.x, court.z - 5, court.w, court.d - 10, gy, 0x5a26b0, 0.26, 3));
   // The dragon throne at the court's head, the skeleton king on it (NPCs.ts), purple fire either side.
-  api.place(modelLandmark('dragon-throne', 1000, -160, gy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'box', x: 1000, z: -161, hw: 5, hd: 2.5, top: gy + 1 }] }));
+  api.place(modelLandmark('dragon-throne', 1000, -95.25, gy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'box', x: 1000, z: -96.25, hw: 5, hd: 2.5, top: gy + 1 }] }));
   for (const dx of [-7.5, 7.5]) {
-    api.place(modelLandmark('brazier', 1000 + dx, -154, gy, { footprints: [{ kind: 'cyl', x: 1000 + dx, z: -154, r: 0.6, top: gy + 1.3 }] }));
-    api.vfx(fire(1000 + dx, gy + 1.5, -154, 0.7, 10, PURPLE_FIRE));
+    api.place(modelLandmark('brazier', 1000 + dx, -89.25, gy, { footprints: [{ kind: 'cyl', x: 1000 + dx, z: -89.25, r: 0.6, top: gy + 1.3 }] }));
+    api.vfx(fire(1000 + dx, gy + 1.5, -89.25, 0.7, 10, PURPLE_FIRE));
   }
-  glints.add(new Vector3(1000, gy + 2.3, -158.4), new Vector3(), 0.25);
-  glints.add(new Vector3(1000, gy + 1.9, -158.2), new Vector3(), 0.3);
+  glints.add(new Vector3(1000, gy + 2.3, -93.65), new Vector3(), 0.25);
+  glints.add(new Vector3(1000, gy + 1.9, -93.45), new Vector3(), 0.3);
   // The reel's two black dragons flanking the throne, heads up, facing down the court (+z: the model itself looks
   // about 27° to the left of its yaw, checked from the court).
   // They watch you come up the court (watchfulDragon).
-  for (const side of [-1, 1]) watchfulDragon(api, 1000 + side * 8.5, -160, gy, Math.PI * 0.35, 0.85);
+  for (const side of [-1, 1]) watchfulDragon(api, 1000 + side * 8.5, -95.25, gy, Math.PI * 0.35, 0.85);
   // Dragon-head fountains along both sides, each pouring lean into its basin; tiered fountains down the aisle.
   for (const side of [-1, 1]) {
-    for (const z of [-96, -126]) {
-      const x = 1000 + side * 38;
+    for (const z of [-60.05, -76.55]) {
+      const x = 1000 + side * 20.78;
       const dir = side < 0 ? 0 : Math.PI;
       api.place(modelLandmark('dragon-fountain', x, z, gy, { yaw: face(dir), footprints: [{ kind: 'box', x, z, hw: 2.2, hd: 2.2, top: gy + 1.2 }] }));
       // From the jaws down into the basin under them (DRAGON_FOUNTAIN, measured: the fall started 0.9 m over the head
@@ -158,8 +158,8 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
       glow(LEAN, 3.2, x + out * F.basin.z, gy + F.basin.y, z, 0.45);
     }
   }
-  for (const x of [982, 1018]) {
-    const z = -114;
+  for (const x of [990.16, 1009.84]) {
+    const z = -69.95;
     api.place(modelLandmark('lean-fountain', x, z, gy, { footprints: [{ kind: 'cyl', x, z, r: 1.6, top: gy + 1 }] }));
     glow(LEAN, 4.5, x, gy + 1.4, z, 0.55);
     // Its water, on its own tiers (lean-fountain.glb at 3 m, measured: the basin's water 1.29 m up, 1.25 m across the
@@ -173,36 +173,36 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
       act: () => { hooks.trip(0.55, 5); hooks.sip?.(); },
     });
   }
-  const courtBarrels: Placement[] = [[958, -110], [960, -114], [1042, -110], [1040, -113.5], [964, -140], [1036, -138]].map(([x, z]) => ({ x, y: gy, z, yaw: api.rnd() * 6, scale: 1 }));
+  const courtBarrels: Placement[] = [[977.04, -67.75], [978.13, -69.95], [1022.96, -67.75], [1021.87, -69.68], [980.32, -84.25], [1019.68, -83.15]].map(([x, z]) => ({ x, y: gy, z, yaw: api.rnd() * 6, scale: 1 }));
   api.flora('barrel', courtBarrels);
   for (const b of courtBarrels) api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: b.x, z: b.z, r: 0.5, top: gy + 1.1 }] });
   // Purple torches down the aisle.
-  for (const z of [-84, -104, -124, -144]) for (const side of [-1, 1]) {
+  for (const z of [-53.45, -64.45, -75.45, -86.45]) for (const side of [-1, 1]) {
     const x = 1000 + side * 11;
     api.place(modelLandmark('torch-post', x, z, gy, { footprints: [{ kind: 'cyl', x, z, r: 0.25, top: gy + 2.4 }] }));
     api.vfx(fire(x, gy + 2.3, z, 0.35, 0, PURPLE_FIRE));
   }
   // The treasury in the court's west wing (DeOemU1BOZF): the stone throne, coin blocks, crystals and stalactites.
-  api.place(modelLandmark('stone-throne', 956, -164, gy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'box', x: 956, z: -164.4, hw: 1.2, hd: 1.6, top: gy + 0.9 }] }));
-  const coins: Placement[] = [[950, -156], [962, -156], [948, -146], [966, -148], [953, -138], [968, -137]].map(([x, z]) => ({ x, y: gy, z, yaw: api.rnd() * 6, scale: 0.8 + api.rnd() * 0.5 }));
+  api.place(modelLandmark('stone-throne', 975.94, -97.45, gy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'box', x: 975.94, z: -97.85, hw: 1.2, hd: 1.6, top: gy + 0.9 }] }));
+  const coins: Placement[] = [[972.66, -93.05], [979.22, -93.05], [971.57, -87.55], [981.41, -88.65], [974.3, -83.15], [982.5, -82.6]].map(([x, z]) => ({ x, y: gy, z, yaw: api.rnd() * 6, scale: 0.8 + api.rnd() * 0.5 }));
   api.flora('coin-block', coins);
   for (const c of coins) { api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: c.x, z: c.z, r: 0.7 * c.scale, top: gy + 1.1 * c.scale }] }); glints.add(new Vector3(c.x, gy + 1.1 * c.scale, c.z), new Vector3(), 0.5); }
   const crystals: Placement[] = [];
-  for (let i = 0; i < 12; i++) { const x = 945 + api.rnd() * 28; const z = -168 + api.rnd() * 36; crystals.push({ x, y: gy, z, yaw: api.rnd() * 6, scale: 0.6 + api.rnd() * 1.2 }); glow(PALETTE.dusk, 1.4, x, gy + 0.6, z, 0.4); }
+  for (let i = 0; i < 12; i++) { const x = 969.93 + api.rnd() * 15.3; const z = -99.65 + api.rnd() * 19.8; crystals.push({ x, y: gy, z, yaw: api.rnd() * 6, scale: 0.6 + api.rnd() * 1.2 }); glow(PALETTE.dusk, 1.4, x, gy + 0.6, z, 0.4); }
   api.flora('purple-crystal', crystals, { shadows: false });
   // The skeleton lord's pavilion in the east wing (DeXn5rSPxR8): he sits at the front of its great settee (facing the
   // court), Sir Cobalt on a stool beside him; his smoke is purple.
-  api.place(modelLandmark('gothic-pavilion', 1043, -148, gy, { yaw: face(Math.PI) }));
+  api.place(modelLandmark('gothic-pavilion', 1023.51, -88.65, gy, { yaw: face(Math.PI) }));
   {
     // (Where the seated lord's feet are: his anchor at the settee's front edge, data/world ANCHORS.)
-    const lord = new Vector3(1042.15, 24.53, -148);
+    const lord = new Vector3(1022.66, 24.53, -88.65);
     // (His smoke rises from the blunt in his right hand now: World.bluntInHand.)
     glints.add(new Vector3(lord.x - 0.16, lord.y + 1.34, lord.z), new Vector3(), 0.05);
     glints.add(new Vector3(lord.x - 0.2, lord.y + 0.95, lord.z), new Vector3(), 0.12);
   }
   // The galaxy bottles (DeOemU1BOZF's starry hall): two long tables of them under the court's east wall.
-  for (const z of [-108, -122]) {
-    const tx = 1030;
+  for (const z of [-66.65, -74.35]) {
+    const tx = 1016.4;
     api.flora('tavern-table', [{ x: tx, y: gy, z, yaw: 0, scale: 1 }]);
     // (The bottles stood out to ±1.2 m and the candles ±1.5 m on a 2 m table: the ends floated beside it.)
     api.place({ object: new Group(), footprints: [{ kind: 'box', x: tx, z, hw: TABLE_TOP.hx, hd: TABLE_TOP.hz, top: gy + TABLE_TOP.y }] });
@@ -213,22 +213,23 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   }
 
   // ===== Bucket Street and the lean castle, west (DeaqHWJBBPw, DeXn5rSPxR8) =====
-  // Purple houses both sides of the street (z = 18), facing it.
+  // Purple houses both sides of the street (z = 7.65, the castle's bridge), facing it, 22 m from row to row.
   // (Not ruled off: each stands a little forward or back, a little turned.)
-  const houseSet = [[957, 0.14, -0.8], [939, -0.17, 0.7], [921, 0.2, -0.5], [903, -0.12, 1], [885, 0.16, -0.9]] as const;
+  const houseSet = [[976.49, 0.14, -0.8], [967.49, -0.17, 0.7], [958.49, 0.2, -0.5], [949.49, -0.12, 1], [940.49, 0.16, -0.9]] as const;
   for (const [x0, turn, step] of houseSet) {
-    for (const [z0, yaw0] of [[4, Math.PI / 2], [32, -Math.PI / 2]] as const) {
+    for (const [z0, yaw0] of [[-3.35, Math.PI / 2], [18.65, -Math.PI / 2]] as const) {
       const x = x0, z = z0 + (yaw0 > 0 ? step : -step), yaw = yaw0 + (yaw0 > 0 ? turn : -turn);
       api.place(modelLandmark('purple-house', x, z, gy, { yaw: face(yaw), footprints: [{ kind: 'box', x, z, hw: 3.4, hd: 3.4, top: gy + 9, rotY: -face(yaw) }], onLoad: (m) => restyle(m, (mat) => patchLitWindows(mat, 2.4, new Color(0.75, 0.35, 1.0))) }));
       glow(PALETTE.dusk, 3.5, x, gy + 7.5, z, 0.25);
     }
   }
-  const STALLS = [{ x: 948, z: 8.6, yaw: Math.PI / 2 }, { x: 912, z: 27.4, yaw: -Math.PI / 2 }];
+  const STALLS = [{ x: 971.99, z: 1.25, yaw: Math.PI / 2 }, { x: 953.99, z: 14.05, yaw: -Math.PI / 2 }];
   for (const st of STALLS) api.place(modelLandmark('market-stall', st.x, st.z, gy, { yaw: face(st.yaw), footprints: [{ kind: 'box', x: st.x, z: st.z, hw: 1.8, hd: 1.2, top: gy + 1.1 }] }));
   api.place(modelLandmark('crystal-ball', STALLS[0].x - 0.6, STALLS[0].z + 0.3, gy + 1.1, { color: PALETTE.dusk }));
   glow(PALETTE.dusk, 1.6, STALLS[0].x - 0.6, gy + 1.5, STALLS[0].z + 0.3, 0.6);
   const shrooms: Placement[] = [];
-  for (let x = 967; x > 875; x -= 7) for (const z of [11, 25]) {
+  // (Along both kerbs, 5 m either side of the street's middle, from the plaza to the carriage.)
+  for (let x = 982; x > 935; x -= 3.54) for (const z of [2.65, 12.65]) {
     if (STALLS.some((st) => Math.hypot(st.x - x, st.z - z) < 3)) continue;
     shrooms.push({ x, y: gy, z, yaw: api.rnd() * 6, scale: 0.8 + api.rnd() * 0.5 });
     glow(PALETTE.dusk, 1.8, x, gy + 2, z, 0.45);
@@ -236,28 +237,28 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   api.flora('purple-mushroom', shrooms, { shadows: false });
   // (Old Hollowstaff, mid-street, is the cup-throwing boss now: double cups of lean circle him (EnemyDef.orbit).)
   // The star brewer's tower at the street's north-west corner (DeQ-NnpvqF6).
-  api.place(modelLandmark('round-tower', 905, -26, gy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'cyl', x: 905, z: -26, r: 3.6, top: gy + 22 }] }));
+  api.place(modelLandmark('round-tower', 948.06, -16.55, gy, { yaw: face(Math.PI / 2), footprints: [{ kind: 'cyl', x: 948.06, z: -16.55, r: 3.6, top: gy + 22 }] }));
   // The lean castle at the street's west end, its windows burning purple, lean pouring off its front into the moat.
   const C = Q.castle;
   api.place(modelLandmark('castle', C.x, C.z, gy, { yaw: face(0), onLoad: (m) => restyle(m, (mat) => patchLitWindows(mat, 2.6, new Color(0.7, 0.3, 1.0))) }));
   api.place(waterSheet(moat.x, moat.z, moat.w, moat.d, gy - 0.35, [0x1a0640, 0x7a32e0, 0xe0b8ff]));
   // (Swimmable: its bed is 2.2 m down.)
   api.water?.(Q.moat[0], Q.moat[1], Q.moat[2], Q.moat[3], gy - 0.35);
-  // The lean pours off the castle itself (its collider probed: the keep's front 14 m up at x 809, the terrace before it
-  // 7 m up to x 811; the falls hung in mid-air 10 m in front of it before): the keep's two spill onto the terrace, the
-  // terrace's four into the moat.
+  // The lean pours off the castle itself (its collider probed: the keep's front 14 m up 9.6 m east of the castle's
+  // middle, the terrace before it 7 m up to 11.6 m; the falls hung in mid-air 10 m in front of it before): the keep's
+  // two spill onto the terrace, the terrace's four into the moat.
   if (PRESENT_MODELS.has('castle')) {
-    for (const z of [16, 20]) api.place(cascade({ x: 842.6, z, top: gy + 14, height: 7.2, width: 1.6, yaw: Math.PI / 2, curve: 0.5, color: LEAN_FALL }));
-    for (const z of [10.5, 15.5, 20.5, 25.5]) api.place(cascade({ x: 844.6, z, top: gy + 7, height: 7.4, width: 2.2, yaw: Math.PI / 2, curve: 0.9, color: LEAN_FALL }));
+    for (const dz of [-2, 2]) api.place(cascade({ x: C.x + 9.6, z: C.z + dz, top: gy + 14, height: 7.2, width: 1.6, yaw: Math.PI / 2, curve: 0.5, color: LEAN_FALL }));
+    for (const dz of [-7.5, -2.5, 2.5, 7.5]) api.place(cascade({ x: C.x + 11.6, z: C.z + dz, top: gy + 7, height: 7.4, width: 2.2, yaw: Math.PI / 2, curve: 0.9, color: LEAN_FALL }));
   }
   // The bridge to the gate: the stone footbridge arched over the moat bank to bank (a flat 2 m block lay across it,
   // flickering against the water), purple flames at its ends.
   const moatBridge = witchBridgeDeck(moat.x, C.z, api.h, MOAT_BRIDGE_LENGTH);
   api.place(moatBridge);
   api.place(modelLandmark('witch-bridge', moat.x, C.z, moatBridge.baseY, { scale: moatBridge.scale, collider: 'none', onLoad: () => { moatBridge.object.visible = false; moatBridge.object.userData.hidden = true; } }));
-  for (const dz of [-4, 4]) for (const x of [862.4, 847.8]) {
+  for (const dz of [-4, 4]) for (const x of [moat.x + 7.4, moat.x - 7.2]) {
     api.place(modelLandmark('torch-post', x, C.z + dz, gy, { footprints: [{ kind: 'cyl', x, z: C.z + dz, r: 0.25, top: gy + 2.4 }] }));
-    api.vfx(fire(x, gy + 2.3, C.z + dz, 0.4, x > 853 ? 8 : 0, PURPLE_FIRE));
+    api.vfx(fire(x, gy + 2.3, C.z + dz, 0.4, x > moat.x ? 8 : 0, PURPLE_FIRE));
   }
   // The carriage drawn up before the bridge (DeXn5rSPxR8): you can ride it (Carriage.ts). The gold gem that floated
   // over the gate is the diamonds the mobs drop now.
@@ -269,8 +270,9 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
     api.group.add(vortex);
     const yardCrystals: Placement[] = [];
     for (let i = 0; i < 16; i++) {
-      const z = api.rnd() < 0.5 ? -38 + api.rnd() * 32 : 42 + api.rnd() * 30;
-      const x = 816 + api.rnd() * 30;
+      // (North and south of the castle, z -24..-9 and 24..38: it stands over z -6.5..22.)
+      const z = api.rnd() < 0.5 ? -24 + api.rnd() * 15 : 24 + api.rnd() * 14;
+      const x = Q.castleYard[0] + 3 + api.rnd() * 30;
       yardCrystals.push({ x, y: gy, z, yaw: api.rnd() * 6, scale: 1.2 + api.rnd() * 1.8 });
       glow(PALETTE.dusk, 2.6, x, gy + 1.2, z, 0.35);
     }
@@ -281,8 +283,8 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   // Snow climbs from plaza level (gy) to CHAPEL_Y; place every prop on h()/snowY, not flat gy.
   const CH = Q.chapel;
   // (Mist only on the chapel's own flat: anywhere else the snow slopes through its flat layers.)
-  api.group.add(mistLayers(CH.x, CH.z, 28, 28, CHAPEL_Y, 0xc8d6ff, 0.16, 2));
-  const gate = { x: 983, z: 86 };
+  api.group.add(mistLayers(CH.x, CH.z, 22, 22, CHAPEL_Y, 0xc8d6ff, 0.16, 2));
+  const gate = SNOW_GATE;
   const chapelY = CHAPEL_Y;
   const gateY = snowY(gate.z);
   api.place(modelLandmark('snow-chapel', CH.x, CH.z, chapelY, { yaw: face(Math.atan2(gate.z - CH.z, gate.x - CH.x)) }));
@@ -296,7 +298,7 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   const path: Array<[number, number]> = [];
   for (let k = 0; k <= 10; k++) {
     const t = k / 10;
-    path.push([gate.x + (CH.x + 6 - gate.x) * t + Math.sin(t * Math.PI) * 6, gate.z + (CH.z - 10 - gate.z) * t]);
+    path.push([gate.x + (CH.x + 6 - gate.x) * t + Math.sin(t * Math.PI) * 3.5, gate.z + (CH.z - 10 - gate.z) * t]);
   }
   for (let k = 2; k < path.length - 1; k += 2) {
     const [x, z] = path[k];
@@ -313,7 +315,7 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
     }
   }
   // Snowed-in cottages along the graveyard's edges, their windows lit (the quarter stood bare but for the chapel).
-  const cottages: Array<[number, number, number]> = [[898.5, 100, 0], [898.5, 120, 0], [987.5, 150, Math.PI], [987.5, 168, Math.PI]];
+  const cottages: Array<[number, number, number]> = [[946, 52.75, 0], [946, 63.75, 0], [991.5, 80.25, Math.PI], [991.5, 90.15, Math.PI]];
   for (const [hx, hz, yaw] of cottages) {
     const foot = api.h(hx, hz);
     api.place(modelLandmark('village-house', hx, hz, foot, { yaw: face(yaw), footprints: [{ kind: 'box', x: hx, z: hz, hw: 3.3, hd: 3.3, top: foot + 6 }],
@@ -322,22 +324,28 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
     glow(0xffa040, 2, hx + Math.cos(yaw) * 2.95, foot + 2.4, hz, 0.5);
   }
   const clearOfCottages = (x: number, z: number) => cottages.every(([hx, hz]) => Math.hypot(hx - x, hz - z) > 6);
+  // The plague doctor on his chest, on his own flat (SNOW_FLATS).
+  const PD = SNOW_FLATS.find((f) => f.name === 'plague-doctor')!;
   // Graves in the snow either side of the path, bare black trees round the edges.
   const graveSets: Record<string, Placement[]> = { grave: [], 'rune-grave': [], 'grave-cross': [] };
   const clearOfPath = (x: number, z: number) => path.every(([px, pz]) => Math.hypot(px - x, pz - z) > 5);
-  for (let i = 0; i < 160 && graveSets.grave.length + graveSets['rune-grave'].length + graveSets['grave-cross'].length < 36; i++) {
-    const x = 899 + api.rnd() * 88, z = 92 + api.rnd() * 78;
-    if (!clearOfPath(x, z) || !clearOfCottages(x, z) || Math.hypot(x - CH.x, z - CH.z) < 10 || Math.hypot(x - 964, z - 124) < 7) continue;
+  // (All 36 of them still, in the quarter closed in on 2026-11-14: more tries for the smaller ground.)
+  for (let i = 0; i < 600 && graveSets.grave.length + graveSets['rune-grave'].length + graveSets['grave-cross'].length < 36; i++) {
+    const x = 944.8 + api.rnd() * 48.1, z = 48.35 + api.rnd() * 42.9;
+    if (!clearOfPath(x, z) || !clearOfCottages(x, z) || Math.hypot(x - CH.x, z - CH.z) < 10 || Math.hypot(x - PD.x, z - PD.z) < 7) continue;
     const kind = (['grave', 'rune-grave', 'grave-cross'] as const)[i % 3];
     graveSets[kind].push({ x, y: api.h(x, z) - 0.05, z, yaw: face(Math.atan2(gate.z - z, gate.x - x)) + (api.rnd() - 0.5) * 0.4, scale: 0.8 + api.rnd() * 0.4 });
   }
   for (const [id, ps] of Object.entries(graveSets)) api.flora(id, ps);
   const trees: Placement[] = [];
-  for (let i = 0; i < 80 && trees.length < 16; i++) {
+  for (let i = 0; i < 400 && trees.length < 16; i++) {
     const edge = i % 4;
-    const x = edge === 0 ? 896 + api.rnd() * 5 : edge === 1 ? 985 + api.rnd() * 5 : 899 + api.rnd() * 86;
-    const z = edge === 2 ? 170 + api.rnd() * 3 : 95 + api.rnd() * 75;
-    if (!clearOfPath(x, z) || !clearOfCottages(x, z) || Math.hypot(x - CH.x, z - CH.z) < 9) continue;
+    const x = edge === 0 ? 943 + api.rnd() * 4 : edge === 1 ? 990 + api.rnd() * 4 : 944.8 + api.rnd() * 47.5;
+    const z = edge === 2 ? 89 + api.rnd() * 3 : 50 + api.rnd() * 41.25;
+    // (And 5 m from the plague doctor: a tree nearer an NPC is dropped by World.ts.)
+    if (!clearOfPath(x, z) || !clearOfCottages(x, z) || Math.hypot(x - CH.x, z - CH.z) < 9 || Math.hypot(x - PD.x, z - PD.z) < 5) continue;
+    // (Nor in a grave: the trunk is solid.)
+    if (Object.values(graveSets).some((ps) => ps.some((p) => Math.hypot(p.x - x, p.z - z) < 1.5))) continue;
     trees.push({ x, y: api.h(x, z) - 0.1, z, yaw: api.rnd() * 6, scale: 0.8 + api.rnd() * 0.5 });
   }
   api.flora('dead-forest-tree', trees);
@@ -346,8 +354,8 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   glow(0xffa040, 3.2, CHAPEL_DOOR.x, chapelY + 1.4, CHAPEL_DOOR.z, 0.35);
   // The plague doctor on his treasure chest among the trees (one model with the chest, NPCs.ts): the chest is solid.
   {
-    const pdY = snowY(124.6);
-    api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: 964, z: 124.6, r: 1.15, top: pdY + 1.3 }] });
+    const pdY = snowY(PD.z);
+    api.place({ object: new Group(), footprints: [{ kind: 'cyl', x: PD.x, z: PD.z, r: 1.15, top: pdY + 1.3 }] });
   }
 
   // ===== The sky dock, east (Den1ausBXai, DeYtKbMh76x) =====
@@ -414,12 +422,12 @@ export function buildLeanQuarter(api: RealmApi, hooks: LeanQuarterHooks): { inte
   // Two more islands in the sky, closer in from the plaza (they were too far to fly to) and solid to land on: one with a
   // dead tree, one carrying a tower with a giant cup on top.
   {
-    const x = 1088, z = -50;
+    const { x, z } = SKY_ISLANDS.tree;
     const { top } = landableIsland(api, x, z, gy + 4, { scale: 1.2, yaw: 0.4 });
     glow(0xff6a20, 5, x, top - 6, z, 0.2);
   }
   {
-    const ix = 1124, iz = -40, base = gy - 4;
+    const { x: ix, z: iz } = SKY_ISLANDS.tower, base = gy - 4;
     const { top } = landableIsland(api, ix, iz, base, { scale: 1.4, tree: false });
     glow(0xff6a20, 5, ix, base + 2, iz, 0.2);
     api.place(modelLandmark('round-tower', ix, iz, top, { collider: 'manual', footprints: [{ kind: 'cyl', x: ix, z: iz, r: 3.2, top: top + MODELS['round-tower'].height * 0.85 }] }));

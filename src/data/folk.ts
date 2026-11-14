@@ -63,16 +63,35 @@ export const FOLK: Folk[] = [
   person('folk-ham-a', 'Ilse', 'Who Keeps Hens', 'maiden', { x: 16, z: -12 }, walk([[17, -12], [12, -11.5], [17, -10.5], [21, -11]], 0.8),
     ['Have you seen a hen? Not any hen. A particular hen.', 'The hamlet is small but it has opinions.', 'Up the steps, past the torch. That is the whole tour.']),
   // ----- The kingdom -----
-  person('folk-k-a', 'Sir Clatter', 'Courtier', 'skeleton', { x: 990, z: -34 }, walk([[990, -34], [1006, -34], [1006, -21], [990, -21]], 1.1),
+  // (Their rounds closed in with the kingdom on 2026-11-14: data/world.ts LEAN_QUARTER.)
+  // Round the plaza before Yung Lean's hall door, between the braziers.
+  person('folk-k-a', 'Sir Clatter', 'Courtier', 'skeleton', { x: 994, z: -18 }, walk([[994, -18], [1006, -18], [1006, -7], [994, -7]], 1.1),
     ['I have been waiting on an audience for four hundred years.', 'Lovely plaza. I walk it for my bones. All of them.', 'The king will see you. The king sees everyone. He has the sockets for it.']),
-  person('folk-k-b', 'Lady Hollowell', 'Courtier', 'skeleton', { x: 1006, z: 44 }, walk([[1006, 44], [1024, 50], [1036, 42], [1016, 36]], 1),
+  // The plaza's east floor by the lean waves, round the lamp.
+  person('folk-k-b', 'Lady Hollowell', 'Courtier', 'skeleton', { x: 1023, z: 14 }, walk([[1023, 14], [1029, 17], [1030, 27], [1023, 25]], 1),
     ['One does so like a stroll after not eating.', 'That cup is the size of a cathedral. It is a bit much.', 'Do you dance? I have the legs for it. Just the legs.']),
-  person('folk-k-c', 'Vesper', 'Star Seller', 'void-monk', { x: 950, z: 18 }, walk([[950, 18], [963, 24], [938, 26], [913, 26], [893, 24], [913, 26], [938, 26], [963, 24]], 0.9),
+  // Up and down Bucket Street, south of its middle (Old Hollowstaff stands on it).
+  person('folk-k-c', 'Vesper', 'Star Seller', 'void-monk', { x: 972.66, z: 9.5 }, walk([[972.66, 9.5], [979.77, 10.4], [966.1, 10.5], [952.43, 10.5], [941.5, 10.4], [952.43, 10.5], [966.1, 10.5], [979.77, 10.4]], 0.9),
     ['Stars. Slightly used.', 'The street goes both ways. Do not trust it.', 'Buckets? I do not look at the buckets. They look at me.']),
-  person('folk-k-d', 'Marshal Grim', 'Of the Bone Guard', 'skeleton', { x: 985, z: -96 }, walk([[985, -96], [1015, -96], [1015, -138], [985, -138]], 1.4),
+  // Down the court's aisle to the throne's braziers and back, inside the torches.
+  person('folk-k-d', 'Marshal Grim', 'Of the Bone Guard', 'skeleton', { x: 994, z: -58 }, walk([[994, -58], [1006, -58], [1006, -84], [994, -84]], 1.4),
     ['Halt. No, carry on. I just like saying it.', 'The court is secure. I have counted the court.', 'Treasury is that way. I did not tell you.']),
-  person('folk-k-e', 'Old Nell', 'Sweeps the Snow', 'robed-priest', { x: 938, z: 118 }, walk([[938, 118], [958, 130], [948, 148], [928, 135]], 0.7),
+  // Up and down the snow path's last stretch to the chapel door, between its pillars (the graves keep 5 m off it).
+  person('folk-k-e', 'Old Nell', 'Sweeps the Snow', 'robed-priest', { x: 978.62, z: 63.46 }, walk([[978.62, 63.46], [975.72, 66.09], [972.61, 68.72], [975.72, 66.09]], 0.7),
     ['I sweep the graves. They snow over. I sweep the graves.', 'The chapel door is warm. Do not ask why.', 'It is a living. Not for them.']),
+  // The lean skeletons hanging out on the plaza's east floor (the playtest of 2026-11-14: "add some skeletons here"):
+  // two sipping their double cups (the crypt bar's reel, DeldocTvFiB), one dancing, two chatting (one shrugging his way
+  // through a story, one hearing it out), round (1026.5, -8.3). The dance and the shrug are the shared emotes, skull kept.
+  person('folk-k-f', 'Marrowmere', 'Who Sips Slowly', 'skeleton-red', { x: 1024.3, z: -9.6 }, { kind: 'stand', pose: 'drink', yaw: 0.53 },
+    ['Slow sips. The cup lasts longer than the night.', 'Purple again. It is always purple. I like it purple.', 'Do not mind the eyes. They glow when I am happy.']),
+  person('folk-k-g', 'Lady Vellum', 'Who Toasts Everything', 'skeleton-witch', { x: 1026.6, z: -10.6 }, { kind: 'stand', pose: 'drink', yaw: 1.61 },
+    ['To the plaza! To the towers! To you, I suppose.', 'The hat is for the cup. The cup is for me.', 'One more sip and I will dance. That is a threat.']),
+  person('folk-k-h', 'Shinbone', 'Who Cannot Stop Dancing', 'skeleton', { x: 1026.4, z: -7.6 }, { kind: 'stand', pose: 'dance', yaw: Math.PI },
+    ['The music? There is no music. I bring my own.', 'Every bone moves. Some of them on purpose.', 'Join in. Your skin only slows you down.']),
+  person('folk-k-i', 'Rib', 'Who Is Telling A Story', 'skeleton', { x: 1028.8, z: -8.6 }, { kind: 'stand', pose: 'shrug', yaw: 1.72 },
+    ['...and then the cup was empty. Again. Every time.', 'He laughs at all my jokes. He has no choice. No lungs.']),
+  person('folk-k-j', 'Old Gristle', 'Who Has Heard It Before', 'skeleton-wizard', { x: 1028.4, z: -6 }, stand(-1.42),
+    ['He has told that one four hundred times. It gets better.', 'I came for the lean. I stayed for the lean.']),
   // ----- The sunken city -----
   person('folk-s-a', 'Bubbles', 'Fishguard, Off Duty', 'fish-guard', { x: -996, z: 20 }, walk([[-997, 20], [-1001, 20], [-1001, -30], [-997, -30]], 1),
     ['Off duty. I am still wet.', 'The king says more guards. There are no more guards. I am two of them.', 'Lovely currents today. It is always today.']),
