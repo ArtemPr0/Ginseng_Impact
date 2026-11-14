@@ -1,3 +1,5 @@
+import { slowMoScale } from '../combat/Juice';
+
 export interface System {
   /** Fixed-step update, dt in seconds (always FIXED_DT). */
   update?(dt: number): void;
@@ -19,6 +21,8 @@ export class Game {
   fps = 0;
   /** Seconds of simulation freeze remaining (hit-stop). */
   hitStop = 0;
+  /** Seconds (real) of slow motion remaining: a boss's death (Juice.slowMoScale sets the speed). */
+  slowMo = 0;
 
   add(system: System): this {
     this.systems.push(system);
@@ -47,17 +51,21 @@ export class Game {
     const frameDt = Math.min(MAX_FRAME, (now - this.last) / 1000);
     this.last = now;
     if (frameDt > 0) this.fps += (1 / frameDt - this.fps) * 0.05;
+    // (Slow motion slows the world and its animation alike; it runs out in real time.)
+    const scale = slowMoScale(this.slowMo);
+    if (this.slowMo > 0) this.slowMo -= frameDt;
+    const dt = frameDt * scale;
     if (this.hitStop > 0) {
       this.hitStop -= frameDt;
     } else if (!this.paused) {
-      this.accumulator += frameDt;
+      this.accumulator += dt;
       while (this.accumulator >= FIXED_DT) {
         for (const s of this.systems) s.update?.(FIXED_DT);
         this.accumulator -= FIXED_DT;
       }
     }
     const alpha = this.accumulator / FIXED_DT;
-    for (const s of this.systems) s.render?.(alpha, frameDt);
+    for (const s of this.systems) s.render?.(alpha, dt);
     requestAnimationFrame(this.frame);
   };
 }

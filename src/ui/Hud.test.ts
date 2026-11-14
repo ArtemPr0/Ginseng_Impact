@@ -218,6 +218,16 @@ describe('DamageNumbers', () => {
     expect(texts()).toEqual(['400 ×3', '50']);
   });
 
+  it('shows a blow\'s comic word (BONK) in its own style, never merged, gone after a beat', () => {
+    const { n, up, advance, texts } = numbers();
+    n.push('BONK', 0xffd23a, 0, 0, { target: 3, bonk: true });
+    n.push('WHACK', 0xffd23a, 0, 0, { target: 3, bonk: true });
+    expect(texts()).toEqual(['BONK', 'WHACK']);
+    expect(up.map((e) => e.style)).toEqual(['bonk', 'bonk']);
+    advance(1);
+    expect(texts()).toEqual([]);
+  });
+
   it('keeps targets apart, never merges a crit with a plain hit, words or untargeted numbers', () => {
     const { n, up, texts } = numbers();
     n.push(10, 0, 0, 0, { target: 1 });

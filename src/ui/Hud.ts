@@ -110,9 +110,10 @@ export const NUMBER_MERGE = 0.25;
 /** The most numbers one target shows at once: the oldest gives way. */
 export const NUMBERS_PER_TARGET = 3;
 /** How a number is drawn: a plain hit, a word or a big number (reactions), a crit (bigger, moon-white, one pop). */
-export type NumberStyle = 'hit' | 'big' | 'crit';
+/** A plain hit, a big one (a reaction's name), a crit, or a blow's comic word (Juice.bonkWord: BONK, ZAP). */
+export type NumberStyle = 'hit' | 'big' | 'crit' | 'bonk';
 /** Seconds a number stays up (the CSS animations run as long). */
-const NUMBER_LIFE: Record<NumberStyle, number> = { hit: 0.65, big: 0.9, crit: 0.9 };
+const NUMBER_LIFE: Record<NumberStyle, number> = { hit: 0.65, big: 0.9, crit: 0.9, bonk: 0.75 };
 
 export interface NumberIo<T> {
   /** Puts a number up at (x, y) on screen. */
@@ -136,8 +137,8 @@ export class DamageNumbers<T> {
 
   constructor(private readonly io: NumberIo<T>) {}
 
-  push(value: number | string, color: number, x: number, y: number, { big = false, crit = false, target = null }: { big?: boolean; crit?: boolean; target?: number | null } = {}): void {
-    const style: NumberStyle = crit ? 'crit' : big ? 'big' : 'hit';
+  push(value: number | string, color: number, x: number, y: number, { big = false, crit = false, bonk = false, target = null }: { big?: boolean; crit?: boolean; bonk?: boolean; target?: number | null } = {}): void {
+    const style: NumberStyle = bonk ? 'bonk' : crit ? 'crit' : big ? 'big' : 'hit';
     const now = this.io.now();
     const list = target === null ? null : this.byTarget.get(target) ?? [];
     const last = list?.[list.length - 1];
@@ -200,6 +201,8 @@ export class Hud {
       el.style.color = hex(color);
       el.style.left = `${Math.round(x + (Math.random() - 0.5) * 24)}px`;
       el.style.top = `${Math.round(y)}px`;
+      // (A comic word leans its own way, one way or the other.)
+      if (style === 'bonk') el.style.setProperty('--tilt', `${Math.round((Math.random() - 0.5) * 28)}deg`);
       this.q('#hud-numbers').appendChild(el);
       return el;
     },
@@ -414,6 +417,11 @@ export class Hud {
    */
   damageNumber(x: number, y: number, value: number | string, color: number, big: boolean, targetId: number | null = null, crit = false): void {
     this.numbers.push(value, color, x, y, { big, crit, target: targetId });
+  }
+
+  /** A blow's comic word over where it struck (BONK, ZAP, KA-THOOM!), tilted and chunky. */
+  bonk(x: number, y: number, word: string, color: number): void {
+    this.numbers.push(word, color, x, y, { bonk: true });
   }
 
   /** The combo counter over the hero card ("×3"), shown from the second hit in a row; each new count pops it. */

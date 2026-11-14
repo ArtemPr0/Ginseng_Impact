@@ -1,3 +1,4 @@
+import { leapGravity, leapVelocity } from '../combat/Juice';
 /**
  * Kinematic third-person controller. Pure: no Three.js, no DOM. Mutates the passed state in place
  * and returns it. Modes: ground, air, climb (steep terrain and walls), fly (each hero's own way of flying:
@@ -35,6 +36,12 @@ export interface ControllerState {
   dashLeft: number;
   /** Unit horizontal direction of the roll. */
   dashDir: { x: number; z: number };
+  /** The roll's speed (m/s): CONTROLLER.dashSpeed for a dodge, a lunge's own (startLunge). */
+  dashSpeedNow: number;
+  /** The roll is an attack's lunge: it plants dead at its end instead of easing into a walk. */
+  dashPlant: boolean;
+  /** Gravity's scale through a throw or a leap (startLeap's cartoon arc); 1 again once down. */
+  flungGravity: number;
 }
 
 export interface ControllerInput {
@@ -180,6 +187,9 @@ export function createControllerState(pos: Vec3): ControllerState {
     speedScale: 1,
     dashLeft: 0,
     dashDir: { x: 1, z: 0 },
+    dashSpeedNow: CONTROLLER.dashSpeed,
+    dashPlant: false,
+    flungGravity: 1,
   };
 }
 
@@ -195,7 +205,41 @@ export function startDash(s: ControllerState, dir: { x: number; z: number }): vo
   const len = Math.hypot(dir.x, dir.z);
   s.dashDir = len > 1e-6 ? { x: dir.x / len, z: dir.z / len } : { x: -Math.cos(s.yaw), z: -Math.sin(s.yaw) };
   s.dashLeft = CONTROLLER.dashTime;
+  s.dashSpeedNow = CONTROLLER.dashSpeed;
+  s.dashPlant = false;
 }
+
+/** How long an attack's lunge takes (s): a blink. */
+export const LUNGE_TIME = 0.1;
+
+/** An attack's lunge (Juice.lungeReach): `metres` along `dir` in LUNGE_TIME, planted at the end. On the ground only. */
+export function startLunge(s: ControllerState, dir: { x: number; z: number }, metres: number): void {
+  const len = Math.hypot(dir.x, dir.z);
+  if (len < 1e-6 || metres <= 0 || s.mode !== 'ground') return;
+  s.dashDir = { x: dir.x / len, z: dir.z / len };
+  s.dashLeft = LUNGE_TIME;
+  s.dashSpeedNow = metres / LUNGE_TIME;
+  s.dashPlant = true;
+}
+
+/**
+ * The charged heavy's leap: up and `distance` metres along `dir`, coming down `airTime` seconds later (Juice.leapVelocity),
+ * unsteered on the way (a throw's `flung`).
+ */
+export function startLeap(s: ControllerState, dir: { x: number; z: number }, airTime: number, distance: number): void {
+  const len = Math.hypot(dir.x, dir.z) || 1;
+  // (A quick leap gets heavier gravity, so it still rises LEAP_APEX metres and comes down on time.)
+  const k = leapGravity(airTime, LEAP_APEX, CONTROLLER.gravity, CONTROLLER.fallGravity);
+  const v = leapVelocity(airTime, distance, CONTROLLER.gravity * k, CONTROLLER.fallGravity);
+  s.dashLeft = 0;
+  setMode(s, 'air');
+  s.vel = { x: (dir.x / len) * v.vh, y: v.vy, z: (dir.z / len) * v.vh };
+  s.flung = airTime + 0.3;
+  s.flungGravity = k;
+}
+
+/** How high the charged heavy's leap rises (m). */
+export const LEAP_APEX = 1.6;
 
 function setMode(s: ControllerState, mode: Mode): void {
   if (s.mode !== mode) {
@@ -203,7 +247,7 @@ function setMode(s: ControllerState, mode: Mode): void {
     s.modeTime = 0;
     s.bouncing = false;
     // A throw ends however the hero comes down (onto a wall, into the water): steering comes back at once.
-    if (mode !== 'air') s.flung = 0;
+    if (mode !== 'air') { s.flung = 0; s.flungGravity = 1; }
   }
 }
 
@@ -295,8 +339,8 @@ export function stepController(s: ControllerState, input: ControllerInput, world
         tz = mz * speed;
       }
       if (dashing) {
-        s.vel.x = s.dashDir.x * CONTROLLER.dashSpeed * s.speedScale;
-        s.vel.z = s.dashDir.z * CONTROLLER.dashSpeed * s.speedScale;
+        s.vel.x = s.dashDir.x * s.dashSpeedNow * s.speedScale;
+        s.vel.z = s.dashDir.z * s.dashSpeedNow * s.speedScale;
       } else {
         const accel = wantsMove ? CONTROLLER.groundAccel : CONTROLLER.groundDecel;
         s.vel.x = approach(s.vel.x, tx, accel * dt);
@@ -371,8 +415,9 @@ export function stepController(s: ControllerState, input: ControllerInput, world
       }
       // Short hop: letting go of jump while still rising cuts the rise.
       if (s.bouncing && s.vel.y <= 0) s.bouncing = false;
-      if (!input.jumpHeld && s.vel.y > 0 && s.modeTime > 0.05 && !s.bouncing) s.vel.y *= Math.pow(CONTROLLER.jumpCut, dt * 12);
-      s.vel.y -= CONTROLLER.gravity * (s.vel.y < 0 ? CONTROLLER.fallGravity : 1) * dt;
+      // (A let-go jump is cut short; a throw or a leap is not a jump.)
+      if (!input.jumpHeld && s.vel.y > 0 && s.modeTime > 0.05 && !s.bouncing && s.flung <= 0) s.vel.y *= Math.pow(CONTROLLER.jumpCut, dt * 12);
+      s.vel.y -= CONTROLLER.gravity * s.flungGravity * (s.vel.y < 0 ? CONTROLLER.fallGravity : 1) * dt;
       s.vel.y = Math.max(s.vel.y, -CONTROLLER.maxFallSpeed);
       // A wall in the way: grab it when steering into it, otherwise bounce off it instead of landing on its top.
       if (blockedAhead(world, s.pos.x, s.pos.z, s.vel.x * dt, s.vel.z * dt, s.pos.y)) {
@@ -405,6 +450,7 @@ export function stepController(s: ControllerState, input: ControllerInput, world
         if (bounce !== null) {
           s.vel.y = bounce * (input.jumpHeld ? 1.2 : 1);
           s.bouncing = true;
+          s.flungGravity = 1;
           break;
         }
         s.vel.y = 0;
@@ -568,7 +614,8 @@ export function stepController(s: ControllerState, input: ControllerInput, world
 
   // The roll ends short, whatever it ran into: the speed drops to a walk (not a three-metre slide out of it, nor an
   // 18 m/s flight off a ledge or glide into the water).
-  if (dashing && s.dashLeft === 0) {
+  if (dashing && s.dashLeft === 0 && s.dashPlant) { s.vel.x = 0; s.vel.z = 0; s.dashPlant = false; }
+  else if (dashing && s.dashLeft === 0) {
     const sp = Math.hypot(s.vel.x, s.vel.z);
     if (sp > CONTROLLER.walkSpeed) { s.vel.x *= CONTROLLER.walkSpeed / sp; s.vel.z *= CONTROLLER.walkSpeed / sp; }
   }

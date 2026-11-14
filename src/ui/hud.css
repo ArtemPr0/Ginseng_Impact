@@ -76,6 +76,8 @@ body { font-family: var(--font-body); color: var(--moon); }
 .hud-num.big { font-size: 28px; animation-duration: 900ms; text-transform: uppercase; letter-spacing: 0.12em; }
 @keyframes numpop { 0% { transform: translate(-50%, -50%) scale(1.3); opacity: 1; } 100% { transform: translate(-50%, calc(-50% - 28px)) scale(1); opacity: 0; } }
 /* A crit: bigger, moon-white whatever the element, one stepped pop (the first 100 ms), then the same drift. */
+.hud-num.bonk { font-family: var(--font-title); font-size: 34px; font-weight: 900; letter-spacing: 0.02em; -webkit-text-stroke: 2px var(--void); paint-order: stroke fill; text-shadow: 3px 3px 0 var(--void), 0 0 14px currentColor; animation: bonkpop 750ms cubic-bezier(.2, 1.6, .4, 1) forwards; }
+@keyframes bonkpop { 0% { transform: translate(-50%, -50%) rotate(var(--tilt, -8deg)) scale(0.2); opacity: 1; } 22% { transform: translate(-50%, -60%) rotate(var(--tilt, -8deg)) scale(1.25); } 40% { transform: translate(-50%, -62%) rotate(var(--tilt, -8deg)) scale(1); opacity: 1; } 100% { transform: translate(-50%, -95%) rotate(var(--tilt, -8deg)) scale(0.9); opacity: 0; } }
 .hud-num.crit { font-size: 32px; letter-spacing: 0.06em; color: var(--moon) !important; animation: critpop 900ms steps(9, end) forwards; }
 @keyframes critpop { 0% { transform: translate(-50%, -50%) scale(1.6); opacity: 1; } 11% { transform: translate(-50%, -50%) scale(1); opacity: 1; } 100% { transform: translate(-50%, calc(-50% - 30px)) scale(1); opacity: 0; } }
 /* The combo counter over the hero card (above the F prompt), popping a step on each new count. */

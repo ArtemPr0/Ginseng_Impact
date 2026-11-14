@@ -80,14 +80,15 @@ export const COMBO: Record<WeaponKind, ComboDef> = {
     hits: [
       { mult: 0.9, element: null, shape: cone(2.8, 70), knockback: 0.6, hitStop: 0.03 },
       { mult: 1.0, element: null, shape: cone(2.8, 70), knockback: 0.6, hitStop: 0.03 },
-      { mult: 1.6, element: 'own', shape: cone(3.2, 80), knockback: 1.8, hitStop: 0.07 },
+      // (The finisher spins the hero once round: it cuts all about, Juice.spinAngle.)
+      { mult: 1.6, element: 'own', shape: cone(3.2, 180), knockback: 1.8, hitStop: 0.07 },
     ],
   },
   greatsword: {
     hits: [
       { mult: 1.2, element: null, shape: cone(3.3, 80), knockback: 1.2, hitStop: 0.05 },
       { mult: 1.3, element: null, shape: cone(3.3, 80), knockback: 1.2, hitStop: 0.05 },
-      { mult: 2.1, element: 'own', shape: cone(3.8, 90), knockback: 3, hitStop: 0.1 },
+      { mult: 2.1, element: 'own', shape: cone(3.8, 180), knockback: 3, hitStop: 0.1 },
     ],
   },
   bow: {

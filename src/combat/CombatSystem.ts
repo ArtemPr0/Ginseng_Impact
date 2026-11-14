@@ -47,6 +47,9 @@ import { Vfx } from './Vfx';
 import { PRESENT_MODELS } from '../data/colliderGrids';
 import type { HeightWorld } from '../world/Colliders';
 import { SolidBodies } from './Solid';
+import { bonkWord, lungeReach, SLOW_MO } from './Juice';
+import { ImpactStars } from '../render/ImpactStars';
+import { startLeap, startLunge } from '../player/CharacterController';
 
 interface Projectile {
   pos: Vector3; vel: Vector3; life: number; owner: 'player' | 'enemy';
@@ -147,6 +150,8 @@ interface BurnPath { def: GroundEffectDef; atk: number; every: number; next: num
 
 /** What else a blow is (see hitEnemy). */
 interface HitOpts {
+  /** The move that struck (a combo hit, the heavy, the skill): its comic word (Juice.bonkWord). Default: by `heavy`. */
+  blow?: number | 'heavy' | 'skill';
   /** Charges the burst (default); lingering zones, the smoke and the spin do not, or a burst would refill itself. */
   energy?: boolean;
   /** A heavy blow (the heavy, a finisher, the skill): a ground shock, a bigger kick, the fov punch, the boom. Default: hit-stop ≥ 0.08. */
@@ -322,6 +327,8 @@ const _t = new Vector3();
 const _side = new Vector3();
 const _col = new Color();
 const MOON = new Color(PALETTE.moon);
+/** The comic words' colour: a punchy gold that reads over the cobalt night and every element's glow. */
+const BONK_GOLD = 0xffd23a;
 
 /**
  * Something that is not an enemy but reacts to being shot (the sky eyes, the eye pool): player shots that pass within
@@ -395,6 +402,11 @@ export class CombatSystem {
   private readonly tmp = new Vector3();
   private readonly screen = new Vector3();
   private readonly fx: CombatFx;
+  /** The comic star where a blow lands (render/ImpactStars). */
+  private readonly stars: ImpactStars;
+  /** When the last comic word went up (one a beat, however many bodies a blow cuts), and how many so far. */
+  private bonkAt = -1;
+  private bonkN = 0;
   private readonly sfx: CombatSfx;
   private readonly rnd: () => number;
   /** The combo counter (hits in a row, 1.2 s apart at most). */
@@ -444,6 +456,7 @@ export class CombatSystem {
 
   constructor(private readonly d: CombatDeps) {
     this.fx = d.fx;
+    this.stars = new ImpactStars(d.scene);
     this.sfx = new CombatSfx(d.audio);
     this.rnd = d.rnd ?? Math.random;
     d.scene.add(this.vfx.group);
@@ -885,6 +898,12 @@ export class CombatSystem {
     if (prevSwinging && this.combo.swinging && this.combo.currentHit !== prevHit) begun = this.combo.currentHit;
     // The finisher takes some effort.
     if (begun !== null) d.events?.emit({ kind: 'feat', what: 'attack' });
+    // Cartoon: the blade lunges into each swing (stopping short of the body ahead), further into the spinning finisher;
+    // the bow's finisher hops back as it looses (Juice).
+    if (begun !== null && grounded) {
+      if (me.weapon === 'sword' || me.weapon === 'greatsword') this.lungeIn(begun === 2 ? 1.7 : 1.1);
+      else if (me.weapon === 'bow' && begun === 2) startLunge(c, { x: -Math.cos(c.yaw), z: -Math.sin(c.yaw) }, 1.3);
+    }
     if (begun === 2) this.sfx.effort(me.id);
     if (hit !== null) this.resolveAttack(me, COMBO[me.weapon].hits[hit], hit);
 
@@ -900,6 +919,12 @@ export class CombatSystem {
       this.heavy = { t: timing.startAt * timing.duration, fired: false, charge: this.heavyCharge };
       this.heavyCharge = 0;
       this.sfx.effort(me.id);
+      // Cartoon: a charged blade heavy leaps and comes down on its blow (Juice.leapVelocity), onto the body ahead.
+      const air = (timing.strike - timing.startAt) * timing.duration;
+      if ((me.weapon === 'sword' || me.weapon === 'greatsword') && this.heavy.charge > 0.5 && c.mode === 'ground' && air > 0.2) {
+        const gap = this.gapAhead();
+        startLeap(c, { x: Math.cos(c.yaw), z: Math.sin(c.yaw) }, air, gap === Infinity ? 2.5 : Math.max(0, Math.min(4, gap - 1.2)));
+      }
     }
     if (this.heavy) {
       const timing = this.timesOf(me.id).heavy;
@@ -922,7 +947,13 @@ export class CombatSystem {
           const at = _v.set(fx, this.d.world.heightAt(fx, fz, c.pos.y + 1), fz);
           this.fx.shock(at, color, 4 + ch * 3);
           this.fx.dust(at, 1.4 + ch);
-          d.onShake?.(0.1 + ch * 0.25);
+          this.stars.pop(_w.set(fx, at.y + 0.6, fz), color, 3.2);
+          d.onShake?.(0.15 + ch * 0.35);
+          // Everything small round the slam is bounced into the air.
+          for (const e of this.enemies) {
+            if (!e.alive || e.def.boss || e.def.flying) continue;
+            if (Math.hypot(e.pos.x - fx, e.pos.z - fz) < 3.5 + ch) e.leap(0.55, 0.9 + ch * 0.9);
+          }
         }
       }
       if (this.heavy.t >= timing.duration) this.heavy = null;
@@ -2193,6 +2224,25 @@ export class CombatSystem {
    * A move lands, on the clip's blow. `phase` is which move: a light hit's index, the heavy or the skill (the swing's
    * crescent leans with it); `ground` is the skill's burning ground, laid by the crescent along its path.
    */
+  /** The gap (m) to the nearest body ahead (within 5 m and ±50° of the facing, about level), or Infinity. */
+  private gapAhead(): number {
+    const c = this.d.controller;
+    let best = Infinity;
+    for (const e of this.enemies) {
+      if (!e.alive || Math.abs(e.pos.y - c.pos.y) > 2.5) continue;
+      const r = e.def.bodyRadius * (e.def.scale ?? 1);
+      if (!inCone({ x: c.pos.x, z: c.pos.z }, c.yaw, { x: e.pos.x, z: e.pos.z }, 5 + r, 0.9)) continue;
+      best = Math.min(best, Math.hypot(e.pos.x - c.pos.x, e.pos.z - c.pos.z) - r);
+    }
+    return best;
+  }
+
+  /** The blade's lunge into a swing: up to `max` metres along the facing, short of the body ahead (Juice.lungeReach). */
+  private lungeIn(max: number): void {
+    const c = this.d.controller;
+    startLunge(c, { x: Math.cos(c.yaw), z: Math.sin(c.yaw) }, lungeReach(this.gapAhead(), max));
+  }
+
   private resolveAttack(me: CharacterDef, def: AttackDef, phase: number | 'heavy' | 'skill', ground?: GroundEffectDef): void {
     const c = this.d.controller;
     const element: Element | null = def.element === 'own' ? this.elementOf(me) : null;
@@ -2208,9 +2258,14 @@ export class CombatSystem {
     if (shape.kind === 'cone') {
       // The swing's crescent at the blow, in the swing's plane: the light hits tilted one way then the other, the
       // heavy's chop leaning down across, the skill flat; as wide and as long as the cut's reach.
-      const pitch = phase === 'heavy' ? -0.6 : phase === 'skill' ? 0 : phase % 2 === 0 ? 0.35 : -0.35;
+      // (The blade's finisher spins the hero once round: its crescent is a whole ring, nearly flat, and the ground puffs.)
+      const pitch = phase === 'heavy' ? -0.6 : phase === 'skill' ? 0 : phase === 2 ? 0.08 : phase % 2 === 0 ? 0.35 : -0.35;
       const color = element ? ELEMENT_COLOR[element] : PALETTE.cloth;
       this.fx.arc(_v.set(c.pos.x, c.pos.y + 1.2, c.pos.z), c.yaw, pitch, shape.range, color, shape.halfAngle);
+      if (phase === 2 && shape.halfAngle >= Math.PI - 0.01) {
+        this.fx.arc(_v.set(c.pos.x, c.pos.y + 0.7, c.pos.z), c.yaw + Math.PI, -0.05, shape.range * 0.85, color, shape.halfAngle);
+        this.fx.shock(_v.set(c.pos.x, c.pos.y, c.pos.z), color, 2.4);
+      }
     }
     const origin = { x: c.pos.x, z: c.pos.z };
     const reach = shape.kind === 'cone' ? shape.range : shape.radius;
@@ -2224,7 +2279,7 @@ export class CombatSystem {
       const ok = shape.kind === 'cone'
         ? inCone(origin, c.yaw, t, shape.range + e.def.bodyRadius * sc, shape.halfAngle)
         : inRadius(origin, t, shape.radius + e.def.bodyRadius * sc);
-      if (ok) this.hitEnemy(e, atk, def.mult, element, def.knockback, def.hitStop, { heavy });
+      if (ok) this.hitEnemy(e, atk, def.mult, element, def.knockback, def.hitStop, { heavy, blow: phase });
     }
   }
 
@@ -2468,6 +2523,14 @@ export class CombatSystem {
       if (heavy) this.fx.shock(_v.set(e.pos.x, e.pos.y, e.pos.z), color, 2.5 + 2 * weight);
     }
     this.showNumber(_v.copy(hitAt).add(_w.set(0, 0.5, 0)), dmg, crit ? PALETTE.moon : color, false, e.id, crit);
+    if (own) {
+      // Cartoon: a comic star where it struck, and the blow's sound written over it, one word a beat (Juice).
+      this.stars.pop(hitAt, crit ? PALETTE.moon : color, heavy ? 2.4 : crit ? 2 : 1.1 + Math.min(0.7, dmg / 400));
+      if (this.time - this.bonkAt > 0.14 || this.bonkAt < 0) {
+        this.bonkAt = this.time;
+        this.bonk(_v.copy(hitAt).add(_w.set(0, 1.1, 0)), bonkWord(this.active.weapon, o.blow ?? (heavy ? 'heavy' : 0), this.bonkN++));
+      }
+    }
     // (A piercing shot freezes the fight on the first body it cuts; on each after, the blow and any reaction there only
     // catch it: Combat.pierceStop. Not a piercing shot, 0: the full stop.)
     const nth = o.pierced ?? 0;
@@ -2523,6 +2586,8 @@ export class CombatSystem {
       this.loot.spawn(rollDrops(e.def.drops, e.def.shards), at);
     }
     if (e.def.boss) {
+      // The boss goes down in slow motion (Juice.SLOW_MO), the world easing back after.
+      this.d.game.slowMo = SLOW_MO.seconds;
       this.d.hud.announce(`${e.def.name} falls`);
       this.d.onShake?.(1);
       this.feel.pulse = Math.max(this.feel.pulse, 0.35);
@@ -3156,6 +3221,13 @@ export class CombatSystem {
   }
 
   /** A number (or a word) over `worldPos`; hits on one `targetId` merge on screen, a `crit` stands out. */
+  /** A blow's comic word over `worldPos` (Hud.bonk). */
+  private bonk(worldPos: Vector3, word: string): void {
+    this.screen.copy(worldPos).project(this.d.camera);
+    if (this.screen.z > 1) return;
+    this.d.hud.bonk((this.screen.x + 1) / 2 * window.innerWidth, (1 - this.screen.y) / 2 * window.innerHeight, word, BONK_GOLD);
+  }
+
   private showNumber(worldPos: Vector3, value: number | string, color: number, big: boolean, targetId: number | null = null, crit = false): void {
     this.screen.copy(worldPos).project(this.d.camera);
     if (this.screen.z > 1) return;
@@ -3167,6 +3239,7 @@ export class CombatSystem {
   /** Per-frame: enemy animation and HUD projection. */
   render(dt: number): void {
     const cam = this.d.camera;
+    this.stars.update(dt);
     for (const e of this.enemies) {
       e.animate(dt, !e.aggro && Math.hypot(e.pos.x - cam.position.x, e.pos.z - cam.position.z) > 110);
       if (!e.alive) continue;
