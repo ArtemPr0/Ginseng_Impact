@@ -341,6 +341,8 @@ export const GRAVEYARD: RealmDef = { id: 'graveyard', name: 'The Alley of Graves
  * The candle ring on the alley's floor between two braziers (Graveyard.ts): step into it and the Grave Cyclops climbs
  * out of the ground up the alley ahead of you (Adventures; he no longer waits at the alley's end). `rise` is where.
  */
+/** The rock with the gothic tower at the end of the Alley of Graves (Graveyard.ts), behind the cyclops's arena. */
+export const GRAVE_CASTLE = { x: 0, z: -1095 } as const;
 export const GRAVE_RING = { x: 0, z: -980, r: 1.6, rise: { x: 0, z: -998, yaw: Math.PI / 2 } } as const;
 /**
  * The Dragon's Vale (reel Dd5Bqt7vQ5T), through the lantern arch at the east end of the island's village street: a

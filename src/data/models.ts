@@ -177,6 +177,8 @@ export const MODELS: Record<string, ModelDef> = {
   // The skeletons that climb out of the Alley of Graves (enemy kind = model id): the campfire skeleton's body, standing.
   // Round 9 mobs (biped rigs with the preset clips).
   'archway-shade': { file: 'archway-shade.glb', height: 2.0, label: 'hooded dark figure with an armoured gauntlet in a gothic archway (DdnJDwBMUoj)', clips: BOSS_CLIPS },
+  necromancer: { file: 'archway-shade.glb', height: 2.0, tint: 0xb48cff, label: 'grave necromancer: the hooded figure with the armoured gauntlet from the gothic archway, in violet (DdnJDwBMUoj)', clips: BOSS_CLIPS },
+  'grave-witch': { file: 'witch.glb', height: 1.85, label: 'grave witch: the coven witch in a pointed hat (DeWji_1PuKW)' },
   'brazier-hermit': { file: 'brazier-hermit.glb', height: 1.9, label: 'brown-robed hooded figure lifting a fire brazier on a ledge (DdyN2PNyIxb)', clips: BOSS_CLIPS },
   // (Its rig came out facing -x: turned a quarter so its front is local +z like every other body. The toe test reads
   // +x because the cape drags the centre back; the lineup shot, anim/lineup.mjs, shows its face.)

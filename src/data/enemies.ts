@@ -1,7 +1,7 @@
 import type { BrainParams } from '../combat/EnemyBrain';
 import type { Element } from '../combat/Elements';
 
-export type EnemyKind = 'beast' | 'bucket' | 'crystalsentry' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity' | 'cyclops' | 'cyclops-lord' | 'blood-eye' | 'trip-wizard' | 'galaxy-knight' | 'mail-knight' | 'diamond-wizard' | 'fish-guard' | 'angler' | 'grave-skeleton' | 'koi' | 'jellyfish' | 'archway-shade' | 'brazier-hermit' | 'vale-knight' | 'grouper';
+export type EnemyKind = 'beast' | 'bucket' | 'crystalsentry' | 'emberrider' | 'yeti' | 'shade' | 'warden' | 'wyrm' | 'rivershade' | 'croc' | 'passbeast' | 'troll' | 'lurker' | 'marshdemon' | 'hollowking' | 'skeleton' | 'loggiant' | 'styro-ghoul' | 'lean-chucker' | 'rift-king' | 'spiderchapel' | 'lean-bubble' | 'dmt-entity' | 'cyclops' | 'cyclops-lord' | 'blood-eye' | 'trip-wizard' | 'galaxy-knight' | 'mail-knight' | 'diamond-wizard' | 'fish-guard' | 'angler' | 'grave-skeleton' | 'koi' | 'jellyfish' | 'archway-shade' | 'brazier-hermit' | 'vale-knight' | 'grouper' | 'necromancer' | 'grave-witch';
 
 /** What can circle a mob, and the projectile each flies as when thrown. */
 export type OrbitModel = 'gem' | 'lean-cup';
@@ -209,6 +209,22 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
     kind: 'vale-knight', name: 'Vale Knight', maxHp: 950, def: 46, atk: 104, speed: 3.6, element: 'lunar', hover: 0, bodyRadius: 0.5, height: 1.9,
     brain: { aggroRange: 12, attackRange: 2.4, windup: 0.5, recover: 0.9, attackCooldown: 0.7 }, respawn: 120, leash: 22, shards: [12, 22],
     drops: [{ itemId: 'beast-fang', chance: 0.3 }, { itemId: 'moon-dew', chance: 0.3 }],
+  },
+  // The castle at the end of the Alley of Graves (the playtest of 2026-11-14: "add some witchcraft, necromancy, skeleton
+  // mobs on and around the mountain castle"): necromancers in the reel's hooded robes, purple bolts, raising the risen
+  // dead; witches on the castle's rock who never walk (their model has no rig: a walk only slid them along) but hex the
+  // ground under you and throw green bolts.
+  necromancer: {
+    kind: 'necromancer', summons: 'grave-skeleton', name: 'Grave Necromancer', maxHp: 900, def: 34, atk: 96, speed: 3.0, element: 'astral', hover: 0, bodyRadius: 0.5, height: 2.0,
+    brain: { aggroRange: 14, attackRange: 14, windup: 0.7, recover: 1.0, attackCooldown: 0.9, preferredRange: 8 }, respawn: 120, leash: 14, shards: [14, 24],
+    attacks: [{ kind: 'volley', range: 14, windup: 0.8, recover: 1.0, weight: 3 }, { kind: 'summon', range: 16, windup: 1.2, recover: 1.5, weight: 1 }, { kind: 'blink', range: 8, windup: 0.4, recover: 0.4, weight: 1 }, { kind: 'sweep', range: 2.6, windup: 0.6, recover: 1.0, weight: 2 }],
+    drops: [{ itemId: 'old-bone', chance: 0.6 }, { itemId: 'moon-dew', chance: 0.3 }], glow: 0.35,
+  },
+  'grave-witch': {
+    kind: 'grave-witch', name: 'Grave Witch', maxHp: 700, def: 26, atk: 88, speed: 0, element: 'rot', hover: 0, bodyRadius: 0.5, height: 1.85,
+    brain: { aggroRange: 16, attackRange: 18, windup: 0.8, recover: 1.2, attackCooldown: 1.1, preferredRange: 10 }, respawn: 120, leash: 4, shards: [12, 20],
+    attacks: [{ kind: 'roots', range: 18, windup: 0.9, recover: 1.2, weight: 3 }, { kind: 'volley', range: 16, windup: 0.8, recover: 1.0, weight: 2 }],
+    drops: [{ itemId: 'moon-dew', chance: 0.4 }], glow: 0.35,
   },
   // The giant who hauls logs on his back: leave him be and he walks his road; hit him and he throws the logs.
   loggiant: {
@@ -457,6 +473,11 @@ export const ENEMY_SPAWNS: ReadonlyArray<EnemySpawn> = [
   { kind: 'angler', x: -1062, z: -52 }, { kind: 'angler', x: -938, z: -92 }, { kind: 'angler', x: -1066, z: 42 }, { kind: 'angler', x: -942, z: 50 },
   // Beyond the alley's walls.
   { kind: 'grave-skeleton', x: -21, z: -1090 }, { kind: 'grave-skeleton', x: 26, z: -1034 }, { kind: 'grave-skeleton', x: -27, z: -978 }, { kind: 'grave-skeleton', x: 27, z: -918 },
+  // The castle at the alley's end (GRAVE_CASTLE): necromancers round its foot and behind it, witches on its rock (two on
+  // the lower slope, a jump up; one on the ledge 12 m up), risen skeletons either side.
+  { kind: 'necromancer', x: -10, z: -1084 }, { kind: 'necromancer', x: 10, z: -1084 }, { kind: 'necromancer', x: 0, z: -1110 },
+  { kind: 'grave-witch', x: -4.5, z: -1083, exact: true, yaw: Math.PI / 2 }, { kind: 'grave-witch', x: 4.5, z: -1083, exact: true, yaw: Math.PI / 2 }, { kind: 'grave-witch', x: 0, z: -1088.5, exact: true, yaw: Math.PI / 2 },
+  { kind: 'grave-skeleton', x: -12, z: -1081 }, { kind: 'grave-skeleton', x: 12, z: -1081 }, { kind: 'grave-skeleton', x: -15, z: -1097 }, { kind: 'grave-skeleton', x: 15, z: -1097 },
   // The snow quarter of the Lean Quarter: skeletons stalking the graves round the chapel.
   { kind: 'grave-skeleton', x: 913, z: 140 }, { kind: 'grave-skeleton', x: 958, z: 160 }, { kind: 'grave-skeleton', x: 973, z: 100 }, { kind: 'grave-skeleton', x: 908, z: 165 },
   // The Skeleton Court's treasury.
