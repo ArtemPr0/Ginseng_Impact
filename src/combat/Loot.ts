@@ -1,7 +1,7 @@
-import { BoxGeometry, CylinderGeometry, Group, Mesh, MeshStandardMaterial, OctahedronGeometry, Scene, type Sprite, Vector3 } from 'three';
-import { ITEMS, RARITY_COLOR, rollAffix, type Affix } from '../items/Items';
+import { CylinderGeometry, Group, Mesh, MeshStandardMaterial, Scene, type Sprite, Vector3 } from 'three';
+import { ITEMS, rollAffix, type Affix } from '../items/Items';
+import { itemGlow } from '../items/ItemLooks';
 import { PALETTE } from '../render/palette';
-import { surface } from '../render/Materials';
 import { glowSprite } from '../render/Glow';
 import { disposeObject } from '../render/dispose';
 import type { DropEntry } from '../data/enemies';
@@ -46,7 +46,7 @@ export function rollDrops(table: DropEntry[] | undefined, shards: [number, numbe
 interface Pickup { drop: Drop; object: Group; pos: Vector3; vel: Vector3; life: number; spin: number; landed: boolean }
 
 /** A taken item on its way into the hero: lifts, spirals in, shrinks to a spark. */
-interface Absorbing { object: Group; from: Vector3; t: number; turn: number; rarity: number }
+interface Absorbing { object: Group; from: Vector3; t: number; turn: number; rarity: number; color: number }
 
 /** A little starburst where something was absorbed. */
 interface Sparkle { sprites: Sprite[]; t: number; at: Vector3 }
@@ -61,7 +61,15 @@ export class LootField {
   /** Called when a taken item reaches the hero (its rarity, 0 for shards): the whoosh and chime. */
   onAbsorbed: ((rarity: number) => void) | null = null;
 
-  constructor(private readonly scene: Scene, private readonly heightAt: (x: number, z: number, y?: number) => number) {}
+  /**
+   * `dress` puts an item's own look into its pickup (ItemLooks: a small model or a drawn icon; combat/LootLooks), the
+   * group's origin at the middle of the thing; without it an item shows only its glow.
+   */
+  constructor(
+    private readonly scene: Scene,
+    private readonly heightAt: (x: number, z: number, y?: number) => number,
+    private readonly dress: ((object: Group, itemId: string) => void) | null = null,
+  ) {}
 
   spawn(drops: Drop[], at: Vector3): void {
     for (const drop of drops) {
@@ -82,12 +90,14 @@ export class LootField {
       object.add(glowSprite(0xffc23a, 0.55, 0.5, true));
       spin = 4;
     } else {
+      // The thing itself (a bottle, the crown, a sword, a fang...), turning slowly in a soft glow of its own colour
+      // (a crystal or a plank in the rarity's colour read as the white cube and circle the playtest named; no beam).
       const def = ITEMS[drop.itemId];
-      const color = RARITY_COLOR[def.rarity];
-      const core = new Mesh(def.kind === 'weapon' ? new BoxGeometry(0.12, 0.9, 0.05) : new OctahedronGeometry(0.28, 0), surface({ color: PALETTE.void, emissive: color, emissiveIntensity: 2.5 }));
-      core.position.y = 0.5;
-      // Just the crystal itself in a soft glow (no beam of light).
-      object.add(core, glowSprite(color, 1.1 + def.rarity * 0.2, 0.45, true));
+      const glow = glowSprite(itemGlow(drop.itemId), 0.9 + def.rarity * 0.15, 0.4, true);
+      glow.position.y = 0.5;
+      object.add(glow);
+      this.dress?.(object, drop.itemId);
+      spin = 1.1;
     }
     object.position.copy(at);
     this.scene.add(object);
@@ -116,7 +126,8 @@ export class LootField {
     if (i < 0) return p.drop;
     this.pickups.splice(i, 1);
     const rarity = p.drop.kind === 'item' ? ITEMS[p.drop.itemId].rarity : 0;
-    this.absorbing.push({ object: p.object, from: p.object.position.clone(), t: 0, turn: Math.random() < 0.5 ? 1 : -1, rarity });
+    const color = p.drop.kind === 'item' ? itemGlow(p.drop.itemId) : PALETTE.rune;
+    this.absorbing.push({ object: p.object, from: p.object.position.clone(), t: 0, turn: Math.random() < 0.5 ? 1 : -1, rarity, color });
     return p.drop;
   }
 
@@ -148,9 +159,9 @@ export class LootField {
       a.object.scale.setScalar(Math.max(0.05, 1 - ease * 0.95));
       if (k >= 1) {
         this.scene.remove(a.object);
-        disposeObject(a.object);
+        disposeObject(a.object, true);
         this.absorbing.splice(i, 1);
-        this.sparkle(chest, a.rarity > 0 ? RARITY_COLOR[a.rarity as 1 | 2 | 3 | 4] : PALETTE.rune);
+        this.sparkle(chest, a.color);
         this.onAbsorbed?.(a.rarity);
       }
     }
@@ -169,7 +180,7 @@ export class LootField {
       const p = this.pickups[i];
       p.life += dt;
       // Left lying for long, or fallen off the world: gone.
-      if (p.life > (p.drop.kind === 'shards' ? 120 : 300) || p.pos.y < -100) { this.scene.remove(p.object); disposeObject(p.object); this.pickups.splice(i, 1); continue; }
+      if (p.life > (p.drop.kind === 'shards' ? 120 : 300) || p.pos.y < -100) { this.scene.remove(p.object); disposeObject(p.object, true); this.pickups.splice(i, 1); continue; }
       if (!p.landed) {
         p.vel.y -= 18 * dt;
         p.pos.addScaledVector(p.vel, dt);
@@ -181,7 +192,7 @@ export class LootField {
         const dist = d.length();
         if (dist < 4.5) {
           p.pos.addScaledVector(d.normalize(), (14 + (4.5 - dist) * 8) * dt);
-          if (dist < 0.6) { collected += p.drop.amount; this.scene.remove(p.object); disposeObject(p.object); this.pickups.splice(i, 1); this.sparkle(p.pos, 0xffc23a); continue; }
+          if (dist < 0.6) { collected += p.drop.amount; this.scene.remove(p.object); disposeObject(p.object, true); this.pickups.splice(i, 1); this.sparkle(p.pos, 0xffc23a); continue; }
         }
       }
       p.object.position.copy(p.pos);

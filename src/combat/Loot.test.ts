@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
 // (The glow sprites paint on a canvas; a plain sprite stands in outside the browser.)
-vi.mock('../render/Glow', async () => { const { Sprite } = await import('three'); return { glowSprite: () => new Sprite() }; });
+vi.mock('../render/Glow', async () => { const { Sprite } = await import('three'); return { glowSprite: (color: number) => { const sp = new Sprite(); sp.userData.glow = color; return sp; } }; });
 import { LootField, rollDrops, type ItemDrop } from './Loot';
-import { CylinderGeometry, type Mesh, type MeshStandardMaterial, Scene, Vector3 } from 'three';
+import { BoxGeometry, CylinderGeometry, type Mesh, type MeshStandardMaterial, OctahedronGeometry, Scene, Vector3 } from 'three';
+import { itemGlow } from '../items/ItemLooks';
 import { AFFIX_TOKENS, ITEMS, rollAffix } from '../items/Items';
 
 /** mulberry32: a small seeded generator for repeatable rolls. */
@@ -130,5 +131,30 @@ describe('taking an item', () => {
     field.take(field.pickups[0]);
     for (let i = 0; i < 20; i++) field.update(0.05, new Vector3(5, 0, 0));
     expect(got).toEqual([ITEMS['yeti-pelt'].rarity]);
+  });
+});
+
+// The playtest of 2026-11-14: loot "must look unique, not just some white cube or circle". An item on the ground is
+// dressed as its own thing (ItemLooks: a model or a drawn icon) in a glow of its own colour.
+describe('an item on the ground', () => {
+  it('is dressed as its own look, not a crystal or a plank', () => {
+    const dressed: string[] = [];
+    const field = new LootField(new Scene(), () => 0, (_o, id) => { dressed.push(id); });
+    field.spawn([{ kind: 'item', itemId: 'moon-dew', count: 1 }, { kind: 'item', itemId: 'travelers-blade', count: 1 }], new Vector3());
+    expect(dressed).toEqual(['moon-dew', 'travelers-blade']);
+    for (const p of field.pickups) p.object.traverse((o) => {
+      const g = (o as Mesh).geometry;
+      expect(g instanceof OctahedronGeometry || g instanceof BoxGeometry).toBe(false);
+    });
+  });
+
+  it('glows its own colour, never the near-white of a common item', () => {
+    for (const id of ['moon-dew', 'beast-fang', 'travelers-blade', 'old-bone']) {
+      const field = new LootField(new Scene(), () => 0);
+      field.spawn([{ kind: 'item', itemId: id, count: 1 }], new Vector3());
+      const glows: number[] = [];
+      field.pickups[0].object.traverse((o) => { if (o.userData.glow !== undefined) glows.push(o.userData.glow); });
+      expect(glows, id).toContain(itemGlow(id));
+    }
   });
 });

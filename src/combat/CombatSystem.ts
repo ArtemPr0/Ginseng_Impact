@@ -35,6 +35,7 @@ import {
 } from './Warnings';
 import { chainTo, steer, type Homing, type NearestQuarry } from './Homing';
 import { LootField, rollDrops } from './Loot';
+import { dressLoot } from './LootLooks';
 import { BURST, COMBO, CYCLONE, SKILLS, type AttackDef, type BurstKind, type CrescentShape, type GroundEffectDef, type HitShape, type StarfallShape, type VolleyShape } from './Skills';
 import { comboTiming, cutSpan, heavyTiming, heroClipsOf, moveCut, skillTiming } from '../characters/heroClips';
 import { atkMult, hpMult } from '../game/Progress';
@@ -447,7 +448,7 @@ export class CombatSystem {
     this.rnd = d.rnd ?? Math.random;
     d.scene.add(this.vfx.group);
     d.scene.add(this.ink.group);
-    this.loot = new LootField(d.scene, (x, z, y) => d.world.heightAt(x, z, y));
+    this.loot = new LootField(d.scene, (x, z, y) => d.world.heightAt(x, z, y), dressLoot);
     for (const s of ENEMY_SPAWNS) {
       // An enemy without its model would be an invisible attacker: it waits until the file exists.
       if (!PRESENT_MODELS.has(s.kind) && !ENEMY_DEFS[s.kind].body) continue;
@@ -1107,6 +1108,7 @@ export class CombatSystem {
       if (p.kind === 'arrow' || p.kind === 'ring' || p.kind === 'trip' || p.kind === 'web' || p.kind === 'crescent') p.object.lookAt(aim.copy(p.object.position).add(p.vel));
       if (p.kind === 'web') p.object.rotateZ(dt * 3);
       else if (p.look) this.turnThrow(p, dt);
+      else if (p.flames.length) this.streamFlames(p);
       else if (p.kind === 'log' || p.kind === 'cup' || p.kind === 'prop') { p.object.rotation.x += dt * 7; p.object.rotation.y += dt * 1.3; }
       else if (p.kind === 'gem') { p.object.rotation.y += dt * 12; p.object.rotation.x += dt * 3; }
       else if (p.kind === 'fire') p.object.scale.setScalar(1 + (2.5 - p.life) * 0.6);
@@ -2662,6 +2664,7 @@ export class CombatSystem {
         for (const [k, c, o] of [[1.5, a, 0.6], [1.15, b, 0.6], [0.85, a, 0.5], [0.6, b, 0.4]] as const) {
           const f = glowSprite(c, k * tall, o, true);
           f.userData.base = k * tall;
+          f.userData.step = 0.38 * look.size;
           object.add(f);
           flames.push(f);
         }
@@ -2749,6 +2752,19 @@ export class CombatSystem {
       }
       object.position.copy(from);
       object.lookAt(aim.copy(from).add(vel));
+    } else if (owner === 'enemy') {
+      // A fireball of its own colour: a hot heart, a head of flame and tongues streaming back along its flight, all
+      // flickering (a plain glowing ball read as the white circles the playtest of 2026-11-14 named).
+      const s = size / 0.24;
+      object.add(glowSprite(new Color(color).lerp(new Color(0xffffff), 0.4).getHex(), 0.55 * s, 0.95, true));
+      for (const [k, o] of [[1.3, 0.8], [0.95, 0.6], [0.7, 0.45], [0.5, 0.3]] as const) {
+        const f = glowSprite(color, k * s, o, true);
+        f.userData.base = k * s;
+        f.userData.step = 0.3 * s;
+        object.add(f);
+        flames.push(f);
+      }
+      object.position.copy(from);
     } else {
       // (A big shot is a rock with a faint heat, a small one all light: no cube.)
       const core = new Mesh(new IcosahedronGeometry(size * 0.6, 1), surface({ color: PALETTE.void, emissive: color, emissiveIntensity: 3 }));
@@ -2819,17 +2835,20 @@ export class CombatSystem {
         o.rotateX(Math.sin(p.age * 30) * 0.14);
         break;
     }
-    // The flames: the head round it, the tongues back along its flight, all flickering.
-    if (p.flames.length) {
-      const l = p.vel.length() || 1;
-      for (let i = 0; i < p.flames.length; i++) {
-        const f = p.flames[i];
-        const back = i * 0.38 * look.size;
-        f.position.set((-p.vel.x / l) * back, (-p.vel.y / l) * back + i * 0.08 * look.size, (-p.vel.z / l) * back);
-        f.scale.setScalar(f.userData.base * (0.8 + Math.random() * 0.35));
-      }
-    }
+    this.streamFlames(p);
     p.trailAcc = throwTrail(this.fx, look, p.pos, p.vel, dt, p.trailAcc);
+  }
+
+  /** A shot's flames: the head round it, the tongues back along its flight (rising a little), smaller each, flickering. */
+  private streamFlames(p: Projectile): void {
+    if (!p.flames.length) return;
+    const l = p.vel.length() || 1;
+    for (let i = 0; i < p.flames.length; i++) {
+      const f = p.flames[i];
+      const back = i * f.userData.step;
+      f.position.set((-p.vel.x / l) * back, (-p.vel.y / l) * back + i * 0.21 * f.userData.step, (-p.vel.z / l) * back);
+      f.scale.setScalar(f.userData.base * (0.8 + Math.random() * 0.35));
+    }
   }
 
   /**
