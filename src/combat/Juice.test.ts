@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BONK, LUNGE_STOP, bonkWord, edgeSafeReach, leapGravity, leapVelocity, lungeReach, slowMoScale, spinAngle, squash } from './Juice';
+import { BONK, LUNGE_STOP, bonkWord, edgeSafeReach, flightTime, leapGravity, leapVelocity, lungeReach, slowMoScale, spinAngle, squash } from './Juice';
 
 // The playtest of 2026-11-14: "fighting style and animations are boring… make them cool, unique, addictive to watch,
 // funny, entertaining… not realistic". Cartoon rules: bodies squash on a hit and spring back, blows shout their sound,
@@ -121,5 +121,18 @@ describe('edgeSafeReach', () => {
   });
   it('follows the direction it is given', () => {
     expect(edgeSafeReach(0, 0, 2, -1, 0, 10, cliffAt(6))).toBe(10);
+  });
+});
+
+describe('flightTime', () => {
+  it('is up and back down to the same height on flat ground', () => {
+    // Up 10/20 = 0.5 s, apex 2.5 m, down sqrt(2*2.5/(20*1.25)) = sqrt(0.2).
+    expect(flightTime(10, 0, 20, 1.25)).toBeCloseTo(0.5 + Math.sqrt(0.2), 6);
+  });
+  it('lasts longer thrown from up high (a giant\'s fist)', () => {
+    expect(flightTime(9.5, 2.5, 26, 1.55)).toBeGreaterThan(flightTime(9.5, 0, 26, 1.55) + 0.1);
+  });
+  it('is a plain fall with no lift', () => {
+    expect(flightTime(0, 5, 10, 1)).toBeCloseTo(1, 6);
   });
 });

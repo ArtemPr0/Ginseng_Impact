@@ -57,12 +57,17 @@ export interface PushBody {
   flying?: boolean;
 }
 
+/** The turns tried, in order, when the straight way out of a body is blocked: the nearest sides first. */
+const DETOURS = [0, 1, -1, 2, -2, 3, -3, 4].map((k) => (k * Math.PI) / 4);
+
 /**
  * Puts a hero who has walked into a body back at its edge (the full pass of 2026-11-15: the hero walked through the
- * Hollow King, 6 m across, and off the cliff behind him). Bodies that are dead, flying, or not at the hero's height
- * (from 1 m under their feet to their top) are passed by, and a push that would land in a wall (`blocked`) is not made.
+ * Hollow King, 6 m across, and off the cliff behind him): straight out from its centre, or, when that spot is in a wall
+ * or over a drop (`blocked`), round to the nearest open side; boxed in on every side, the hero stays put. The part of
+ * `vel` that runs into the body is taken away. Bodies that are dead, flying, or not at the hero's height (from 1 m under
+ * their feet to their top) are passed by.
  */
-export function pushOut(p: { x: number; y: number; z: number }, bodies: Iterable<PushBody>, blocked: (x: number, z: number) => boolean): void {
+export function pushOut(p: { x: number; y: number; z: number }, bodies: Iterable<PushBody>, blocked: (x: number, z: number) => boolean, vel?: { x: number; z: number }): void {
   for (const b of bodies) {
     if (!b.alive || b.flying) continue;
     if (p.y < b.pos.y - 1 || p.y > b.pos.y + (b.height ?? 2)) continue;
@@ -70,10 +75,18 @@ export function pushOut(p: { x: number; y: number; z: number }, bodies: Iterable
     const reach = b.r + HERO_R;
     const d = Math.hypot(dx, dz);
     if (d >= reach) continue;
-    const ux = d > 1e-4 ? dx / d : 1, uz = d > 1e-4 ? dz / d : 0;
-    const nx = b.pos.x + ux * reach, nz = b.pos.z + uz * reach;
-    if (blocked(nx, nz)) continue;
-    p.x = nx;
-    p.z = nz;
+    const base = d > 1e-4 ? Math.atan2(dz, dx) : 0;
+    for (const turn of DETOURS) {
+      const ux = Math.cos(base + turn), uz = Math.sin(base + turn);
+      const nx = b.pos.x + ux * reach, nz = b.pos.z + uz * reach;
+      if (blocked(nx, nz)) continue;
+      p.x = nx;
+      p.z = nz;
+      if (vel) {
+        const into = vel.x * ux + vel.z * uz;
+        if (into < 0) { vel.x -= into * ux; vel.z -= into * uz; }
+      }
+      break;
+    }
   }
 }

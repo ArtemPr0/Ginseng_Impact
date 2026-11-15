@@ -441,6 +441,10 @@ describe('Hud hype', () => {
     vi.advanceTimersByTime(2000);
     hud.xpPop(5);
     expect(el.textContent).toBe('+5 XP');
+    // Once the last pop has faded (1.1 s), the next one starts afresh.
+    vi.advanceTimersByTime(1050);
+    hud.xpPop(7);
+    expect(el.textContent).toBe('+7 XP');
   });
 });
 

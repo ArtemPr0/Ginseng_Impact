@@ -257,6 +257,8 @@ const combat = new CombatSystem({
     const foe = ENEMY_DEFS[kind as keyof typeof ENEMY_DEFS];
     if (foe?.boss) bosses[kind] = { slainAt: Date.now() };
     if (foe) gainXp(xpForKill(foe, progress.level));
+    // (Always: a boss's time of death and the quest kill counts are saved at the level cap too.)
+    save.markDirty();
   },
   muzzle: () => rigs[party.activeIndex].muzzle(new Vector3()),
   // The companions are fought too: the mobs go for the nearest of them and the hero, every blow lands on whoever is in it.
@@ -481,7 +483,6 @@ function snapshot(): SaveV1 {
 let newGamePlus = false;
 /** Silly titles earned (game/Hype.ts): restored from the save. */
 let titles = new Titles();
-/** The experience bar: how far into this level. */
 /** Experience for the party: the pop over the bar, and a level's moment when it crosses one. */
 function gainXp(n: number): void {
   if (progress.level >= MAX_LEVEL || !(n > 0)) return;
@@ -502,6 +503,7 @@ function gainXp(n: number): void {
   showXp();
   save.markDirty();
 }
+/** The experience bar: how far into this level. */
 function showXp(): void { hud.setXp(progress.level >= MAX_LEVEL ? 1 : progress.xp / xpFor(progress.level)); }
 /** What each hero wields shows in the hand: the blade takes the item's colour. */
 function weaponGlows(): void {
@@ -862,6 +864,8 @@ game
         stopFly: input.locked && input.justPressed('KeyX'),
         hold: combat.busy || combat.charging > 0,
       }, world, dt);
+      // Bodies on foot stand their ground (CombatSystem.blockHero), after the step so no frame shows the hero inside one.
+      if (!adventures.riding && !CARRIAGE.driving) combat.blockHero();
       // Off the edge of the world: nothing stops you walking off a cliff; the fog sets you back where you last stood.
       if (input.locked && !CARRIAGE.driving) {
         const p = controller.pos;
@@ -913,7 +917,9 @@ game
       // The F prompt, ten times a second (pressing F looks again at once).
       interactIn -= dt;
       // Walked onto: a landed item is taken without F (the full pass of 2026-11-15: no F per bone).
-      for (const p of combat.loot.touching(interactAt.set(controller.pos.x, controller.pos.y, controller.pos.z))) takeItem(p);
+      if (input.locked && hud.panel === 'none' && !combat.isDown && !adventures.riding && !CARRIAGE.driving) {
+        for (const p of combat.loot.touching(interactAt.set(controller.pos.x, controller.pos.y, controller.pos.z))) takeItem(p);
+      }
       if (interactIn <= 0) { interactIn = 0.1; const t = interactTarget(); hud.setInteract(t ? t.label : null); }
       input.endStep();
     },

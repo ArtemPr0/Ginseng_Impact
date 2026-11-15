@@ -89,9 +89,24 @@ describe('pushOut', () => {
     pushOut(q, [body(0, 0, 3, { alive: false }), body(0, 0, 3, { flying: true })], free);
     expect(q.x).toBe(1);
   });
-  it('never puts the hero into a wall', () => {
-    const p = { x: 1, y: 0, z: 0 };
+  it('never puts the hero into a wall, and goes round to the nearest open side of the body instead', () => {
+    const p = { x: 1, y: 0, z: 0.1 };
     pushOut(p, [body(0, 0, 3)], (x) => x > 2);
-    expect(p.x).toBe(1);
+    expect(Math.hypot(p.x, p.z)).toBeCloseTo(3 + HERO_R, 5);
+    expect(p.x).toBeLessThanOrEqual(2);
+    expect(p.z).toBeGreaterThan(0);
+    const boxed = { x: 1, y: 0, z: 0 };
+    pushOut(boxed, [body(0, 0, 3)], () => true);
+    expect(boxed).toEqual({ x: 1, y: 0, z: 0 });
+  });
+
+  it('takes away the part of the hero\'s velocity that runs into the body', () => {
+    const p = { x: 1, y: 0, z: 0 };
+    const v = { x: -6, y: 1, z: 2 };
+    pushOut(p, [body(0, 0, 3)], free, v);
+    expect(v).toEqual({ x: 0, y: 1, z: 2 });
+    const away = { x: 4, y: 0, z: 0 };
+    pushOut({ x: 1, y: 0, z: 0 }, [body(0, 0, 3)], free, away);
+    expect(away.x).toBe(4);
   });
 });

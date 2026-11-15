@@ -97,3 +97,13 @@ export function edgeSafeReach(x: number, z: number, y: number, dx: number, dz: n
   }
   return want;
 }
+
+/**
+ * Seconds in the air for a body launched at `vy` m/s up from `height` metres over the ground it lands on: rising under
+ * `gravity`, falling under `gravity · fall` (the controller's heavier fall).
+ */
+export function flightTime(vy: number, height: number, gravity: number, fall: number): number {
+  const up = Math.max(0, vy) / gravity;
+  const apex = Math.max(0, height) + (Math.max(0, vy) ** 2) / (2 * gravity);
+  return up + Math.sqrt((2 * apex) / (gravity * fall));
+}

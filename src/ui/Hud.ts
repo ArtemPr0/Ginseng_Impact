@@ -501,11 +501,11 @@ export class Hud {
   private xpSum = 0;
   private xpAt = -1e9;
   private xpTimer: ReturnType<typeof setTimeout> | null = null;
-  /** "+N XP" over the bar, and the bar flares; gains within 1.2 s of the last add up into one number. */
+  /** "+N XP" over the bar, and the bar flares; gains within 1 s of the last add up (the pop is still showing), later ones start afresh. */
   xpPop(n: number): void {
     if (!(n > 0)) return;
     const t = Date.now();
-    this.xpSum = t - this.xpAt < 1200 ? this.xpSum + n : n;
+    this.xpSum = t - this.xpAt < 1000 ? this.xpSum + n : n;
     this.xpAt = t;
     const el = this.q('#hud-xp-pop');
     const bar = this.q('#hud-xp');
