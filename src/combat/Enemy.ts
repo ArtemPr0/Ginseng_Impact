@@ -183,6 +183,14 @@ export class Enemy {
   /** Called up by a boss: drops nothing, and leaves with its caster. */
   summoned = false;
   model: ModelRig | null = null;
+  /** Parts torn off (Gore): their bones are held shrunk to nothing after every animation step until it respawns. */
+  readonly severed: Object3D[] = [];
+  readonly lost = new Set<string>();
+  lostArms = 0;
+  /** The red caps where parts came off (Gore removes them when it mends the body). */
+  readonly stumps: Object3D[] = [];
+  /** Called as it respawns (Gore.mend). */
+  onRespawn?: (e: Enemy) => void;
   private placeholder: MissingModelPlaceholder | null = null;
   private lastState: EnemyState = 'idle';
   /** Animation bookkeeping: measured ground speed and direction, the one-shot clip in flight, procedural pose state. */
@@ -835,6 +843,7 @@ export class Enemy {
 
   private respawn(): void {
     if (this.noRespawn) return;
+    this.onRespawn?.(this);
     this.returning = false;
     this.provoked = false;
     this.seatedNow = false;
@@ -1003,6 +1012,8 @@ export class Enemy {
     // clips stand lower than its bind pose would float there.)
     if (!far) m.update(dt * this.pace);
     else if ((this.farAnim += dt) > 1) { m.update(this.farAnim * this.pace); this.farAnim = 0; }
+    // A torn-off part stays gone whatever the clip does (set, not turned: nothing piles up across frames).
+    for (const b of this.severed) b.scale.setScalar(1e-4);
     this.lunge = Math.max(0, this.lunge - dt * 2.8);
     this.flinch = Math.max(0, this.flinch - dt * 4);
     this.animateHalo(m.height);

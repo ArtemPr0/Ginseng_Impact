@@ -449,6 +449,19 @@ export class Audio {
     }
   }
 
+  /** A limb torn off: a wet rip and a slap. */
+  squelch(): void {
+    this.noise(0.16, 'bandpass', 900, 260, 2.5, 0.42);
+    this.noise(0.08, 'lowpass', 500, 120, 1, 0.35, 0.05);
+    this.tone('sine', 120, 60, 0.12, 0.3, 0.04);
+  }
+
+  /** Something soft lands (a severed limb): a dull thud. */
+  thud(): void {
+    this.tone('sine', 110, 50, 0.12, 0.35);
+    this.noise(0.06, 'lowpass', 400, 120, 1, 0.25);
+  }
+
   /** Skill cast: a bright sweep. */
   cast(): void {
     this.tone('sine', 400, 1600, 0.3, 0.3);

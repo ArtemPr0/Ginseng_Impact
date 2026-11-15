@@ -50,6 +50,8 @@ import { pushOut, SolidBodies, type PushBody } from './Solid';
 import { bonkWord, edgeSafeReach, flightTime, lungeReach, SLOW_MO } from './Juice';
 import { ImpactStars } from '../render/ImpactStars';
 import { blowKindOf, breaksThings, coneSmash } from './Smash';
+import { Gore } from './Gore';
+import { maimMult, pickPart, severRoll } from './Sever';
 import type { BlowKind } from '../world/Breakables';
 import { CONTROLLER, rolling, startLeap, startLunge } from '../player/CharacterController';
 
@@ -414,6 +416,10 @@ export class CombatSystem {
   private readonly fx: CombatFx;
   /** The comic star where a blow lands (render/ImpactStars). */
   private readonly stars: ImpactStars;
+  /** Mobs coming apart: limbs, heads, bones, blood (Gore). */
+  readonly gore: Gore;
+  /** Seconds of Blood Moon left: every blow tears something off. */
+  bloodMoon = 0;
   /** When the last comic word went up (one a beat, however many bodies a blow cuts), and how many so far. */
   private bonkAt = -1;
   private bonkN = 0;
@@ -469,6 +475,10 @@ export class CombatSystem {
   constructor(private readonly d: CombatDeps) {
     this.fx = d.fx;
     this.stars = new ImpactStars(d.scene);
+    this.gore = new Gore((x, z, y) => d.world.heightAt(x, z, y), {
+      onLand: (x, _y, z, bone) => { if (Math.hypot(x - d.controller.pos.x, z - d.controller.pos.z) < 30) { if (bone) d.audio.clatter(); else d.audio.thud(); } },
+    });
+    d.scene.add(this.gore.group);
     this.sfx = new CombatSfx(d.audio);
     this.rnd = d.rnd ?? Math.random;
     d.scene.add(this.vfx.group);
@@ -587,6 +597,7 @@ export class CombatSystem {
     // A melee mob takes turns with its pack (two striking at once); a boss or a mob that keeps its distance needs no token.
     if (!def.boss && !((def.brain.preferredRange ?? 0) > 0)) e.tokens = this.tokens;
     e.onDissolve = () => this.dissolveBurst(e);
+    e.onRespawn = (x) => this.gore.mend(x);
     e.onCollapse = () => this.d.audio.clatter();
     e.onStomp = (sx, sy, sz) => {
       this.fx.dust(_v.set(sx, sy + 0.1, sz), 2.2);
@@ -1642,8 +1653,10 @@ export class CombatSystem {
   private strike(e: Enemy, mult: number, inside: (x: number, z: number, y: number, hero: boolean) => boolean): number {
     const c = this.d.controller;
     let n = 0;
-    if (inside(c.pos.x, c.pos.z, c.pos.y, true)) { this.damagePlayer(e.def.atk * mult, e.def.element, e.def.kind); n++; }
-    for (const a of this.allies) if (a.hp > 0 && inside(a.pos.x, a.pos.z, a.pos.y, false)) { this.hurtAlly(a, e.def.atk * mult); n++; }
+    // (Missing an arm or two it hits softer: Sever.maimMult.)
+    const maim = maimMult(e.lostArms);
+    if (inside(c.pos.x, c.pos.z, c.pos.y, true)) { this.damagePlayer(e.def.atk * mult * maim, e.def.element, e.def.kind); n++; }
+    for (const a of this.allies) if (a.hp > 0 && inside(a.pos.x, a.pos.z, a.pos.y, false)) { this.hurtAlly(a, e.def.atk * mult * maim); n++; }
     return n;
   }
 
@@ -2672,9 +2685,12 @@ export class CombatSystem {
     // The burst: a blow's worth a hit, or through a many-shot cast, once a body (o.cast).
     if (o.energy ?? true) this.burstEnergy = Math.min(BURST_MAX, this.burstEnergy + (o.cast ? o.cast.take(e.id) : HIT_ENERGY));
     if (reaction) { this.applyReaction(e, reaction, dmg, at, pierceStop(REACTION_STOP, nth)); this.d.audio.reaction(); }
+    // Torn apart: a limb or the head off a strong blow, a skeleton into its bones (Gore, Sever).
+    let apart = false;
+    if (!dot && !o.companion) apart = this.tearApart(e, { crit, heavy, skill: o.blow === 'skill' || o.blow === undefined, share: dmg / (e.def.maxHp * e.hpScale), died, hpBefore }, hitAt, kb);
     if (died) {
       // Blown far past dead: launched off its feet, tumbling (Yeet.ts), with a bonk and a quip.
-      if (own && isOverkill(dmg, hpBefore, e.def.maxHp) && e.launchFrom(kb.x, kb.z)) {
+      if (!apart && own && isOverkill(dmg, hpBefore, e.def.maxHp) && e.launchFrom(kb.x, kb.z)) {
         const q = this.hype.overkill();
         this.d.hud.hype(q.text, q.tier);
         this.d.audio.overkill();
@@ -2682,6 +2698,33 @@ export class CombatSystem {
       }
       this.onEnemyDeath(e, at);
     }
+  }
+
+  /**
+   * Tears something off `e` after a blow, if the blow earns it (Sever.severRoll): a skeleton killed bursts into its bones,
+   * a body with no rig killed hard shatters, else the part nearest the blow comes off (the head only on a kill).
+   * Returns true when the body itself came apart (no overkill launch then).
+   */
+  private tearApart(e: Enemy, b: { crit: boolean; heavy: boolean; skill: boolean; share: number; died: boolean; hpBefore: number }, hitAt: Vector3, kb: { x: number; z: number }): boolean {
+    const m = e.model;
+    if (!m || e.def.body) return false;
+    const strength = b.heavy || b.skill ? 1.3 : 1;
+    if (b.died && e.def.collapse) {
+      if (this.gore.burstBones(e, kb, strength)) { this.d.audio.clatter(); return true; }
+      return false;
+    }
+    const roll = severRoll({ crit: b.crit, heavy: b.heavy, skill: b.skill, share: b.share, died: b.died, bloodMoon: this.bloodMoon > 0, boss: !!e.def.boss, hpShare: e.hp / (e.def.maxHp * e.hpScale) }, this.rnd);
+    if (!roll) return false;
+    if (!m.hasClips) {
+      if (b.died && !e.def.boss && this.gore.shatter(e, kb, 10)) { this.d.audio.crumble(0.3, 1); return true; }
+      return false;
+    }
+    const part = pickPart(this.gore.partsOf(e), hitAt, b.died);
+    if (!part || !this.gore.sever(e, part, kb, strength)) return false;
+    this.d.audio.squelch();
+    if (part === 'head') this.d.hud.hype('HEADLESS!', 2);
+    else if (e.lostArms === 1 && !b.died) this.d.hud.hype('DISARMED', 1);
+    return false;
   }
 
   private onEnemyDeath(e: Enemy, at: Vector3): void {
@@ -3369,6 +3412,7 @@ export class CombatSystem {
   render(dt: number): void {
     const cam = this.d.camera;
     this.stars.update(dt);
+    this.gore.update(dt);
     for (const e of this.enemies) {
       e.animate(dt, !e.aggro && Math.hypot(e.pos.x - cam.position.x, e.pos.z - cam.position.z) > 110);
       if (!e.alive) continue;
