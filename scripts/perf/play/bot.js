@@ -26,7 +26,7 @@ const inv0 = JSON.stringify(G.inventory.snapshot?.() ?? {}).length;
 const lvl0 = G.progress.level;
 let kills = 0, stuckT = 0, lastPos = { ...hero() }, target = null, tLock = 0, skipped = new Set();
 
-const hostile = (e) => e.alive && !aquatic?.has(e.def.kind) && !e.def.passive && !e.def.boss && !skipped.has(e) && Math.hypot(e.pos.x - home.x, e.pos.z - home.z) < R;
+const hostile = (e) => e.alive && (window.__botKind ? e.def.kind === window.__botKind : !aquatic?.has(e.def.kind) && !e.def.passive && !e.def.boss) && !skipped.has(e) && Math.hypot(e.pos.x - home.x, e.pos.z - home.z) < R;
 function pick() {
   let best = null, bd = 1e9;
   for (const e of G.combat.enemies) {

@@ -16,6 +16,16 @@ describe('Progress curve', () => {
     expect(xpForKill({ maxHp: 30 })).toBe(1);
   });
 
+  // The full pass of 2026-11-15: a mob stays worth a visible bit of the bar as the party grows (25 % more a level);
+  // a boss's pay does not grow (the bosses carry most of a playthrough already).
+  it('pays more for an ordinary kill as the party levels, a boss the same', () => {
+    expect(xpForKill({ maxHp: 1000 }, 1)).toBe(40);
+    expect(xpForKill({ maxHp: 1000 }, 5)).toBe(80);
+    expect(xpForKill({ maxHp: 560 }, 8)).toBe(Math.round(22.4 * 2.75));
+    expect(xpForKill({ maxHp: 12000, boss: true }, 12)).toBe(880);
+    expect(xpForKill({ maxHp: 1000 }, 99)).toBe(xpForKill({ maxHp: 1000 }, 30));
+  });
+
   // The full pass of 2026-11-15: finishing a quest is a big step on the bar, more than a fight's worth.
   it('pays most of a level (100 at least) for a finished quest', () => {
     for (const l of [1, 5, 12, 29]) {

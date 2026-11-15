@@ -256,7 +256,7 @@ const combat = new CombatSystem({
     adventures.quests.kill(kind);
     const foe = ENEMY_DEFS[kind as keyof typeof ENEMY_DEFS];
     if (foe?.boss) bosses[kind] = { slainAt: Date.now() };
-    if (foe) gainXp(xpForKill(foe));
+    if (foe) gainXp(xpForKill(foe, progress.level));
   },
   muzzle: () => rigs[party.activeIndex].muzzle(new Vector3()),
   // The companions are fought too: the mobs go for the nearest of them and the hero, every blow lands on whoever is in it.

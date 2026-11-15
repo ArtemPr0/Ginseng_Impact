@@ -4,9 +4,13 @@
  */
 export const MAX_LEVEL = 30;
 
-/** Experience for killing an enemy: a 25th of its HP, and 400 more for a boss. */
-export function xpForKill(def: { maxHp: number; boss?: boolean }): number {
-  return Math.round(def.maxHp / 25) + (def.boss ? 400 : 0);
+/**
+ * Experience for killing an enemy: a 25th of its HP, and 400 more for a boss. An ordinary mob pays 25 % more for each
+ * level the party has (so a kill stays a visible step on the bar); a boss pays the same at any level.
+ */
+export function xpForKill(def: { maxHp: number; boss?: boolean }, level = 1): number {
+  const base = def.maxHp / 25;
+  return def.boss ? Math.round(base) + 400 : Math.round(base * (1 + 0.25 * (clampLevel(level) - 1)));
 }
 
 /** Experience for finishing a quest: 60 % of the current level's step, 100 at least (none at the cap). */
