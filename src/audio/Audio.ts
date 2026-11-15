@@ -429,6 +429,26 @@ export class Audio {
     this.noise(0.18, 'lowpass', 600, 80, 0.8, 0.5);
   }
 
+  /**
+   * Something breaks (Breakables): a sharp crack, then a crumble of stone and wood that lasts and deepens with the size
+   * of what came down (`size` 0..1, a barrel to a cathedral), `near` 0..1 by distance.
+   */
+  crumble(size: number, near = 1): void {
+    if (near <= 0.02) return;
+    const g = near * (0.5 + size * 0.5);
+    this.noise(0.06, 'highpass', 2400, 1200, 1, 0.55 * g);
+    this.tone('square', 140 + Math.random() * 40, 60, 0.05, 0.12 * g);
+    const n = 4 + Math.round(size * 14);
+    for (let i = 0; i < n; i++) {
+      const at = 0.04 + Math.pow(i / n, 1.3) * (0.4 + size * 1.6) + Math.random() * 0.05;
+      this.noise(0.07 + Math.random() * 0.08, 'bandpass', 500 + Math.random() * 1400, 300, 3, 0.22 * g * (1 - (i / n) * 0.6), at, 0.003);
+    }
+    if (size > 0.3) {
+      this.tone('sine', 70, 28, 0.6 + size * 1.4, 0.7 * g, 0.05);
+      this.noise(0.8 + size * 1.6, 'lowpass', 420, 60, 0.7, 0.45 * g, 0.08);
+    }
+  }
+
   /** Skill cast: a bright sweep. */
   cast(): void {
     this.tone('sine', 400, 1600, 0.3, 0.3);

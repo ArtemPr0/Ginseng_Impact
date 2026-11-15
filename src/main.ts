@@ -196,6 +196,29 @@ let wasBouncing = false;
 let wasDriving = false;
 rigs[party.activeIndex].root.visible = rigs[party.activeIndex].trailObject.visible = true;
 const tpc = new ThirdPersonCamera(camera, world);
+/** What the people of a building say when it comes down on them. */
+const COLLAPSE_YELLS = ['MY HOUSE!', 'Oi! I live there!', 'Who pays for that?!', 'That was load-bearing!', 'Not again...', 'I just swept in there!', 'Rude!', 'You owe me a roof.'];
+// Things breaking (Breakables): a crack and a crumble by size and distance, dust where it breaks, a shake when a building comes down.
+{
+  const near = (x: number, z: number) => Math.max(0, 1 - Math.hypot(x - controller.pos.x, z - controller.pos.z) / 70);
+  area.breakables.onBreak = (b, x, y, z, n) => {
+    audio.crumble(Math.min(1, b.target.size / 40) * Math.min(1, n / 4), near(x, z));
+    combatFx.dust(new Vector3(x, y, z), 1 + Math.min(2.5, n * 0.4));
+  };
+  area.breakables.onCollapse = (b) => {
+    const k = near(b.x, b.z);
+    audio.crumble(Math.min(1, b.target.size / 25), k);
+    tpc.shake(Math.min(1, b.target.size / 30) * k);
+    combatFx.dust(new Vector3(b.x, b.target.object.position.y + 1, b.z), Math.min(6, 1.5 + b.target.size * 0.15));
+    // The people of the place yell at you (it stands again within a minute: Breakables.REBUILD_S.quick).
+    if (b.target.size < 3) return;
+    for (const n of area.npcs) {
+      if (n.hidden || Math.hypot(n.pos.x - b.x, n.pos.z - b.z) > b.r + 4) continue;
+      n.bubble(COLLAPSE_YELLS[Math.floor(Math.random() * COLLAPSE_YELLS.length)], 3);
+      n.startle({ x: b.x, z: b.z });
+    }
+  };
+}
 const camParam = new URLSearchParams(location.search).get('cam')?.split(',').map(Number).filter((n) => Number.isFinite(n));
 // `?face=x,z` (debug) aims the camera from the spawn toward a world point.
 const faceParam = new URLSearchParams(location.search).get('face')?.split(',').map(Number);
@@ -252,6 +275,7 @@ const combat = new CombatSystem({
   weaponTips: (guard, tip) => rigs[party.activeIndex].weaponTips(guard, tip),
   onTrip: (strength, seconds) => renderer.trip(strength, seconds),
   onInk: () => inkSplat.splash(),
+  breakAt: (x, y, z, radius, kind) => area.breakables.damageAt(x, y, z, radius, kind),
   onKill: (kind) => {
     adventures.quests.kill(kind);
     const foe = ENEMY_DEFS[kind as keyof typeof ENEMY_DEFS];

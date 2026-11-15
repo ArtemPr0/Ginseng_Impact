@@ -23,13 +23,14 @@ import { orchardSpots } from './Footprints';
 import { Grass } from './Grass';
 import type { Landmark } from './Landmarks';
 import { modelLandmark, type ModelLandmark, riverDrifter, walkerLandmark } from './ModelLandmark';
+import { Breakables, type BreakTarget } from './Breakables';
 import { Npc, NPC_DEFS } from './NPCs';
 import { Rig } from '../characters/Rig';
 import { yawToRotation } from '../models/ModelRig';
 import { Noise2D } from './noise';
 import { witchStream } from './Stream';
 import { stoneHeadEyes } from './StoneHead';
-import { buildCryptRoom, buildTavernRoom } from './Interiors';
+import { buildCryptRoom, buildTavernRoom, CHAPEL_DOOR, VALE_TAVERN_DOOR } from './Interiors';
 import { buildCastleHall } from './CastleHall';
 import { landableIsland } from './Islands';
 import { CARRIAGE } from './Carriage';
@@ -305,6 +306,8 @@ function rng(seed: number): () => number {
 export class World {
   readonly group = new Group();
   readonly heights: HeightWorld;
+  /** Everything placed that can be broken (the request of 2026-11-15): see Breakables. */
+  readonly breakables: Breakables;
   readonly npcs: Npc[] = [];
   readonly grass: Grass;
   /** Church position, used to brighten the aurora nearby. */
@@ -365,6 +368,7 @@ export class World {
   constructor(readonly terrain: Terrain) {
     this.ground = new GroundQuery(terrain, this.realmGround);
     this.heights = new HeightWorld(this.ground);
+    this.breakables = new Breakables(this.heights);
     // The great river is the swimmable water (the lily pond and the pools are only knee to waist deep), and the realms'
     // rivers and moats (RealmApi.water).
     this.heights.water = (x, z) => {
@@ -403,11 +407,30 @@ export class World {
       // Nor in the water: an orchard tree stood on the river bed by the head pool (the playtest of 2026-11-13).
       if (this.zone === null && TREES.has(id)) placements = placements.filter((p) => terrain.dryAt(p.x, p.z));
       // Trees are solid at the trunk (climbable, like any trunk), never at the crown.
-      if (opts?.trunk) for (const p of placements) { const f = trunkFootprint(id, p.x, p.y, p.z, p.scale, opts.trunk); if (f) this.heights.add(f); }
+      const trunks = new Map<number, Footprint>();
+      if (opts?.trunk) placements.forEach((p, i) => { const f = trunkFootprint(id, p.x, p.y, p.z, p.scale, opts.trunk!); if (f) { this.heights.add(f); trunks.set(i, f); } });
       const set = floraSet(id, placements, opts);
       this.target.add(set.group);
       this.extras.push(set);
       this.zoneOf.set(set, this.zone);
+      // Each one breaks where a blow reaches it (2026-11-15), except what you walk on and what moves.
+      if (!opts?.update && !UNBREAKABLE_FLORA.has(id)) {
+        const H = MODELS[id]?.height ?? 1;
+        const given = new Set<number>();
+        this.breakables.providers.push((x, z, r) => {
+          const out: BreakTarget[] = [];
+          placements.forEach((p, i) => {
+            const size = H * p.scale;
+            if (given.has(i) || size < 0.3 || Math.hypot(p.x - x, p.z - z) > r + Math.min(2, size * 0.25)) return;
+            const object = set.instanceObject?.(i);
+            if (!object) return;
+            given.add(i);
+            const f = trunks.get(i);
+            out.push({ id, key: p, object, parent: set.group, footprints: f ? [f] : [], size, hide: () => set.setHidden?.(i, true), show: () => set.setHidden?.(i, false) });
+          });
+          return out;
+        });
+      }
     };
     const vfx = (f: { group: Group; update: (dt: number) => void }) => { this.target.add(f.group); this.extras.push(f); this.zoneOf.set(f, this.zone); };
 
@@ -971,6 +994,28 @@ export class World {
     this.heights.add(...l.footprints);
     this.landmarks.push(l);
     this.zoneOf.set(l, this.zone);
+    this.registerBreakable(l);
+  }
+
+  /**
+   * A placed model with a baked collider can be broken: everything, the user said, but the rooms' walls (the void is
+   * behind them), what you stand on over the void, what floats, and the realm-sized pieces of ground.
+   */
+  private registerBreakable(l: Landmark): void {
+    const lm = l as ModelLandmark;
+    if (!lm.root || !l.footprints.length || !l.footprints.every((f) => f.kind === 'grid')) return;
+    const id = lm.root.name.slice(3);
+    if (UNBREAKABLE.has(id)) return;
+    if (this.zone && REALMS.find((r) => r.id === this.zone)?.indoors) return;
+    const g = l.footprints[0] as GridFootprint;
+    const size = Math.max(g.nx * g.cell, g.nz * g.cell, g.top - g.base);
+    if (size > 90) return;
+    const ground = this.realmGround.heightAt(g.x, g.z) ?? this.terrain.heightAt(g.x, g.z);
+    if (g.base - ground > 3) return;
+    // Someone lives, trades or sits here, or a door leads in: it stands again within a minute.
+    const spots = [...Object.values(ANCHORS), VALE_TAVERN_DOOR, CHAPEL_DOOR];
+    const quick = spots.some((a) => footprintContains(g, a.x, a.z) || Math.hypot(a.x - g.x, a.z - g.z) < Math.min(g.r, 8));
+    this.breakables.register({ id, object: lm.root, footprints: l.footprints, size, quick });
   }
 
   /** Puts a prop in a realm's group, or on the island when `zone` is null (chests). */
@@ -1106,6 +1151,7 @@ export class World {
     for (const e of this.extras) if ((this.zoneOf.get(e) ?? null) === here) e.update(dt);
     for (const w of this.watchers) if (w.zone === here) w.update(dt, cameraPos, playerPos);
     this.clouds.update(dt, cameraPos);
+    this.breakables.update(dt, playerPos);
     const sculpt = here ? REALM_SCULPTS[here as keyof typeof REALM_SCULPTS] : undefined;
     if (here === null || sculpt?.grass) this.grass.update(playerPos.x, playerPos.z);
     for (const n of this.npcs) {
@@ -1166,6 +1212,10 @@ function cutDoor(root: Object3D, d: { x: number; z: number; halfWidth: number; f
     mesh.material = m;
   });
 }
+
+/** Never broken: the giant head and the stones and roads you cross over water or the void. */
+const UNBREAKABLE_FLORA = new Set(['chasm-bridge', 'stepping-stone', 'cobblestone', 'fallen-leaf', 'lily-pad', 'checker-road', 'mountain', 'pinnacle', 'moon-laugh', 'fallen-fruit']);
+const UNBREAKABLE = new Set(['head', 'checker-road', 'stepping-stone', 'witch-bridge', 'stone-lotus', 'treehouse-door']);
 
 /** Ground kept clear of trees around the island's landmarks (x, z, radius). */
 // (Read from the layout tables: literal copies went stale when the arch gate and the tree house moved, and pines grew through them.)

@@ -49,6 +49,8 @@ import type { HeightWorld } from '../world/Colliders';
 import { pushOut, SolidBodies, type PushBody } from './Solid';
 import { bonkWord, edgeSafeReach, flightTime, lungeReach, SLOW_MO } from './Juice';
 import { ImpactStars } from '../render/ImpactStars';
+import { blowKindOf, breaksThings, coneSmash } from './Smash';
+import type { BlowKind } from '../world/Breakables';
 import { CONTROLLER, rolling, startLeap, startLunge } from '../player/CharacterController';
 
 interface Projectile {
@@ -210,6 +212,8 @@ export interface CombatDeps {
   rnd?: () => number;
   /** The companions following the hero: the enemies fight them too (main passes its list). */
   allies?: () => ReadonlyArray<CombatAlly>;
+  /** A blow breaks the world there (World.breakables): returns how many things it broke. */
+  breakAt?: (x: number, y: number, z: number, radius: number, kind: BlowKind) => number;
 }
 
 /** Orlan's smoke: a cloud that lingers where he blew it, the puffs that make it, and his attack when he blew it. */
@@ -1058,6 +1062,7 @@ export class CombatSystem {
       this.solids?.before(e);
       const action = e.update(dt, foe ? this.brawlMark : this.marks);
       this.solids?.after(e);
+      this.trample(e, dt);
       // Its wind-up's warning on the ground, filling with the wind-up (gone with a blow that will not come).
       this.warnWindup(e, foe !== null);
       const boss = !!e.def.boss && e.aggro && e.alive;
@@ -1235,6 +1240,9 @@ export class CombatSystem {
         }
       }
       if (dead) {
+        // Where it ends it breaks things: a hero's shot by its blow, a boss's log, barrel or rock as a stomp.
+        if (p.owner === 'player') this.smash(p.pos.x, p.pos.y, p.pos.z, Math.max(0.9, p.aoe), p.aoe > 0 ? 'skill' : blowKindOf(p.blow));
+        else if (p.kind === 'log' || p.kind === 'prop' || p.look?.burst === 'crater') this.smash(p.pos.x, p.pos.y, p.pos.z, 2.2, 'stomp');
         if (p.aoe > 0) this.starBurst(p);
         else if (p.kind === 'crescent') {
           // The wave breaks: a last patch of burning ground where it stopped, unless one lies just behind.
@@ -1442,6 +1450,7 @@ export class CombatSystem {
       this.fx.sparks(_v.set(e.pos.x, e.pos.y + e.def.height * (e.def.scale ?? 1) * 0.6, e.pos.z), UP, 8, LEAN_PURPLE, 3, 1.0);
     }
     this.fx.sparks(_v.copy(at).add(_w.set(0, 1.1, 0)), UP, 12, LEAN_PURPLE, 6, 1.0);
+    this.smash(at.x, at.y + 1, at.z, radius, last ? 'burst' : 'heavy');
     if (!b.fired || last) { this.fx.shock(at, 0x8b3dff, radius * 1.4); b.fired = true; }
     this.sfx.swing('blade', last);
     if (last) this.feel.punch = true;
@@ -1885,6 +1894,7 @@ export class CombatSystem {
         this.fx.dust(at, 3.2);
         this.d.onShake?.(1);
         this.d.audio.stomp();
+        if (breaksThings(e.def)) this.smash(at.x, at.y + 1, at.z, r, 'stomp');
         // (On the ground only: a hero in the air clears it.)
         this.strike(e, 1.4, (x, z, _y, hero) => Math.hypot(x - e.pos.x, z - e.pos.z) < r && (!hero || c.mode === 'ground'));
         break;
@@ -2174,6 +2184,7 @@ export class CombatSystem {
         this.d.onShake?.(0.6);
         this.d.audio.stomp();
         const inside = (x: number, z: number): boolean => inCone(e.pos, e.yaw, { x, z }, range, PUNCH_HALF);
+        if (breaksThings(e.def)) this.smash(e.pos.x + Math.cos(e.yaw) * range * 0.6, e.pos.y + e.def.height * sc * 0.5, e.pos.z + Math.sin(e.yaw) * range * 0.6, range * 0.5, 'stomp');
         const hit = inside(c.pos.x, c.pos.z);
         this.strike(e, 1.1, inside);
         if (hit) {
@@ -2357,6 +2368,33 @@ export class CombatSystem {
         : inRadius(origin, t, shape.radius + e.def.bodyRadius * sc);
       if (ok) this.hitEnemy(e, atk, def.mult, element, def.knockback, def.hitStop, { heavy, blow: phase });
     }
+    // The blow breaks what it reaches: props to a combo hit, walls to a heavy or a skill.
+    const kind = blowKindOf(phase);
+    if (shape.kind === 'cone') { const s = coneSmash(c.pos, c.yaw, shape.range); this.smash(s.x, s.y, s.z, s.r, kind); }
+    else this.smash(c.pos.x, c.pos.y + 1, c.pos.z, shape.radius, kind);
+  }
+
+  /** A big mob on the move breaks what it walks into, twice a second. */
+  private trample(e: Enemy, dt: number): void {
+    if (!e.alive || !this.d.breakAt || !breaksThings(e.def)) return;
+    let t = this.trampled.get(e);
+    if (!t) this.trampled.set(e, (t = { left: 0, x: e.pos.x, z: e.pos.z }));
+    t.left -= dt;
+    if (t.left > 0) return;
+    t.left = 0.5;
+    const moved = Math.hypot(e.pos.x - t.x, e.pos.z - t.z);
+    t.x = e.pos.x; t.z = e.pos.z;
+    if (moved < 0.3 || this.playerPos().distanceTo(e.pos) > 80) return;
+    const sc = e.def.scale ?? 1;
+    this.smash(e.pos.x, e.pos.y + e.def.height * sc * 0.4, e.pos.z, e.def.bodyRadius * sc + 0.6, 'stomp');
+  }
+  private readonly trampled = new WeakMap<Enemy, { left: number; x: number; z: number }>();
+
+  /** Breaks the world at (x, y, z) (Breakables): a crack shakes the camera a little. */
+  private smash(x: number, y: number, z: number, radius: number, kind: BlowKind): number {
+    const n = this.d.breakAt?.(x, y, z, radius, kind) ?? 0;
+    if (n && kind !== 'light') this.d.onShake?.(kind === 'burst' ? 0.7 : 0.35);
+    return n;
   }
 
   /**
