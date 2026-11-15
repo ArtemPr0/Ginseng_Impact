@@ -46,10 +46,10 @@ import { loadModel, ModelRig } from '../models/ModelRig';
 import { Vfx } from './Vfx';
 import { PRESENT_MODELS } from '../data/colliderGrids';
 import type { HeightWorld } from '../world/Colliders';
-import { SolidBodies } from './Solid';
-import { bonkWord, lungeReach, SLOW_MO } from './Juice';
+import { pushOut, SolidBodies, type PushBody } from './Solid';
+import { bonkWord, edgeSafeReach, flightTime, lungeReach, SLOW_MO } from './Juice';
 import { ImpactStars } from '../render/ImpactStars';
-import { startLeap, startLunge } from '../player/CharacterController';
+import { CONTROLLER, rolling, startLeap, startLunge } from '../player/CharacterController';
 
 interface Projectile {
   pos: Vector3; vel: Vector3; life: number; owner: 'player' | 'enemy';
@@ -450,6 +450,8 @@ export class CombatSystem {
   private readonly allies: CombatAlly[] = [];
   /** A brawling mob's one mark: its foe's place. */
   private readonly brawlMark: Mark[] = [];
+  /** The bodies near the hero that the hero cannot walk through (Solid.pushOut), reused each step. */
+  private readonly bodies: PushBody[] = [];
   /** The aggro bodies on foot a pack parts each step (Enemy.separate). */
   private readonly pack: Enemy[] = [];
   /** Each winding-up enemy's warnings, by enemy id (an empty list: a wind-up with nothing to show on the ground). */
@@ -625,6 +627,11 @@ export class CombatSystem {
   }
 
   /** True while a swing or cast locks movement (spinning in the lean cyclone, Sir Aldric walks), or the hero is down. */
+  /** True while the active hero lies fallen (before the next takes over). */
+  get isDown(): boolean {
+    return this.downed !== null;
+  }
+
   get busy(): boolean {
     const b = this.burstCast;
     const spinning = b?.kind === 'cyclone' && b.t >= CYCLONE.pour;
@@ -829,9 +836,7 @@ export class CombatSystem {
       if (g.t >= 0.85 || !e.alive) {
         this.grab = null;
         // Thrown about twelve metres the way the giant faces.
-        c.vel.x = fx * 16;
-        c.vel.z = fz * 16;
-        c.vel.y = 9.5;
+        this.shove(fx, fz, 16, 9.5, true);
         c.flung = 1.5;
         this.iframes = 0;
         if (e.alive) this.damagePlayer(e.def.atk * 1.2, e.def.element, e.def.kind);
@@ -1901,11 +1906,7 @@ export class CombatSystem {
           const dx = c.pos.x - e.pos.x;
           const dz = c.pos.z - e.pos.z;
           const l = Math.hypot(dx, dz) || 1;
-          c.vel.x += (dx / l) * 14;
-          c.vel.z += (dz / l) * 14;
-          c.vel.y = Math.max(c.vel.y, 5);
-          c.mode = 'air';
-          c.flungGravity = 1;
+          this.shove(dx / l, dz / l, 14, 5);
         }
         this.strike(e, 0.4, inside);
         break;
@@ -2180,11 +2181,7 @@ export class CombatSystem {
           const dx = c.pos.x - e.pos.x;
           const dz = c.pos.z - e.pos.z;
           const l = Math.hypot(dx, dz) || 1;
-          c.vel.x += (dx / l) * 9;
-          c.vel.z += (dz / l) * 9;
-          c.vel.y = Math.max(c.vel.y, 4);
-          c.mode = 'air';
-          c.flungGravity = 1;
+          this.shove(dx / l, dz / l, 9, 4);
         }
         break;
       }
@@ -2233,6 +2230,31 @@ export class CombatSystem {
    * A move lands, on the clip's blow. `phase` is which move: a light hit's index, the heavy or the skill (the swing's
    * crescent leans with it); `ground` is the skill's burning ground, laid by the crescent along its path.
    */
+  /**
+   * The hero cannot walk through a body on foot (Solid.pushOut): run right after the controller's step, so no frame
+   * shows them inside one. A dodge rolls through; held or down, nothing to push; flyers, drifting critters (koi,
+   * jellyfish) and standable bodies (their collider does it) are left out. The way out never goes into a wall or over a
+   * drop, measured from the ground under the hero (a jump is not a drop).
+   */
+  blockHero(): void {
+    const c = this.d.controller;
+    if (this.grab || this.downed || rolling(c)) return;
+    const bodies = this.bodies;
+    bodies.length = 0;
+    for (const e of this.enemies) {
+      if (!e.alive || e.def.flying || e.def.passive || e.def.solid || Math.abs(e.pos.x - c.pos.x) > 12 || Math.abs(e.pos.z - c.pos.z) > 12) continue;
+      const sc = e.def.scale ?? 1;
+      bodies.push({ pos: e.pos, r: e.def.bodyRadius * sc, alive: true, height: e.def.height * sc });
+    }
+    if (!bodies.length) return;
+    const w = this.d.world;
+    const feet = w.heightAt(c.pos.x, c.pos.z, c.pos.y + 0.5);
+    pushOut(c.pos, bodies, (x, z) => {
+      const g = w.heightAt(x, z, feet + 0.5);
+      return g > feet + 0.6 || g < feet - 3;
+    }, c.vel);
+  }
+
   /** The gap (m) to the nearest body ahead (within 5 m and ±50° of the facing, about level), or Infinity. */
   private gapAhead(): number {
     const c = this.d.controller;
@@ -2245,6 +2267,33 @@ export class CombatSystem {
     }
     return best;
   }
+
+  /**
+   * Knocks the hero flying along the unit (dx, dz) at `speed` m/s, `up` m/s upward (added to what they had, or in
+   * place of it with `replace`), cut short of any drop on the way (Juice.edgeSafeReach): a blow never throws them off
+   * a cliff (the full pass of 2026-11-15: the Hollow King sits 8 m from the island's edge).
+   */
+  private shove(dx: number, dz: number, speed: number, up: number, replace = false): void {
+    const c = this.d.controller;
+    const w = this.d.world;
+    const vy = replace ? up : Math.max(c.vel.y, up);
+    const feet = w.heightAt(c.pos.x, c.pos.z, c.pos.y + 0.5);
+    // The whole flight (from a giant's fist too: launched from up high), along the velocity the hero ends up with.
+    const air = flightTime(vy, c.pos.y - feet, CONTROLLER.gravity, CONTROLLER.fallGravity);
+    const vx = (replace ? 0 : c.vel.x) + dx * speed;
+    const vz = (replace ? 0 : c.vel.z) + dz * speed;
+    const hs = Math.hypot(vx, vz);
+    const want = hs * air;
+    const k = want > 1e-3 ? edgeSafeReach(c.pos.x, c.pos.z, feet, vx / hs, vz / hs, want, (x, z) => w.heightAt(x, z, feet + 1)) / want : 1;
+    c.vel.x = vx * k;
+    c.vel.z = vz * k;
+    c.vel.y = vy;
+    c.mode = 'air';
+    c.flungGravity = 1;
+    // Unsteered until it lands: the player cannot steer the flight back over the edge it was cut short of.
+    c.flung = Math.max(c.flung ?? 0, air);
+  }
+
 
   /**
    * How far along the facing a leap may go, up to `want` metres: never past a drop (off a bridge, a ledge, into the

@@ -40,7 +40,7 @@ import { World } from './world/World';
 import { Adventures } from './game/Adventures';
 import { Ending } from './game/Ending';
 import { Events, type HeroId, type Zone } from './game/Events';
-import { MAX_LEVEL, Progress, xpFor, xpForKill } from './game/Progress';
+import { MAX_LEVEL, Progress, xpFor, xpForKill, xpForQuest } from './game/Progress';
 import { Titles } from './game/Hype';
 import { questNode } from './data/quests';
 import { Save, type SaveV1 } from './game/Save';
@@ -54,7 +54,7 @@ import { Concert } from './world/Concert';
 import { HEAD_LIT } from './world/StoneHead';
 import { CHESTS, CHEST_RESPAWN, type ChestDef } from './data/chests';
 import { ENEMY_DEFS } from './data/enemies';
-import { rollDrops } from './combat/Loot';
+import { rollDrops, type Pickup } from './combat/Loot';
 import { levelSpot } from './world/LevelSpot';
 import { modelLandmark } from './world/ModelLandmark';
 import { type NpcDef } from './world/NPCs';
@@ -256,20 +256,8 @@ const combat = new CombatSystem({
     adventures.quests.kill(kind);
     const foe = ENEMY_DEFS[kind as keyof typeof ENEMY_DEFS];
     if (foe?.boss) bosses[kind] = { slainAt: Date.now() };
-    if (foe && progress.add(xpForKill(foe)) > 0) {
-      combat.level = progress.level;
-      hud.setParty(ROSTER, party.activeIndex, fallen(), progress.level);
-      hud.announce(`Level ${progress.level}`);
-      // The level's moment: a fanfare, a gold ring and a shower of sparks round the hero, the hype man shouting it.
-      audio.levelUp();
-      hud.hype(`LEVEL UP!`, 6);
-      const at = new Vector3(controller.pos.x, controller.pos.y + 0.2, controller.pos.z);
-      combatFx.shock(at, 0xffc23a, 9);
-      combatFx.sparks(at.clone().setY(at.y + 1), new Vector3(0, 1, 0), 40, 0xffd870, 8, 1.4);
-      renderer.pulse(0.45);
-      events.emit({ kind: 'feat', what: 'levelup', level: progress.level });
-    }
-    showXp();
+    if (foe) gainXp(xpForKill(foe, progress.level));
+    // (Always: a boss's time of death and the quest kill counts are saved at the level cap too.)
     save.markDirty();
   },
   muzzle: () => rigs[party.activeIndex].muzzle(new Vector3()),
@@ -495,6 +483,26 @@ function snapshot(): SaveV1 {
 let newGamePlus = false;
 /** Silly titles earned (game/Hype.ts): restored from the save. */
 let titles = new Titles();
+/** Experience for the party: the pop over the bar, and a level's moment when it crosses one. */
+function gainXp(n: number): void {
+  if (progress.level >= MAX_LEVEL || !(n > 0)) return;
+  hud.xpPop(n);
+  if (progress.add(n) > 0) {
+    combat.level = progress.level;
+    hud.setParty(ROSTER, party.activeIndex, fallen(), progress.level);
+    hud.announce(`Level ${progress.level}`);
+    // The level's moment: a fanfare, a gold ring and a shower of sparks round the hero, the hype man shouting it.
+    audio.levelUp();
+    hud.hype(`LEVEL UP!`, 6);
+    const at = new Vector3(controller.pos.x, controller.pos.y + 0.2, controller.pos.z);
+    combatFx.shock(at, 0xffc23a, 9);
+    combatFx.sparks(at.clone().setY(at.y + 1), new Vector3(0, 1, 0), 40, 0xffd870, 8, 1.4);
+    renderer.pulse(0.45);
+    events.emit({ kind: 'feat', what: 'levelup', level: progress.level });
+  }
+  showXp();
+  save.markDirty();
+}
 /** The experience bar: how far into this level. */
 function showXp(): void { hud.setXp(progress.level >= MAX_LEVEL ? 1 : progress.xp / xpFor(progress.level)); }
 /** What each hero wields shows in the hand: the blade takes the item's colour. */
@@ -665,7 +673,7 @@ events.on('kill', (e) => { for (const n of bystanders(e.at, e.boss ? 80 : 18)) n
 events.on('wipe', () => { for (const n of bystanders(controller.pos, 30)) n.react('wipe'); });
 events.on('feat', (e) => { if (e.what === 'levelup') for (const n of bystanders(controller.pos, 30)) n.react('levelup'); });
 // A quest finished: the fanfare and a shout (the banner is Story's).
-events.on('quest', (e) => { if (questNode(e.id)?.stages[e.stage]?.terminal) { audio.fanfare(); hud.hype('Quest complete!', 4); } });
+events.on('quest', (e) => { if (questNode(e.id)?.stages[e.stage]?.terminal) { audio.fanfare(); hud.hype('Quest complete!', 4); gainXp(xpForQuest(progress.level)); } });
 // Silly titles (game/Hype.ts): a toast and a kazoo.
 events.onAny((e) => {
   const t = titles.on(e);
@@ -725,13 +733,24 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
 });
 
+/** An item on the ground becomes the hero's: it flies in, chimes by rarity (a jackpot for the rare ones), is announced. */
+function takeItem(pickup: Pickup): void {
+  if (pickup.drop.kind !== 'item') return;
+  const def = ITEMS[pickup.drop.itemId];
+  combat.loot.take(pickup);
+  inventory.add(def.id, 1);
+  if (def.rarity >= 3) { audio.jackpot(); hud.hype(def.rarity >= 4 ? 'JACKPOT' : 'Ooh, shiny', def.rarity + 1); renderer.pulse(0.35); } else audio.loot(def.rarity);
+  hud.announce(`${def.name}`);
+  events.emit({ kind: 'loot', item: def.id, rarity: def.rarity });
+}
+
 /** What F would do right now: loot first, then talk; last, a companion you walked up to goes home. */
 function interactTarget(): { kind: 'loot'; take: () => void; label: string } | { kind: 'use'; act: () => void; label: string } | { kind: 'talk'; npc: Npc; label: string } | { kind: 'dismiss'; companion: Companion; label: string } | null {
   const p = interactAt.set(controller.pos.x, controller.pos.y, controller.pos.z);
   const pickup = combat.loot.nearest(p, 2.8);
   if (pickup && pickup.drop.kind === 'item') {
     const def = ITEMS[pickup.drop.itemId];
-    return { kind: 'loot', label: `Take ${def.name}`, take: () => { combat.loot.take(pickup); inventory.add(def.id, 1); if (def.rarity >= 3) { audio.jackpot(); hud.hype(def.rarity >= 4 ? 'JACKPOT' : 'Ooh, shiny', def.rarity + 1); renderer.pulse(0.35); } else audio.loot(def.rarity); hud.announce(`${def.name}`); events.emit({ kind: 'loot', item: def.id, rarity: def.rarity }); } };
+    return { kind: 'loot', label: `Take ${def.name}`, take: () => takeItem(pickup) };
   }
   const zone = REALMS.find((r) => Math.hypot(p.x - r.x, p.z - r.z) < r.radius)?.id ?? null;
   const use = adventures.interact(zone);
@@ -845,6 +864,8 @@ game
         stopFly: input.locked && input.justPressed('KeyX'),
         hold: combat.busy || combat.charging > 0,
       }, world, dt);
+      // Bodies on foot stand their ground (CombatSystem.blockHero), after the step so no frame shows the hero inside one.
+      if (!adventures.riding && !CARRIAGE.driving) combat.blockHero();
       // Off the edge of the world: nothing stops you walking off a cliff; the fog sets you back where you last stood.
       if (input.locked && !CARRIAGE.driving) {
         const p = controller.pos;
@@ -895,6 +916,10 @@ game
       hud.setStamina(controller.stamina, CONTROLLER.maxStamina);
       // The F prompt, ten times a second (pressing F looks again at once).
       interactIn -= dt;
+      // Walked onto: a landed item is taken without F (the full pass of 2026-11-15: no F per bone).
+      if (input.locked && hud.panel === 'none' && !combat.isDown && !adventures.riding && !CARRIAGE.driving) {
+        for (const p of combat.loot.touching(interactAt.set(controller.pos.x, controller.pos.y, controller.pos.z))) takeItem(p);
+      }
       if (interactIn <= 0) { interactIn = 0.1; const t = interactTarget(); hud.setInteract(t ? t.label : null); }
       input.endStep();
     },

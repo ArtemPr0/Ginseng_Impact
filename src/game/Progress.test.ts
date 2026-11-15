@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_LEVEL, Progress, atkMult, hpMult, xpFor, xpForKill } from './Progress';
+import { MAX_LEVEL, Progress, atkMult, hpMult, xpFor, xpForKill, xpForQuest } from './Progress';
 
 describe('Progress curve', () => {
   it('starts at 60 and climbs every level', () => {
@@ -14,6 +14,25 @@ describe('Progress curve', () => {
     expect(xpForKill({ maxHp: 1000, boss: false })).toBe(40);
     expect(xpForKill({ maxHp: 12000, boss: true })).toBe(880);
     expect(xpForKill({ maxHp: 30 })).toBe(1);
+  });
+
+  // The full pass of 2026-11-15: a mob stays worth a visible bit of the bar as the party grows (25 % more a level);
+  // a boss's pay does not grow (the bosses carry most of a playthrough already).
+  it('pays more for an ordinary kill as the party levels, a boss the same', () => {
+    expect(xpForKill({ maxHp: 1000 }, 1)).toBe(40);
+    expect(xpForKill({ maxHp: 1000 }, 5)).toBe(80);
+    expect(xpForKill({ maxHp: 560 }, 8)).toBe(Math.round(22.4 * 2.75));
+    expect(xpForKill({ maxHp: 12000, boss: true }, 12)).toBe(880);
+    expect(xpForKill({ maxHp: 1000 }, 99)).toBe(xpForKill({ maxHp: 1000 }, 30));
+  });
+
+  // The full pass of 2026-11-15: finishing a quest is a big step on the bar, more than a fight's worth.
+  it('pays most of a level (100 at least) for a finished quest', () => {
+    for (const l of [1, 5, 12, 29]) {
+      expect(xpForQuest(l)).toBe(Math.max(100, Math.round(0.6 * xpFor(l))));
+      expect(xpForQuest(l)).toBeGreaterThan(xpForKill({ maxHp: 1000 }));
+    }
+    expect(xpForQuest(MAX_LEVEL)).toBe(0);
   });
 
   it('scales attack 3% and HP 4% a level, clamped to the cap', () => {
