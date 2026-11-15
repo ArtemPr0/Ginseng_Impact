@@ -1063,6 +1063,12 @@ export class CombatSystem {
         this.casting.fired = true;
         const color = ELEMENT_COLOR[this.elementOf(this.casting.def)];
         this.fx.flash(_v.copy(this.playerPos()).add(_w.set(0, 1.1, 0)), _col.set(color).multiplyScalar(0.7), 2);
+        // A rune circle flares under the hero as the skill goes off; a blade's skill scorches the ground it cuts.
+        this.caster.runes.show(this.ahead(0.5), 2.4, color, 0.35);
+        if (this.casting.def.weapon === 'greatsword' || this.casting.def.weapon === 'sword') {
+          for (const k of [2, 3.6, 5.2]) { const at = this.ahead(k); this.d.dig?.(at.x, at.z, 1.1, 0, 'burnt'); }
+          d.onShake?.(0.3);
+        }
         // (The crescent lays the skill's burning ground along its own path; any other skill's goes down in front.)
         this.resolveAttack(this.casting.def, skill.attack, 'skill', skill.ground);
         if (skill.ground && skill.attack.shape.kind !== 'crescent') {
@@ -1095,6 +1101,9 @@ export class CombatSystem {
       this.feel.pulse = Math.max(this.feel.pulse, 0.25);
       d.sky.setBloodMoon(true);
       d.hud.announce(BURST[me.id].name);
+      // The burst opens on a great rune under the hero, and the ground shakes.
+      this.caster.runes.show(this.ahead(0), 5, ELEMENT_COLOR[this.elementOf(me)], BURST[me.id].time * 0.6);
+      d.onShake?.(0.5);
     }
     if (this.burstCast) {
       const b = this.burstCast;

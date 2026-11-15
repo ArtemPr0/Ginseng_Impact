@@ -1,3 +1,4 @@
+import { CameraBob } from './render/CameraBob';
 import { aimPoint, AIM_RANGE } from './combat/Aim';
 import { SPELL_KEYS, spellSlot } from './combat/Spells';
 import { Color, DirectionalLight, FogExp2, HemisphereLight, type Object3D, PerspectiveCamera, Scene, Vector3 } from 'three';
@@ -267,6 +268,7 @@ let shopClock = 0;
 let playTime = 0;
 const openedAt = new Map<string, number>();
 let freshStart = false;
+const cameraBob = new CameraBob();
 const combat = new CombatSystem({
   scene, world, sky, hud, camera, game, audio, inventory, controller, party, spawn: SPAWN, events, fx: combatFx,
   onForceSwitch: (i) => { party.update(Party.cooldown); switchTo(i); },
@@ -1054,6 +1056,8 @@ game
         if (!wasLocked) { endOrbit(); tpc.snapTo(focus); wasLocked = true; }
         // Locked on: the camera eases round to keep the hero and the target in frame (not during the plaza concert).
         if (ending.phase !== 'concert' && ending.phase !== 'awaken') tpc.update(focus, dt, combat.lockPoint(lockAt));
+        // A gentle bob with each step on the ground (CameraBob).
+        camera.position.y += cameraBob.step(dt, controller.mode === 'ground' && !combat.busy ? Math.hypot(controller.vel.x, controller.vel.z) : 0);
         // `?cam=x,y,z` (debug) pins the camera at a world position looking at the `face` point.
         if (camParam) { camera.position.set(camParam[0], camParam[1], camParam[2]); const fx = faceParam ? faceParam[0] : SPAWN.x; const fz = faceParam ? faceParam[1] : SPAWN.z; camera.lookAt(fx, world.heightAt(fx, fz) + 1.2, fz); }
         // Sizzlin' Slowness: the world leans a little and sways while the lean has hold of you.
