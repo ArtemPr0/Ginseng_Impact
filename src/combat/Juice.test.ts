@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BONK, LUNGE_STOP, bonkWord, leapGravity, leapVelocity, lungeReach, slowMoScale, spinAngle, squash } from './Juice';
+import { BONK, LUNGE_STOP, bonkWord, edgeSafeReach, leapGravity, leapVelocity, lungeReach, slowMoScale, spinAngle, squash } from './Juice';
 
 // The playtest of 2026-11-14: "fighting style and animations are boring… make them cool, unique, addictive to watch,
 // funny, entertaining… not realistic". Cartoon rules: bodies squash on a hit and spring back, blows shout their sound,
@@ -102,5 +102,24 @@ describe('boss-kill slow motion', () => {
     expect(slowMoScale(1.2)).toBeLessThan(0.4);
     expect(slowMoScale(0.2)).toBeGreaterThan(slowMoScale(1.2));
     expect(slowMoScale(0.2)).toBeLessThan(1);
+  });
+});
+
+// The full pass of 2026-11-15: the Hollow King sits 8 m from the island's edge and his blows threw the hero off it,
+// fall after fall. A blow that knocks the hero flying stops short of a drop (a step down is fine).
+describe('edgeSafeReach', () => {
+  const cliffAt = (edge: number) => (x: number, _z: number) => (x < edge ? 2 : -30);
+  it('keeps the whole flight on flat ground', () => {
+    expect(edgeSafeReach(0, 0, 2, 1, 0, 10, () => 2)).toBe(10);
+    expect(edgeSafeReach(0, 0, 2, 1, 0, 10, (x) => 2 - x * 0.15)).toBe(10);
+  });
+  it('stops a metre and a half short of a cliff', () => {
+    expect(edgeSafeReach(0, 0, 2, 1, 0, 10, cliffAt(6))).toBeCloseTo(4, 5);
+  });
+  it('does not move the hero at all with the cliff at the heels', () => {
+    expect(edgeSafeReach(0, 0, 2, 1, 0, 10, cliffAt(1))).toBe(0);
+  });
+  it('follows the direction it is given', () => {
+    expect(edgeSafeReach(0, 0, 2, -1, 0, 10, cliffAt(6))).toBe(10);
   });
 });

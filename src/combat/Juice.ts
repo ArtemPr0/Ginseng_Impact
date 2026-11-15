@@ -80,3 +80,20 @@ export function slowMoScale(left: number): number {
   const u = 1 - left / SLOW_MO.ease;
   return SLOW_MO.scale + (1 - SLOW_MO.scale) * u * u * (3 - 2 * u);
 }
+
+/** A drop deeper than this under the hero's feet is a fall, not a step down. */
+const EDGE_DROP = 3;
+/** How far short of a drop a knocked-flying hero lands. */
+const EDGE_MARGIN = 1.5;
+
+/**
+ * How far a blow may knock the hero (from (x, z) with feet at `y`, along the unit (dx, dz), `want` metres at most)
+ * without carrying them over a drop: probed every half metre, stopping EDGE_MARGIN short of the first drop deeper than
+ * EDGE_DROP (the full pass of 2026-11-15: the Hollow King's blows threw the hero off the island's edge).
+ */
+export function edgeSafeReach(x: number, z: number, y: number, dx: number, dz: number, want: number, groundAt: (x: number, z: number) => number): number {
+  for (let t = 0.5; t <= want + EDGE_MARGIN + 1e-6; t += 0.5) {
+    if (groundAt(x + dx * t, z + dz * t) < y - EDGE_DROP) return Math.max(0, Math.min(want, t - 0.5 - EDGE_MARGIN));
+  }
+  return want;
+}
