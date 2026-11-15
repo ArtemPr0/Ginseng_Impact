@@ -172,4 +172,30 @@ describe('Breakables providers (instanced flora)', () => {
     for (let t = 0; t < 200; t += 0.5) b.update(0.5, { x: 300, z: 300 });
     expect(shown).toBe(1);
   });
+
+  it('a brief thing (a tree, a flower) leaves no solid rubble and its pieces are gone within ten seconds', () => {
+    const h = world();
+    const b = new Breakables(h);
+    const { target } = house();
+    b.register({ ...target, footprints: [], brief: true });
+    b.damageAt(10, 1, 12, 3, 'burst');
+    b.damageAt(10, 1, 12, 3, 'burst');
+    expect(b.entries[0].state).toBe('rubble');
+    for (let t = 0; t < 12; t += 0.1) {
+      b.update(0.1, { x: 0, z: 0 });
+      expect(h.added.length).toBe(0);
+    }
+    expect(b.sim.pieces.length).toBe(0);
+  });
+
+  it('a brief thing\'s pieces shrink away as they fly: leaves are gone two seconds after the blow', () => {
+    const h = world();
+    const b = new Breakables(h);
+    const { target } = house();
+    b.register({ ...target, footprints: [], brief: true });
+    b.damageAt(10, 1, 12, 3, 'burst');
+    b.damageAt(10, 1, 12, 3, 'burst');
+    for (let t = 0; t < 2; t += 0.1) b.update(0.1, { x: 0, z: 0 });
+    expect(b.sim.pieces.length).toBe(0);
+  });
 });

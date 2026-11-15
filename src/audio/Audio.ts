@@ -462,6 +462,70 @@ export class Audio {
     this.noise(0.06, 'lowpass', 400, 120, 1, 0.25);
   }
 
+  /**
+   * The spells' own sounds (2026-11-15), all made here from noise and tones: the explosion's whoomph and crackle, the
+   * frost's glassy crack, the storm's zap, the wind's rush, the slam's rumble, the vortex's hum, the growth's chime.
+   */
+  spell(kind: 'whoomph' | 'crackle' | 'frost' | 'zap' | 'wind' | 'rumble' | 'vortex' | 'grow' | 'chain' | 'charge' | 'moon' | 'whoosh'): void {
+    switch (kind) {
+      case 'whoomph':
+        this.tone('sine', 90, 28, 0.7, 1.0);
+        this.noise(0.9, 'lowpass', 2400, 120, 0.7, 0.9, 0, 0.01);
+        this.noise(0.25, 'highpass', 3000, 1500, 0.7, 0.35);
+        for (let i = 0; i < 9; i++) this.noise(0.04, 'bandpass', 2500 + Math.random() * 3000, 2000, 3, 0.18, 0.15 + Math.random() * 0.7);
+        break;
+      case 'crackle':
+        for (let i = 0; i < 12; i++) this.noise(0.03, 'bandpass', 1800 + Math.random() * 4000, 1500, 4, 0.16, Math.random() * 0.8);
+        this.noise(0.8, 'lowpass', 900, 300, 0.5, 0.25, 0, 0.1);
+        break;
+      case 'frost':
+        this.tone('triangle', 2400, 3800, 0.18, 0.25);
+        this.tone('sine', 5200, 4100, 0.5, 0.12, 0.05);
+        this.noise(0.25, 'highpass', 6000, 3000, 1, 0.35);
+        this.noise(0.08, 'bandpass', 3500, 2000, 6, 0.3, 0.12);
+        break;
+      case 'zap':
+        this.tone('sawtooth', 1400, 90, 0.25, 0.4);
+        this.noise(0.12, 'highpass', 5000, 1200, 0.8, 0.55);
+        this.tone('square', 60, 40, 0.4, 0.25, 0.05);
+        break;
+      case 'wind':
+        this.noise(0.9, 'bandpass', 400, 2600, 1.2, 0.5, 0, 0.12);
+        this.noise(0.7, 'bandpass', 900, 300, 2, 0.25, 0.2, 0.1);
+        break;
+      case 'rumble':
+        this.tone('sine', 55, 30, 1.1, 1.0);
+        this.noise(1.2, 'lowpass', 500, 60, 0.6, 0.8, 0, 0.02);
+        this.noise(0.15, 'bandpass', 1200, 400, 1, 0.4);
+        break;
+      case 'vortex':
+        this.tone('sawtooth', 70, 140, 1.6, 0.25, 0, 0.3, 0.4);
+        this.tone('sine', 140, 280, 1.6, 0.2, 0, 0.3, 0.4);
+        this.noise(1.6, 'bandpass', 200, 1400, 3, 0.3, 0, 0.4);
+        break;
+      case 'grow':
+        [392, 523, 659, 784, 1046].forEach((f, i) => this.tone('sine', f, f * 1.01, 0.5, 0.18, i * 0.09, 0.02, 0.3));
+        this.noise(0.9, 'bandpass', 300, 900, 1, 0.2, 0, 0.2);
+        break;
+      case 'chain':
+        for (let i = 0; i < 6; i++) this.tone('square', 1800 + i * 120, 1500, 0.04, 0.12, i * 0.045);
+        this.noise(0.2, 'bandpass', 2600, 1200, 2, 0.25);
+        break;
+      case 'charge':
+        this.noise(0.6, 'lowpass', 600, 2400, 0.8, 0.45, 0, 0.05);
+        this.tone('sawtooth', 80, 160, 0.5, 0.3);
+        break;
+      case 'moon':
+        this.tone('sine', 220, 110, 2.0, 0.4, 0, 0.4, 0.8);
+        this.tone('triangle', 330, 165, 2.0, 0.25, 0.1, 0.4, 0.8);
+        this.noise(1.6, 'lowpass', 800, 200, 0.6, 0.3, 0, 0.5);
+        break;
+      case 'whoosh':
+        this.noise(0.35, 'bandpass', 500, 2200, 1, 0.4, 0, 0.04);
+        break;
+    }
+  }
+
   /** Skill cast: a bright sweep. */
   cast(): void {
     this.tone('sine', 400, 1600, 0.3, 0.3);

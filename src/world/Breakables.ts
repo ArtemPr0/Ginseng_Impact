@@ -102,6 +102,8 @@ export interface BreakTarget {
   /** For instanced flora: hide or show the instance instead of the object. */
   hide?: () => void;
   show?: () => void;
+  /** Leaves (a tree's crown, flowers): its pieces never pile into solid rubble and are gone within seconds. */
+  brief?: boolean;
 }
 
 interface ChunkState {
@@ -157,8 +159,12 @@ const THROW: Record<BlowKind, number> = { light: 3, heavy: 5, skill: 8, spell: 8
 /** Rubble smaller than this fades after FADE_AFTER seconds at rest. */
 const SMALL = 0.5;
 const FADE_AFTER = 60;
+/** A brief thing's pieces (leaves, petals) shrink to nothing over this many seconds from the blow, like a burst of leaves. */
+const BRIEF_LIFE = 1.6;
 
 export class Breakables {
+  /** When each piece was thrown (a brief thing's leaves shrink from then). */
+  private readonly born = new WeakMap<Piece, number>();
   readonly entries: Breakable[] = [];
   readonly sim: DebrisSim;
   /** Things registered only when a blow reaches them (each flora set's instances): (x, z, radius) → targets there. */
@@ -234,6 +240,13 @@ export class Breakables {
       if (!o) continue;
       // Rubble that settles becomes solid; a piece that moves again lets go.
       const foot = o.b.rubble.get(p);
+      const brief = !!o.b.target.brief;
+      if (brief) {
+        const k = (this.now - (this.born.get(p) ?? this.now)) / BRIEF_LIFE;
+        o.c.mesh.scale.setScalar(Math.max(0, (o.c.mesh.userData.scale as number) * (1 - k * k)));
+        if (k >= 1) { o.c.mesh.visible = false; this.sim.remove(p); }
+        continue;
+      }
       if (!p.awake && !foot && p.r >= SMALL) {
         const f: Footprint = { kind: 'cyl', x: p.x, z: p.z, r: p.r * 0.8, top: p.y + p.r * 0.5 };
         o.b.rubble.set(p, f);
@@ -301,7 +314,8 @@ export class Breakables {
     c.standing = false;
     const dx = c.x - x, dy = c.y - y, dz = c.z - z;
     const d = Math.hypot(dx, dy, dz) || 1;
-    const k = speed * Math.max(0.3, 1 - d / 12);
+    // (Leaves are thrown softly: they flutter off, they are not shrapnel.)
+    const k = speed * Math.max(0.3, 1 - d / 12) * (b.target.brief ? 0.45 : 1);
     const spin = () => (Math.random() - 0.5) * 2 * (2 + speed * 0.4) / Math.max(0.5, c.r);
     const p = this.sim.add({
       x: c.x, y: c.y, z: c.z, r: c.r,
@@ -310,6 +324,7 @@ export class Breakables {
     });
     c.piece = p;
     this.owner.set(p, { b, c });
+    this.born.set(p, this.now);
   }
 
   private collapse(b: Breakable, x: number, y: number, z: number, speed: number): void {

@@ -1,3 +1,5 @@
+import { aimPoint, AIM_RANGE } from './combat/Aim';
+import { SPELL_KEYS, spellSlot } from './combat/Spells';
 import { Color, DirectionalLight, FogExp2, HemisphereLight, type Object3D, PerspectiveCamera, Scene, Vector3 } from 'three';
 import { Bubbles } from './world/Portal';
 import { LightBudget } from './render/LightBudget';
@@ -279,6 +281,21 @@ const combat = new CombatSystem({
   dig: (x, z, r, depth, scorch) => {
     if (depth > 0) area.craters.crater(x, z, r, depth);
     if (scorch) area.craters.scorch(x, z, r * 1.1, scorch);
+  },
+  // Spells land where the crosshair meets the ground (at most 25 m off; Aim.ts).
+  aim: () => {
+    const dir = camera.getWorldDirection(new Vector3());
+    const p = aimPoint(camera.position, dir, (x, z, y) => world.heightAt(x, z, y));
+    const dx = p.x - controller.pos.x, dz = p.z - controller.pos.z, d = Math.hypot(dx, dz);
+    if (d > AIM_RANGE) { p.x = controller.pos.x + (dx / d) * AIM_RANGE; p.z = controller.pos.z + (dz / d) * AIM_RANGE; p.y = world.heightAt(p.x, p.z, controller.pos.y + 3); }
+    return new Vector3(p.x, p.y, p.z);
+  },
+  debris: () => [area.breakables.sim],
+  sprout: (ids) => area.sprout(ids),
+  solid: (x, z, r, top) => {
+    const f = { kind: 'cyl' as const, x, z, r, top };
+    world.add(f);
+    return () => world.remove(f);
   },
   onKill: (kind) => {
     adventures.quests.kill(kind);
@@ -861,6 +878,7 @@ game
         heavyHeld: input.locked && input.mouseDown(2),
         heavyRelease: input.locked && input.mouseJustReleased(2),
         skill: input.locked && input.justPressed('KeyE'),
+        spell: input.locked ? SPELL_KEYS.map((k) => (input.justPressed(k) ? spellSlot(k, controller.mode === 'fly') : null)).find((x) => x !== null) ?? null : null,
         burst: input.locked && input.justPressed('KeyQ'),
         dodge: input.locked && input.justPressed('KeyR'),
       });

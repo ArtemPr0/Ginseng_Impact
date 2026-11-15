@@ -18,7 +18,7 @@ import { PRESENT_MODELS } from '../data/colliderGrids';
 import { MODELS } from '../data/models';
 import { waterfall } from './Falls';
 import { FIRE, fire } from './Fire';
-import { cobbleSpots, floraSet, ringSpots, type Placement } from './Flora';
+import { cobbleSpots, floraSet, ringSpots, type FloraSet, type Placement } from './Flora';
 import { orchardSpots } from './Footprints';
 import { Grass } from './Grass';
 import type { Landmark } from './Landmarks';
@@ -358,6 +358,8 @@ export class World {
   private readonly zoneOf = new Map<object, string | null>();
   private here: string | null | undefined = undefined;
   private readonly extras: Array<{ update: (dt: number) => void }> = [];
+  /** Flora sets by model id, for spells that grow a copy of one (Overgrowth). */
+  private readonly floraById = new Map<string, FloraSet>();
   /** The cloud sea under every place (main.ts sets its level per zone): it lives in the scene root, beside `group`. */
   readonly clouds: CloudSea;
   /** Sculpted floors of the four realms. HeightWorld reads them; the mesh is baked on the first visit. */
@@ -418,6 +420,7 @@ export class World {
       const trunks = new Map<number, Footprint>();
       if (opts?.trunk) placements.forEach((p, i) => { const f = trunkFootprint(id, p.x, p.y, p.z, p.scale, opts.trunk!); if (f) { this.heights.add(f); trunks.set(i, f); } });
       const set = floraSet(id, placements, opts);
+      if (!this.floraById.has(id) && placements.length) this.floraById.set(id, set);
       this.target.add(set.group);
       this.extras.push(set);
       this.zoneOf.set(set, this.zone);
@@ -434,7 +437,7 @@ export class World {
             if (!object) return;
             given.add(i);
             const f = trunks.get(i);
-            out.push({ id, key: p, object, parent: set.group, footprints: f ? [f] : [], size, hide: () => set.setHidden?.(i, true), show: () => set.setHidden?.(i, false) });
+            out.push({ id, key: p, object, parent: set.group, footprints: f ? [f] : [], size, brief: true, hide: () => set.setHidden?.(i, true), show: () => set.setHidden?.(i, false) });
           });
           return out;
         });
@@ -1147,6 +1150,27 @@ export class World {
       out.push({ x, y: y - 0.05, z, yaw: rnd() * Math.PI * 2, scale: 0.8 + rnd() * 0.6 });
     }
     return out;
+  }
+
+  /**
+   * A fresh copy of a reel flora model (the first of `ids` that is loaded), centred on its foot at the origin, upright,
+   * with the scale it grows to in the world (Overgrowth grows it from nothing). Null before any of them loads.
+   */
+  sprout(ids: string[]): { object: Group; scale: number } | null {
+    for (const id of ids) {
+      const set = this.floraById.get(id);
+      const o = set?.instanceObject?.(0);
+      const p = (set!.group.userData.placements as Placement[])[0];
+      if (!o || !p) continue;
+      // The model's own offset off its placement (its foot) is kept; the wrapper grows from nothing to 1.
+      o.position.x -= p.x; o.position.y -= p.y; o.position.z -= p.z;
+      const object = new Group();
+      object.add(o);
+      object.rotation.y = Math.random() * Math.PI * 2;
+      object.scale.setScalar(1e-3);
+      return { object, scale: 1 };
+    }
+    return null;
   }
 
   update(dt: number, cameraPos: Vector3, playerPos: Vector3, talkingNpc: Npc | null): void {

@@ -1,3 +1,4 @@
+import { SPELLS, SPELL_LETTERS } from '../combat/Spells';
 import type { CharacterDef } from '../characters/roster';
 import { BABBLE_CPS } from '../audio/Babble';
 import { ELEMENT_COLOR, ROSTER } from '../characters/roster';
@@ -236,7 +237,7 @@ export class Hud {
     this.root = container;
     container.innerHTML = `
       <div class="hud-prompt" id="hud-prompt"><div class="hud-subtitle">A SILENT KINGDOM BEYOND THE FOG</div><div class="hud-wordmark">GINSENG IMPACT</div><div class="hud-press" id="hud-press">CLICK TO ENTER THE FOG</div><button type="button" class="hud-new-game" id="hud-new-game" style="display:none">NEW GAME</button>
-        <div class="hud-controls">WASD move · SHIFT sprint · SPACE jump, again to fly (hold to rise) · C dive · X land · LMB attack · hold RMB heavy · E skill · Q burst · R dodge · TAB lock on · F talk / loot · I inventory · 1 2 3 switch · B blood on/off · ESC pause</div></div>
+        <div class="hud-controls">WASD move · SHIFT sprint · SPACE jump, again to fly (hold to rise) · C dive · X land · LMB attack · hold RMB heavy · E skill · Q burst · Z X C V spells (aim with the dot) · R dodge · TAB lock on · F talk / loot · I inventory · 1 2 3 switch · B blood on/off · ESC pause</div></div>
       <div class="hud-boss panel" id="hud-boss"><div class="hud-boss-name" id="hud-boss-name"></div><div class="hud-boss-title" id="hud-boss-title"></div><div class="hud-boss-bar"><div class="hud-boss-fill" id="hud-boss-fill"></div></div></div>
       <div class="hud-shards panel" id="hud-shards"><span class="hud-shard-glyph hud-coin">●</span><span id="hud-shards-n">0</span><span class="hud-shards-pop" id="hud-shards-pop"></span></div>
       <div class="hud-active panel"><div class="hud-name" id="hud-name"></div><div class="hud-title" id="hud-title"></div>
@@ -251,6 +252,7 @@ export class Hud {
       <div class="hud-interact" id="hud-interact"></div>
       <div class="hud-numbers" id="hud-numbers"></div>
       <div class="hud-crosshair" id="hud-crosshair"></div>
+      <div class="hud-spells" id="hud-spells"></div>
       <div class="hud-lock" id="hud-lock">${LOCK_SVG}</div>
       <div class="hud-combo" id="hud-combo"></div>
       <div class="hud-hype" id="hud-hype"></div>
@@ -258,7 +260,7 @@ export class Hud {
       <div class="hud-xp" id="hud-xp"><div class="hud-xp-fill" id="hud-xp-fill"></div><span class="hud-xp-pop" id="hud-xp-pop"></span></div>
       <div class="hud-banner" id="hud-banner"></div>
       <div class="hud-curtain" id="hud-curtain"></div>
-      <div class="hud-hint">LMB attack · RMB heavy · E skill · Q burst · R dodge · TAB lock · F interact · I bag</div>
+      <div class="hud-hint">LMB attack · RMB heavy · E skill · Q burst · Z X C V spells · R dodge · TAB lock · F interact · I bag</div>
       <div class="hud-quests" id="hud-quests"></div>
       <div class="hud-timer panel" id="hud-timer"><div class="hud-timer-label" id="hud-timer-label"></div><div class="hud-timer-time" id="hud-timer-time"></div></div>
       <div class="hud-panel panel" id="hud-dialog"></div>`;
@@ -329,6 +331,24 @@ export class Hud {
     this.q('#hud-skill-name').textContent = name;
     this.q('#hud-skill-cd').style.setProperty('--cd', `${Math.round(cooldownFraction * 360)}deg`);
     this.q('#hud-skill').classList.toggle('ready', ready);
+  }
+
+  /**
+   * The spell bar at the top centre (2026-11-15): the active hero's four spells on Z X C V, each its code-drawn icon in
+   * its colour, the key letter, and a conic cooldown sweeping off as it comes back.
+   */
+  setSpells(hero: string, cooldowns: number[], ready: boolean[]): void {
+    const book = SPELLS[hero] ?? [];
+    // (In 6-degree steps: the bar is rebuilt at most ~60 times over a cooldown, never every frame.)
+    const deg = cooldowns.map((c) => Math.round((c * 360) / 6) * 6);
+    if (!this.changed('spells', `${hero}|${deg.join(',')}|${ready.join(',')}`)) return;
+    this.q('#hud-spells').innerHTML = book.map((s, i) => {
+      const color = `#${s.color.toString(16).padStart(6, '0')}`;
+      return `<div class="hud-spell panel${ready[i] ? ' ready' : ''}" style="--spell:${color}" title="${s.name}">`
+        + `<svg viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${s.icon}</svg>`
+        + `<div class="hud-spell-cd" style="--cd:${deg[i]}deg"></div><div class="hud-spell-key">${SPELL_LETTERS[i]}</div>`
+        + `<div class="hud-spell-name">${s.name}</div></div>`;
+    }).join('');
   }
 
   setBurst(fraction: number, ready: boolean, name?: string): void {

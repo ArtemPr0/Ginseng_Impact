@@ -65,6 +65,8 @@ export class Gore {
   private readonly drips: Array<{ at: Object3D; left: number; glow: boolean; color: number; every: number }> = [];
   private readonly stumpMat = new MeshStandardMaterial({ color: 0x5a0610, emissive: 0x1a0003, roughness: 0.35 });
   private readonly stumpGeo = new SphereGeometry(1, 10, 8);
+  /** Ice, for a frozen body shattering. */
+  readonly ice = new MeshStandardMaterial({ color: 0xbfefff, emissive: 0x3a8aa8, emissiveIntensity: 0.6, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.85 });
   private landAt = 0;
   private clock = 0;
 

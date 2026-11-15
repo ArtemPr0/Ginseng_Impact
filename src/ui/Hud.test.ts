@@ -462,3 +462,26 @@ describe('Hud dialogue', () => {
     expect(Number(chars[3][1])).toBeCloseTo(3 / BABBLE_CPS, 2);
   });
 });
+
+describe('Hud spell bar', () => {
+  it('draws four slots with their key letters, code-drawn icons in the spell colour, and conic cooldowns', () => {
+    const root = stubContainer();
+    const hud = new Hud(root as unknown as HTMLElement);
+    hud.setSpells('knight', [0, 0.5, 0, 1], [true, false, true, false]);
+    const html = root.querySelector('#hud-spells').innerHTML;
+    for (const k of ['Z', 'X', 'C', 'V']) expect(html).toContain(`>${k}<`);
+    expect(html).toContain('Earthsplitter');
+    expect(html.match(/<svg/g)?.length).toBe(4);
+    expect(html).toContain('180deg');
+    expect(html).toContain('#ff3a4a');
+  });
+  it('swaps to the next hero\'s spells on a switch', () => {
+    const root = stubContainer();
+    const hud = new Hud(root as unknown as HTMLElement);
+    hud.setSpells('knight', [0, 0, 0, 0], [true, true, true, true]);
+    hud.setSpells('wizard', [0, 0, 0, 0], [true, true, true, true]);
+    const html = root.querySelector('#hud-spells').innerHTML;
+    expect(html).toContain('Black Hole');
+    expect(html).not.toContain('Earthsplitter');
+  });
+});

@@ -51,7 +51,10 @@ import { bonkWord, edgeSafeReach, flightTime, lungeReach, SLOW_MO } from './Juic
 import { ImpactStars } from '../render/ImpactStars';
 import { blowKindOf, breaksThings, coneSmash } from './Smash';
 import { Gore } from './Gore';
+import type { DebrisSim } from '../world/Debris';
 import { maimMult, pickPart, severRoll } from './Sever';
+import { SpellBook } from './Spells';
+import { SpellCast } from './SpellCast';
 import type { BlowKind } from '../world/Breakables';
 import { CONTROLLER, rolling, startLeap, startLunge } from '../player/CharacterController';
 
@@ -177,7 +180,11 @@ interface HitOpts {
   cast?: CastCharge | null;
 }
 
-export interface CombatInput { attack: boolean; heavyHeld: boolean; heavyRelease: boolean; skill: boolean; burst: boolean; dodge: boolean }
+export interface CombatInput {
+  attack: boolean; heavyHeld: boolean; heavyRelease: boolean; skill: boolean; burst: boolean; dodge: boolean;
+  /** The spell slot pressed this step (Z X C V: 0-3), if any (Spells.spellSlot). */
+  spell?: number | null;
+}
 
 export interface CombatDeps {
   scene: Scene; world: WorldQuery; sky: Sky; hud: Hud; camera: PerspectiveCamera; game: Game; audio: Audio; inventory: Inventory;
@@ -218,6 +225,14 @@ export interface CombatDeps {
   breakAt?: (x: number, y: number, z: number, radius: number, kind: BlowKind) => number;
   /** A blow digs the ground (World.craters): a bowl `r` metres across, `depth` deep, burnt or frozen around it. */
   dig?: (x: number, z: number, r: number, depth: number, scorch?: 'burnt' | 'frozen') => void;
+  /** Where the crosshair points on the ground (spells land there; Aim.ts). */
+  aim?: () => Vector3;
+  /** Every live debris sim (rubble, body parts), for spells that move pieces. */
+  debris?: () => DebrisSim[];
+  /** A copy of a reel flora model to grow (Overgrowth; World.sprout). */
+  sprout?: (ids: string[]) => { object: Group; scale: number } | null;
+  /** A solid trunk while a grown tree stands; returns its remover. */
+  solid?: (x: number, z: number, r: number, top: number) => () => void;
 }
 
 /** Orlan's smoke: a cloud that lingers where he blew it, the puffs that make it, and his attack when he blew it. */
@@ -366,7 +381,7 @@ export class CombatSystem {
   private readonly combos = new Map<string, ComboTracker>();
   private readonly cooldowns = new Map<string, Cooldown>();
   readonly hp = new Map<string, number>();
-  private casting: { def: CharacterDef; t: number; fired: boolean } | null = null;
+  private casting: { def: CharacterDef; t: number; fired: boolean; spell?: number; aim?: Vector3 } | null = null;
   private heavy: { t: number; fired: boolean; charge: number } | null = null;
   private heavyCharge = 0;
   private poisonLeft = 0;
@@ -420,6 +435,9 @@ export class CombatSystem {
   readonly gore: Gore;
   /** Seconds of Blood Moon left: every blow tears something off. */
   bloodMoon = 0;
+  /** Every hero's spell cooldowns (Z X C V), and the spells in the world. */
+  readonly spells = new SpellBook();
+  readonly caster: SpellCast;
   /** When the last comic word went up (one a beat, however many bodies a blow cuts), and how many so far. */
   private bonkAt = -1;
   private bonkN = 0;
@@ -479,6 +497,21 @@ export class CombatSystem {
       onLand: (x, _y, z, bone) => { if (Math.hypot(x - d.controller.pos.x, z - d.controller.pos.z) < 30) { if (bone) d.audio.clatter(); else d.audio.thud(); } },
     });
     d.scene.add(this.gore.group);
+    const self = this;
+    this.caster = new SpellCast({
+      enemies: this.enemies, controller: d.controller, fx: this.fx, stars: this.stars, audio: d.audio, scene: d.scene,
+      element: () => self.elementOf(self.active),
+      hit: (e, mult, knockback, hitStop, at) => self.hitEnemy(e, self.atkOf(self.active), mult, self.elementOf(self.active), knockback, hitStop, { blow: 'skill', heavy: true, at }),
+      reachable: (e, r, at) => self.reachable(e, r, at),
+      smash: (x, y, z, r, kind) => self.smash(x, y, z, r, kind),
+      dig: (x, z, r, depth, scorch) => d.dig?.(x, z, r, depth, scorch),
+      shake: (n) => d.onShake?.(n),
+      heightAt: (x, z, y) => d.world.heightAt(x, z, y),
+      debris: () => [self.gore.sim, ...(d.debris?.() ?? [])],
+      bloodMoon: (seconds) => { self.bloodMoon = seconds; },
+      announce: (text) => d.hud.announce(text),
+      sprout: d.sprout, solid: d.solid,
+    });
     this.sfx = new CombatSfx(d.audio);
     this.rnd = d.rnd ?? Math.random;
     d.scene.add(this.vfx.group);
@@ -997,7 +1030,31 @@ export class CombatSystem {
       d.audio.cast();
       this.sfx.effort(me.id);
     }
-    if (this.casting) {
+    // --- spells (Z X C V): the skill's cast, landing a spell instead (SpellCast) ---
+    this.spells.update(dt);
+    this.caster.update(dt);
+    if (this.bloodMoon > 0) this.bloodMoon = Math.max(0, this.bloodMoon - dt);
+    const slot = input.spell ?? null;
+    if (slot !== null && (grounded || flying) && !this.busy && this.heavyCharge === 0 && this.spells.ready(me.id, slot)) {
+      this.softLock(9);
+      this.spells.use(me.id, slot);
+      this.casting = { def: me, t: 0, fired: false, spell: slot, aim: d.aim?.() ?? this.ahead(8) };
+      d.audio.cast();
+      this.sfx.effort(me.id);
+    }
+    if (this.casting && this.casting.spell !== undefined) {
+      const timing = this.timesOf(this.casting.def.id).skill;
+      this.casting.t += dt;
+      if (!this.casting.fired && this.casting.t >= timing.duration * timing.strike) {
+        this.casting.fired = true;
+        // (Locked on, it lands on the target where it stands now.)
+        const lock = this.lockPoint(new Vector3());
+        const aim = lock ? new Vector3(lock.x, d.world.heightAt(lock.x, lock.z, lock.y + 1), lock.z) : this.casting.aim!;
+        this.caster.cast(this.casting.def.id, this.casting.spell, aim);
+        this.feel.punch = true;
+      }
+      if (this.casting.t >= timing.duration) this.casting = null;
+    } else if (this.casting) {
       const skill = SKILLS[this.casting.def.id];
       // The cast lasts as long as its clip cut and fires on the cut's measured blow (heroClips.ts).
       const timing = this.timesOf(this.casting.def.id).skill;
@@ -1120,7 +1177,7 @@ export class CombatSystem {
       const e = this.enemies[i];
       if (!e.alive && e.noRespawn && !e.object.visible) this.despawn(e);
     }
-    d.sky.setBloodMoon(anyAggro || this.burstCast !== null);
+    d.sky.setBloodMoon(anyAggro || this.burstCast !== null || this.bloodMoon > 0);
     if (bossNear) d.hud.setBoss(bossNear.def.name, bossNear.def.title ?? '', bossNear.hp / bossNear.def.maxHp, true);
     else d.hud.setBoss('', '', 0, false);
     // The score's boss layer: on while a boss has the hero in its sights (or brawls in the smoke), off once it falls or
@@ -1323,12 +1380,14 @@ export class CombatSystem {
     this.vfx.update(dt);
     d.hud.setHp(this.hp.get(me.id)!, this.maxOf(me));
     d.hud.setSkill(SKILLS[me.id].name, cd.fraction, cd.ready && (grounded || flying));
+    d.hud.setSpells(me.id, [0, 1, 2, 3].map((i) => this.spells.fraction(me.id, i)), [0, 1, 2, 3].map((i) => this.spells.ready(me.id, i) && (grounded || flying)));
     d.hud.setBurst(this.burstEnergy / BURST_MAX, this.burstEnergy >= BURST_MAX && canBurst, BURST[me.id].name);
     d.hud.setCharge(this.heavyCharge);
     d.hud.setShards(d.inventory.shards);
     d.hud.setFrenzy(this.frenzyLeft);
     d.hud.setCombo(this.streak.count);
-    d.hud.setCrosshair(this.attackKind !== undefined);
+    // (Always on now: every hero has spells to aim.)
+    d.hud.setCrosshair(true);
     this.flushFeel();
   }
 
@@ -2709,6 +2768,11 @@ export class CombatSystem {
     const m = e.model;
     if (!m || e.def.body) return false;
     const strength = b.heavy || b.skill ? 1.3 : 1;
+    // Killed while frozen (Frost Arrow): it shatters into ice.
+    if (b.died && this.caster.frozen.has(e.id) && !e.def.boss) {
+      this.caster.frozen.delete(e.id);
+      if (this.gore.shatter(e, kb, 12, this.gore.ice)) { this.d.audio.spell('frost'); this.d.audio.crumble(0.4, 1); return true; }
+    }
     if (b.died && e.def.collapse) {
       if (this.gore.burstBones(e, kb, strength)) { this.d.audio.clatter(); return true; }
       return false;
@@ -2741,6 +2805,8 @@ export class CombatSystem {
     this.voiceClock = 0;
     this.say(e, e.def.voices?.death);
     this.burstEnergy = Math.min(BURST_MAX, this.burstEnergy + 18);
+    // Under the Blood Moon every kill gives back 3 % of the hero's health.
+    if (this.bloodMoon > 0) this.healActive(this.maxOf(this.active) * 0.03);
     // Summoned mobs drop nothing (they would be an endless farm).
     if (!e.summoned) {
       // A flyer killed over a drop (the Blood Eye over the chasm) leaves its loot where the hero can reach it.
