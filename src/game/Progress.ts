@@ -9,6 +9,11 @@ export function xpForKill(def: { maxHp: number; boss?: boolean }): number {
   return Math.round(def.maxHp / 25) + (def.boss ? 400 : 0);
 }
 
+/** Experience for finishing a quest: 60 % of the current level's step, 100 at least (none at the cap). */
+export function xpForQuest(level: number): number {
+  return clampLevel(level) >= MAX_LEVEL ? 0 : Math.max(100, Math.round(0.6 * xpFor(level)));
+}
+
 /** Experience needed to go from `level` to the next: 60 · level^1.6 (60, 182, 348, 553, 794 ...). */
 export function xpFor(level: number): number {
   return Math.round(60 * Math.pow(Math.max(1, level), 1.6));

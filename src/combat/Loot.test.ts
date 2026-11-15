@@ -134,6 +134,28 @@ describe('taking an item', () => {
   });
 });
 
+// The full pass of 2026-11-15 ("addictive and dopamine based"): an item that has landed is yours when you walk onto it
+// (no F per bone); F still takes one from further off.
+describe('walking onto an item', () => {
+  it('hands over a landed item within reach, once, and nothing still in the air or out of reach', () => {
+    const field = new LootField(new Scene(), () => 0);
+    field.spawn([{ kind: 'item', itemId: 'yeti-pelt', count: 1 }], new Vector3());
+    const p = field.pickups[0];
+    expect(field.touching(new Vector3(0, 0, 0))).toEqual([]);
+    for (let i = 0; i < 60 && !p.landed; i++) field.update(0.05, new Vector3(50, 0, 0));
+    expect(p.landed).toBe(true);
+    expect(field.touching(new Vector3(p.pos.x + 3, 0, p.pos.z))).toEqual([]);
+    expect(field.touching(new Vector3(p.pos.x + 1, 0, p.pos.z))).toEqual([p]);
+  });
+
+  it('never hands over coins (they fly in on their own)', () => {
+    const field = new LootField(new Scene(), () => 0);
+    field.spawn([{ kind: 'shards', amount: 12 }], new Vector3());
+    for (let i = 0; i < 60; i++) field.update(0.05, new Vector3(50, 0, 0));
+    expect(field.touching(new Vector3(0, 0, 0))).toEqual([]);
+  });
+});
+
 // The playtest of 2026-11-14: loot "must look unique, not just some white cube or circle". An item on the ground is
 // dressed as its own thing (ItemLooks: a model or a drawn icon) in a glow of its own colour.
 describe('an item on the ground', () => {

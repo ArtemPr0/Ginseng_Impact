@@ -255,7 +255,7 @@ export class Hud {
       <div class="hud-combo" id="hud-combo"></div>
       <div class="hud-hype" id="hud-hype"></div>
       <div class="hud-toast panel" id="hud-toast"></div>
-      <div class="hud-xp" id="hud-xp"><div class="hud-xp-fill" id="hud-xp-fill"></div></div>
+      <div class="hud-xp" id="hud-xp"><div class="hud-xp-fill" id="hud-xp-fill"></div><span class="hud-xp-pop" id="hud-xp-pop"></span></div>
       <div class="hud-banner" id="hud-banner"></div>
       <div class="hud-curtain" id="hud-curtain"></div>
       <div class="hud-hint">LMB attack · RMB heavy · E skill · Q burst · R dodge · TAB lock · F interact · I bag</div>
@@ -496,6 +496,27 @@ export class Hud {
       el.classList.remove('show');
       this.toastTimer = window.setTimeout(() => this.nextToast(), 400);
     }, 4000);
+  }
+
+  private xpSum = 0;
+  private xpAt = -1e9;
+  private xpTimer: ReturnType<typeof setTimeout> | null = null;
+  /** "+N XP" over the bar, and the bar flares; gains within 1.2 s of the last add up into one number. */
+  xpPop(n: number): void {
+    if (!(n > 0)) return;
+    const t = Date.now();
+    this.xpSum = t - this.xpAt < 1200 ? this.xpSum + n : n;
+    this.xpAt = t;
+    const el = this.q('#hud-xp-pop');
+    const bar = this.q('#hud-xp');
+    el.textContent = `+${Math.round(this.xpSum)} XP`;
+    el.classList.remove('show');
+    bar.classList.remove('gain');
+    void el.offsetWidth;
+    el.classList.add('show');
+    bar.classList.add('gain');
+    if (this.xpTimer) clearTimeout(this.xpTimer);
+    this.xpTimer = setTimeout(() => { bar.classList.remove('gain'); this.xpTimer = null; }, 1200);
   }
 
   /** The experience bar under the hero card (0..1 of the way to the next level). */

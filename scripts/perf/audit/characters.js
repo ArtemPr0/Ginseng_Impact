@@ -92,7 +92,15 @@ for (const e of G.combat.enemies) {
   if (!root || !shownObj(root) || zoneAt(e.pos.x, e.pos.z) !== here) continue;
   const bot = bottom(root); if (bot === null) continue; n++;
   const d = e.def, id = 'enemy:' + d.kind, pos = e.pos;
-  const ground = Math.max(hw.heightAt(pos.x, pos.z, pos.y + 0.5), d.floatAt ?? -Infinity);
+  // A body you can stand on (def.solid: the Frog God) carries its own cylinder in the height world: measure the floor
+  // under it with the moving shapes put aside, as its own step does (combat/Solid.ts), not the top of its own back.
+  const aside = (fn) => {
+    if (!d.solid || !hw.moving) return fn();
+    const tops = hw.moving.map((f) => f.top);
+    for (const f of hw.moving) f.top = -Infinity;
+    try { return fn(); } finally { hw.moving.forEach((f, i) => { f.top = tops[i]; }); }
+  };
+  const ground = Math.max(aside(() => hw.heightAt(pos.x, pos.z, pos.y + 0.5)), d.floatAt ?? -Infinity);
   const water = hw.waterAt?.(pos.x, pos.z);
   if (d.flying) {
     // A flyer may be anywhere over the ground, never in it.

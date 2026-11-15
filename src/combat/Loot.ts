@@ -43,7 +43,7 @@ export function rollDrops(table: DropEntry[] | undefined, shards: [number, numbe
   return out;
 }
 
-interface Pickup { drop: Drop; object: Group; pos: Vector3; vel: Vector3; life: number; spin: number; landed: boolean }
+export interface Pickup { drop: Drop; object: Group; pos: Vector3; vel: Vector3; life: number; spin: number; landed: boolean }
 
 /** A taken item on its way into the hero: lifts, spirals in, shrinks to a spark. */
 interface Absorbing { object: Group; from: Vector3; t: number; turn: number; rarity: number; color: number }
@@ -118,6 +118,16 @@ export class LootField {
       if (d < bd) { bd = d; best = p; }
     }
     return best;
+  }
+
+  /** Landed item pickups the player stands on (within `reach` across, 2 m up or down): walked onto, they are taken. */
+  touching(player: Vector3, reach = 1.6): Pickup[] {
+    const out: Pickup[] = [];
+    for (const p of this.pickups) {
+      if (p.drop.kind !== 'item' || !p.landed) continue;
+      if (Math.hypot(p.pos.x - player.x, p.pos.z - player.z) < reach && Math.abs(p.pos.y - player.y) < 2) out.push(p);
+    }
+    return out;
   }
 
   /** Takes an item pickup: it is yours at once, and flies into you over the next half second. */

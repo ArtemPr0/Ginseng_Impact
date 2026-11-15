@@ -425,6 +425,23 @@ describe('Hud hype', () => {
     hud.setXp(2);
     expect(root.querySelector('#hud-xp-fill').style.width).toBe('100%');
   });
+
+  // The full pass of 2026-11-15 ("addictive and dopamine based"): every kill shows what it paid, over the bar.
+  it('pops the experience a kill paid over the bar, and adds up kills that land together', () => {
+    const root = stubContainer();
+    const hud = new Hud(root as unknown as HTMLElement);
+    hud.xpPop(12);
+    const el = root.querySelector('#hud-xp-pop');
+    expect(el.textContent).toBe('+12 XP');
+    expect(el.classList.contains('show')).toBe(true);
+    expect(root.querySelector('#hud-xp').classList.contains('gain')).toBe(true);
+    vi.advanceTimersByTime(300);
+    hud.xpPop(8);
+    expect(el.textContent).toBe('+20 XP');
+    vi.advanceTimersByTime(2000);
+    hud.xpPop(5);
+    expect(el.textContent).toBe('+5 XP');
+  });
 });
 
 // The playtest of 2026-11-14 ("NPC interactions are boring… add unique voices"): a line types out letter by letter
