@@ -622,6 +622,19 @@ export class Terrain {
     return this.ground;
   }
 
+  /**
+   * The field was edited over [x0, x1] × [z0, z1] (a crater, a scorch: world/Craters.ts): the drawn chunks there are
+   * rewritten and the remembered slopes forgotten.
+   */
+  refresh(x0: number, z0: number, x1: number, z1: number): void {
+    this.ground?.refresh(x0, z0, x1, z1);
+    const N = 400;
+    for (let z = Math.floor(z0) - 1; z <= Math.ceil(z1) + 1; z++) for (let x = Math.floor(x0) - 1; x <= Math.ceil(x1) + 1; x++) {
+      const i = x + 200, k = z + 200 + 36;
+      if (i >= 0 && k >= 0 && i < N && k < N) this.slopeCache[k * N + i] = NaN;
+    }
+  }
+
   /** Once a frame: picks each chunk's level of detail by its distance from `focus` (the camera). */
   update(focus: Vector3): void {
     this.ground?.update(focus);

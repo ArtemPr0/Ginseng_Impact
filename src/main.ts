@@ -276,6 +276,10 @@ const combat = new CombatSystem({
   onTrip: (strength, seconds) => renderer.trip(strength, seconds),
   onInk: () => inkSplat.splash(),
   breakAt: (x, y, z, radius, kind) => area.breakables.damageAt(x, y, z, radius, kind),
+  dig: (x, z, r, depth, scorch) => {
+    if (depth > 0) area.craters.crater(x, z, r, depth);
+    if (scorch) area.craters.scorch(x, z, r * 1.1, scorch);
+  },
   onKill: (kind) => {
     adventures.quests.kill(kind);
     const foe = ENEMY_DEFS[kind as keyof typeof ENEMY_DEFS];

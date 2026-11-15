@@ -214,6 +214,8 @@ export interface CombatDeps {
   allies?: () => ReadonlyArray<CombatAlly>;
   /** A blow breaks the world there (World.breakables): returns how many things it broke. */
   breakAt?: (x: number, y: number, z: number, radius: number, kind: BlowKind) => number;
+  /** A blow digs the ground (World.craters): a bowl `r` metres across, `depth` deep, burnt or frozen around it. */
+  dig?: (x: number, z: number, r: number, depth: number, scorch?: 'burnt' | 'frozen') => void;
 }
 
 /** Orlan's smoke: a cloud that lingers where he blew it, the puffs that make it, and his attack when he blew it. */
@@ -1243,6 +1245,8 @@ export class CombatSystem {
         // Where it ends it breaks things: a hero's shot by its blow, a boss's log, barrel or rock as a stomp.
         if (p.owner === 'player') this.smash(p.pos.x, p.pos.y, p.pos.z, Math.max(0.9, p.aoe), p.aoe > 0 ? 'skill' : blowKindOf(p.blow));
         else if (p.kind === 'log' || p.kind === 'prop' || p.look?.burst === 'crater') this.smash(p.pos.x, p.pos.y, p.pos.z, 2.2, 'stomp');
+        if (p.look?.burst === 'crater') this.d.dig?.(p.pos.x, p.pos.z, 2.4, 0.7);
+        else if (p.look?.burst === 'frost') this.d.dig?.(p.pos.x, p.pos.z, 1.2, 0, 'frozen');
         if (p.aoe > 0) this.starBurst(p);
         else if (p.kind === 'crescent') {
           // The wave breaks: a last patch of burning ground where it stopped, unless one lies just behind.
@@ -1376,6 +1380,7 @@ export class CombatSystem {
     this.fx.shock(at, p.color, p.aoe * 1.6);
     this.fx.dust(at, 1.2);
     this.d.audio.stomp();
+    this.d.dig?.(at.x, at.z, p.aoe * 0.9, 0.35, 'burnt');
   }
 
   /** The ground `dist` metres in front of the hero. */
@@ -1894,7 +1899,7 @@ export class CombatSystem {
         this.fx.dust(at, 3.2);
         this.d.onShake?.(1);
         this.d.audio.stomp();
-        if (breaksThings(e.def)) this.smash(at.x, at.y + 1, at.z, r, 'stomp');
+        if (breaksThings(e.def)) { this.smash(at.x, at.y + 1, at.z, r, 'stomp'); this.d.dig?.(at.x, at.z, r * 0.6, 0.6); }
         // (On the ground only: a hero in the air clears it.)
         this.strike(e, 1.4, (x, z, _y, hero) => Math.hypot(x - e.pos.x, z - e.pos.z) < r && (!hero || c.mode === 'ground'));
         break;

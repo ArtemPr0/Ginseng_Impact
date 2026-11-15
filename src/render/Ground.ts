@@ -366,6 +366,8 @@ const LOD_STEPS = [1, 2, 4] as const;
 interface Chunk {
   mesh: Mesh;
   geo: BufferGeometry;
+  /** Rewrites every vertex from the field (after the field was edited: a crater, a scorch). */
+  rewrite: () => void;
   x0: number;
   z0: number;
   x1: number;
@@ -458,15 +460,18 @@ export class ChunkedGround {
         lc[v * 4 + k] = layers[o + 8 + k];
       }
     };
-    for (let k = 0; k < d1; k++) for (let i = 0; i < w1; i++) put(k * w1 + i, cx + i, cz + k, 0);
-    for (let i = 0; i < w1; i++) {
-      put(S0 + i, cx + i, cz, skirt);
-      put(S1 + i, cx + i, cz + d, skirt);
-    }
-    for (let k = 0; k < d1; k++) {
-      put(S2 + k, cx, cz + k, skirt);
-      put(S3 + k, cx + w, cz + k, skirt);
-    }
+    const fill = () => {
+      for (let k = 0; k < d1; k++) for (let i = 0; i < w1; i++) put(k * w1 + i, cx + i, cz + k, 0);
+      for (let i = 0; i < w1; i++) {
+        put(S0 + i, cx + i, cz, skirt);
+        put(S1 + i, cx + i, cz + d, skirt);
+      }
+      for (let k = 0; k < d1; k++) {
+        put(S2 + k, cx, cz + k, skirt);
+        put(S3 + k, cx + w, cz + k, skirt);
+      }
+    };
+    fill();
     const geo = new BufferGeometry();
     geo.setAttribute('position', new BufferAttribute(pos, 3));
     geo.setAttribute('normal', new BufferAttribute(nor, 3));
@@ -515,10 +520,21 @@ export class ChunkedGround {
     mesh.castShadow = this.castNear;
     // Static, at the origin (vertices are in world space): no per-frame matrix work.
     mesh.matrixAutoUpdate = false;
+    const rewrite = () => {
+      fill();
+      for (const name of ['position', 'normal', 'color', 'layerA', 'layerB', 'layerC']) geo.attributes[name].needsUpdate = true;
+      geo.computeBoundingSphere();
+      geo.computeBoundingBox();
+    };
     return {
-      mesh, geo, indices, lod: 0,
+      mesh, geo, indices, lod: 0, rewrite,
       x0: s.x0 + cx * s.cell, z0: s.z0 + cz * s.cell, x1: s.x0 + (cx + w) * s.cell, z1: s.z0 + (cz + d) * s.cell,
     };
+  }
+
+  /** Rewrites the chunks over [x0, x1] × [z0, z1] from the field after it was edited (Craters). */
+  refresh(x0: number, z0: number, x1: number, z1: number): void {
+    for (const c of this.chunks) if (c.x1 >= x0 && c.x0 <= x1 && c.z1 >= z0 && c.z0 <= z1) c.rewrite();
   }
 
   /** Picks each chunk's LOD by its distance from `focus` (the hero / camera): swaps the index set and castShadow only when it changes. */

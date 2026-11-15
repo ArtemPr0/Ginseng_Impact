@@ -24,6 +24,7 @@ import { Grass } from './Grass';
 import type { Landmark } from './Landmarks';
 import { modelLandmark, type ModelLandmark, riverDrifter, walkerLandmark } from './ModelLandmark';
 import { Breakables, type BreakTarget } from './Breakables';
+import { Craters } from './Craters';
 import { Npc, NPC_DEFS } from './NPCs';
 import { Rig } from '../characters/Rig';
 import { yawToRotation } from '../models/ModelRig';
@@ -308,6 +309,8 @@ export class World {
   readonly heights: HeightWorld;
   /** Everything placed that can be broken (the request of 2026-11-15): see Breakables. */
   readonly breakables: Breakables;
+  /** The island's ground dug and scorched by big blows, healing (Craters). */
+  readonly craters: Craters;
   readonly npcs: Npc[] = [];
   readonly grass: Grass;
   /** Church position, used to brighten the aurora nearby. */
@@ -369,6 +372,11 @@ export class World {
     this.ground = new GroundQuery(terrain, this.realmGround);
     this.heights = new HeightWorld(this.ground);
     this.breakables = new Breakables(this.heights);
+    this.craters = new Craters(terrain.field, {
+      refresh: (x0, z0, x1, z1, regrow) => { terrain.refresh(x0, z0, x1, z1); if (regrow) this.grass?.regrow(x0, z0, x1, z1); },
+      // Not under or against anything standing (a crater would undercut it), nor in the water.
+      canDig: (x, z) => terrain.dryAt(x, z) && riverAt(x, z) < 0.1 && [[0, 0], [2, 0], [-2, 0], [0, 2], [0, -2]].every(([dx, dz]) => this.heights.heightAt(x + dx, z + dz) <= terrain.heightAt(x + dx, z + dz) + 0.05),
+    });
     // The great river is the swimmable water (the lily pond and the pools are only knee to waist deep), and the realms'
     // rivers and moats (RealmApi.water).
     this.heights.water = (x, z) => {
@@ -768,7 +776,7 @@ export class World {
     flora('flower', meadow, { wind: 0.5, shadows: false });
     flora('flower', whiteMeadow, { wind: 0.5, shadows: false, patch: (mat) => patchWhiteBloom(mat) });
     flora('boulder', this.scatterRing(rnd, 18, 114, 60, 0.8, 2.6, 3));
-    this.grass = new Grass((x, z) => hw(x, z), (x, z) => this.plantable(x, z) && frozenAt(x, z) < 0.6 && sandAt(x, z) < 0.3 && deadAt(x, z) < 0.3);
+    this.grass = new Grass((x, z) => hw(x, z), (x, z) => this.plantable(x, z) && !this.craters.marked(x, z) && frozenAt(x, z) < 0.6 && sandAt(x, z) < 0.3 && deadAt(x, z) < 0.3);
     this.group.add(this.grass.mesh);
     const fr = LAYOUT.frozenRect;
     const frozenPick = (count: number, minS: number, maxS: number, dy: number): Placement[] => {
@@ -1152,6 +1160,7 @@ export class World {
     for (const w of this.watchers) if (w.zone === here) w.update(dt, cameraPos, playerPos);
     this.clouds.update(dt, cameraPos);
     this.breakables.update(dt, playerPos);
+    this.craters.update(dt);
     const sculpt = here ? REALM_SCULPTS[here as keyof typeof REALM_SCULPTS] : undefined;
     if (here === null || sculpt?.grass) this.grass.update(playerPos.x, playerPos.z);
     for (const n of this.npcs) {
