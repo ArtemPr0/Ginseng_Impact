@@ -8,6 +8,7 @@ import { ITEMS } from '../items/Items';
 import { ITEM_LOOKS, itemGlow } from '../items/ItemLooks';
 import { loadModel, ModelRig } from '../models/ModelRig';
 import { lootIconTexture } from '../render/LootIcons';
+import { harvestLook } from '../render/HarvestLooks';
 import { litWood } from './Enemy';
 
 /** Height of the middle of an item above its pickup's origin (where the glow sits). */
@@ -22,6 +23,12 @@ const _mid = new Vector3();
 export function dressLoot(object: Group, itemId: string): void {
   const look = ITEM_LOOKS[itemId];
   if (!look) return;
+  if ('make' in look) {
+    const piece = harvestLook(look.make);
+    piece.position.y = MID;
+    object.add(piece);
+    return;
+  }
   if ('icon' in look) {
     const icon = new Sprite(new SpriteMaterial({ map: lootIconTexture(look.icon), color: look.tint, transparent: true, alphaTest: 0.05, depthWrite: false }));
     icon.scale.setScalar(0.62);

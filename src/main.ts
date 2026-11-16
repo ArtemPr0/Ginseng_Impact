@@ -3,6 +3,7 @@ import { AimHold, aimPoint, AIM_RANGE, aimShape } from './combat/Aim';
 import { SPELL_KEYS, SPELLS, spellSlot } from './combat/Spells';
 import { AimPreview } from './render/AimPreview';
 import { Color, DirectionalLight, FogExp2, Frustum, HemisphereLight, Matrix4, type Object3D, PerspectiveCamera, Scene, Sphere, Vector3 } from 'three';
+import { HarvestLedger, harvestOf } from './world/Harvest';
 import { WorkerFracturer } from './world/FractureObject';
 import { Bubbles } from './world/Portal';
 import { LightBudget } from './render/LightBudget';
@@ -209,9 +210,16 @@ const COLLAPSE_YELLS = ['MY HOUSE!', 'Oi! I live there!', 'Who pays for that?!',
 // Things breaking (Breakables): a crack and a crumble by size and distance, dust where it breaks, a shake when a building comes down.
 {
   const near = (x: number, z: number) => Math.max(0, 1 - Math.hypot(x - controller.pos.x, z - controller.pos.z) / 70);
+  const harvested = new HarvestLedger();
+  area.breakables.onRebuild = (b) => harvested.reset(b);
   area.breakables.onBreak = (b, x, y, z, n) => {
     audio.crumble(Math.min(1, b.target.size / 40) * Math.min(1, n / 4), near(x, z));
     combatFx.dust(new Vector3(x, y, z), 1 + Math.min(2.5, n * 0.4));
+    // Sir Aldric's blows knock wood, planks and stone loose (Harvest): a few pieces at his feet.
+    if (ROSTER[party.activeIndex].id === 'knight' && Math.hypot(x - controller.pos.x, z - controller.pos.z) < 7) {
+      const h = harvestOf(b.target.material, !!b.target.tree, b.target.size, n, !!b.target.brief);
+      if (h && harvested.take(b, performance.now() / 1000)) combat.loot.spawn([{ kind: 'item', itemId: h.itemId, count: h.count }], new Vector3(x, Math.max(y, controller.pos.y + 0.6), z));
+    }
   };
   area.breakables.onCollapse = (b) => {
     const k = near(b.x, b.z);
@@ -805,14 +813,18 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
 });
 
+const HARVEST = new Set(['wood', 'plank', 'stone']);
+
 /** An item on the ground becomes the hero's: it flies in, chimes by rarity (a jackpot for the rare ones), is announced. */
 function takeItem(pickup: Pickup): void {
   if (pickup.drop.kind !== 'item') return;
   const def = ITEMS[pickup.drop.itemId];
   combat.loot.take(pickup);
-  inventory.add(def.id, 1);
+  const n = Math.max(1, pickup.drop.count);
+  inventory.add(def.id, n);
   if (def.rarity >= 3) { audio.jackpot(); hud.hype(def.rarity >= 4 ? 'JACKPOT' : 'Ooh, shiny', def.rarity + 1); renderer.pulse(0.35); } else audio.loot(def.rarity);
-  hud.announce(`${def.name}`);
+  // (The harvest counts up: "Wood ×3 · 17 in the bag".)
+  hud.announce(n > 1 || HARVEST.has(def.id) ? `${def.name} ×${n} · ${inventory.count(def.id)} in the bag` : `${def.name}`);
   events.emit({ kind: 'loot', item: def.id, rarity: def.rarity });
 }
 

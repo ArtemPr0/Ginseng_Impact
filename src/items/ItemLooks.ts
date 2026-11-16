@@ -14,11 +14,13 @@ export type IconKey = (typeof ICON_KEYS)[number];
  * `glow` names the colour of the light round it), and `shine`, a flat glow of that colour all over (a dark texture lit
  * through its own map stayed dark: steel, a crystal); or an icon and its colour.
  */
-export type ItemLook = { model: string; size: number; tint?: number; glow?: number; shine?: number } | { icon: IconKey; tint: number };
+export type ItemLook = { model: string; size: number; tint?: number; glow?: number; shine?: number } | { icon: IconKey; tint: number }
+  /** Made from the break materials, as the rubble it came off (render/HarvestLooks). */
+  | { make: 'log' | 'stone' | 'plank'; tint?: undefined; glow: number };
 
 /** One string per look: no two items may share it. */
 export function lookKey(look: ItemLook): string {
-  return 'model' in look ? `${look.model}:${look.tint ?? 'own'}` : `icon:${look.icon}:${look.tint}`;
+  return 'model' in look ? `${look.model}:${look.tint ?? 'own'}` : 'make' in look ? `make:${look.make}` : `icon:${look.icon}:${look.tint}`;
 }
 
 /** The colour of the light round an item on the ground: its tint, or the glow named for an untinted model. */
@@ -33,6 +35,9 @@ export const ITEM_LOOKS: Record<string, ItemLook> = {
   'rot-salve': { model: 'potion-bottle', size: 0.5, tint: 0x6aff3a },
   'lotus-tea': { model: 'chalice', size: 0.45, tint: 0xffb0d8 },
   // Materials.
+  wood: { make: 'log', glow: 0xd8a060 },
+  plank: { make: 'plank', glow: 0xe0b070 },
+  stone: { make: 'stone', glow: 0x9ab0e0 },
   'wisp-ember': { icon: 'flame', tint: 0x6ad8ff },
   'rune-shard': { model: 'purple-crystal', size: 0.55, tint: 0x7fd8ff, shine: 0.5 },
   'sentinel-core': { model: 'gem', size: 0.5, tint: 0x5a8aff },

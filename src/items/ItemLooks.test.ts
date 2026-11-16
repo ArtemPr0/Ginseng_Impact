@@ -18,8 +18,16 @@ describe('what every item looks like on the ground', () => {
         expect(MODELS[look.model], `${id}: ${look.model}`).toBeDefined();
         expect(look.size, id).toBeGreaterThanOrEqual(0.35);
         expect(look.size, id).toBeLessThanOrEqual(1.3);
-      } else expect(ICON_KEYS, id).toContain(look.icon);
+      } else if ('icon' in look) expect(ICON_KEYS, id).toContain(look.icon);
+      else expect(['log', 'stone', 'plank'], id).toContain(look.make);
     }
+  });
+
+  it("wood, stone and planks drop as what they are (the knight's harvest, 2026-11-16)", () => {
+    expect(ITEM_LOOKS.wood).toMatchObject({ make: 'log' });
+    expect(ITEM_LOOKS.stone).toMatchObject({ make: 'stone' });
+    expect(ITEM_LOOKS.plank).toMatchObject({ make: 'plank' });
+    for (const id of ['wood', 'stone', 'plank']) expect(ITEMS[id].kind).toBe('material');
   });
 
   it('no two items look the same', () => {
