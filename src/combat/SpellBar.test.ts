@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BAR, barKey, heroKey, LmbGesture, SpellBar, spellPress } from './SpellBar';
+import { BAR, barActs, barKey, heroKey, LmbGesture, SpellBar, spellPress } from './SpellBar';
 import { SPELLS } from './Spells';
 
 describe('BAR (the user calls of 2026-11-16: keys 1-7 pick, right click casts)', () => {
@@ -89,5 +89,20 @@ describe('spellPress (a press on a spell slot)', () => {
     expect(spellPress('stone-wall', false, true)).toBe('kick');
     expect(spellPress('stone-wall', true, true)).toBe('kick');
     expect(spellPress('stone-wall', true, false)).toBe('cast');
+  });
+});
+
+describe('barActs', () => {
+  it('casts only on a buffered right click; the aim reaches as far as the picked slot meanwhile', () => {
+    // Slot 3 picked, no right click: nothing is cast (it was cast every frame it was ready, 2026-11-16).
+    const idle = barActs('knight', null, 2);
+    expect(idle.cast).toBeUndefined();
+    expect(idle.aim).toEqual(BAR.knight[2].action);
+    // A right click buffered on slot 3 casts it.
+    const click = barActs('knight', 2, 2);
+    expect(click.cast).toEqual(BAR.knight[2].action);
+    // A buffered cast wins over a slot picked since.
+    expect(barActs('knight', 2, 4).cast).toEqual(BAR.knight[2].action);
+    expect(barActs('knight', 2, 4).aim).toEqual(BAR.knight[2].action);
   });
 });

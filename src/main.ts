@@ -1,7 +1,7 @@
 import { CameraBob } from './render/CameraBob';
 import { aimPoint, AIM_RANGE, SpellBuffer, spellRange } from './combat/Aim';
 import { SPELLS } from './combat/Spells';
-import { BAR, barKey, LmbGesture, SpellBar } from './combat/SpellBar';
+import { BAR, barActs, barKey, LmbGesture, SpellBar } from './combat/SpellBar';
 import { LiftGlow } from './render/LiftGlow';
 import { MindBeam } from './render/MindBeam';
 import { Color, DirectionalLight, FogExp2, Frustum, HemisphereLight, Matrix4, type Object3D, PerspectiveCamera, Scene, Sphere, Vector3 } from 'three';
@@ -992,8 +992,8 @@ game
       const buffered = spellBuffer.peek(dt);
       // The aim reaches as far as the spell about to be cast (a buffered one), else the picked one: Earthsplitter's
       // leap range must not stick to every aim after it (Telekinesis' grab, the other heroes).
-      const act = BAR[hero][buffered ?? picked]?.action;
-      castRange = act?.kind === 'spell' ? spellRange(SPELLS[hero][act.slot].id) : AIM_RANGE;
+      const { cast: act, aim: aimAct } = barActs(hero, buffered, picked);
+      castRange = aimAct?.kind === 'spell' ? spellRange(SPELLS[hero][aimAct.slot].id) : AIM_RANGE;
       const castsBefore = combat.spellsCast;
       const swing = lmb.update(dt, input.locked && input.mouseDown(0));
       combat.update(dt, {

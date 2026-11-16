@@ -94,3 +94,13 @@ export function spellPress(id: string, ready: boolean, wallUp: boolean): 'cast' 
   if (id === 'stone-wall' && wallUp) return 'kick';
   return ready ? 'cast' : 'none';
 }
+
+/**
+ * What the bar does this frame: `cast` only when a right click was buffered on a slot (that slot's action), `aim` the
+ * slot whose reach the crosshair takes (the buffered one, else the picked one, so Earthsplitter aims at its leap range
+ * before the click).
+ */
+export function barActs(hero: string, buffered: number | null, picked: number): { cast: BarAction | undefined; aim: BarAction | undefined } {
+  const bar = BAR[hero];
+  return { cast: buffered !== null ? bar?.[buffered]?.action : undefined, aim: bar?.[buffered ?? picked]?.action };
+}
