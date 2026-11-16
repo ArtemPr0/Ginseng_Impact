@@ -29,3 +29,20 @@ describe('SampleBank (recorded CC0 sounds, picked and varied)', () => {
     expect(bank.play('hit-flesh')).toBe(false);
   });
 });
+
+describe('SampleBank.loop (v12: a recorded loop under a lasting spell)', () => {
+  it('fades in over a second, holds, fades out by the end', async () => {
+    const { loopEnvelope } = await import('./SampleBank');
+    const e = loopEnvelope(6, 0.8);
+    expect(e[0]).toEqual([0, 0]);
+    expect(e.find(([t]) => t === 1)?.[1]).toBeCloseTo(0.8);
+    expect(e[e.length - 1]).toEqual([6, 0]);
+    for (let i = 1; i < e.length; i++) expect(e[i][0]).toBeGreaterThan(e[i - 1][0]);
+    const short = loopEnvelope(1.2, 1);
+    expect(short[short.length - 1][0]).toBe(1.2);
+    for (let i = 1; i < short.length; i++) expect(short[i][0]).toBeGreaterThan(short[i - 1][0]);
+  });
+  it('without audio it plays nothing', () => {
+    expect(new SampleBank(null, { 'fire-loop': ['f.m4a'] }).loop('fire-loop', 5)).toBe(false);
+  });
+});

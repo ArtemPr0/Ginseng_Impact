@@ -1,30 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { SPELLS, SpellBook, spellSlot } from './Spells';
+import { SPELLS, SpellBook } from './Spells';
 import { aimPoint, AIM_RANGE } from './Aim';
 
-describe('spellSlot', () => {
-  it('Z X C V cast spells 1-4 on foot', () => {
-    expect(['KeyZ', 'KeyX', 'KeyC', 'KeyV'].map((k) => spellSlot(k, false))).toEqual([0, 1, 2, 3]);
-    expect(spellSlot('KeyQ', false)).toBeNull();
-  });
-  it('in flight C still dives and X still lands: only Z and V cast', () => {
-    expect(['KeyZ', 'KeyX', 'KeyC', 'KeyV'].map((k) => spellSlot(k, true))).toEqual([0, null, null, 3]);
-  });
-});
-
 describe('SPELLS', () => {
-  it('every hero has four spells, each with a name, an icon and its own colour', () => {
+  it('every hero has five spells, each with a name, an icon and its own colour', () => {
     for (const hero of ['knight', 'archer', 'wizard']) {
       const book = SPELLS[hero];
-      expect(book).toHaveLength(4);
+      expect(book).toHaveLength(5);
       for (const s of book) {
         expect(s.name.length).toBeGreaterThan(2);
         expect(s.icon).toMatch(/<(path|circle|polygon|polyline|line|ellipse)/);
-        expect(s.cooldown).toBeGreaterThan(3);
+        expect(s.cooldown).toBeGreaterThan(s.id === 'telekinesis' ? 1 : 3);
       }
     }
     const all = Object.values(SPELLS).flat();
-    expect(new Set(all.map((s) => s.id)).size).toBe(12);
+    expect(new Set(all.map((s) => s.id)).size).toBe(15);
   });
 });
 

@@ -4,7 +4,8 @@
  * near, FractureWorker.ts). Results are cached per model id and seed: every copy of a model can break three ways.
  */
 import { BufferAttribute, BufferGeometry, type InterleavedBufferAttribute, Matrix4, Quaternion, Vector3, type Material, type Mesh, type Object3D } from 'three';
-import { fractureSolid, type SolidChunk } from './SolidFracture';
+import { fractureBlocks, fractureSolid, type SolidChunk } from './SolidFracture';
+import { blockSize } from './Fracture';
 
 export interface ObjectChunk extends SolidChunk { material: Material }
 
@@ -109,10 +110,34 @@ export function fromData(d: ChunkData): SolidChunk {
   };
 }
 
+/** A course height and block length (model units): the mesh is cut into blocks instead of Voronoi chunks. */
+export interface BlockSpec { course: number; length: number }
+
+/** Surface area of the jobs' triangles (model units). */
+export function jobsArea(jobs: Array<Pick<MeshJob, 'position' | 'index'>>): number {
+  let a = 0;
+  for (const j of jobs) {
+    const p = j.position, idx = j.index;
+    const triN = (idx ? idx.length : p.length / 3) / 3;
+    for (let t = 0; t < triN; t++) {
+      const i0 = (idx ? idx[t * 3] : t * 3) * 3, i1 = (idx ? idx[t * 3 + 1] : t * 3 + 1) * 3, i2 = (idx ? idx[t * 3 + 2] : t * 3 + 2) * 3;
+      const ux = p[i1] - p[i0], uy = p[i1 + 1] - p[i0 + 1], uz = p[i1 + 2] - p[i0 + 2];
+      const vx = p[i2] - p[i0], vy = p[i2 + 1] - p[i0 + 1], vz = p[i2 + 2] - p[i0 + 2];
+      a += Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx) / 2;
+    }
+  }
+  return a;
+}
+
+/** The block size for `jobs` cut into about `n` blocks of `kind` (null: not a block material, Voronoi instead). */
+export function blocksFor(jobs: Array<Pick<MeshJob, 'position' | 'index'>>, n: number, kind?: string): BlockSpec | null {
+  return kind ? blockSize(jobsArea(jobs), n, kind) : null;
+}
+
 /** Cuts one mesh job (the worker runs this too). */
-export function cutJob(j: Pick<MeshJob, 'position' | 'normal' | 'uv' | 'index' | 'n'>, seed: number, thickness: number): { chunks: SolidChunk[]; adjacent: number[][] } {
+export function cutJob(j: Pick<MeshJob, 'position' | 'normal' | 'uv' | 'index' | 'n'>, seed: number, thickness: number, block?: BlockSpec | null): { chunks: SolidChunk[]; adjacent: number[][] } {
   const g = jobGeometry(j);
-  const r = fractureSolid(g, j.n, { seed, thickness });
+  const r = block ? fractureBlocks(g, { ...block, thickness }) : fractureSolid(g, j.n, { seed, thickness });
   g.dispose();
   return r;
 }
@@ -151,26 +176,27 @@ function hasMesh(root: Object3D): boolean {
   return found;
 }
 
-/** Breaks `root` now. */
-export function fractureNow(root: Object3D, n: number, seed: number, thickness: number): ObjectFracture {
+/** Breaks `root` now (`blockKind`: into about `n` blocks of that material, when it is one that breaks in blocks). */
+export function fractureNow(root: Object3D, n: number, seed: number, thickness: number, blockKind?: string): ObjectFracture {
   const jobs = meshJobs(root, n);
-  return assemble(jobs.map((j, i) => ({ ...cutJob(j, seed + i * 101, thickness), material: j.material })));
+  const block = blocksFor(jobs, n, blockKind);
+  return assemble(jobs.map((j, i) => ({ ...cutJob(j, seed + i * 101, thickness, block), material: j.material })));
 }
 
 /** Where fractures come from: at once, or from the worker (null until it is ready; asking starts it). */
 export interface Fracturer {
-  get(key: string, root: Object3D, n: number, seed: number, thickness: number): ObjectFracture | null;
+  get(key: string, root: Object3D, n: number, seed: number, thickness: number, blockKind?: string): ObjectFracture | null;
 }
 
 /** Cuts on the spot, cached. */
 export class SyncFracturer implements Fracturer {
   private readonly cache = new Map<string, ObjectFracture>();
-  get(key: string, root: Object3D, n: number, seed: number, thickness: number): ObjectFracture | null {
+  get(key: string, root: Object3D, n: number, seed: number, thickness: number, blockKind?: string): ObjectFracture | null {
     let f = this.cache.get(key);
     if (!f) {
       // (No meshes yet: its model is still loading. Nothing is kept, so it is cut once it has arrived.)
       if (!hasMesh(root)) return null;
-      f = fractureNow(root, n, seed, thickness);
+      f = fractureNow(root, n, seed, thickness, blockKind);
       this.cache.set(key, f);
     }
     return f;
@@ -222,7 +248,7 @@ export class WorkerFracturer implements Fracturer {
   /** True when `key` is cut or being cut. */
   has(key: string): boolean { return this.cache.has(key) || this.waiting.has(key); }
 
-  get(key: string, root: Object3D, n: number, seed: number, thickness: number): ObjectFracture | null {
+  get(key: string, root: Object3D, n: number, seed: number, thickness: number, blockKind?: string): ObjectFracture | null {
     const hit = this.cache.get(key);
     if (hit) return hit;
     if (this.waiting.has(key)) return null;
@@ -230,8 +256,9 @@ export class WorkerFracturer implements Fracturer {
     // (Its model still loading: ask again later.)
     if (!jobs.length) return null;
     const tris = jobs.reduce((s, j) => s + (j.index ? j.index.length : j.position.length / 3) / 3, 0);
+    const block = blocksFor(jobs, n, blockKind);
     if (tris <= this.syncTris || this.dead || this.local.has(key)) {
-      const f = assemble(jobs.map((j, i) => ({ ...cutJob(j, seed + i * 101, thickness), material: j.material })));
+      const f = assemble(jobs.map((j, i) => ({ ...cutJob(j, seed + i * 101, thickness, block), material: j.material })));
       this.cache.set(key, f);
       return f;
     }
@@ -241,7 +268,7 @@ export class WorkerFracturer implements Fracturer {
       const id = this.next++;
       slots.push({ id, material: j.material });
       this.jobKey.set(id, { key, slot: i });
-      const msg = { id, position: j.position, normal: j.normal, uv: j.uv, index: j.index, n: j.n, seed: seed + i * 101, thickness };
+      const msg = { id, position: j.position, normal: j.normal, uv: j.uv, index: j.index, n: j.n, seed: seed + i * 101, thickness, block };
       const transfer = [j.position.buffer, j.normal?.buffer, j.uv?.buffer, j.index?.buffer].filter(Boolean) as ArrayBuffer[];
       this.worker.postMessage(msg, transfer);
     });

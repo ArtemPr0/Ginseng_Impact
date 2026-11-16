@@ -10,8 +10,8 @@ const cam = G.camera;
 const out = {};
 const step = (i) => K.update(0.016, { grab: false, attack: false, heavyHeld: false, ...i });
 // --- the knight ---
-window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit1' })); await sleep(300);
-window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Digit1' })); await sleep(1200);
+window.dispatchEvent(new KeyboardEvent('keydown', { code: 'F1' })); await sleep(300);
+window.dispatchEvent(new KeyboardEvent('keyup', { code: 'F1' })); await sleep(1200);
 out.hero1 = C.active.id;
 const mob = C.enemies.filter((e) => e.alive && e.model?.hasClips && !e.def.boss && !e.def.seated && !e.def.flying && e.def.speed > 0 && e.def.height * (e.def.scale ?? 1) < 3).sort((a, b) => dist2(a.pos, hero()) - dist2(b.pos, hero()))[0];
 if (mob) {
@@ -33,8 +33,8 @@ if (mob) {
   out.thrown = { dist: +Math.hypot(mob.pos.x - c.pos.x, mob.pos.z - c.pos.z).toFixed(1), hurt: Math.round(hp0 - mob.hp), flying: !!mob.thrown, alive: mob.alive };
 }
 // --- the wizard ---
-window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit3' })); await sleep(300);
-window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Digit3' })); await sleep(1500);
+window.dispatchEvent(new KeyboardEvent('keydown', { code: 'F3' })); await sleep(300);
+window.dispatchEvent(new KeyboardEvent('keyup', { code: 'F3' })); await sleep(1500);
 out.hero3 = C.active.id;
 const B = G.area.breakables;
 const house = B.near(c.pos.x, c.pos.z, 200).filter((b) => b.state === 'intact' && !b.target.brief && !b.target.tree && b.target.size >= 3 && b.target.size < 12).sort((a, b) => Math.hypot(a.x - c.pos.x, a.z - c.pos.z) - Math.hypot(b.x - c.pos.x, b.z - c.pos.z))[0];

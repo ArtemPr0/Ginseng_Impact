@@ -1,4 +1,4 @@
-import { SPELLS, SPELL_LETTERS } from '../combat/Spells';
+import { BAR } from '../combat/SpellBar';
 import type { CharacterDef } from '../characters/roster';
 import { BABBLE_CPS } from '../audio/Babble';
 import { ELEMENT_COLOR, ROSTER } from '../characters/roster';
@@ -223,7 +223,6 @@ export class Hud {
   /** NPCs who already follow you (no Hire button), and the conversation the shop's Back returns to. */
   private readonly hired = new Set<string>();
   private lastNode: { head: { name: string; title: string }; node: DialogueNode } | null = null;
-  private burstName = '';
   panel: Panel = 'none';
   private talkNpc: NpcDef | null = null;
   private talkLine = 0;
@@ -237,7 +236,7 @@ export class Hud {
     this.root = container;
     container.innerHTML = `
       <div class="hud-prompt" id="hud-prompt"><div class="hud-subtitle">A SILENT KINGDOM BEYOND THE FOG</div><div class="hud-wordmark">GINSENG IMPACT</div><div class="hud-press" id="hud-press">CLICK TO ENTER THE FOG</div><button type="button" class="hud-new-game" id="hud-new-game" style="display:none">NEW GAME</button><button type="button" class="hud-new-game hud-quality" id="hud-quality">QUALITY: AUTO</button>
-        <div class="hud-controls">WASD move · SHIFT sprint · SPACE jump, again to fly (hold to rise) · C dive · X land · LMB attack · hold RMB heavy · E skill · Q burst · hold Z X C V to aim a spell, release to cast (RMB cancels) · G (Sir Aldric) grab a mob, LMB throw it · hold RMB on something (Orlan) lift it, release to hurl · R dodge · TAB lock on · F talk / loot · I inventory · 1 2 3 switch · ESC pause</div></div>
+        <div class="hud-controls">WASD move · SHIFT sprint · SPACE jump, again to fly (hold to rise) · C dive · X land · LMB attack (hold to charge a heavy) · 1-7 pick a spell · RMB cast it at the crosshair · Orlan's Telekinesis (7): hold RMB on something glowing to lift it, release to hurl · G (Sir Aldric) grab a mob, LMB throw it · R dodge · TAB lock on · E / F talk / loot · I inventory · F1 F2 F3 switch hero · ESC pause</div></div>
       <div class="hud-boss panel" id="hud-boss"><div class="hud-boss-name" id="hud-boss-name"></div><div class="hud-boss-title" id="hud-boss-title"></div><div class="hud-boss-bar"><div class="hud-boss-fill" id="hud-boss-fill"></div></div></div>
       <div class="hud-shards panel" id="hud-shards"><span class="hud-shard-glyph hud-coin">●</span><span id="hud-shards-n">0</span><span class="hud-shards-pop" id="hud-shards-pop"></span></div>
       <div class="hud-active panel"><div class="hud-name" id="hud-name"></div><div class="hud-title" id="hud-title"></div>
@@ -246,8 +245,6 @@ export class Hud {
         <div class="hud-frenzy" id="hud-frenzy"></div></div>
       <div class="hud-party" id="hud-party"></div>
       <div class="hud-companions" id="hud-companions"></div>
-      <div class="hud-skill panel" id="hud-skill"><div class="hud-skill-key">E</div><div class="hud-skill-cd" id="hud-skill-cd"></div><div class="hud-skill-name" id="hud-skill-name"></div></div>
-      <div class="hud-burst panel" id="hud-burst"><div class="hud-skill-key">Q</div><div class="hud-burst-fill" id="hud-burst-fill"></div><div class="hud-skill-name" id="hud-burst-name">Burst</div></div>
       <div class="hud-charge" id="hud-charge"><div class="hud-charge-fill" id="hud-charge-fill"></div></div>
       <div class="hud-interact" id="hud-interact"></div>
       <div class="hud-numbers" id="hud-numbers"></div>
@@ -260,7 +257,7 @@ export class Hud {
       <div class="hud-xp" id="hud-xp"><div class="hud-xp-fill" id="hud-xp-fill"></div><span class="hud-xp-pop" id="hud-xp-pop"></span></div>
       <div class="hud-banner" id="hud-banner"></div>
       <div class="hud-curtain" id="hud-curtain"></div>
-      <div class="hud-hint">LMB attack · RMB heavy · E skill · Q burst · hold Z X C V aim, release cast · G grab · R dodge · TAB lock · F interact · I bag</div>
+      <div class="hud-hint">LMB attack (hold: heavy) · 1-7 spell · RMB cast · G grab · R dodge · TAB lock · E/F interact · I bag · F1-F3 hero</div>
       <div class="hud-quests" id="hud-quests"></div>
       <div class="hud-timer panel" id="hud-timer"><div class="hud-timer-label" id="hud-timer-label"></div><div class="hud-timer-time" id="hud-timer-time"></div></div>
       <div class="hud-panel panel" id="hud-dialog"></div>`;
@@ -340,36 +337,26 @@ export class Hud {
     this.q('#hud-hp').classList.toggle('low', f < 0.3);
   }
 
-  setSkill(name: string, cooldownFraction: number, ready: boolean): void {
-    if (!this.changed('skill', `${name}|${Math.round(cooldownFraction * 360)}|${ready}`)) return;
-    this.q('#hud-skill-name').textContent = name;
-    this.q('#hud-skill-cd').style.setProperty('--cd', `${Math.round(cooldownFraction * 360)}deg`);
-    this.q('#hud-skill').classList.toggle('ready', ready);
-  }
-
   /**
-   * The spell bar at the top centre (2026-11-15): the active hero's four spells on Z X C V, each its code-drawn icon in
-   * its colour, the key letter, and a conic cooldown sweeping off as it comes back.
+   * The spell bar at the top centre (2026-11-16): the active hero's seven slots on keys 1-7, each its code-drawn icon in
+   * its colour, the key number, a conic cooldown sweeping off as it comes back; the picked slot (cast with right click)
+   * stands out with its name; slot 2, the burst, fills with the energy fighting builds.
    */
-  setSpells(hero: string, cooldowns: number[], ready: boolean[]): void {
-    const book = SPELLS[hero] ?? [];
+  setBar(hero: string, picked: number, cooldowns: number[], ready: boolean[], burst: number): void {
+    const slots = BAR[hero] ?? [];
     // (In 6-degree steps: the bar is rebuilt at most ~60 times over a cooldown, never every frame.)
     const deg = cooldowns.map((c) => Math.round((c * 360) / 6) * 6);
-    if (!this.changed('spells', `${hero}|${deg.join(',')}|${ready.join(',')}`)) return;
-    this.q('#hud-spells').innerHTML = book.map((s, i) => {
+    const fill = Math.round(burst * 20) * 5;
+    if (!this.changed('spells', `${hero}|${picked}|${deg.join(',')}|${ready.join(',')}|${fill}`)) return;
+    this.q('#hud-spells').innerHTML = slots.map((s, i) => {
       const color = `#${s.color.toString(16).padStart(6, '0')}`;
-      return `<div class="hud-spell panel${ready[i] ? ' ready' : ''}" style="--spell:${color}" title="${s.name}">`
+      const cls = `hud-spell panel${ready[i] ? ' ready' : ''}${i === picked ? ' picked' : ''}`;
+      const energy = s.action.kind === 'burst' ? `<div class="hud-spell-fill" style="height:${fill}%"></div>` : '';
+      return `<div class="${cls}" style="--spell:${color}" title="${s.name}">${energy}`
         + `<svg viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${s.icon}</svg>`
-        + `<div class="hud-spell-cd" style="--cd:${deg[i]}deg"></div><div class="hud-spell-key">${SPELL_LETTERS[i]}</div>`
+        + `<div class="hud-spell-cd" style="--cd:${deg[i] ?? 0}deg"></div><div class="hud-spell-key">${i + 1}</div>`
         + `<div class="hud-spell-name">${s.name}</div></div>`;
     }).join('');
-  }
-
-  setBurst(fraction: number, ready: boolean, name?: string): void {
-    if (!this.changed('burst', `${Math.round(fraction * 100)}|${ready}|${name ?? ''}`)) return;
-    this.q('#hud-burst-fill').style.height = `${Math.round(fraction * 100)}%`;
-    this.q('#hud-burst').classList.toggle('ready', ready);
-    if (name && name !== this.burstName) { this.burstName = name; this.q('#hud-burst-name').textContent = name; }
   }
 
   setCharge(fraction: number): void {
@@ -558,11 +545,11 @@ export class Hud {
     this.banners.push(text, opts);
   }
 
-  /** The portraits (1 2 3). `down` marks the fallen (0 HP): dimmed, a blood-red name, not switchable. */
+  /** The portraits (F1 F2 F3). `down` marks the fallen (0 HP): dimmed, a blood-red name, not switchable. */
   setParty(defs: readonly CharacterDef[], activeIndex: number, down: readonly boolean[] = [], level = 1): void {
     this.q('#hud-party').innerHTML = defs
       .map((d, i) => `<div class="hud-portrait panel${i === activeIndex ? ' active' : ''}${down[i] ? ' down' : ''}" style="--el:${hex(ELEMENT_COLOR[d.element])}">
-        <div class="hud-portrait-key">${i + 1}</div><div class="hud-portrait-glyph">${glyph(d.element, hex(ELEMENT_COLOR[d.element]), 22)}</div><div class="hud-portrait-name">${d.name}</div><div class="hud-portrait-lv">Lv ${level}</div></div>`)
+        <div class="hud-portrait-key">F${i + 1}</div><div class="hud-portrait-glyph">${glyph(d.element, hex(ELEMENT_COLOR[d.element]), 22)}</div><div class="hud-portrait-name">${d.name}</div><div class="hud-portrait-lv">Lv ${level}</div></div>`)
       .join('');
     const d = defs[activeIndex];
     this.activeChar = d;

@@ -116,3 +116,12 @@ for a file with no line here, or a line without a CC0 licence.
 | creak/creak1.m4a | Kenney RPG Audio (creak1.ogg) | CC0 1.0 | https://kenney.nl/assets/rpg-audio |
 | creak/creak2.m4a | Kenney RPG Audio (creak2.ogg) | CC0 1.0 | https://kenney.nl/assets/rpg-audio |
 | creak/creak3.m4a | Kenney RPG Audio (creak3.ogg) | CC0 1.0 | https://kenney.nl/assets/rpg-audio |
+| explosion/explosionCrunch_000.m4a | Kenney Sci-Fi Sounds 1.0 (explosionCrunch_000.ogg) | CC0 1.0 | https://kenney.nl/assets/sci-fi-sounds |
+| explosion/explosionCrunch_001.m4a | Kenney Sci-Fi Sounds 1.0 (explosionCrunch_001.ogg) | CC0 1.0 | https://kenney.nl/assets/sci-fi-sounds |
+| explosion/explosionCrunch_002.m4a | Kenney Sci-Fi Sounds 1.0 (explosionCrunch_002.ogg) | CC0 1.0 | https://kenney.nl/assets/sci-fi-sounds |
+| explosion/explosionCrunch_003.m4a | Kenney Sci-Fi Sounds 1.0 (explosionCrunch_003.ogg) | CC0 1.0 | https://kenney.nl/assets/sci-fi-sounds |
+| explosion/explosionCrunch_004.m4a | Kenney Sci-Fi Sounds 1.0 (explosionCrunch_004.ogg) | CC0 1.0 | https://kenney.nl/assets/sci-fi-sounds |
+| explosion/lowFrequency_explosion_000.m4a | Kenney Sci-Fi Sounds 1.0 (lowFrequency_explosion_000.ogg) | CC0 1.0 | https://kenney.nl/assets/sci-fi-sounds |
+| explosion/lowFrequency_explosion_001.m4a | Kenney Sci-Fi Sounds 1.0 (lowFrequency_explosion_001.ogg) | CC0 1.0 | https://kenney.nl/assets/sci-fi-sounds |
+| fire-loop/fire.m4a | fireplace sound loop by pagdev (fire.wav) | CC0 1.0 | https://opengameart.org/content/fireplace-sound-loop |
+| wind-loop/wind-woosh.m4a | wind whoosh loop by SketchMan3 (wind woosh loop.ogg) | CC0 1.0 | https://opengameart.org/content/wind-whoosh-loop |

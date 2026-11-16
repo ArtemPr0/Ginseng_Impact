@@ -239,3 +239,7 @@ body { font-family: var(--font-body); color: var(--moon); }
 .hud-spell-key { position: absolute; left: 5px; top: 3px; font-family: var(--font-title); font-size: 11px; color: var(--cloth); text-shadow: 0 0 3px #000; }
 .hud-spell-name { position: absolute; left: 50%; bottom: -15px; transform: translateX(-50%); white-space: nowrap; font-size: 9px; letter-spacing: 0.06em; color: var(--cloth); opacity: 0; }
 .hud-spell.ready:hover .hud-spell-name { opacity: 0.8; }
+.hud-spell.picked { opacity: 1; transform: translateY(2px) scale(1.12); box-shadow: 0 0 14px 0 var(--spell), inset 0 0 0 2px var(--spell); }
+.hud-spell.picked .hud-spell-name { opacity: 0.95; bottom: -16px; font-size: 10px; }
+.hud-spell-fill { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(0deg, color-mix(in srgb, var(--spell) 55%, transparent), transparent); pointer-events: none; }
+.hud-spells { gap: 8px; }

@@ -1,7 +1,9 @@
 import { CameraBob } from './render/CameraBob';
-import { AimHold, aimPoint, AIM_RANGE, aimShape, SpellBuffer, spellRange } from './combat/Aim';
-import { SPELL_KEYS, SPELLS, spellSlot } from './combat/Spells';
-import { AimPreview } from './render/AimPreview';
+import { aimPoint, AIM_RANGE, SpellBuffer, spellRange } from './combat/Aim';
+import { SPELLS } from './combat/Spells';
+import { BAR, barActs, barKey, LmbGesture, SpellBar } from './combat/SpellBar';
+import { LiftGlow } from './render/LiftGlow';
+import { MindBeam } from './render/MindBeam';
 import { Color, DirectionalLight, FogExp2, Frustum, HemisphereLight, Matrix4, type Object3D, PerspectiveCamera, Scene, Sphere, Vector3 } from 'three';
 import { HarvestLedger, harvestOf } from './world/Harvest';
 import { Ejecta } from './render/Ejecta';
@@ -12,7 +14,7 @@ import { AutoQuality, nextMode, pickMode, QUALITY_KEY, settingsFor, type Quality
 import { WorkerFracturer } from './world/FractureObject';
 import { Bubbles } from './world/Portal';
 import { LightBudget } from './render/LightBudget';
-import { loadModel, ModelRig, yawToRotation } from './models/ModelRig';
+import { loadModel, loadModelOrWarn, ModelRig, yawToRotation } from './models/ModelRig';
 import { MODELS } from './data/models';
 import { Audio } from './audio/Audio';
 import { babbleVoice, renderBabble } from './audio/Babble';
@@ -118,10 +120,28 @@ scene.add(bubbles.group);
 // (Twelve ground warnings: a snowstorm lays four, a cup volley three, and two mobs and a boss may wind up at once.)
 const combatFx = new CombatFx({ telegraphs: 12 });
 scene.add(combatFx.group);
-const aimHold = new AimHold();
+/** Keys 1-7 pick, right click casts (the user's calls of 2026-11-16); a cast while mid-swing waits up to 0.6 s. */
+const spellBar = new SpellBar();
 const spellBuffer = new SpellBuffer();
-const aimPreview = new AimPreview((x, z, y) => world.heightAt(x, z, y));
-scene.add(aimPreview.group);
+const lmb = new LmbGesture();
+/** How far the spell being cast may land (Earthsplitter's leap is shorter): combat's aim clamps to it. */
+let castRange = AIM_RANGE;
+/** What Telekinesis would lift glows under the crosshair. */
+const liftGlow = new LiftGlow();
+scene.add(liftGlow.group);
+/** Meshy models spells are made of (the Stone Wall's stone), loaded once on first ask. */
+const spellModels = new Map<string, Object3D | null>();
+function spellModel(id: string): Object3D | null {
+  if (!spellModels.has(id)) {
+    spellModels.set(id, null);
+    void loadModelOrWarn(id, MODELS[id]?.label).then((g) => { if (g) spellModels.set(id, g.scene); });
+  }
+  return spellModels.get(id) ?? null;
+}
+spellModel('stone-wall');
+const mindBeam = new MindBeam();
+scene.add(mindBeam.group);
+const handAt = new Vector3();
 /** Clods of earth thrown out of fresh craters (Ejecta). */
 const ejecta = new Ejecta((x, z, y) => world.heightAt(x, z, y));
 scene.add(ejecta.group);
@@ -312,6 +332,8 @@ const lightBudget = new LightBudget(scene, 6);
 let qualityMode: QualityMode = pickMode(location.search, (() => { try { return localStorage.getItem(QUALITY_KEY); } catch { return null; } })());
 const autoQuality = new AutoQuality();
 let qualityLevel: QualityLevel | null = null;
+/** Quality settings for parts made after the first applyQuality (the fight): set once they exist. */
+let onQualityLate: ((q: ReturnType<typeof settingsFor>) => void) | null = null;
 function applyQuality(): void {
   const level: QualityLevel = qualityMode === 'auto' ? autoQuality.level : qualityMode;
   hud.setQuality(qualityMode, level);
@@ -322,6 +344,8 @@ function applyQuality(): void {
   lightBudget.setLimit(q.lights);
   area.breakables.sim.maxActive = q.debris;
   area.breakables.variants = q.variants;
+  area.breakables.blockScale = q.blocks;
+  onQualityLate?.(q);
 }
 hud.setOnQuality(() => {
   qualityMode = nextMode(qualityMode);
@@ -353,12 +377,13 @@ const combat = new CombatSystem({
   onTrip: (strength, seconds) => renderer.trip(strength, seconds),
   onInk: () => inkSplat.splash(),
   breakAt: (x, y, z, radius, kind) => area.breakables.damageAt(x, y, z, radius, kind),
+  tear: (x, z, radius, count) => area.breakables.tear(x, z, radius, count),
   dig: (x, z, r, depth, scorch) => {
     if (depth > 0 && area.craters.crater(x, z, r, depth)) ejecta.spawn(x, world.heightAt(x, z), z, r, depth);
     if (scorch) area.craters.scorch(x, z, r * 1.1, scorch);
   },
   // Spells land where the crosshair meets the ground (at most 25 m off; Aim.ts).
-  aim: () => spellAim().at,
+  aim: () => spellAim(castRange).at,
   debris: () => [area.breakables.sim, ejecta.sim],
   // A house, a stall, a tree or a rock under the crosshair that Orlan can tear up whole (not a castle, not a flower).
   building: (x, z) => {
@@ -373,6 +398,7 @@ const combat = new CombatSystem({
   lights: { flash: (at, c, i, d, s) => lightBudget.flash(at, c, i, d, s), hold: (c, i, d) => lightBudget.hold(c, i, d) },
   smoke: (at, r, color, life) => billow.cloud(at, r, color, { life, puffs: Math.round(8 + r * 5), rise: 1.6 + r * 0.4, spread: 0.6 + r * 0.25, size: 0.5 + r * 0.3 }),
   sprout: (ids) => area.sprout(ids),
+  model: (id) => spellModel(id),
   solid: (x, z, r, top) => {
     const f = { kind: 'cyl' as const, x, z, r, top };
     world.add(f);
@@ -395,6 +421,8 @@ const combat = new CombatSystem({
   // A roll along the stick, or a backstep: the controller carries it (an impulse alone was eaten by the ground drag).
   onDodge: () => startDash(controller, tpc.moveToWorld(input.moveAxis())),
 });
+onQualityLate = (q) => { combat.caster.fires.cap = q.fires; };
+onQualityLate(settingsFor(qualityLevel ?? 'high'));
 
 /** Moves the hero (portals, doors, the frog's dream): everything that was chasing stays behind. */
 function teleport(x: number, y: number, z: number, yaw: number, name?: string): void {
@@ -944,48 +972,47 @@ game
       const { dx, dy } = input.takeMouseDelta();
       if (input.locked) tpc.rotate(dx, dy);
       party.update(dt);
-      for (let i = 0; i < ROSTER.length; i++) {
-        if (input.locked && input.justPressed(`Digit${i + 1}`)) switchTo(i);
+      // F1-F3 switch hero; 1-7 pick a slot on the bar; right click casts it at the crosshair, left click is the weapon.
+      if (input.locked) for (let i = 0; i < ROSTER.length; i++) if (input.justPressed(`F${i + 1}`)) switchTo(i);
+      if (input.locked) for (let k = 1; k <= 7; k++) {
+        if (input.justPressed(`Digit${k}`)) spellBar.select(party.active.id, barKey(`Digit${k}`)!);
       }
       if (input.locked && input.justPressed('KeyF')) pressF();
+      if (input.locked && input.justPressed('KeyE')) pressF();
       // Tab: lock on to the nearest enemy in front of the camera, or let go.
       if (input.locked && input.justPressed('Tab')) combat.toggleLock(tpc.forward(lookAhead));
-      // Spells: hold Z X C V to aim (the landing shows on the ground), release to cast, right mouse or Esc cancels.
-      if (input.locked) for (const k of SPELL_KEYS) {
-        if (!input.justPressed(k)) continue;
-        const s = spellSlot(k, controller.mode === 'fly');
-        if (s !== null && combat.spells.ready(party.active.id, s)) aimHold.press(s);
-      }
-      const aimingSlot = aimHold.slot;
-      const castSlot = aimHold.update(dt, aimingSlot !== null && input.isDown(SPELL_KEYS[aimingSlot]), !input.locked || input.mouseJustPressed(2) || input.justPressed('Escape'));
-      const released = castSlot;
-      if (released !== null) spellBuffer.push(released);
-      const trySpell = spellBuffer.peek(dt);
+      const hero = party.active.id;
+      const picked = spellBar.selected(hero);
+      const slot = BAR[hero][picked];
+      combat.barSlot = picked;
+      // Right click: a cast (Telekinesis is held instead; so is Sir Aldric's slam while a mob hangs from his fist).
+      const holding = combat.carry.hand !== null;
+      const mind = input.locked && input.mouseDown(2) && (!!slot.hold || holding);
+      if (input.locked && input.mouseJustPressed(2) && !slot.hold && !holding) spellBuffer.push(picked);
+      const buffered = spellBuffer.peek(dt);
+      // The aim reaches as far as the spell about to be cast (a buffered one), else the picked one: Earthsplitter's
+      // leap range must not stick to every aim after it (Telekinesis' grab, the other heroes).
+      const { cast: act, aim: aimAct } = barActs(hero, buffered, picked);
+      castRange = aimAct?.kind === 'spell' ? spellRange(SPELLS[hero][aimAct.slot].id) : AIM_RANGE;
       const castsBefore = combat.spellsCast;
-      // (A right-click that cancelled an aim is not a heavy: not while held, not on its release.)
-      const heavyOk = aimHold.heavyOk(true);
-      aimHold.heavyOk(input.mouseDown(2));
-      if (aimHold.aiming) {
-        const def = SPELLS[party.active.id]?.[aimHold.slot!];
-        const shape = def ? aimShape(def.id, def.radius) : { kind: 'none' as const };
-        const fwd = tpc.forward(new Vector3());
-        const fl = Math.hypot(fwd.x, fwd.z) || 1;
-        if (shape.kind === 'ring') {
-          const a = spellAim(spellRange(def!.id));
-          aimPreview.show(shape, a.at.x, a.at.y, a.at.z, { x: fwd.x / fl, z: fwd.z / fl }, def!.color, a.far, dt);
-        } else aimPreview.show(shape, controller.pos.x, controller.pos.y, controller.pos.z, { x: fwd.x / fl, z: fwd.z / fl }, def?.color ?? 0xffffff, false, dt);
-      } else aimPreview.hide();
+      const swing = lmb.update(dt, input.locked && input.mouseDown(0));
       combat.update(dt, {
-        attack: input.locked && input.mouseJustPressed(0),
-        heavyHeld: input.locked && input.mouseDown(2) && aimingSlot === null && heavyOk,
-        heavyRelease: input.locked && input.mouseJustReleased(2) && heavyOk,
-        skill: input.locked && input.justPressed('KeyE'),
-        spell: trySpell,
-        burst: input.locked && input.justPressed('KeyQ'),
+        attack: swing.attack,
+        heavyHeld: swing.heavyHeld,
+        heavyRelease: swing.heavyRelease,
+        skill: act?.kind === 'skill',
+        spell: act?.kind === 'spell' ? act.slot : null,
+        burst: act?.kind === 'burst',
+        mind,
         dodge: input.locked && input.justPressed('KeyR'),
         grab: input.locked && input.justPressed('KeyG'),
       });
       if (combat.spellsCast !== castsBefore) spellBuffer.done();
+      liftGlow.update(dt, input.locked && !!slot.hold && !combat.carry.mind ? combat.carry.liftTarget() : null);
+      // Telekinesis held: the beam from his hand to the hold.
+      const held = combat.carry.holding();
+      const cs = controller;
+      mindBeam.update(dt, held ? { from: handAt.set(cs.pos.x + Math.cos(cs.yaw) * 0.5, cs.pos.y + 1.55, cs.pos.z + Math.sin(cs.yaw) * 0.5), to: held.to, r: held.r } : null);
       const move = input.locked && !combat.busy && combat.charging === 0 ? tpc.moveToWorld(input.moveAxis()) : { x: 0, z: 0 };
       const space = input.locked && input.justPressed('Space');
       adventures.update(dt);
@@ -1111,6 +1138,7 @@ game
         speed: Math.hypot(controller.vel.x, controller.vel.z),
         attack: combat.attackProgress,
         attackKind: combat.attackKind,
+        spellId: combat.castSpellId,
         attackDuration: combat.attackDuration,
         charging: combat.charging > 0,
         landed: performance.now() / 1000 - landedAt,

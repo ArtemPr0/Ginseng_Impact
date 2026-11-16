@@ -139,5 +139,20 @@
   "creak1.m4a",
   "creak2.m4a",
   "creak3.m4a"
+ ],
+ "explosion": [
+  "explosionCrunch_000.m4a",
+  "explosionCrunch_001.m4a",
+  "explosionCrunch_002.m4a",
+  "explosionCrunch_003.m4a",
+  "explosionCrunch_004.m4a",
+  "lowFrequency_explosion_000.m4a",
+  "lowFrequency_explosion_001.m4a"
+ ],
+ "fire-loop": [
+  "fire.m4a"
+ ],
+ "wind-loop": [
+  "wind-woosh.m4a"
  ]
 }

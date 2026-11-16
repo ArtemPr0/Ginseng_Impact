@@ -136,3 +136,33 @@ export function chunkCount(size: number, far = false): number {
   n = Math.round(n);
   return far ? Math.max(6, Math.round(n / 2)) : n;
 }
+
+/**
+ * How many blocks a building `size` metres across comes apart into (v12, 2026-11-16: block by block, as in the
+ * godofprompt reel): 0 under 2.5 m (props keep their Voronoi chunks), houses about 200, landmarks about 600, at most 800;
+ * `scale` is the quality's share (Low: fewer, bigger blocks), never under 24.
+ */
+export function blockCount(size: number, scale = 1): number {
+  if (size < 2.5) return 0;
+  const pts: [number, number][] = [[2.5, 50], [8, 220], [20, 380], [55, 620], [200, 800]];
+  let n = pts[pts.length - 1][1];
+  for (let i = 1; i < pts.length; i++) {
+    const [s0, n0] = pts[i - 1], [s1, n1] = pts[i];
+    if (size <= s1) { n = n0 + ((Math.log(size) - Math.log(s0)) / (Math.log(s1) - Math.log(s0))) * (n1 - n0); break; }
+  }
+  return Math.max(24, Math.round(n * scale));
+}
+
+/** Length to height of a block: stone and plaster as bricks, wood as planks; glass and metal do not break in blocks. */
+const BLOCK_RATIO: Record<string, number> = { stone: 1.6, plaster: 1.6, earth: 1.6, bone: 1.6, crystal: 1.4, wood: 3 };
+
+/** A course height and block length (source units) that cut `area` of surface into about `n` blocks; null: not blocks. */
+/** True for materials that break into laid blocks (blockSize has a shape for them); metal and glass shatter. */
+export function hasBlocks(kind: string): boolean { return !!BLOCK_RATIO[kind]; }
+
+export function blockSize(area: number, n: number, kind: string): { course: number; length: number } | null {
+  const r = BLOCK_RATIO[kind];
+  if (!r || n <= 0 || area <= 0) return null;
+  const course = Math.sqrt(area / (n * r));
+  return { course, length: course * r };
+}

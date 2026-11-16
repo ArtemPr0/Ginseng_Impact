@@ -1,3 +1,4 @@
+import { bedPlan, type BedKind } from './Beds';
 import { musicUrl, trimSilence, type MusicSlot } from './music';
 import { SampleBank, type Manifest } from './SampleBank';
 import SFX_MANIFEST from '../../public/audio/sfx/manifest.json';
@@ -490,6 +491,7 @@ export class Audio {
   spell(kind: 'whoomph' | 'crackle' | 'frost' | 'zap' | 'wind' | 'rumble' | 'vortex' | 'grow' | 'chain' | 'charge' | 'moon' | 'whoosh'): void {
     switch (kind) {
       case 'whoomph':
+        this.sample('explosion', 0.9);
         this.tone('sine', 90, 28, 0.7, 1.0);
         this.noise(0.9, 'lowpass', 2400, 120, 0.7, 0.9, 0, 0.01);
         this.noise(0.25, 'highpass', 3000, 1500, 0.7, 0.35);
@@ -544,6 +546,18 @@ export class Audio {
       case 'whoosh':
         this.noise(0.35, 'bandpass', 500, 2200, 1, 0.4, 0, 0.04);
         break;
+    }
+  }
+
+  /** A sound that lasts `seconds` (Beds.ts): the tornado's roar, the fire's crackle, the black hole's drone. */
+  bed(kind: BedKind, seconds: number): void {
+    if (!this.ctx) return;
+    // The recorded CC0 loop under it (the wind for a tornado, the fireplace for fire), when loaded.
+    if (kind === 'tornado') this.samples?.loop('wind-loop', seconds, { gain: 0.9 });
+    else if (kind === 'fire') this.samples?.loop('fire-loop', seconds, { gain: 0.7 });
+    for (const c of bedPlan(kind, seconds)) {
+      if (c.tone) this.tone(c.tone, c.f0, c.f1, c.dur, c.peak, c.at, c.attack, 0.2);
+      else this.noise(c.dur, c.filter, c.f0, c.f1, c.q, c.peak, c.at, c.attack);
     }
   }
 

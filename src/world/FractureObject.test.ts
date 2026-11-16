@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BoxGeometry, BufferAttribute, BufferGeometry, Group, InterleavedBuffer, InterleavedBufferAttribute, Mesh, MeshStandardMaterial } from 'three';
 import { fractureNow, meshJobs } from './FractureObject';
+import { blockSize } from './Fracture';
 
 /**
  * A box stored as the optimised GLBs store it (model-tools optimize: KHR_mesh_quantization): positions as normalized
@@ -76,5 +77,23 @@ describe('WorkerFracturer when the worker fails (review 2026-11-16)', () => {
     fake.onerror!(new Event('error'));
     expect(f.get('b', g, 6, 2, 0.1)?.chunks.length).toBeGreaterThan(0);
     expect(f.get('c', g, 6, 3, 0.1)?.chunks.length).toBeGreaterThan(0);
+  });
+});
+
+describe('block mode (v12)', () => {
+  it('a stone house cut into about n blocks, each no bigger than a block, all of the model kept', () => {
+    const root = new Group();
+    root.add(new Mesh(new BoxGeometry(6, 4, 6, 6, 4, 6), new MeshStandardMaterial()));
+    const f = fractureNow(root, 200, 1, 0.25, 'stone');
+    expect(f.chunks.length).toBeGreaterThan(120);
+    expect(f.chunks.length).toBeLessThan(320);
+    const area = 2 * (6 * 4 * 2 + 6 * 6);
+    const b = blockSize(area, 200, 'stone')!;
+    for (const c of f.chunks) expect(Math.max(c.half.x, c.half.y, c.half.z) * 2).toBeLessThanOrEqual(b.length + 1e-3);
+  });
+  it('glass and metal keep Voronoi shards', () => {
+    const root = new Group();
+    root.add(new Mesh(new BoxGeometry(6, 4, 6, 6, 4, 6), new MeshStandardMaterial()));
+    expect(fractureNow(root, 40, 1, 0.05, 'glass').chunks.length).toBeLessThanOrEqual(40);
   });
 });

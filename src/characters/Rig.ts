@@ -32,7 +32,9 @@ export interface RigPose {
   /** 0..1 progress of an attack swing or cast, undefined when idle. */
   attack?: number;
   /** Which combo hit (0..2), 'skill', 'heavy' (charged) or 'burst'. Drives the swing shape. */
-  attackKind?: number | 'skill' | 'heavy' | 'burst';
+  attackKind?: number | 'skill' | 'heavy' | 'burst' | 'spell';
+  /** The bar spell being cast (attackKind 'spell'): picks its move (heroClips spellCut). */
+  spellId?: string;
   /** Static NPC poses. */
   pose?: 'sit' | 'kneel' | 'row' | 'ride' | 'carry' | 'drink' | 'fish' | 'telescope' | 'read' | 'pray' | 'stir' | 'offer' | 'bow' | 'banner' | 'sitSword' | 'lantern' | 'throne' | 'watch' | 'talk'
     /** The shared emotes (models/Emotes.ts): a bystander's reaction. */
@@ -1105,7 +1107,7 @@ export class Rig {
     this.prop.visible = this.propShown > 0.03;
     if (this.anchor) {
       // Drawn upright at the side, then levelled at the target for the strike and held while the bolt flies.
-      const cut = this.hero ? moveCut(this.hero, pose.attackKind) : null;
+      const cut = this.hero ? moveCut(this.hero, pose.attackKind, pose.spellId) : null;
       const strike = cut ? cutStrike(cut) : 0.45;
       const a = pose.attack ?? 1;
       const raise = a < strike * 0.55 ? a / (strike * 0.55) : a < 0.75 ? 1 : 1 - (a - 0.75) / 0.25;
@@ -1180,7 +1182,7 @@ export class Rig {
     if (pose.mode === 'swim') { bob = Math.sin(t * 0.8) * 0.05; lean = Math.sin(t * 0.4) * 0.04; drift = 0; tilt = pose.speed > 0.3 ? 0.12 : 0.03; }
     if (pose.attack !== undefined) {
       // Leans into the cast: wound up until the move's measured strike (HERO_CLIPS.wizard), then thrown forward.
-      const cut = this.hero ? moveCut(this.hero, pose.attackKind) : null;
+      const cut = this.hero ? moveCut(this.hero, pose.attackKind, pose.spellId) : null;
       const strike = cut ? cutStrike(cut) : 0.3;
       const a = pose.attack;
       const windup = a < strike ? a / strike : 1 - (a - strike) / Math.max(0.05, 1 - strike);
@@ -1216,13 +1218,13 @@ export class Rig {
    * The clip key a swing or cast of `kind` plays on this body: the hero's measured cut (heroClips.ts), or the plain
    * registry clip for an NPC body (a witch's cast, a companion's swing).
    */
-  private moveKey(kind: RigPose['attackKind']): string {
+  private moveKey(kind: RigPose['attackKind'], spellId?: string): string {
     const hero = this.hero;
-    const generic = kind === 'heavy' ? 'heavy' : kind === 'skill' || kind === 'burst' ? 'cast' : 'attack';
+    const generic = kind === 'heavy' ? 'heavy' : kind === 'skill' || kind === 'burst' || kind === 'spell' ? 'cast' : 'attack';
     if (!hero) return generic;
-    const cut = moveCut(hero, kind);
+    const cut = moveCut(hero, kind, spellId);
     if (!cut) return generic;
-    const id = kind === 'heavy' ? 'heavy' : kind === 'skill' ? 'skill' : kind === 'burst' ? 'burst' : `attack${kind}`;
+    const id = kind === 'heavy' ? 'heavy' : kind === 'skill' ? 'skill' : kind === 'burst' ? 'burst' : kind === 'spell' ? `spell:${spellId ?? ''}` : `attack${kind}`;
     return this.heroCut(id, cut) ?? this.heroCut('attack0', hero.attack[0]) ?? 'attack';
   }
 
@@ -1238,7 +1240,7 @@ export class Rig {
     const airStrike = pose.mode === 'fly' && pose.attack !== undefined && (m.id === 'archer' || m.id === 'knight');
     if (m.id === 'knight') {
       // The attack cut's right arm over the glide, scrubbed by the swing's progress.
-      const swing = airStrike ? m.layer(this.moveKey(pose.attackKind), RIGHT_ARM) : null;
+      const swing = airStrike ? m.layer(this.moveKey(pose.attackKind, pose.spellId), RIGHT_ARM) : null;
       if (this.airSwing && this.airSwing !== swing) { this.airSwing.stop(); this.airSwing = null; }
       if (swing) {
         if (!this.airSwing) { swing.reset(); swing.play(); this.airSwing = swing; }
@@ -1273,9 +1275,9 @@ export class Rig {
       if (key && (freshHurt || m.playing !== key)) m.play(key, { once: true, fitTo: hurtFor, fade: hero.hit.fade ?? 0.06, restart: true, at: pose.hurt!.t / hurtFor });
     } else if (pose.attack !== undefined && !cyclone && !airStrike) {
       const k = pose.attackKind;
-      const key = this.moveKey(k);
-      const cut = hero ? moveCut(hero, k) : null;
-      this.shotClip = k === 'heavy' ? 'heavy' : k === 'skill' || k === 'burst' ? 'cast' : 'attack';
+      const key = this.moveKey(k, pose.spellId);
+      const cut = hero ? moveCut(hero, k, pose.spellId) : null;
+      this.shotClip = k === 'heavy' ? 'heavy' : k === 'skill' || k === 'burst' || k === 'spell' ? 'cast' : 'attack';
       // A new swing starts when the progress counter restarts or the attack kind changes.
       const fresh = this.lastAttack === undefined || pose.attack < this.lastAttack || this.lastKind !== k;
       // The game seconds the move lasts: the caller's, else the cut's own; a body with neither (a companion's swing,

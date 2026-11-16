@@ -125,7 +125,7 @@ export class BlackHoleFx {
 
   constructor(color: number, private readonly life: number) {
     const violet = new Color(color);
-    const core = new Mesh(new SphereGeometry(1, 40, 20), new MeshBasicMaterial({ color: 0x000000 }));
+    const core = new Mesh(new SphereGeometry(1, 40, 20), new MeshBasicMaterial({ color: 0x000000, fog: false }));
     core.name = 'core';
     core.renderOrder = 2;
     const uniforms = (inner: number, outer: number, i: number) => ({
@@ -246,7 +246,7 @@ void main() {
   vec3 col = mix(vec3(0.45, 0.04, 0.0), vec3(1.0, 0.36, 0.03), smoothstep(0.3, 0.58, h));
   col = mix(col, vec3(1.0, 0.88, 0.55), smoothstep(0.62, 0.9, h));
   // Ragged tongues of flame with dark gaps between (three shells add up: each keeps to its brightest third).
-  float a = smoothstep(0.5, 0.74, n) * smoothstep(0.0, 0.06, vUv.y) * smoothstep(1.0, 0.72, vUv.y);
+  float a = smoothstep(0.42, 0.68, n) * smoothstep(0.0, 0.06, vUv.y) * (1.0 - smoothstep(0.72, 1.0, vUv.y));
   gl_FragColor = vec4(col * a * uI, 1.0);
 }`;
 
@@ -282,9 +282,9 @@ export class FireTornadoFx {
     };
     const shells: Array<[number, number, number, number, number]> = [
       // radius scale, height scale, heat, brightness, spin
-      [1, 1, 0.95, 0.5, 2.4],
-      [0.72, 0.94, 1.1, 0.5, -3.1],
-      [0.42, 0.85, 1.3, 0.55, 3.8],
+      [1, 1, 0.95, 0.62, 2.4],
+      [0.72, 0.94, 1.1, 0.68, -3.1],
+      [0.42, 0.85, 1.3, 0.8, 3.8],
     ];
     shells.forEach(([k, hk, heat, i, spin], n) => {
       const m = additive(FIRE_V, FIRE_F, { uT: { value: 0 }, uSeed: { value: n * 1.7 }, uHeat: { value: heat }, uI: { value: i }, uSpin: { value: spin } });
@@ -294,6 +294,18 @@ export class FireTornadoFx {
       mesh.renderOrder = 3 + n;
       this.group.add(mesh);
     });
+    // A shell of dark smoke round the fire (the reel's tornado is a smoky funnel with the fire inside it), lit orange
+    // from within at its foot.
+    const smokeShell = new ShaderMaterial({
+      vertexShader: FIRE_V, fragmentShader: STORM_F, transparent: true, depthWrite: false, blending: NormalBlending, side: DoubleSide,
+      uniforms: { uT: { value: 0 }, uSeed: { value: 4.1 }, uSpin: { value: 1.8 }, uA: { value: 0.75 }, uDark: { value: new Color(0.04, 0.03, 0.035) }, uLight: { value: new Color(0.3, 0.12, 0.05) } },
+    });
+    smokeShell.forceSinglePass = true;
+    this.mats.push(smokeShell);
+    const shell = new Mesh(new LatheGeometry(pts(1.3, 1.04), 48), smokeShell);
+    shell.name = 'smoke-shell';
+    shell.renderOrder = 2;
+    this.group.add(shell);
     // The smoke cap: a dark rolling dome over the top.
     const cap: Vector2[] = [];
     for (let i = 0; i <= 12; i++) { const a = (i / 12) * Math.PI; cap.push(new Vector2(2.4 + Math.sin(a) * 1.4, 6.3 + (1 - Math.cos(a)) * 0.9)); }
@@ -329,3 +341,64 @@ function disposeTree(root: Group): void {
   root.removeFromParent();
 }
 
+
+const STORM_F = /* glsl */ `
+uniform float uT;
+uniform float uSpin;
+uniform float uA;
+uniform vec3 uDark;
+uniform vec3 uLight;
+varying vec3 vP;
+varying vec2 vUv;
+${GLSL_NOISE_BASIC}
+void main() {
+  // Grey wind streaks turning fast and climbing, torn ragged at the edges.
+  float w = uT * uSpin + vP.y * 0.35;
+  float c = cos(w), s = sin(w);
+  vec2 q = vec2(c * vP.x - s * vP.z, s * vP.x + c * vP.z);
+  float n = fbm(vec2(atan(q.y, q.x) * 2.2, vP.y * 0.5 - uT * 2.4)) * 0.6 + fbm(vec2(q.x * 0.9, vP.y * 1.4 - uT * 3.0)) * 0.4;
+  float a = smoothstep(0.32, 0.62, n) * smoothstep(0.0, 0.05, vUv.y) * (1.0 - smoothstep(0.82, 1.0, vUv.y)) * uA;
+  vec3 col = mix(uDark, uLight, smoothstep(0.45, 0.8, n));
+  gl_FragColor = vec4(col, a * 0.85);
+}`;
+
+/**
+ * Wren's Storm Tornado (v12, 2026-11-16: the godofprompt reel's grey tornado under a dark shelf cloud): two nested
+ * lathe shells of grey wind streaks, 11 m tall (its shelf cloud is billowing puffs: render/Explosion.cloud).
+ */
+export class StormTornadoFx {
+  readonly group = new Group();
+  private readonly mats: ShaderMaterial[] = [];
+
+  constructor() {
+    this.group.name = 'storm-funnel';
+    const pts = (k: number) => {
+      const out: Vector2[] = [];
+      for (let i = 0; i <= 28; i++) { const y = (i / 28) * 7; out.push(new Vector2(profile(y) * k * 1.15, y * 1.6)); }
+      return out;
+    };
+    ([[1, 2.2], [0.66, -2.9]] as const).forEach(([k, spin], n) => {
+      const m = new ShaderMaterial({
+        vertexShader: FIRE_V, fragmentShader: STORM_F, transparent: true, depthWrite: false, blending: NormalBlending, side: DoubleSide,
+        uniforms: { uT: { value: 0 }, uSeed: { value: n * 2.3 }, uSpin: { value: spin }, uA: { value: 1 }, uDark: { value: new Color(0.16, 0.17, 0.21) }, uLight: { value: new Color(0.5, 0.53, 0.6) } },
+      });
+      m.forceSinglePass = true;
+      this.mats.push(m);
+      const mesh = new Mesh(new LatheGeometry(pts(k), 48), m);
+      mesh.name = `storm-shell${n}`;
+      mesh.renderOrder = 3 + n;
+      this.group.add(mesh);
+    });
+  }
+
+  /** `t` of `life` seconds; `dir`: the way it drifts (it leans into it). */
+  update(t: number, _dt: number, dir: Vector3 | { x: number; z: number }, life = 6): void {
+    for (const m of this.mats) m.uniforms.uT.value = t;
+    const fade = Math.max(0, Math.min(1, t / 0.6, (life - t) / 0.8));
+    for (const m of this.mats) m.uniforms.uA.value = fade;
+    this.group.rotation.z = Math.sin(t * 1.1) * 0.06 - dir.x * 0.07;
+    this.group.rotation.x = Math.sin(t * 0.8 + 1) * 0.05 + dir.z * 0.07;
+  }
+
+  dispose(): void { disposeTree(this.group); }
+}

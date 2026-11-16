@@ -37,7 +37,7 @@ import { chainTo, steer, type Homing, type NearestQuarry } from './Homing';
 import { LootField, rollDrops } from './Loot';
 import { dressLoot } from './LootLooks';
 import { BURST, COMBO, CYCLONE, SKILLS, type AttackDef, type BurstKind, type CrescentShape, type GroundEffectDef, type HitShape, type StarfallShape, type VolleyShape } from './Skills';
-import { comboTiming, cutSpan, heavyTiming, heroClipsOf, moveCut, skillTiming } from '../characters/heroClips';
+import { comboTiming, cutSpan, heavyTiming, heroClipsOf, moveCut, skillTiming, spellCut } from '../characters/heroClips';
 import { atkMult, hpMult } from '../game/Progress';
 import { WORLD } from '../world/Terrain';
 import { disposeObject } from '../render/dispose';
@@ -55,7 +55,8 @@ import type { SpellLights } from './SpellCast';
 import { maimMult, pickPart, severRoll, wearCrossed, wearPart } from './Sever';
 import { StuckArrows, entryPoint } from './StuckArrows';
 import { CarrySystem } from './CarrySystem';
-import { SpellBook } from './Spells';
+import { SpellBook, SPELLS } from './Spells';
+import { spellPress } from './SpellBar';
 import { SpellCast } from './SpellCast';
 import type { BlowKind } from '../world/Breakables';
 import { CONTROLLER, rolling, startLeap, startLunge } from '../player/CharacterController';
@@ -184,8 +185,10 @@ interface HitOpts {
 
 export interface CombatInput {
   attack: boolean; heavyHeld: boolean; heavyRelease: boolean; skill: boolean; burst: boolean; dodge: boolean;
-  /** The spell slot pressed this step (Z X C V: 0-3), if any (Spells.spellSlot). */
+  /** The spell-book slot cast this step (bar slots 3-7 are book slots 0-4, SpellBar.ts), if any. */
   spell?: number | null;
+  /** Right mouse held for a lift: Orlan's Telekinesis picked, or Sir Aldric slamming the mob in his fist (CarrySystem). */
+  mind?: boolean;
   /** G this step: Sir Aldric grabs (or drops) the mob in front of him (CarrySystem). */
   grab?: boolean;
 }
@@ -227,6 +230,8 @@ export interface CombatDeps {
   allies?: () => ReadonlyArray<CombatAlly>;
   /** A blow breaks the world there (World.breakables): returns how many things it broke. */
   breakAt?: (x: number, y: number, z: number, radius: number, kind: BlowKind) => number;
+  /** A vortex tears up to `count` standing blocks loose within `radius` of (x, z) (Breakables.tear). */
+  tear?: (x: number, z: number, radius: number, count: number) => number;
   /** A blow digs the ground (World.craters): a bowl `r` metres across, `depth` deep, burnt or frozen around it. */
   dig?: (x: number, z: number, r: number, depth: number, scorch?: 'burnt' | 'frozen') => void;
   /** Where the crosshair points on the ground (spells land there; Aim.ts). */
@@ -239,6 +244,8 @@ export interface CombatDeps {
   lights?: SpellLights;
   /** Billowing smoke or dust (render/Billow). */
   smoke?: (at: Vector3, r: number, color: number, life: number) => void;
+  /** A loaded Meshy model by id, or null while it loads (the Stone Wall's stone). */
+  model?: (id: string) => Object3D | null;
   /** A copy of a reel flora model to grow (Overgrowth; World.sprout). */
   sprout?: (ids: string[]) => { object: Group; scale: number } | null;
   /** A solid trunk while a grown tree stands; returns its remover. */
@@ -331,6 +338,16 @@ function moveTimes(hero: string): MoveTimes {
   };
 }
 
+/** A bar spell's move: its game seconds, where it lands, and where the blade cuts in it (undefined: no table). */
+function spellMove(hero: string, spellId: string | undefined): { duration: number; strike: number; blade: Window | null } | undefined {
+  const cut = spellCut(hero, spellId);
+  if (!cut) return undefined;
+  const from = cut.from ?? 0;
+  const span = cutSpan(hero, cut);
+  const strike = cut.strike ?? 0.4;
+  return { duration: span / (cut.speed ?? 1), strike, blade: cutWindow(from, from + span, strike, BLADE_CUTS[hero]?.[cut.key]) };
+}
+
 /** The lean's purple: the cyclone's ribbon, its puddles, the drops flung off the blade. */
 const LEAN_PURPLE = 0xb36bff;
 /**
@@ -389,7 +406,11 @@ export class CombatSystem {
   private readonly combos = new Map<string, ComboTracker>();
   private readonly cooldowns = new Map<string, Cooldown>();
   readonly hp = new Map<string, number>();
-  private casting: { def: CharacterDef; t: number; fired: boolean; spell?: number; aim?: Vector3 } | null = null;
+  /**
+   * The skill or a bar spell in progress. A spell carries its own move (heroClips spellCut: Sir Aldric slams the ground
+   * for Stone Wall), measured once at the cast: its seconds, where it lands, and where the blade cuts in it.
+   */
+  private casting: { def: CharacterDef; t: number; fired: boolean; spell?: number; spellId?: string; aim?: Vector3; move?: { duration: number; strike: number; blade: Window | null } } | null = null;
   private heavy: { t: number; fired: boolean; charge: number } | null = null;
   private heavyCharge = 0;
   private poisonLeft = 0;
@@ -441,14 +462,16 @@ export class CombatSystem {
   readonly gore: Gore;
   /** Sir Aldric's fist and Orlan's mind: things picked up and thrown (CarrySystem). */
   readonly carry: CarrySystem;
-  /** Spells cast so far (main's SpellBuffer lets go of a released spell once this moves). */
+  /** The bar slot picked with 1-7 (main sets it each step; the HUD marks it). */
+  barSlot = 2;
+  /** Bar casts so far, skill and burst included (main's SpellBuffer lets go of a buffered cast once this moves). */
   spellsCast = 0;
   /** Wren's arrows left in the bodies they hit (StuckArrows). */
   readonly stuck = new StuckArrows();
   private readonly bonesOf = new Map<number, Object3D[]>();
   /** Seconds of Blood Moon left: every blow tears something off. */
   bloodMoon = 0;
-  /** Every hero's spell cooldowns (Z X C V), and the spells in the world. */
+  /** Every hero's spell cooldowns (bar slots 3-7), and the spells in the world. */
   readonly spells = new SpellBook();
   readonly caster: SpellCast;
   private readonly sfx: CombatSfx;
@@ -511,15 +534,18 @@ export class CombatSystem {
       enemies: this.enemies, controller: d.controller, fx: this.fx, audio: d.audio, scene: d.scene,
       element: () => self.elementOf(self.active),
       hit: (e, mult, knockback, hitStop, at) => self.hitEnemy(e, self.atkOf(self.active), mult, self.elementOf(self.active), knockback, hitStop, { blow: 'skill', heavy: true, at }),
+      // Fires burn as damage over time: no kick, no combo, no heavy-hit feel.
+      burn: (e, mult) => self.hitEnemy(e, self.atkOf(self.active), mult, null, 0, 0, { energy: false, dot: true }),
       reachable: (e, r, at) => self.reachable(e, r, at),
       smash: (x, y, z, r, kind) => self.smash(x, y, z, r, kind),
+      tear: (x, z, r, n) => d.tear?.(x, z, r, n) ?? 0,
       dig: (x, z, r, depth, scorch) => d.dig?.(x, z, r, depth, scorch),
       shake: (n) => d.onShake?.(n),
       heightAt: (x, z, y) => d.world.heightAt(x, z, y),
       debris: () => [self.gore.sim, ...(d.debris?.() ?? [])],
       bloodMoon: (seconds) => { self.bloodMoon = seconds; },
       announce: (text) => d.hud.announce(text),
-      sprout: d.sprout, solid: d.solid, lights: d.lights, smoke: d.smoke,
+      sprout: d.sprout, solid: d.solid, lights: d.lights, smoke: d.smoke, model: d.model,
     });
     this.carry = new CarrySystem({
       enemies: () => self.enemies,
@@ -742,7 +768,7 @@ export class CombatSystem {
     if (this.heavy) return Math.min(1, this.heavy.t / this.timesOf(this.active.id).heavy.duration);
     // Charging: the wind-up builds toward the held frame (the body holds it; Orlan's robe leans into it).
     if (this.heavyCharge > 0) { const hold = this.timesOf(this.active.id).heavy.startAt; return Math.min(hold, this.heavyCharge * hold); }
-    if (this.casting) return Math.min(1, this.casting.t / this.timesOf(this.casting.def.id).skill.duration);
+    if (this.casting) return Math.min(1, this.casting.t / (this.casting.move ?? this.timesOf(this.casting.def.id).skill).duration);
     return this.combo.swinging ? this.combo.progress : undefined;
   }
 
@@ -751,15 +777,20 @@ export class CombatSystem {
     if (this.burstCast) return BURST[this.active.id].time;
     if (this.heavy) return this.timesOf(this.active.id).heavy.duration;
     if (this.heavyCharge > 0) return undefined;
-    if (this.casting) return this.timesOf(this.casting.def.id).skill.duration;
+    if (this.casting) return (this.casting.move ?? this.timesOf(this.casting.def.id).skill).duration;
     return this.combo.swinging ? this.combo.duration : undefined;
   }
 
-  get attackKind(): number | 'skill' | 'heavy' | 'burst' | undefined {
+  get attackKind(): number | 'skill' | 'heavy' | 'burst' | 'spell' | undefined {
     if (this.burstCast) return 'burst';
     if (this.heavy || this.heavyCharge > 0) return 'heavy';
-    if (this.casting) return 'skill';
+    if (this.casting) return this.casting.spell !== undefined ? 'spell' : 'skill';
     return this.combo.swinging ? this.combo.currentHit : undefined;
+  }
+
+  /** The bar spell being cast (its id picks the body's move), if any. */
+  get castSpellId(): string | undefined {
+    return this.casting?.spellId;
   }
 
   onSwitch(): void {
@@ -853,7 +884,7 @@ export class CombatSystem {
     const me = this.active;
     // Picking up and throwing (CarrySystem): while a hero holds something the buttons are its.
     if (input.dodge || this.downed) this.carry.drop();
-    if (this.carry.update(dt, { grab: !!input.grab, attack: input.attack, heavyHeld: input.heavyHeld }) || this.carry.busy) {
+    if (this.carry.update(dt, { grab: !!input.grab, attack: input.attack, heavyHeld: !!input.mind }) || this.carry.busy) {
       input = { ...input, attack: false, heavyHeld: false, heavyRelease: false, skill: false, burst: false };
     }
     this.iframes = Math.max(0, this.iframes - dt);
@@ -1052,27 +1083,36 @@ export class CombatSystem {
     // --- skill ---
     const cd = this.cooldowns.get(me.id)!;
     if (input.skill && (grounded || flying) && !this.busy && this.heavyCharge === 0 && cd.ready) {
+      this.spellsCast++;
       this.softLock(9);
       cd.use();
       this.casting = { def: me, t: 0, fired: false };
       d.audio.cast();
       this.sfx.effort(me.id);
     }
-    // --- spells (Z X C V): the skill's cast, landing a spell instead (SpellCast) ---
+    // --- spells (bar slots 3-7, right click): the skill's cast, landing a spell instead (SpellCast) ---
     this.spells.update(dt);
     this.caster.update(dt);
     if (this.bloodMoon > 0) this.bloodMoon = Math.max(0, this.bloodMoon - dt);
     const slot = input.spell ?? null;
-    if (slot !== null && (grounded || flying) && !this.busy && this.heavyCharge === 0 && this.spells.ready(me.id, slot)) {
+    const press = slot === null ? 'none' : spellPress(SPELLS[me.id]?.[slot]?.id ?? '', this.spells.ready(me.id, slot), this.caster.wallUp());
+    if (press === 'kick' && !this.busy) {
+      // Sir Aldric kicks his standing Stone Wall apart.
+      this.caster.kickWall();
+      this.spellsCast++;
+      this.feel.punch = true;
+      this.sfx.effort(me.id);
+    } else if (press === 'cast' && slot !== null && (grounded || flying) && !this.busy && this.heavyCharge === 0) {
       this.softLock(9);
       this.spells.use(me.id, slot);
       this.spellsCast++;
-      this.casting = { def: me, t: 0, fired: false, spell: slot, aim: d.aim?.() ?? this.ahead(8) };
+      const spellId = SPELLS[me.id]?.[slot]?.id;
+      this.casting = { def: me, t: 0, fired: false, spell: slot, spellId, aim: d.aim?.() ?? this.ahead(8), move: spellMove(me.id, spellId) };
       d.audio.cast();
       this.sfx.effort(me.id);
     }
     if (this.casting && this.casting.spell !== undefined) {
-      const timing = this.timesOf(this.casting.def.id).skill;
+      const timing = this.casting.move ?? this.timesOf(this.casting.def.id).skill;
       this.casting.t += dt;
       if (!this.casting.fired && this.casting.t >= timing.duration * timing.strike) {
         this.casting.fired = true;
@@ -1122,6 +1162,7 @@ export class CombatSystem {
     // --- burst (Q): each hero's own ---
     if (input.burst && canBurst && !this.busy && this.heavyCharge === 0 && this.burstEnergy >= BURST_MAX) {
       this.burstEnergy = 0;
+      this.spellsCast++;
       this.burstCast = { t: 0, fired: false, kind: BURST[me.id].kind, shots: 0, tick: 0, puddle: 0 };
       this.iframes = Math.max(this.iframes, 1.0);
       d.audio.burst();
@@ -1152,7 +1193,7 @@ export class CombatSystem {
     const blade = this.bladeColor() !== null;
     if (blade && !this.bladeWas) {
       const k = this.attackKind;
-      this.sfx.swing('blade', k === 'heavy' || k === 'skill' || k === 'burst' || k === 2);
+      this.sfx.swing('blade', k === 'heavy' || k === 'skill' || k === 'spell' || k === 'burst' || k === 2);
     }
     this.bladeWas = blade;
 
@@ -1354,12 +1395,17 @@ export class CombatSystem {
         else if (p.kind === 'log' || p.kind === 'prop' || p.look?.burst === 'crater') this.smash(p.pos.x, p.pos.y, p.pos.z, 2.2, 'stomp');
         if (p.look?.burst === 'crater') this.d.dig?.(p.pos.x, p.pos.z, 2.8, 1.1);
         else if (p.look?.burst === 'frost') this.d.dig?.(p.pos.x, p.pos.z, 1.2, 0, 'frozen');
-        if (p.aoe > 0) this.starBurst(p);
+        if (p.aoe > 0) { this.starBurst(p); this.caster.skillImpact('star', p.pos, p.color); }
         else if (p.kind === 'crescent') {
+          this.caster.skillImpact('crescent', p.pos, p.color);
           // The wave breaks: a last patch of burning ground where it stopped, unless one lies just behind.
           if (p.burn && Math.hypot(p.pos.x - p.from.x, p.pos.z - p.from.z) - (p.burn.next - p.burn.every) > p.burn.every * 0.5) this.layBurn(p);
           this.fx.flash(_v.set(p.pos.x, p.pos.y + 0.7, p.pos.z), p.color, 2.2);
-        } else if (p.owner === 'player') this.fx.flash(p.pos, _col.set(ELEMENT_COLOR[p.element ?? 'lunar']).multiplyScalar(0.6), 1.4);
+        } else if (p.owner === 'player') {
+          this.fx.flash(p.pos, _col.set(ELEMENT_COLOR[p.element ?? 'lunar']).multiplyScalar(0.6), 1.4);
+          // A volley's arrow (a skill's shot) bursts where it lands.
+          if (p.kind === 'trip' || (p.kind === 'arrow' && p.cast)) this.caster.skillImpact('arrow', p.pos, p.color);
+        }
         else this.fx.flash(p.pos, p.color, p.kind === 'log' ? 3.5 : 1.6);
         if (p.kind === 'log') { this.fx.dust(p.pos, 2.4); this.d.onShake?.(0.4); this.d.audio.stomp(); }
         if (p.look) {
@@ -1418,9 +1464,13 @@ export class CombatSystem {
 
     this.vfx.update(dt);
     d.hud.setHp(this.hp.get(me.id)!, this.maxOf(me));
-    d.hud.setSkill(SKILLS[me.id].name, cd.fraction, cd.ready && (grounded || flying));
-    d.hud.setSpells(me.id, [0, 1, 2, 3].map((i) => this.spells.fraction(me.id, i)), [0, 1, 2, 3].map((i) => this.spells.ready(me.id, i) && (grounded || flying)));
-    d.hud.setBurst(this.burstEnergy / BURST_MAX, this.burstEnergy >= BURST_MAX && canBurst, BURST[me.id].name);
+    {
+      const book = SPELLS[me.id] ?? [];
+      const free = grounded || flying;
+      const cds = [cd.fraction, 0, ...book.map((_, i) => this.spells.fraction(me.id, i))];
+      const ready = [cd.ready && free, this.burstEnergy >= BURST_MAX && canBurst, ...book.map((_, i) => this.spells.ready(me.id, i) && free)];
+      d.hud.setBar(me.id, this.barSlot, cds, ready, this.burstEnergy / BURST_MAX);
+    }
     d.hud.setCharge(this.heavyCharge);
     d.hud.setShards(d.inventory.shards);
     d.hud.setFrenzy(this.frenzyLeft);
@@ -1515,7 +1565,7 @@ export class CombatSystem {
     let w: Window | null;
     let p: number;
     if (this.heavy) { w = t.blade.heavy; p = this.heavy.t / t.heavy.duration; }
-    else if (this.casting) { w = t.blade.skill; p = this.casting.t / t.skill.duration; }
+    else if (this.casting) { const m = this.casting.move; w = m ? m.blade : t.blade.skill; p = this.casting.t / (m ?? t.skill).duration; }
     else if (this.combo.swinging) { w = t.blade.attack[this.combo.currentHit] ?? null; p = this.combo.progress; }
     else return null;
     p = Math.min(1, p);
@@ -1565,6 +1615,9 @@ export class CombatSystem {
     }
     this.fx.sparks(_v.copy(at).add(_w.set(0, 1.1, 0)), UP, 12, LEAN_PURPLE, 6, 1.0);
     this.smash(at.x, at.y + 1, at.z, radius, last ? 'burst' : 'heavy');
+    // The spin rips the blocks off anything it reaches; the last turn throws out a burst of purple.
+    this.d.tear?.(at.x, at.z, radius, last ? 14 : 3);
+    if (last) this.caster.impact(at, LEAN_PURPLE, radius * 0.6, { smoke: 0.5 });
     if (!b.fired || last) { this.fx.shock(at, 0x8b3dff, radius * 1.4); b.fired = true; }
     this.sfx.swing('blade', last);
     if (last) this.feel.punch = true;

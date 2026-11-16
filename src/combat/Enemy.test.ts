@@ -125,3 +125,60 @@ describe('no cartoon squash (the user\'s call of 2026-11-16: realistic, not comi
     for (let i = 0; i < 6; i++) { e.update(0.02, [{ x: 30, y: 0, z: 30 }]); e.animate(0.02); expect(e.object.scale.y).toBeCloseTo(s0, 5); expect(e.object.scale.x).toBeCloseTo(s0, 5); }
   });
 });
+
+describe('knockdowns (v12: heavy blows put small mobs on the ground)', () => {
+  it('a heavy blow tips it over along the blow, it lies stunned, then it is back on its feet', async () => {
+    const { Enemy } = await import('./Enemy');
+    const { ENEMY_DEFS } = await import('../data/enemies');
+    const e = new Enemy(ENEMY_DEFS.beast, { x: 0, z: 0 } as never, { heightAt: () => 0 } as never);
+    e.takeDamage(1, { x: 1, z: 0 }, 8);
+    expect(e.downed).toBe(true);
+    let most = 0;
+    for (let i = 0; i < 40; i++) { e.update(0.02, [{ x: 30, y: 0, z: 30 }]); e.animate(0.02); most = Math.max(most, Math.hypot(e.object.rotation.x, e.object.rotation.z)); }
+    expect(most).toBeGreaterThan(1.1);
+    expect(e.status.stun).toBeGreaterThan(0);
+    for (let i = 0; i < 60; i++) { e.update(0.02, [{ x: 30, y: 0, z: 30 }]); e.animate(0.02); }
+    expect(e.downed).toBe(false);
+    expect(Math.hypot(e.object.rotation.x, e.object.rotation.z)).toBeLessThan(0.15);
+  });
+  it('a light blow only flinches', async () => {
+    const { Enemy } = await import('./Enemy');
+    const { ENEMY_DEFS } = await import('../data/enemies');
+    const e = new Enemy(ENEMY_DEFS.beast, { x: 0, z: 0 } as never, { heightAt: () => 0 } as never);
+    e.takeDamage(1, { x: 1, z: 0 }, 2);
+    expect(e.downed).toBe(false);
+  });
+});
+
+describe('dodging telegraphed spells (v12: smarter mobs)', () => {
+  it('a mob under a rune circle sometimes jumps clear, away from its middle', async () => {
+    const { Enemy } = await import('./Enemy');
+    const { ENEMY_DEFS } = await import('../data/enemies');
+    const e = new Enemy(ENEMY_DEFS.beast, { x: 0, z: 0 } as never, { heightAt: () => 0 } as never);
+    expect(e.dodge(-1, 0, 4, () => 0.99)).toBe(false);
+    expect(e.dodge(-1, 0, 4, () => 0.01)).toBe(true);
+    for (let i = 0; i < 20; i++) e.update(0.02, [{ x: 30, y: 0, z: 30 }]);
+    expect(e.pos.x).toBeGreaterThan(1);
+  });
+  it('a boss, a dazed or a downed mob does not', async () => {
+    const { Enemy } = await import('./Enemy');
+    const { ENEMY_DEFS } = await import('../data/enemies');
+    const e = new Enemy(ENEMY_DEFS.beast, { x: 0, z: 0 } as never, { heightAt: () => 0 } as never);
+    e.afflict('stun', 2);
+    expect(e.dodge(-1, 0, 4, () => 0)).toBe(false);
+  });
+});
+
+describe('dying while knocked down (review 2026-11-16)', () => {
+  it('the body is set upright for its death fall, not tipped past flat', async () => {
+    const { Enemy } = await import('./Enemy');
+    const { ENEMY_DEFS } = await import('../data/enemies');
+    const e = new Enemy(ENEMY_DEFS.beast, { x: 0, z: 0 } as never, { heightAt: () => 0 } as never);
+    e.takeDamage(1, { x: 1, z: 0 }, 8);
+    for (let i = 0; i < 20; i++) { e.update(0.02, [{ x: 30, y: 0, z: 30 }]); e.animate(0.02); }
+    e.takeDamage(1e6, { x: 1, z: 0 }, 1);
+    e.animate(0.02);
+    expect(e.downed).toBe(false);
+    expect(Math.hypot(e.object.rotation.x, e.object.rotation.z)).toBeLessThan(0.05);
+  });
+});

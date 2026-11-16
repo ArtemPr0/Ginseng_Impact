@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BoxGeometry, PlaneGeometry, Quaternion, Vector3 } from 'three';
-import { fractureSolid, type SolidChunk } from './SolidFracture';
+import { fractureBlocks, fractureSolid, type SolidChunk } from './SolidFracture';
 
 /** Surface area of a geometry's group-0 (the outside) triangles, in their chunk frames. */
 function outerArea(c: SolidChunk): number {
@@ -100,5 +100,71 @@ describe('fractureSolid', () => {
       expect(bb.min.y).toBeCloseTo(-c.half.y, 2);
       expect(c.radius).toBeGreaterThanOrEqual(Math.max(c.half.x, c.half.y, c.half.z) - 1e-6);
     }
+  });
+});
+
+describe('fractureBlocks (2026-11-16, the reel: buildings come apart block by block)', () => {
+  const H = 0.5, Wd = 0.8;
+  it('keeps all of the surface', () => {
+    const { chunks } = fractureBlocks(wall(), { course: H, length: Wd, thickness: 0.25 });
+    expect(chunks.reduce((s, c) => s + outerArea(c), 0)).toBeCloseTo(24, 1);
+  });
+  it('cuts brick-sized blocks in courses: no block taller than a course or longer than a brick', () => {
+    const { chunks } = fractureBlocks(wall(), { course: H, length: Wd, thickness: 0.25 });
+    // 6 x 4 m: 8 courses of 7-8 blocks.
+    expect(chunks.length).toBeGreaterThanOrEqual(56);
+    expect(chunks.length).toBeLessThanOrEqual(72);
+    for (const c of chunks) {
+      const h = [c.half.x, c.half.y, c.half.z].sort((a, b) => a - b);
+      // (A sliver at the wall's end may be narrower than the wall is thick.)
+      if (c.half.x * 2 > 0.3) expect(c.half.z * 2).toBeCloseTo(0.25, 1);
+      expect(h[2] * 2).toBeLessThanOrEqual(Wd + 1e-3);
+      expect(h[1] * 2).toBeLessThanOrEqual(Wd + 1e-3);
+    }
+    const courses = new Set(chunks.map((c) => Math.floor((c.pivot.y + 2) / H)));
+    expect(courses.size).toBe(8);
+  });
+  it('staggers the joints: every other course is shifted half a brick, like masonry', () => {
+    const { chunks } = fractureBlocks(wall(), { course: H, length: Wd, thickness: 0.25 });
+    const full = chunks.filter((c) => Math.max(c.half.x, c.half.y, c.half.z) * 2 > Wd - 0.01);
+    const phase = (c: SolidChunk) => { const f = (c.pivot.x / Wd) % 1; return f < 0 ? f + 1 : f; };
+    const course = (c: SolidChunk) => Math.floor((c.pivot.y + 2) / H);
+    const even = full.filter((c) => course(c) % 2 === 0).map(phase);
+    const odd = full.filter((c) => course(c) % 2 === 1).map(phase);
+    expect(even.length).toBeGreaterThan(10);
+    expect(odd.length).toBeGreaterThan(10);
+    // (Phases are on a circle: 0.999 and 0.001 are the same place.)
+    const gap = (a: number, b: number) => { const d = Math.abs(a - b) % 1; return Math.min(d, 1 - d); };
+    for (const p of even) expect(gap(p, even[0])).toBeLessThan(0.02);
+    for (const p of odd) expect(gap(p, odd[0])).toBeLessThan(0.02);
+    expect(Math.abs(gap(even[0], odd[0]) - 0.5)).toBeLessThan(0.02);
+  });
+  it('every block is a closed solid with the break material inside', () => {
+    const { chunks } = fractureBlocks(wall(), { course: H, length: Wd, thickness: 0.25 });
+    for (const c of chunks) {
+      expect(c.geometry.groups[1].count).toBeGreaterThan(0);
+      expect(closed(c)).toBe(true);
+    }
+  });
+  it('knows which blocks touch: side by side in a course, and over and under across courses; both ways', () => {
+    const { chunks, adjacent } = fractureBlocks(wall(), { course: H, length: Wd, thickness: 0.25 });
+    adjacent.forEach((a, i) => { for (const j of a) expect(adjacent[j]).toContain(i); });
+    // A block in the middle touches 2 beside it and 2 above and 2 below (staggered).
+    const mid = chunks.findIndex((c) => Math.abs(c.pivot.x) < 0.5 && Math.abs(c.pivot.y) < 0.6);
+    expect(adjacent[mid].length).toBe(6);
+  });
+  it('keeps the model\'s texture coordinates on the outside faces', () => {
+    const { chunks } = fractureBlocks(wall(), { course: H, length: Wd, thickness: 0.25 });
+    const uv = chunks[0].geometry.attributes.uv.array as ArrayLike<number>;
+    const g = chunks[0].geometry.groups[0];
+    let spread = 0;
+    for (let i = g.start; i < g.start + g.count; i++) spread = Math.max(spread, Math.abs(uv[i * 2] - uv[g.start * 2]));
+    expect(spread).toBeGreaterThan(0.01);
+    expect(spread).toBeLessThan(0.2);
+  });
+  it('a closed model (a house-sized box) comes apart into closed blocks, corners included', () => {
+    const { chunks } = fractureBlocks(new BoxGeometry(4, 3, 5, 4, 3, 5), { course: 0.5, length: 0.8, thickness: 0.2 });
+    expect(chunks.length).toBeGreaterThan(80);
+    for (const c of chunks) expect(closed(c)).toBe(true);
   });
 });
