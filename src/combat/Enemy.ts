@@ -20,6 +20,7 @@ import type { BossAttack, BossAttackKind } from '../data/enemies';
 import { ELEMENT_COLOR, tickAura, type Aura, type Element } from './Elements';
 import { KNOCK_DECAY, lungePush, lungeRoom } from './Warnings';
 import { weakness } from './Sever';
+import { flightStep, type Flight } from './Carry';
 
 export type EnemyAction = { kind: 'melee' } | { kind: 'boss'; attack: BossAttackKind } | null;
 
@@ -190,6 +191,12 @@ export class Enemy {
   readonly severed: Object3D[] = [];
   readonly lost = new Set<string>();
   lostArms = 0;
+  /** Held up by a hero (Carry): its AI waits and whoever holds it sets `pos`. */
+  held = false;
+  /** Thrown alive (Carry): flying until it lands. */
+  thrown: Flight | null = null;
+  /** It landed from a throw at `speed` m/s (the combat system hurts it and what it lands on). */
+  onThrownLand?: (e: Enemy, speed: number) => void;
   /** Health share the last wear check was made at (Sever.wearCrossed). */
   wearFrom = 1;
   private hunched: { bone: Object3D; q: Quaternion } | null = null;
@@ -559,6 +566,13 @@ export class Enemy {
       if (this.deadFor >= this.def.respawn) this.respawn();
       return null;
     }
+    // Held by a hero: it kicks and waits. Thrown: it flies until it lands, then lies stunned a moment.
+    if (this.held) return null;
+    if (this.thrown) {
+      const hit = flightStep(this.thrown, this.pos, dt, (x, z) => this.world.heightAt(x, z, this.pos.y + 0.5));
+      if (hit) { this.thrown = null; this.afflict('stun', 1.4); this.onThrownLand?.(this, hit); }
+      return null;
+    }
     // Out of its territory (or out of this world, through a portal): walk home and heal.
     const playerFromHome = Math.hypot(player.x - this.spawn.x, player.z - this.spawn.z);
     // (A boss that cannot walk, like the seated Hollow King, still holds the player anywhere within its reach.)
@@ -854,6 +868,8 @@ export class Enemy {
     this.heap = null;
     this.toppleT = -1;
     this.yeet = null;
+    this.held = false;
+    this.thrown = null;
     this.tauntT = 0;
     this.object.rotation.x = 0;
     this.oneShot = null;
@@ -987,6 +1003,9 @@ export class Enemy {
       this.object.rotation.x = this.lean.pitch;
       this.object.rotation.z = this.lean.roll;
     }
+    // Hanging from a fist it kicks and squirms; in the air it tumbles end over end.
+    if (this.held) { this.object.rotation.x = Math.sin(this.time * 9) * 0.18; this.object.rotation.z = Math.sin(this.time * 6.5) * 0.12; }
+    else if (this.thrown) this.object.rotation.x = this.thrown.angle;
     if (!m) { this.placeholder?.update(dt); return; }
     if (this.def.stomp && st === 'chase' && this.groundSpeed > 0.4) {
       const prev = this.stepPhase;

@@ -3,7 +3,7 @@
  * (props, tests) or in a worker (buildings: a castle takes ~100–300 ms, so it is cut ahead of time as the hero comes
  * near, FractureWorker.ts). Results are cached per model id and seed: every copy of a model can break three ways.
  */
-import { BufferAttribute, BufferGeometry, Matrix4, Quaternion, Vector3, type Material, type Mesh, type Object3D } from 'three';
+import { BufferAttribute, BufferGeometry, type InterleavedBufferAttribute, Matrix4, Quaternion, Vector3, type Material, type Mesh, type Object3D } from 'three';
 import { fractureSolid, type SolidChunk } from './SolidFracture';
 
 export interface ObjectChunk extends SolidChunk { material: Material }
@@ -25,6 +25,18 @@ export interface MeshJob {
   material: Material;
 }
 
+/**
+ * An attribute as plain floats, `size` a vertex: the optimised GLBs store positions, normals and uvs quantized
+ * (normalized int16/int8) and interleaved, so the raw array is neither floats nor one attribute (read through
+ * getComponent, which unpacks both).
+ */
+function floats(a: BufferAttribute | InterleavedBufferAttribute | undefined, size: number): Float32Array | null {
+  if (!a) return null;
+  const out = new Float32Array(a.count * size);
+  for (let i = 0; i < a.count; i++) for (let k = 0; k < size; k++) out[i * size + k] = a.getComponent(i, k);
+  return out;
+}
+
 /** The model's meshes in its own frame, with each one's share of `n` chunks. */
 export function meshJobs(root: Object3D, n: number): MeshJob[] {
   root.updateMatrixWorld(true);
@@ -35,13 +47,18 @@ export function meshJobs(root: Object3D, n: number): MeshJob[] {
   const total = meshes.reduce((s, m) => s + tris(m), 0) || 1;
   const m4 = new Matrix4();
   return meshes.map((m) => {
-    const g = m.geometry.clone();
+    // Unpacked to floats first, then moved into the model's frame (a transform written back into int16 clamps at ±1).
+    const src = m.geometry;
+    const g = new BufferGeometry();
+    g.setAttribute('position', new BufferAttribute(floats(src.getAttribute('position'), 3)!, 3));
+    const nrm = floats(src.getAttribute('normal'), 3);
+    if (nrm) g.setAttribute('normal', new BufferAttribute(nrm, 3));
     g.applyMatrix4(m4.multiplyMatrices(inv, m.matrixWorld));
-    const idx = g.getIndex();
+    const idx = src.getIndex();
     const job: MeshJob = {
-      position: new Float32Array(g.attributes.position.array as ArrayLike<number>),
-      normal: g.attributes.normal ? new Float32Array(g.attributes.normal.array as ArrayLike<number>) : null,
-      uv: g.attributes.uv ? new Float32Array(g.attributes.uv.array as ArrayLike<number>) : null,
+      position: g.attributes.position.array as Float32Array,
+      normal: nrm ? (g.attributes.normal.array as Float32Array) : null,
+      uv: floats(src.getAttribute('uv'), 2),
       index: idx ? new Uint32Array(idx.array as ArrayLike<number>) : null,
       n: Math.max(1, Math.round((n * tris(m)) / total)),
       material: (Array.isArray(m.material) ? m.material[0] : m.material) as Material,
@@ -128,6 +145,12 @@ export function assemble(parts: Array<{ chunks: SolidChunk[]; adjacent: number[]
   return { chunks, adjacent, floor: Number.isFinite(floor) ? floor : 0 };
 }
 
+function hasMesh(root: Object3D): boolean {
+  let found = false;
+  root.traverseVisible((o) => { if ((o as Mesh).isMesh && !(o as { isSkinnedMesh?: boolean }).isSkinnedMesh) found = true; });
+  return found;
+}
+
 /** Breaks `root` now. */
 export function fractureNow(root: Object3D, n: number, seed: number, thickness: number): ObjectFracture {
   const jobs = meshJobs(root, n);
@@ -144,7 +167,12 @@ export class SyncFracturer implements Fracturer {
   private readonly cache = new Map<string, ObjectFracture>();
   get(key: string, root: Object3D, n: number, seed: number, thickness: number): ObjectFracture | null {
     let f = this.cache.get(key);
-    if (!f) { f = fractureNow(root, n, seed, thickness); this.cache.set(key, f); }
+    if (!f) {
+      // (No meshes yet: its model is still loading. Nothing is kept, so it is cut once it has arrived.)
+      if (!hasMesh(root)) return null;
+      f = fractureNow(root, n, seed, thickness);
+      this.cache.set(key, f);
+    }
     return f;
   }
 }
@@ -181,6 +209,8 @@ export class WorkerFracturer implements Fracturer {
     if (hit) return hit;
     if (this.waiting.has(key)) return null;
     const jobs = meshJobs(root, n);
+    // (Its model still loading: ask again later.)
+    if (!jobs.length) return null;
     const tris = jobs.reduce((s, j) => s + (j.index ? j.index.length : j.position.length / 3) / 3, 0);
     if (tris <= this.syncTris) {
       const f = assemble(jobs.map((j, i) => ({ ...cutJob(j, seed + i * 101, thickness), material: j.material })));

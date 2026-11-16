@@ -55,6 +55,8 @@ export interface RigPose {
   dodge?: { t: number };
   /** Down: the death clip, held on its last frame. */
   dead?: boolean;
+  /** Holding a mob up one-handed by the neck (CarrySystem), 0..1 of the way into the pose. */
+  holding?: number;
 }
 
 
@@ -1518,6 +1520,7 @@ export class Rig {
       this.animateCyclone(pose, dt);
       this.animateCup(pose, dt);
       this.animateSnack(pose, dt);
+      this.animateHold(pose);
       if (pose.look) {
         // (`turn` undoes itself next frame. A body with no neck simply does not turn.)
         this.neck ??= findNeck(this.model.root) ?? false;
@@ -1526,6 +1529,15 @@ export class Rig {
     }
     else this.placeholder?.update(dt);
     this.animateProp(pose, dt);
+  }
+
+  /** One arm raised, the fist out in front at head height: a mob held up by the neck (the sword stays in the other). */
+  private animateHold(pose: RigPose): void {
+    const w = pose.holding ?? 0;
+    const bn = this.bones;
+    if (w <= 0 || !bn) return;
+    this.aim(bn.lArm, bn.lForeArm, _t.set(0.22, 1.72, 0.38), w);
+    this.aim(bn.lForeArm, this.offHand, _t.set(0.08, 2.02, 0.82), w);
   }
 
   /** The held weapon's glow: the wielded item's colour, or none. */

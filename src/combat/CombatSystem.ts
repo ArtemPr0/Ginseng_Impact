@@ -54,6 +54,7 @@ import type { DebrisSim } from '../world/Debris';
 import type { SpellLights } from './SpellCast';
 import { maimMult, pickPart, severRoll, wearCrossed, wearPart } from './Sever';
 import { StuckArrows, entryPoint } from './StuckArrows';
+import { CarrySystem } from './CarrySystem';
 import { SpellBook } from './Spells';
 import { SpellCast } from './SpellCast';
 import type { BlowKind } from '../world/Breakables';
@@ -185,6 +186,8 @@ export interface CombatInput {
   attack: boolean; heavyHeld: boolean; heavyRelease: boolean; skill: boolean; burst: boolean; dodge: boolean;
   /** The spell slot pressed this step (Z X C V: 0-3), if any (Spells.spellSlot). */
   spell?: number | null;
+  /** G this step: Sir Aldric grabs (or drops) the mob in front of him (CarrySystem). */
+  grab?: boolean;
 }
 
 export interface CombatDeps {
@@ -230,6 +233,8 @@ export interface CombatDeps {
   aim?: () => Vector3;
   /** Every live debris sim (rubble, body parts), for spells that move pieces. */
   debris?: () => DebrisSim[];
+  /** A small standing building at (x, z) that Orlan can tear up (CarrySystem), with its middle and reach. */
+  building?: (x: number, z: number) => { x: number; y: number; z: number; r: number } | null;
   /** Lights that spells and blasts hold for a moment (LightBudget's pool). */
   lights?: SpellLights;
   /** A copy of a reel flora model to grow (Overgrowth; World.sprout). */
@@ -432,6 +437,8 @@ export class CombatSystem {
   private readonly fx: CombatFx;
   /** Mobs coming apart: limbs, heads, bones, blood (Gore). */
   readonly gore: Gore;
+  /** Sir Aldric's fist and Orlan's mind: things picked up and thrown (CarrySystem). */
+  readonly carry: CarrySystem;
   /** Wren's arrows left in the bodies they hit (StuckArrows). */
   readonly stuck = new StuckArrows();
   private readonly bonesOf = new Map<number, Object3D[]>();
@@ -509,6 +516,21 @@ export class CombatSystem {
       bloodMoon: (seconds) => { self.bloodMoon = seconds; },
       announce: (text) => d.hud.announce(text),
       sprout: d.sprout, solid: d.solid, lights: d.lights,
+    });
+    this.carry = new CarrySystem({
+      enemies: () => self.enemies,
+      hero: () => ({ pos: d.controller.pos as Vector3, yaw: d.controller.yaw, grounded: d.controller.mode === 'ground' }),
+      heroId: () => self.active.id,
+      aimAt: () => d.aim?.() ?? null,
+      lookDir: () => d.camera.getWorldDirection(new Vector3()),
+      debris: () => [self.gore.sim, ...(d.debris?.() ?? [])],
+      breakAt: (x, y, z, r, kind) => self.smash(x, y, z, r, kind),
+      building: (x, z) => d.building?.(x, z) ?? null,
+      hit: (e, share, at, heavy) => self.hitEnemy(e, self.atkOf(self.active), share, null, heavy ? 3 : 1.2, heavy ? 0.08 : 0.03, { blow: 'skill', heavy, at }),
+      groundAt: (x, z, y) => d.world.heightAt(x, z, y),
+      fx: this.fx,
+      shake: (n) => d.onShake?.(n),
+      sound: { grab: () => d.audio.thud(), throw: (heavy) => self.sfx.swing('blade', heavy), land: (size) => d.audio.crumble(Math.min(1, size * 0.35), 1) },
     });
     this.sfx = new CombatSfx(d.audio);
     this.rnd = d.rnd ?? Math.random;
@@ -825,6 +847,11 @@ export class CombatSystem {
     const d = this.d;
     const c = d.controller;
     const me = this.active;
+    // Picking up and throwing (CarrySystem): while a hero holds something the buttons are its.
+    if (input.dodge || this.downed) this.carry.drop();
+    if (this.carry.update(dt, { grab: !!input.grab, attack: input.attack, heavyHeld: input.heavyHeld }) || this.carry.busy) {
+      input = { ...input, attack: false, heavyHeld: false, heavyRelease: false, skill: false, burst: false };
+    }
     this.iframes = Math.max(0, this.iframes - dt);
     this.dodgeCd = Math.max(0, this.dodgeCd - dt);
     this.frenzyLeft = Math.max(0, this.frenzyLeft - dt);
@@ -3434,6 +3461,7 @@ export class CombatSystem {
     this.heavyCharge = 0;
     this.burstCast = null;
     this.grab = null;
+    this.carry.drop();
     for (const cb of this.combos.values()) { cb.swinging = false; cb.swingTime = 0; }
     this.iframes = DOWN_HOLD + 1;
     this.d.events?.emit({ kind: 'down', hero: this.active.id as HeroId });

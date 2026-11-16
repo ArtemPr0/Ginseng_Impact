@@ -240,6 +240,8 @@ export class Breakables {
     for (const b of this.near(x, z, radius)) {
       if (!canBreak(b.target.size, kind)) continue;
       if (!this.shatter(b)) {
+        // (Cut into nothing — a model with no solid mesh: it does not break.)
+        if (this.cut.get(b)?.chunks.length === 0) continue;
         // Still being cut: the blow waits for it.
         if (b.target.object.parent ?? b.target.parent) { b.pending.push([x, y, z, radius, kind]); hit++; }
         continue;

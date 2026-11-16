@@ -325,6 +325,16 @@ const combat = new CombatSystem({
   // Spells land where the crosshair meets the ground (at most 25 m off; Aim.ts).
   aim: () => spellAim().at,
   debris: () => [area.breakables.sim],
+  // A house, a stall, a tree or a rock under the crosshair that Orlan can tear up whole (not a castle, not a flower).
+  building: (x, z) => {
+    let best: { x: number; y: number; z: number; r: number } | null = null, bd = Infinity;
+    for (const b of area.breakables.near(x, z, 8)) {
+      if (b.state !== 'intact' || b.target.brief || b.target.size < 1 || b.target.size >= 12) continue;
+      const d = Math.hypot(b.x - x, b.z - z) - b.r;
+      if (d < 1.5 && d < bd) { bd = d; best = { x: b.x, y: b.target.object.getWorldPosition(new Vector3()).y, z: b.z, r: b.r }; }
+    }
+    return best;
+  },
   lights: { flash: (at, c, i, d, s) => lightBudget.flash(at, c, i, d, s), hold: (c, i, d) => lightBudget.hold(c, i, d) },
   sprout: (ids) => area.sprout(ids),
   solid: (x, z, r, top) => {
@@ -930,6 +940,7 @@ game
         spell: castSlot,
         burst: input.locked && input.justPressed('KeyQ'),
         dodge: input.locked && input.justPressed('KeyR'),
+        grab: input.locked && input.justPressed('KeyG'),
       });
       const move = input.locked && !combat.busy && combat.charging === 0 ? tpc.moveToWorld(input.moveAxis()) : { x: 0, z: 0 };
       const space = input.locked && input.justPressed('Space');
@@ -945,7 +956,7 @@ game
       hoardGlints.update(dt);
       if (resumed) save.tick(dt, snapshot);
       if (input.locked) { audio.score.zone(placeZone()); ambience.zone(placeZone(), dt); }
-      controller.speedScale = combat.webbed > 0 ? 0 : combat.slowed > 0 ? 0.6 : combat.mired > 0 ? 0.55 : 1;
+      controller.speedScale = (combat.webbed > 0 ? 0 : combat.slowed > 0 ? 0.6 : combat.mired > 0 ? 0.55 : 1) * combat.carry.carrySlow;
       if (adventures.riding) { if (space) adventures.leaveBoat(); }
       // Driving the carriage: W/S and A/D take the reins, Space climbs down.
       else if (CARRIAGE.driving) {
@@ -1064,6 +1075,7 @@ game
         hurt: combat.hurtState,
         dodge: combat.dodgeState,
         dead: combat.dead,
+        holding: combat.carry.hand ? Math.min(1, combat.carry.hand.t / 0.2) : 0,
       }, animDt);
       lastClimbY = controller.pos.y;
       // Benched party members are hidden: no need to animate them (companions animate in the fixed step, which hit-stop pauses).
