@@ -21,3 +21,49 @@ export function aimPoint(o: P, d: P, heightAt: (x: number, z: number, y: number)
   }
   return { x, y: heightAt(x, z, o.y + 2), z };
 }
+
+/**
+ * Hold to aim (the user's call of 2026-11-16): pressing a spell key starts aiming (the preview follows the
+ * crosshair), releasing it casts there; right mouse or Escape while aiming cancels and spends nothing. A tap casts
+ * on release just the same.
+ */
+export class AimHold {
+  slot: number | null = null;
+  held = 0;
+
+  get aiming(): boolean { return this.slot !== null; }
+
+  press(slot: number): void {
+    if (this.slot !== null) return;
+    this.slot = slot;
+    this.held = 0;
+  }
+
+  /** `down`: the aimed spell's key is still held; `cancel`: right mouse or Escape. Returns the slot to cast now. */
+  update(dt: number, down: boolean, cancel: boolean): number | null {
+    if (this.slot === null) return null;
+    if (cancel) { this.slot = null; return null; }
+    this.held += dt;
+    if (down) return null;
+    const s = this.slot;
+    this.slot = null;
+    return s;
+  }
+}
+
+export type AimShape =
+  | { kind: 'ring'; radius: number }
+  | { kind: 'lane'; length: number; width: number }
+  | { kind: 'cone'; radius: number; angle: number }
+  | { kind: 'none' };
+
+/** The preview a spell shows while it is aimed, at its real size (SpellCast's numbers). */
+export function aimShape(id: string, radius: number): AimShape {
+  switch (id) {
+    case 'wrecking-charge': return { kind: 'lane', length: 12, width: radius * 2 };
+    case 'fire-tornado': return { kind: 'lane', length: 15, width: radius * 2 };
+    case 'gale-shot': return { kind: 'cone', radius, angle: 0.55 };
+    case 'blood-moon': return { kind: 'none' };
+    default: return { kind: 'ring', radius: Math.max(1.2, radius) };
+  }
+}

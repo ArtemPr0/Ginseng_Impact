@@ -1,6 +1,7 @@
 import { CameraBob } from './render/CameraBob';
-import { aimPoint, AIM_RANGE } from './combat/Aim';
-import { SPELL_KEYS, spellSlot } from './combat/Spells';
+import { AimHold, aimPoint, AIM_RANGE, aimShape } from './combat/Aim';
+import { SPELL_KEYS, SPELLS, spellSlot } from './combat/Spells';
+import { AimPreview } from './render/AimPreview';
 import { Color, DirectionalLight, FogExp2, Frustum, HemisphereLight, Matrix4, type Object3D, PerspectiveCamera, Scene, Sphere, Vector3 } from 'three';
 import { WorkerFracturer } from './world/FractureObject';
 import { Bubbles } from './world/Portal';
@@ -111,6 +112,9 @@ scene.add(bubbles.group);
 // (Twelve ground warnings: a snowstorm lays four, a cup volley three, and two mobs and a boss may wind up at once.)
 const combatFx = new CombatFx({ telegraphs: 12 });
 scene.add(combatFx.group);
+const aimHold = new AimHold();
+const aimPreview = new AimPreview((x, z, y) => world.heightAt(x, z, y));
+scene.add(aimPreview.group);
 const fogTarget = new Color();
 let portalCooldown = 0;
 
@@ -311,13 +315,7 @@ const combat = new CombatSystem({
     if (scorch) area.craters.scorch(x, z, r * 1.1, scorch);
   },
   // Spells land where the crosshair meets the ground (at most 25 m off; Aim.ts).
-  aim: () => {
-    const dir = camera.getWorldDirection(new Vector3());
-    const p = aimPoint(camera.position, dir, (x, z, y) => world.heightAt(x, z, y));
-    const dx = p.x - controller.pos.x, dz = p.z - controller.pos.z, d = Math.hypot(dx, dz);
-    if (d > AIM_RANGE) { p.x = controller.pos.x + (dx / d) * AIM_RANGE; p.z = controller.pos.z + (dz / d) * AIM_RANGE; p.y = world.heightAt(p.x, p.z, controller.pos.y + 3); }
-    return new Vector3(p.x, p.y, p.z);
-  },
+  aim: () => spellAim().at,
   debris: () => [area.breakables.sim],
   sprout: (ids) => area.sprout(ids),
   solid: (x, z, r, top) => {
@@ -893,12 +891,30 @@ game
       if (input.locked && input.justPressed('KeyF')) pressF();
       // Tab: lock on to the nearest enemy in front of the camera, or let go.
       if (input.locked && input.justPressed('Tab')) combat.toggleLock(tpc.forward(lookAhead));
+      // Spells: hold Z X C V to aim (the landing shows on the ground), release to cast, right mouse or Esc cancels.
+      if (input.locked) for (const k of SPELL_KEYS) {
+        if (!input.justPressed(k)) continue;
+        const s = spellSlot(k, controller.mode === 'fly');
+        if (s !== null && combat.spells.ready(party.active.id, s)) aimHold.press(s);
+      }
+      const aimingSlot = aimHold.slot;
+      const castSlot = aimHold.update(dt, aimingSlot !== null && input.isDown(SPELL_KEYS[aimingSlot]), !input.locked || input.mouseJustPressed(2) || input.justPressed('Escape'));
+      if (aimHold.aiming) {
+        const def = SPELLS[party.active.id]?.[aimHold.slot!];
+        const shape = def ? aimShape(def.id, def.radius) : { kind: 'none' as const };
+        const fwd = tpc.forward(new Vector3());
+        const fl = Math.hypot(fwd.x, fwd.z) || 1;
+        if (shape.kind === 'ring') {
+          const a = spellAim();
+          aimPreview.show(shape, a.at.x, a.at.y, a.at.z, { x: fwd.x / fl, z: fwd.z / fl }, def!.color, a.far, dt);
+        } else aimPreview.show(shape, controller.pos.x, controller.pos.y, controller.pos.z, { x: fwd.x / fl, z: fwd.z / fl }, def?.color ?? 0xffffff, false, dt);
+      } else aimPreview.hide();
       combat.update(dt, {
         attack: input.locked && input.mouseJustPressed(0),
-        heavyHeld: input.locked && input.mouseDown(2),
+        heavyHeld: input.locked && input.mouseDown(2) && aimingSlot === null,
         heavyRelease: input.locked && input.mouseJustReleased(2),
         skill: input.locked && input.justPressed('KeyE'),
-        spell: input.locked ? SPELL_KEYS.map((k) => (input.justPressed(k) ? spellSlot(k, controller.mode === 'fly') : null)).find((x) => x !== null) ?? null : null,
+        spell: castSlot,
         burst: input.locked && input.justPressed('KeyQ'),
         dodge: input.locked && input.justPressed('KeyR'),
       });
@@ -1200,3 +1216,13 @@ declare global {
   }
 }
 window.__ginseng = { models: { load: loadModel, ModelRig, MODELS }, groundOnly: (x: number, z: number) => area.ground.heightAt(x, z), loadSave: () => { const s = save.load(); if (s) applySave(s); return !!s; }, snapshot, scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, fx: combatFx, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs, events, ending, save, progress, realms: REALMS, teleport, carriage: CARRIAGE, worldState, story };
+
+/** Where the crosshair meets the ground, at most AIM_RANGE metres off (`far`: it was clamped to that edge). */
+function spellAim(): { at: Vector3; far: boolean } {
+  const dir = camera.getWorldDirection(new Vector3());
+  const p = aimPoint(camera.position, dir, (x, z, y) => world.heightAt(x, z, y));
+  const dx = p.x - controller.pos.x, dz = p.z - controller.pos.z, d = Math.hypot(dx, dz);
+  let far = false;
+  if (d > AIM_RANGE) { far = true; p.x = controller.pos.x + (dx / d) * AIM_RANGE; p.z = controller.pos.z + (dz / d) * AIM_RANGE; p.y = world.heightAt(p.x, p.z, controller.pos.y + 3); }
+  return { at: new Vector3(p.x, p.y, p.z), far: far || d > AIM_RANGE - 0.5 };
+}
