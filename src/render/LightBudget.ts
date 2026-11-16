@@ -25,13 +25,22 @@ export class LightBudget {
   private readonly held: Transient[] = [];
   private readonly flashes: Flash[] = [];
 
+  /** Pool lights in use (Quality Low uses fewer: the rest are hidden, so shaders light with fewer). */
+  private limit: number;
+
   constructor(scene: Scene, readonly size = 8) {
+    this.limit = size;
     for (let i = 0; i < size; i++) {
       const l = new PointLight(0xffffff, 0, 1, 2);
       l.userData.pooled = true;
       this.pool.push(l);
       scene.add(l);
     }
+  }
+
+  setLimit(n: number): void {
+    this.limit = Math.max(0, Math.min(this.size, n));
+    this.pool.forEach((l, i) => { l.visible = i < this.limit; if (!l.visible) l.intensity = 0; });
   }
 
   /** Hides every point light under `root` (except the pool) and adopts it as a source. Safe to call again. */
@@ -78,7 +87,7 @@ export class LightBudget {
     // Transient lights first (brightest first), then the nearest placed ones.
     const hot = this.held.filter((l) => l.intensity > 0 && l.pos.distanceTo(focus) < l.distance + 40).sort((a, b) => b.intensity - a.intensity);
     let i = 0;
-    for (; i < Math.min(hot.length, this.pool.length); i++) {
+    for (; i < Math.min(hot.length, this.limit); i++) {
       const p = this.pool[i], l = hot[i];
       p.position.copy(l.pos);
       p.color.copy(l.color);
@@ -102,7 +111,7 @@ export class LightBudget {
       live.push(s);
     }
     live.sort((a, b) => a.score - b.score);
-    for (let i = from; i < this.pool.length; i++) {
+    for (let i = from; i < this.limit; i++) {
       const p = this.pool[i];
       const s = live[i - from];
       if (!s) { p.intensity = 0; continue; }

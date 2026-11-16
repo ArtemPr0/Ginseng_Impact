@@ -166,7 +166,7 @@ export class DebrisSim {
   readonly pieces: Piece[] = [];
   private checkAt = 0;
 
-  constructor(private readonly groundAt: (x: number, z: number, y: number) => number, private readonly maxActive = MAX_ACTIVE) {}
+  constructor(private readonly groundAt: (x: number, z: number, y: number) => number, public maxActive = MAX_ACTIVE) {}
 
   /** Pieces awake with full contacts. */
   get active(): number {

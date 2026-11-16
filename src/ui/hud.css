@@ -35,6 +35,7 @@ body { font-family: var(--font-body); color: var(--moon); }
   background: transparent; border: 1px solid var(--panel-border); border-radius: 2px; padding: 8px 18px;
   cursor: pointer; pointer-events: auto; animation: none;
 }
+.hud-quality { margin-top: 8px; font-size: 12px; opacity: 0.85; }
 .hud-new-game:hover { box-shadow: inset 0 0 10px rgba(79, 124, 255, 0.35); }
 .hud-controls { font-size: 12px; letter-spacing: 0.08em; color: var(--cloth); opacity: 0.8; }
 @keyframes blink { 50% { opacity: 0.2; } }

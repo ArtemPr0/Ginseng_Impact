@@ -171,6 +171,23 @@ export class Renderer {
     return this.ratio;
   }
 
+  /** Highest pixel ratio the governor may use (Quality: 1.25 on High, 0.9 on Low). */
+  private maxRatio = MAX_RATIO;
+
+  setMaxRatio(r: number): void {
+    this.maxRatio = Math.max(MIN_RATIO, r);
+    if (this.ratio > this.maxRatio) {
+      this.ratio = this.maxRatio;
+      this.gl.setPixelRatio(this.ratio);
+      this.composer.setPixelRatio(this.ratio);
+      this.resize(this.width, this.height);
+    }
+  }
+
+  /** Smoothed frame time (ms) and whether the governor has nothing left to give (Quality Auto). */
+  get frameTime(): number { return this.frameMs; }
+  get atMinRatio(): boolean { return this.ratio <= MIN_RATIO + 1e-3; }
+
   /** Watches frame times and steps the resolution down when frames are slow, back up when there is headroom. */
   private govern(): void {
     const now = performance.now();
@@ -180,7 +197,7 @@ export class Renderer {
     this.frameMs += (dt - this.frameMs) * 0.05;
     if (now < this.nextCheck) return;
     this.nextCheck = now + 1500;
-    const cap = Math.min(window.devicePixelRatio, MAX_RATIO);
+    const cap = Math.min(window.devicePixelRatio, this.maxRatio);
     let r = this.ratio;
     if (this.frameMs > SLOW_MS && r > MIN_RATIO) r = Math.max(MIN_RATIO, r - 0.1);
     else if (this.frameMs < FAST_MS && r < cap) r = Math.min(cap, r + 0.05);

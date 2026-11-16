@@ -5,6 +5,7 @@ import { AimPreview } from './render/AimPreview';
 import { Color, DirectionalLight, FogExp2, Frustum, HemisphereLight, Matrix4, type Object3D, PerspectiveCamera, Scene, Sphere, Vector3 } from 'three';
 import { HarvestLedger, harvestOf } from './world/Harvest';
 import { Ejecta } from './render/Ejecta';
+import { AutoQuality, nextMode, pickMode, QUALITY_KEY, settingsFor, type QualityLevel, type QualityMode } from './core/Quality';
 import { WorkerFracturer } from './world/FractureObject';
 import { Bubbles } from './world/Portal';
 import { LightBudget } from './render/LightBudget';
@@ -298,6 +299,27 @@ Npc.sound = { voice: (url, gain, channel) => audio.voice(url, gain, channel), sl
 // (Rig.sound.slurp is Sir Aldric's own cup of lean: the hero's sip is a feat.)
 Rig.sound = { slurp: (gain) => { audio.slurp(gain); events.emit({ kind: 'feat', what: 'sip' }); }, rustle: () => audio.rustle(), munch: () => audio.munch() };
 const lightBudget = new LightBudget(scene, 6);
+// Quality (core/Quality): Auto / High / Low from the pause screen, ?quality= in the URL, kept in localStorage.
+let qualityMode: QualityMode = pickMode(location.search, (() => { try { return localStorage.getItem(QUALITY_KEY); } catch { return null; } })());
+const autoQuality = new AutoQuality();
+let qualityLevel: QualityLevel | null = null;
+function applyQuality(): void {
+  const level: QualityLevel = qualityMode === 'auto' ? autoQuality.level : qualityMode;
+  hud.setQuality(qualityMode, level);
+  if (level === qualityLevel) return;
+  qualityLevel = level;
+  const q = settingsFor(level);
+  renderer.setMaxRatio(q.maxRatio);
+  lightBudget.setLimit(q.lights);
+  area.breakables.sim.maxActive = q.debris;
+  area.breakables.variants = q.variants;
+}
+hud.setOnQuality(() => {
+  qualityMode = nextMode(qualityMode);
+  try { localStorage.setItem(QUALITY_KEY, qualityMode); } catch { /* private window: this session only */ }
+  applyQuality();
+});
+applyQuality();
 lightBudget.collect(scene);
 
 const progress = new Progress();
@@ -1086,6 +1108,10 @@ game
       combat.render(animDt);
       lightBudget.update(playerPos, dt);
       ejecta.update(dt);
+      if (qualityMode === 'auto' && autoQuality.level === 'high' && autoQuality.update(dt, renderer.frameTime, renderer.atMinRatio) === 'low') {
+        applyQuality();
+        hud.announce('Quality lowered for a smoother frame rate (ESC to change)');
+      }
       focus.set(drawPos.x, drawPos.y + 1.4, drawPos.z);
       if (!input.locked && hud.panel === 'none') {
         if (REALMS.some((r) => Math.hypot(drawPos.x - r.x, drawPos.z - r.z) < r.radius)) {

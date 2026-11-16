@@ -211,6 +211,9 @@ export class Breakables {
   private readonly restSince = new Map<Piece, number>();
   private readonly falling: Array<{ b: Breakable; c: ChunkState; bx: number; bz: number }> = [];
 
+  /** Ways each thing may break, one after another as it is rebuilt (Quality: 3 on High, 1 on Low). */
+  variants = 3;
+
   constructor(private readonly heights: HeightsLike) {
     this.sim = new DebrisSim((x, z, y) => heights.heightAt(x, z, y));
   }
@@ -528,7 +531,7 @@ export class Breakables {
     b.hp = b.maxHp;
     b.state = 'intact';
     // Next time it breaks another way.
-    b.variant = (b.variant + 1) % 3;
+    b.variant = (b.variant + 1) % this.variants;
     this.cut.delete(b);
     this.onRebuild?.(b);
   }

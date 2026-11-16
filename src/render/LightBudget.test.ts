@@ -34,3 +34,18 @@ describe('LightBudget transient lights (spells light the ground)', () => {
     expect(pool(scene).every((p) => p.intensity === 0)).toBe(true);
   });
 });
+
+describe('LightBudget.setLimit (Quality Low)', () => {
+  it('uses only the first `n` pool lights; the rest are hidden (out of the shaders)', async () => {
+    const { Scene, Vector3 } = await import('three');
+    const { LightBudget } = await import('./LightBudget');
+    const scene = new Scene();
+    const b = new LightBudget(scene, 6);
+    b.setLimit(3);
+    for (let i = 0; i < 5; i++) b.flash(new Vector3(i, 0, 0), 0xffffff, 10, 10, 2);
+    b.update(new Vector3(), 0.016);
+    const pool = scene.children.filter((o) => (o as { isPointLight?: boolean }).isPointLight);
+    expect(pool.filter((l) => l.visible).length).toBe(3);
+    expect(pool.filter((l) => !l.visible).every((l) => (l as unknown as { intensity: number }).intensity === 0)).toBe(true);
+  });
+});
