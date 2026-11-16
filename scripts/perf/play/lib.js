@@ -153,8 +153,8 @@ function enemiesOf(kind) { return G.combat.enemies.filter((e) => e.def.kind === 
 /** The documented test hook: the enemy at `hp` (a real blow still has to land and kill it). */
 function weaken(e, hp = 1) { e.hp = Math.min(e.hp, hp); }
 
-/** The current hero: 0 knight, 1 archer, 2 wizard (Digit1-3). */
-async function hero_(i) { await press(`Digit${i + 1}`, 60); await waitFor(() => G.party.activeIndex === i, 1500); await sleep(400); }
+/** The current hero: 0 knight, 1 archer, 2 wizard (F1-F3 since 2026-11-16). */
+async function hero_(i) { await press(`F${i + 1}`, 60); await waitFor(() => G.party.activeIndex === i, 1500); await sleep(400); }
 
 /**
  * Fights `e` with real input: face it, step in range, swing LMB until it dies or `ms` passes. Returns whether it died.

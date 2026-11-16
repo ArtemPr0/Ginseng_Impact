@@ -154,7 +154,7 @@ export class CarrySystem {
     const me = this.h.hero();
     if (!this.mind) {
       if (!input.heavyHeld || this.heavyWas) return false;
-      return this.lift(me);
+      return this.lift();
     }
     const m = this.mind;
     m.t += dt;
@@ -193,32 +193,45 @@ export class CarrySystem {
     return true;
   }
 
-  /** On the heavy's press: a mob near the crosshair, else rubble there, else a small building torn up. */
-  private lift(me: { pos: Vector3; yaw: number }): boolean {
+  /**
+   * What a lift would take now (Orlan's Telekinesis glows on it under the crosshair): a mob near the crosshair (not a
+   * boss or a giant), else loose rubble there, else a small building to tear up; nothing past 22 m.
+   */
+  liftTarget(): { kind: 'mob' | 'rubble' | 'building'; x: number; y: number; z: number; r: number; e?: Enemy } | null {
+    const me = this.h.hero();
     const at = this.h.aimAt();
-    if (!at || Math.hypot(at.x - me.pos.x, at.z - me.pos.z) > 22) return false;
+    if (!at || Math.hypot(at.x - me.pos.x, at.z - me.pos.z) > 22) return null;
     let best: Enemy | null = null, bd = 3;
     for (const e of this.h.enemies()) {
       if (!e.alive || e.held || !canLift(e.def)) continue;
       const d = Math.hypot(e.pos.x - at.x, e.pos.z - at.z) - e.def.bodyRadius * (e.def.scale ?? 1);
       if (d < bd) { bd = d; best = e; }
     }
+    if (best) return { kind: 'mob', x: best.pos.x, y: best.pos.y, z: best.pos.z, r: best.def.bodyRadius * (best.def.scale ?? 1) + 0.4, e: best };
+    for (const sim of this.h.debris()) for (const p of sim.pieces) {
+      if (!p.dead && !this.flying.has(p) && Math.hypot(p.x - at.x, p.z - at.z) <= 2.6) return { kind: 'rubble', x: at.x, y: at.y, z: at.z, r: 2.6 };
+    }
+    const b = this.h.building(at.x, at.z);
+    return b ? { kind: 'building', x: b.x, y: b.y, z: b.z, r: b.r } : null;
+  }
+
+  /** On the lift's press: what liftTarget finds — a mob, the rubble there, or a small building torn up. */
+  private lift(): boolean {
+    const t = this.liftTarget();
+    if (!t) return false;
+    const at = this.h.aimAt()!;
     const m = { e: null as Enemy | null, pieces: new Map<Piece, Vector3>(), from: null as { x: number; z: number; r: number; until: number } | null, t: 0 };
-    if (best) {
-      best.held = true;
-      best.thrown = null;
-      m.e = best;
-    } else {
-      this.gather(m, at.x, at.z, 2.6);
-      if (!m.pieces.size) {
-        const b = this.h.building(at.x, at.z);
-        if (!b) return false;
-        // Torn from its footing: it comes apart and its pieces rise into the hold as they come loose.
-        // (At its base: the crosshair's ground there is its roof.)
-        this.h.breakAt(b.x, b.y + 1, b.z, b.r + 1, 'burst');
-        m.from = { x: b.x, z: b.z, r: b.r + 1.5, until: 2.5 };
-        this.h.shake(0.5);
-      }
+    if (t.kind === 'mob') {
+      t.e!.held = true;
+      t.e!.thrown = null;
+      m.e = t.e!;
+    } else if (t.kind === 'rubble') this.gather(m, at.x, at.z, 2.6);
+    else {
+      // Torn from its footing: it comes apart and its pieces rise into the hold as they come loose.
+      // (At its base: the crosshair's ground there is its roof.)
+      this.h.breakAt(t.x, t.y + 1, t.z, t.r + 1, 'burst');
+      m.from = { x: t.x, z: t.z, r: t.r + 1.5, until: 2.5 };
+      this.h.shake(0.5);
     }
     this.mind = m;
     this.h.fx.shock(_v.set(at.x, at.y + 0.2, at.z), MIND, 3, 0.5);

@@ -1,6 +1,6 @@
 /**
- * The spell bars (the user's calls of 2026-11-15: a bar for every hero on Z X C V, the twelve spells as proposed; in
- * flight C still dives and X still lands). Pure data and cooldowns; SpellCast.ts makes them happen, the HUD draws the
+ * The spell bars (the user's calls of 2026-11-15: a bar for every hero; since 2026-11-16 they sit on slots 3-7 of the
+ * 1-7 bar, SpellBar.ts). Pure data and cooldowns; SpellCast.ts makes them happen, the HUD draws the
  * bar from the icons here (24 x 24 SVG, stroked in the spell's colour).
  */
 import { Cooldown } from './Combat';
@@ -8,7 +8,8 @@ import { Cooldown } from './Combat';
 export type SpellId =
   | 'earthsplitter' | 'wrecking-charge' | 'chain-hook' | 'blood-moon'
   | 'moonbomb' | 'frost-arrow' | 'storm-arrow' | 'gale-shot'
-  | 'fireball' | 'black-hole' | 'fire-tornado' | 'overgrowth';
+  | 'fireball' | 'black-hole' | 'fire-tornado' | 'overgrowth'
+  | 'stone-wall' | 'storm-tornado' | 'telekinesis';
 
 export interface SpellDef {
   id: SpellId;
@@ -26,17 +27,6 @@ export interface SpellDef {
   icon: string;
 }
 
-export const SPELL_KEYS = ['KeyZ', 'KeyX', 'KeyC', 'KeyV'] as const;
-export const SPELL_LETTERS = ['Z', 'X', 'C', 'V'] as const;
-
-/** The slot a key casts, or null (in flight C dives and X lands). */
-export function spellSlot(code: string, flying: boolean): number | null {
-  const i = (SPELL_KEYS as readonly string[]).indexOf(code);
-  if (i < 0) return null;
-  if (flying && (code === 'KeyX' || code === 'KeyC')) return null;
-  return i;
-}
-
 export const SPELLS: Record<string, SpellDef[]> = {
   knight: [
     { id: 'earthsplitter', name: 'Earthsplitter', cooldown: 9, color: 0xff3a4a, mult: 3.2, radius: 4.5, aimed: true,
@@ -47,6 +37,9 @@ export const SPELLS: Record<string, SpellDef[]> = {
       icon: '<circle cx="5" cy="19" r="2"/><circle cx="9" cy="15" r="2"/><circle cx="13" cy="11" r="2"/><path d="M15 9 L19 5 Q22 6 20 9 L18 8"/>' },
     { id: 'blood-moon', name: 'Blood Moon', cooldown: 30, color: 0xd0102a, mult: 0, radius: 0, aimed: false,
       icon: '<circle cx="12" cy="12" r="7"/><path d="M15 6 A7 7 0 0 1 15 18 A5 6 0 0 0 15 6 Z"/><path d="M12 21 Q11 23 12 23 Q13 23 12 21"/>' },
+    // (2026-11-16, Flowbound: a wall of stone blocks pulled up out of the ground, then kicked apart at the enemy.)
+    { id: 'stone-wall', name: 'Stone Wall', cooldown: 7, color: 0xc9a27a, mult: 2.2, radius: 2.2, aimed: true,
+      icon: '<path d="M3 21 H21"/><rect x="4" y="15" width="7" height="5"/><rect x="11" y="15" width="8" height="5"/><rect x="6" y="10" width="7" height="5"/><rect x="13" y="10" width="5" height="5"/><path d="M8 6 L10 3 M13 6 L14 2 M17 7 L19 4"/>' },
   ],
   archer: [
     { id: 'moonbomb', name: 'Moonbomb Arrow', cooldown: 9, color: 0x9fd8ff, mult: 3.4, radius: 5, aimed: true,
@@ -57,6 +50,9 @@ export const SPELLS: Record<string, SpellDef[]> = {
       icon: '<path d="M13 2 L6 13 H11 L9 22 L18 9 H13 Z"/>' },
     { id: 'gale-shot', name: 'Gale Shot', cooldown: 7, color: 0xd8f4ff, mult: 1.4, radius: 9, aimed: false,
       icon: '<path d="M3 8 H15 Q19 8 19 5 Q19 2 16 3"/><path d="M3 13 H19 Q22 13 22 16 Q22 19 19 18"/><path d="M3 18 H10"/>' },
+    // (2026-11-16, the reel's grey tornado under a storm cloud, full of blocks.)
+    { id: 'storm-tornado', name: 'Storm Tornado', cooldown: 14, color: 0x9aa6bf, mult: 0.7, radius: 3.5, aimed: true,
+      icon: '<path d="M2 4 Q12 1 22 4 Q12 7 2 4 Z"/><path d="M5 9 H18"/><path d="M8 13 H16"/><path d="M10 17 H14"/><path d="M12 21 V19"/><rect x="18" y="12" width="2" height="2"/><rect x="5" y="15" width="2" height="2"/>' },
   ],
   wizard: [
     { id: 'fireball', name: 'Fireball', cooldown: 6, color: 0xff7a1a, mult: 3.0, radius: 4.5, aimed: true,
@@ -67,6 +63,9 @@ export const SPELLS: Record<string, SpellDef[]> = {
       icon: '<path d="M3 4 H21"/><path d="M5 8 H18"/><path d="M8 12 H16"/><path d="M9 16 H14"/><path d="M11 20 H13"/>' },
     { id: 'overgrowth', name: 'Overgrowth', cooldown: 16, color: 0x6dff9a, mult: 0.6, radius: 6, aimed: true,
       icon: '<path d="M12 22 V10"/><path d="M12 14 Q6 14 5 8 Q11 8 12 14"/><path d="M12 11 Q18 11 19 5 Q13 5 12 11"/><path d="M6 22 Q9 18 12 22 Q15 18 18 22"/>' },
+    // (2026-11-16: hold right click to lift a mob, rubble or a small building; let go to hurl it. CarrySystem.)
+    { id: 'telekinesis', name: 'Telekinesis', cooldown: 1.5, color: 0xb070ff, mult: 0, radius: 0, aimed: true,
+      icon: '<path d="M4 20 Q8 14 12 15"/><path d="M4 20 L6 16 M4 20 L8 19"/><rect x="13" y="5" width="7" height="6" transform="rotate(12 16 8)"/><path d="M11 13 Q14 12 15 12 M10 10 Q12 9 13 9"/>' },
   ],
 };
 

@@ -463,23 +463,35 @@ describe('Hud dialogue', () => {
   });
 });
 
-describe('Hud spell bar', () => {
-  it('draws four slots with their key letters, code-drawn icons in the spell colour, and conic cooldowns', () => {
+describe('Hud spell bar (1-7, 2026-11-16)', () => {
+  const cds = (n = 0) => [n, n, n, n, n, n, n];
+  const ok = (r = true) => [r, r, r, r, r, r, r];
+  it('draws seven slots with their number keys, code-drawn icons in the slot colour, and conic cooldowns', () => {
     const root = stubContainer();
     const hud = new Hud(root as unknown as HTMLElement);
-    hud.setSpells('knight', [0, 0.5, 0, 1], [true, false, true, false]);
+    hud.setBar('knight', 2, [0, 0, 0.5, 0, 1, 0, 0], ok(), 0.4);
     const html = root.querySelector('#hud-spells').innerHTML;
-    for (const k of ['Z', 'X', 'C', 'V']) expect(html).toContain(`>${k}<`);
+    for (const k of ['1', '2', '3', '4', '5', '6', '7']) expect(html).toContain(`>${k}<`);
     expect(html).toContain('Earthsplitter');
-    expect(html.match(/<svg/g)?.length).toBe(4);
+    expect(html).toContain('Stone Wall');
+    expect(html.match(/<svg/g)?.length).toBe(7);
     expect(html).toContain('180deg');
     expect(html).toContain('#ff3a4a');
   });
-  it('swaps to the next hero\'s spells on a switch', () => {
+  it('marks the picked slot and fills the burst slot with its energy', () => {
     const root = stubContainer();
     const hud = new Hud(root as unknown as HTMLElement);
-    hud.setSpells('knight', [0, 0, 0, 0], [true, true, true, true]);
-    hud.setSpells('wizard', [0, 0, 0, 0], [true, true, true, true]);
+    hud.setBar('wizard', 6, cds(), ok(), 0.5);
+    const html = root.querySelector('#hud-spells').innerHTML;
+    expect(html.match(/hud-spell panel[^"]* picked/g)?.length).toBe(1);
+    expect(html).toMatch(/picked[^>]*title="Telekinesis"/);
+    expect(html).toContain('height:50%');
+  });
+  it('swaps to the next hero\'s bar on a switch', () => {
+    const root = stubContainer();
+    const hud = new Hud(root as unknown as HTMLElement);
+    hud.setBar('knight', 2, cds(), ok(), 0);
+    hud.setBar('wizard', 2, cds(), ok(), 0);
     const html = root.querySelector('#hud-spells').innerHTML;
     expect(html).toContain('Black Hole');
     expect(html).not.toContain('Earthsplitter');

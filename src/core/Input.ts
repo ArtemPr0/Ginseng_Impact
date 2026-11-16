@@ -26,7 +26,7 @@ export class Input {
       this.down.add(e.code);
       // Presses only count in play: a key pressed in a dialogue or the bag must not fire once the game resumes.
       if (this.locked && !this.uiOpen) this.pressed.add(e.code);
-      if (['Space', 'Tab'].includes(e.code)) e.preventDefault();
+      if (['Space', 'Tab', 'F1', 'F2', 'F3'].includes(e.code)) e.preventDefault();
     });
     window.addEventListener('keyup', (e) => this.down.delete(e.code));
     window.addEventListener('blur', () => this.releaseAll());

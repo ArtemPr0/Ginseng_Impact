@@ -55,7 +55,7 @@ import type { SpellLights } from './SpellCast';
 import { maimMult, pickPart, severRoll, wearCrossed, wearPart } from './Sever';
 import { StuckArrows, entryPoint } from './StuckArrows';
 import { CarrySystem } from './CarrySystem';
-import { SpellBook } from './Spells';
+import { SpellBook, SPELLS } from './Spells';
 import { SpellCast } from './SpellCast';
 import type { BlowKind } from '../world/Breakables';
 import { CONTROLLER, rolling, startLeap, startLunge } from '../player/CharacterController';
@@ -184,8 +184,10 @@ interface HitOpts {
 
 export interface CombatInput {
   attack: boolean; heavyHeld: boolean; heavyRelease: boolean; skill: boolean; burst: boolean; dodge: boolean;
-  /** The spell slot pressed this step (Z X C V: 0-3), if any (Spells.spellSlot). */
+  /** The spell-book slot cast this step (bar slots 3-7 are book slots 0-4, SpellBar.ts), if any. */
   spell?: number | null;
+  /** Right mouse held for a lift: Orlan's Telekinesis picked, or Sir Aldric slamming the mob in his fist (CarrySystem). */
+  mind?: boolean;
   /** G this step: Sir Aldric grabs (or drops) the mob in front of him (CarrySystem). */
   grab?: boolean;
 }
@@ -441,14 +443,16 @@ export class CombatSystem {
   readonly gore: Gore;
   /** Sir Aldric's fist and Orlan's mind: things picked up and thrown (CarrySystem). */
   readonly carry: CarrySystem;
-  /** Spells cast so far (main's SpellBuffer lets go of a released spell once this moves). */
+  /** The bar slot picked with 1-7 (main sets it each step; the HUD marks it). */
+  barSlot = 2;
+  /** Bar casts so far, skill and burst included (main's SpellBuffer lets go of a buffered cast once this moves). */
   spellsCast = 0;
   /** Wren's arrows left in the bodies they hit (StuckArrows). */
   readonly stuck = new StuckArrows();
   private readonly bonesOf = new Map<number, Object3D[]>();
   /** Seconds of Blood Moon left: every blow tears something off. */
   bloodMoon = 0;
-  /** Every hero's spell cooldowns (Z X C V), and the spells in the world. */
+  /** Every hero's spell cooldowns (bar slots 3-7), and the spells in the world. */
   readonly spells = new SpellBook();
   readonly caster: SpellCast;
   private readonly sfx: CombatSfx;
@@ -853,7 +857,7 @@ export class CombatSystem {
     const me = this.active;
     // Picking up and throwing (CarrySystem): while a hero holds something the buttons are its.
     if (input.dodge || this.downed) this.carry.drop();
-    if (this.carry.update(dt, { grab: !!input.grab, attack: input.attack, heavyHeld: input.heavyHeld }) || this.carry.busy) {
+    if (this.carry.update(dt, { grab: !!input.grab, attack: input.attack, heavyHeld: !!input.mind }) || this.carry.busy) {
       input = { ...input, attack: false, heavyHeld: false, heavyRelease: false, skill: false, burst: false };
     }
     this.iframes = Math.max(0, this.iframes - dt);
@@ -1052,13 +1056,14 @@ export class CombatSystem {
     // --- skill ---
     const cd = this.cooldowns.get(me.id)!;
     if (input.skill && (grounded || flying) && !this.busy && this.heavyCharge === 0 && cd.ready) {
+      this.spellsCast++;
       this.softLock(9);
       cd.use();
       this.casting = { def: me, t: 0, fired: false };
       d.audio.cast();
       this.sfx.effort(me.id);
     }
-    // --- spells (Z X C V): the skill's cast, landing a spell instead (SpellCast) ---
+    // --- spells (bar slots 3-7, right click): the skill's cast, landing a spell instead (SpellCast) ---
     this.spells.update(dt);
     this.caster.update(dt);
     if (this.bloodMoon > 0) this.bloodMoon = Math.max(0, this.bloodMoon - dt);
@@ -1122,6 +1127,7 @@ export class CombatSystem {
     // --- burst (Q): each hero's own ---
     if (input.burst && canBurst && !this.busy && this.heavyCharge === 0 && this.burstEnergy >= BURST_MAX) {
       this.burstEnergy = 0;
+      this.spellsCast++;
       this.burstCast = { t: 0, fired: false, kind: BURST[me.id].kind, shots: 0, tick: 0, puddle: 0 };
       this.iframes = Math.max(this.iframes, 1.0);
       d.audio.burst();
@@ -1418,9 +1424,13 @@ export class CombatSystem {
 
     this.vfx.update(dt);
     d.hud.setHp(this.hp.get(me.id)!, this.maxOf(me));
-    d.hud.setSkill(SKILLS[me.id].name, cd.fraction, cd.ready && (grounded || flying));
-    d.hud.setSpells(me.id, [0, 1, 2, 3].map((i) => this.spells.fraction(me.id, i)), [0, 1, 2, 3].map((i) => this.spells.ready(me.id, i) && (grounded || flying)));
-    d.hud.setBurst(this.burstEnergy / BURST_MAX, this.burstEnergy >= BURST_MAX && canBurst, BURST[me.id].name);
+    {
+      const book = SPELLS[me.id] ?? [];
+      const free = grounded || flying;
+      const cds = [cd.fraction, 0, ...book.map((_, i) => this.spells.fraction(me.id, i))];
+      const ready = [cd.ready && free, this.burstEnergy >= BURST_MAX && canBurst, ...book.map((_, i) => this.spells.ready(me.id, i) && free)];
+      d.hud.setBar(me.id, this.barSlot, cds, ready, this.burstEnergy / BURST_MAX);
+    }
     d.hud.setCharge(this.heavyCharge);
     d.hud.setShards(d.inventory.shards);
     d.hud.setFrenzy(this.frenzyLeft);
