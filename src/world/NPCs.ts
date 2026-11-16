@@ -432,6 +432,11 @@ export class Npc {
   private flinchT = 0;
   private flinchX = 0;
   private flinchZ = 0;
+  /** The step's shape: metres out, seconds going out, holding there, and coming back (a flinch: 1, 0.25, 0, 2). */
+  private flinchD = 1;
+  private flinchOut = 0.25;
+  private flinchHold = 0;
+  private flinchBack = 2;
   /** The emote it is playing (react) and how long is left. */
   private emote: { key: NonNullable<RigPose['pose']>; left: number } | null = null;
   /** Waved at the hero on this approach (reset once the hero is 20 m off). */
@@ -519,9 +524,30 @@ export class Npc {
     const b = this.def.behaviour;
     const d = Math.hypot(this.pos.x - from.x, this.pos.z - from.z);
     if (d > 2 || d < 0.01 || this.flinchT > 0 || b.kind !== 'stand' || b.pose) return;
-    this.flinchX = (this.pos.x - from.x) / d;
-    this.flinchZ = (this.pos.z - from.z) / d;
-    this.flinchT = 2.25;
+    this.step((this.pos.x - from.x) / d, (this.pos.z - from.z) / d, 1, 0.25, 0, 2);
+  }
+
+  /**
+   * A building `r` metres in radius centred on `from` is coming down: run out past its edge (plus four metres), away
+   * from the centre, at a run, cower there ten seconds, then walk home. Everyone runs, seated or not.
+   */
+  flee(from: { x: number; z: number }, r: number): void {
+    if (this.gone) return;
+    let dx = this.pos.x - from.x, dz = this.pos.z - from.z;
+    let d = Math.hypot(dx, dz);
+    if (d < 0.01) { dx = 1; dz = 0; d = 1; }
+    const out = Math.max(1, r + 4 - d);
+    this.step(dx / d, dz / d, out, out / 5.5, 10, out / 1.4);
+  }
+
+  private step(x: number, z: number, d: number, out: number, hold: number, back: number): void {
+    this.flinchX = x;
+    this.flinchZ = z;
+    this.flinchD = d;
+    this.flinchOut = out;
+    this.flinchHold = hold;
+    this.flinchBack = back;
+    this.flinchT = out + hold + back;
   }
 
   /** Sets out along a new path at `speed` m/s (the loop restarts from its first leg): the Pale Bride's walk to the shore. */
@@ -678,11 +704,15 @@ export class Npc {
       }
     }
     if (moving) this.pos.y += (this.heightAt(this.pos.x, this.pos.z, this.pos.y) - this.pos.y) * Math.min(1, dt * 8);
-    // A startled step: a metre back over a quarter second, home again over two.
+    // A startled step (a metre back over a quarter second, home again over two) or a run from a falling building.
     if (this.flinchT > 0) {
       this.flinchT = Math.max(0, this.flinchT - dt);
-      const k = this.flinchT > 2 ? (2.25 - this.flinchT) / 0.25 : this.flinchT / 2;
-      this.object.position.set(this.pos.x + this.flinchX * k, this.pos.y, this.pos.z + this.flinchZ * k);
+      const total = this.flinchOut + this.flinchHold + this.flinchBack;
+      const t = total - this.flinchT;
+      const k = (t < this.flinchOut ? t / this.flinchOut : t < this.flinchOut + this.flinchHold ? 1 : this.flinchT / this.flinchBack) * this.flinchD;
+      const x = this.pos.x + this.flinchX * k, z = this.pos.z + this.flinchZ * k;
+      const y = this.flinchD > 1.5 ? this.heightAt(x, z, this.pos.y + 1) : this.pos.y;
+      this.object.position.set(x, y, z);
     } else this.object.position.copy(this.pos);
     this.object.rotation.y = yawToRotation(this.yaw);
     this.sounds(dt, Math.hypot(player.x - this.pos.x, player.z - this.pos.z));

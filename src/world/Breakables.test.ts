@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial } from 'three';
-import { Breakables, breakHp, canBreak, POWER, rebuildDue, trimGrid, unsupported, type BreakTarget } from './Breakables';
+import { Breakables, breakHp, canBreak, collapseDelay, POWER, rebuildDue, trimGrid, unheld, type BreakTarget } from './Breakables';
 import type { GridFootprint } from './Colliders';
 
 function grid(): GridFootprint {
@@ -26,17 +26,27 @@ describe('hit points and power', () => {
   });
 });
 
-describe('unsupported', () => {
-  it('a chunk resting on the ground stands; a tower whose middle is blown away drops its top', () => {
-    const tower = [0, 1, 2, 3, 4].map((i) => ({ x: 0, y: 0.5 + i, z: 0, r: 0.55 }));
-    const standing = [true, true, false, true, true];
-    expect(unsupported(tower, standing).sort()).toEqual([3, 4]);
-    expect(unsupported(tower, [true, true, true, true, true])).toEqual([]);
+describe('unheld', () => {
+  it('a chunk joined to the ground through standing neighbours stands; a tower blown through the middle drops its top', () => {
+    // 0-1-2-3-4 stacked, 0 on the ground.
+    const adj = [[1], [0, 2], [1, 3], [2, 4], [3]];
+    const ground = [true, false, false, false, false];
+    expect(unheld(adj, [true, true, false, true, true], ground).sort()).toEqual([3, 4]);
+    expect(unheld(adj, [true, true, true, true, true], ground)).toEqual([]);
   });
 
   it('a wall held up from the side still stands', () => {
-    const wall = [{ x: 0, y: 0.5, z: 0, r: 0.6 }, { x: 1, y: 0.5, z: 0, r: 0.6 }, { x: 1, y: 1.5, z: 0, r: 0.6 }, { x: 0, y: 1.5, z: 0, r: 0.6 }];
-    expect(unsupported(wall, [false, true, true, true])).toEqual([]);
+    // 0 1 on the ground, 3 over 0, 2 over 1; 0 gone, 3 hangs on 2.
+    const adj = [[1, 3], [0, 2], [1, 3], [0, 2]];
+    expect(unheld(adj, [false, true, true, true], [true, true, false, false])).toEqual([]);
+  });
+});
+
+describe('collapseDelay', () => {
+  it('the walls by the blow go first, the far side last, within a second and a half for a big hall', () => {
+    expect(collapseDelay(0, 6, 0.5)).toBeLessThan(collapseDelay(6, 6, 0.5));
+    expect(collapseDelay(12, 50, 0.5)).toBeLessThanOrEqual(1.6);
+    expect(collapseDelay(0, 6, 0.5)).toBeGreaterThanOrEqual(0);
   });
 });
 
@@ -54,12 +64,13 @@ describe('trimGrid', () => {
 });
 
 describe('rebuildDue', () => {
-  it('waits its time, then only rebuilds out of the hero sight', () => {
-    expect(rebuildDue({ brokeAt: 0, quick: false }, 100, 200, false)).toBe(false);
-    expect(rebuildDue({ brokeAt: 0, quick: false }, 181, 200, false)).toBe(true);
+  it('waits its time, then rebuilds only out of the hero\'s sight and at least REBUILD_AWAY off', () => {
+    expect(rebuildDue({ brokeAt: 0, quick: true }, 30, 200, false)).toBe(false);
     expect(rebuildDue({ brokeAt: 0, quick: true }, 61, 200, false)).toBe(true);
-    expect(rebuildDue({ brokeAt: 0, quick: true }, 61, 20, true)).toBe(false);
-    expect(rebuildDue({ brokeAt: 0, quick: true }, 61, 70, true)).toBe(true);
+    expect(rebuildDue({ brokeAt: 0, quick: true }, 61, 20, false)).toBe(false);
+    expect(rebuildDue({ brokeAt: 0, quick: true }, 61, 70, true)).toBe(false);
+    expect(rebuildDue({ brokeAt: 0, quick: false }, 120, 200, false)).toBe(false);
+    expect(rebuildDue({ brokeAt: 0, quick: false }, 181, 200, false)).toBe(true);
   });
 });
 
@@ -101,17 +112,54 @@ describe('Breakables', () => {
     expect(h.added.length).toBe(1);
   });
 
-  it('comes down when its hit points run out: every chunk flies and the collider goes', () => {
+  it('comes down when its hit points run out: the collider goes at once, the walls fall one after another', () => {
     const h = world();
     const b = new Breakables(h);
     const { target } = house();
     h.add(...target.footprints);
     b.register(target);
     b.damageAt(10, 1, 12, 1.5, 'burst');
+    const before = b.sim.pieces.length;
     b.damageAt(10, 1, 12, 1.5, 'burst');
     expect(b.entries[0].state).toBe('rubble');
     expect(h.added.length).toBe(0);
-    expect(b.sim.active).toBeGreaterThan(5);
+    const right = b.sim.pieces.length;
+    expect(right).toBeLessThan(b.entries[0].chunks.length);
+    for (let t = 0; t < 2; t += 0.05) b.update(0.05, { x: 0, z: 0 });
+    expect(b.sim.pieces.length).toBeGreaterThan(right);
+    expect(b.entries[0].chunks.every((c) => !c.standing)).toBe(true);
+    void before;
+  });
+
+  it('a chunk that loses what held it up drops: it is not thrown away from the blow', () => {
+    const h = world();
+    const b = new Breakables(h);
+    const { target } = house();
+    h.add(...target.footprints);
+    b.register(target);
+    // Knock out the bottom of one side; what stood on it falls.
+    b.damageAt(10, 0.5, 12, 2.2, 'skill');
+    const e = b.entries[0];
+    const dropped = e.chunks.filter((c) => !c.standing && c.piece && c.fell);
+    for (const c of dropped) expect(Math.hypot(c.piece!.vx, c.piece!.vz)).toBeLessThan(1.2);
+  });
+
+  it('rubble at rest is solid: a box collider on each big piece, as high as the piece', () => {
+    const h = world();
+    const b = new Breakables(h);
+    const { target } = house();
+    h.add(...target.footprints);
+    b.register(target);
+    for (let i = 0; i < 3; i++) b.damageAt(10, 1, 12, 2, 'burst');
+    for (let t = 0; t < 12; t += 0.05) b.update(0.05, { x: 0, z: 0 });
+    const boxes = h.added.filter((f) => (f as { kind: string }).kind === 'box') as Array<{ top: number; x: number; z: number }>;
+    expect(boxes.length).toBeGreaterThan(0);
+    for (const f of boxes) {
+      const p = b.sim.pieces.find((q) => Math.abs(q.x - f.x) < 1e-6 && Math.abs(q.z - f.z) < 1e-6)!;
+      expect(p).toBeTruthy();
+      expect(f.top).toBeGreaterThan(p.y - 0.01);
+      expect(f.top).toBeLessThan(p.y + p.r + 0.01);
+    }
   });
 
   it('a light blow on a house does nothing', () => {
@@ -130,7 +178,7 @@ describe('Breakables', () => {
     h.add(...target.footprints);
     b.register(target);
     for (let i = 0; i < 3; i++) b.damageAt(10, 1, 12, 2, 'burst');
-    for (let t = 0; t < 200; t += 0.5) b.update(0.5, { x: 300, z: 300 });
+    for (let t = 0; t < 200; t += 0.5) b.update(0.5, { x: 300, z: 300 }, () => false);
     expect(b.entries[0].state).toBe('intact');
     expect(root.visible).toBe(true);
     expect(h.added).toContain(target.footprints[0]);
@@ -169,7 +217,7 @@ describe('Breakables providers (instanced flora)', () => {
     expect(b.entries.length).toBe(1);
     expect(b.entries[0].state).toBe('rubble');
     expect(hidden).toBe(1);
-    for (let t = 0; t < 200; t += 0.5) b.update(0.5, { x: 300, z: 300 });
+    for (let t = 0; t < 200; t += 0.5) b.update(0.5, { x: 300, z: 300 }, () => false);
     expect(shown).toBe(1);
   });
 
@@ -197,5 +245,35 @@ describe('Breakables providers (instanced flora)', () => {
     b.damageAt(10, 1, 12, 3, 'burst');
     for (let t = 0; t < 2; t += 0.1) b.update(0.1, { x: 0, z: 0 });
     expect(b.sim.pieces.length).toBe(0);
+  });
+});
+
+describe('Breakables: what things are made of', () => {
+  it('a tree drops solid logs from its trunk; only its crown flutters away', () => {
+    const h = world();
+    const b = new Breakables(h);
+    const parent = new Group();
+    const root = new Group();
+    root.position.set(5, 0, 0);
+    const trunk = new Mesh(new BoxGeometry(0.6, 6, 0.6, 2, 12, 2), new MeshStandardMaterial());
+    trunk.position.y = 3;
+    root.add(trunk);
+    parent.add(root);
+    b.register({ id: 'pine', object: root, footprints: [], size: 6, tree: true, material: 'wood' });
+    for (let i = 0; i < 3; i++) b.damageAt(5, 1, 0, 3, 'burst');
+    for (let t = 0; t < 12; t += 0.05) b.update(0.05, { x: 0, z: 0 });
+    // Logs stay; the crown's bits are gone.
+    expect(b.sim.pieces.length).toBeGreaterThan(0);
+    for (const p of b.sim.pieces) expect(p.y).toBeLessThan(3);
+  });
+
+  it('a boulder is stone: its pieces stay as rubble (they do not shrink away like leaves)', () => {
+    const h = world();
+    const b = new Breakables(h);
+    const { target } = house();
+    b.register({ ...target, footprints: [], material: 'stone' });
+    for (let i = 0; i < 3; i++) b.damageAt(10, 1, 12, 3, 'burst');
+    for (let t = 0; t < 12; t += 0.1) b.update(0.1, { x: 0, z: 0 });
+    expect(b.sim.pieces.length).toBeGreaterThan(5);
   });
 });

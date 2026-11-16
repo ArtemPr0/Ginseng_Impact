@@ -1,7 +1,8 @@
 import { CameraBob } from './render/CameraBob';
 import { aimPoint, AIM_RANGE } from './combat/Aim';
 import { SPELL_KEYS, spellSlot } from './combat/Spells';
-import { Color, DirectionalLight, FogExp2, HemisphereLight, type Object3D, PerspectiveCamera, Scene, Vector3 } from 'three';
+import { Color, DirectionalLight, FogExp2, Frustum, HemisphereLight, Matrix4, type Object3D, PerspectiveCamera, Scene, Sphere, Vector3 } from 'three';
+import { WorkerFracturer } from './world/FractureObject';
 import { Bubbles } from './world/Portal';
 import { LightBudget } from './render/LightBudget';
 import { loadModel, ModelRig, yawToRotation } from './models/ModelRig';
@@ -212,15 +213,40 @@ const COLLAPSE_YELLS = ['MY HOUSE!', 'Oi! I live there!', 'Who pays for that?!',
     const k = near(b.x, b.z);
     audio.crumble(Math.min(1, b.target.size / 25), k);
     tpc.shake(Math.min(1, b.target.size / 30) * k);
-    combatFx.dust(new Vector3(b.x, b.target.object.position.y + 1, b.z), Math.min(6, 1.5 + b.target.size * 0.15));
-    // The people of the place yell at you (it stands again within a minute: Breakables.REBUILD_S.quick).
+    // A cloud rising from the base all round, as wide as the thing.
+    const base = b.target.object.getWorldPosition(new Vector3()).y;
+    const puffs = Math.min(10, 2 + Math.round(b.target.size / 5));
+    for (let i = 0; i < puffs; i++) {
+      const a = (i / puffs) * Math.PI * 2, d = b.r * (0.4 + Math.random() * 0.5);
+      combatFx.dust(new Vector3(b.x + Math.cos(a) * d, base + 0.5, b.z + Math.sin(a) * d), Math.min(5, 1.2 + b.target.size * 0.1));
+    }
+    // The people of the place yell at you and run out (it stands again within a minute: Breakables.REBUILD_S.quick).
     if (b.target.size < 3) return;
     for (const n of area.npcs) {
       if (n.hidden || Math.hypot(n.pos.x - b.x, n.pos.z - b.z) > b.r + 4) continue;
       n.bubble(COLLAPSE_YELLS[Math.floor(Math.random() * COLLAPSE_YELLS.length)], 3);
-      n.startle({ x: b.x, z: b.z });
+      n.flee({ x: b.x, z: b.z }, b.r);
     }
   };
+  // Rubble landing: dust where it hits, a thud by its size. A wall giving way: a crack and dust off it.
+  area.breakables.onLand = (x, y, z, size) => {
+    combatFx.dust(new Vector3(x, y, z), 0.4 + size * 1.6);
+    if (size > 0.25) audio.crumble(Math.min(0.5, size * 0.4), near(x, z) * 0.7);
+  };
+  area.breakables.onFail = (x, y, z, size) => {
+    if (Math.random() < 0.35) combatFx.dust(new Vector3(x, y, z), 0.5 + size);
+  };
+  // Rebuilds wait until the spot is out of the camera's view.
+  const frustum = new Frustum(), m4 = new Matrix4(), sphere = new Sphere();
+  area.breakables.inView = (x, z, r) => {
+    m4.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    frustum.setFromProjectionMatrix(m4);
+    return frustum.intersectsSphere(sphere.set(new Vector3(x, area.heights.heightAt(x, z) + r * 0.5, z), r));
+  };
+  // Buildings are cut into their pieces off the main thread, ahead of time as the hero comes near.
+  try {
+    area.breakables.fracturer = new WorkerFracturer(new Worker(new URL('./world/FractureWorker.ts', import.meta.url), { type: 'module' }));
+  } catch { /* (no workers: cut on the spot) */ }
 }
 const camParam = new URLSearchParams(location.search).get('cam')?.split(',').map(Number).filter((n) => Number.isFinite(n));
 // `?face=x,z` (debug) aims the camera from the spawn toward a world point.

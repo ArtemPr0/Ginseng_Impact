@@ -80,3 +80,25 @@ describe('reactions keep a kneeling or praying NPC down', () => {
     }
   });
 });
+
+describe('Npc.flee (a building coming down on them)', () => {
+  it('a standing NPC inside the falling building runs out past its edge, waits, then walks home', () => {
+    const n = make('stone-head');
+    n.flee({ x: 1, z: 0 }, 6);
+    const v = { x: 50, y: 0, z: 50 } as never;
+    for (let t = 0; t < 3; t += 0.05) n.update(0.05, v, false, false);
+    // Run out to the building's edge plus four metres, away from its centre.
+    expect(n.object.position.x).toBeLessThan(-8.5);
+    for (let t = 0; t < 8; t += 0.05) n.update(0.05, v, false, false);
+    expect(n.object.position.x).toBeLessThan(-8.5);
+    for (let t = 0; t < 30; t += 0.05) n.update(0.05, v, false, false);
+    expect(Math.abs(n.object.position.x)).toBeLessThan(0.05);
+  });
+
+  it('a kneeling or seated one runs too (nobody sits through a roof falling)', () => {
+    const n = make('vigil');
+    n.flee({ x: 1, z: 0 }, 6);
+    for (let t = 0; t < 3; t += 0.05) n.update(0.05, { x: 50, y: 0, z: 50 } as never, false, false);
+    expect(n.object.position.x).toBeLessThan(-8.5);
+  });
+});

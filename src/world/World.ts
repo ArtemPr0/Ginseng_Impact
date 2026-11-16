@@ -23,6 +23,7 @@ import { orchardSpots } from './Footprints';
 import { Grass } from './Grass';
 import type { Landmark } from './Landmarks';
 import { modelLandmark, type ModelLandmark, riverDrifter, walkerLandmark } from './ModelLandmark';
+import { breakKindOf } from './BreakKinds';
 import { Breakables, type BreakTarget } from './Breakables';
 import { Craters } from './Craters';
 import { Npc, NPC_DEFS } from './NPCs';
@@ -437,7 +438,7 @@ export class World {
             if (!object) return;
             given.add(i);
             const f = trunks.get(i);
-            out.push({ id, key: p, object, parent: set.group, footprints: f ? [f] : [], size, brief: true, hide: () => set.setHidden?.(i, true), show: () => set.setHidden?.(i, false) });
+            out.push({ id, key: p, object, parent: set.group, footprints: f ? [f] : [], size, ...breakKindOf(id), hide: () => set.setHidden?.(i, true), show: () => set.setHidden?.(i, false) });
           });
           return out;
         });
@@ -1026,7 +1027,7 @@ export class World {
     // Someone lives, trades or sits here, or a door leads in: it stands again within a minute.
     const spots = [...Object.values(ANCHORS), VALE_TAVERN_DOOR, CHAPEL_DOOR];
     const quick = spots.some((a) => footprintContains(g, a.x, a.z) || Math.hypot(a.x - g.x, a.z - g.z) < Math.min(g.r, 8));
-    this.breakables.register({ id, object: lm.root, footprints: l.footprints, size, quick });
+    this.breakables.register({ id, object: lm.root, footprints: l.footprints, size, quick, ...breakKindOf(id) });
   }
 
   /** Puts a prop in a realm's group, or on the island when `zone` is null (chests). */
@@ -1184,6 +1185,7 @@ export class World {
     for (const w of this.watchers) if (w.zone === here) w.update(dt, cameraPos, playerPos);
     this.clouds.update(dt, cameraPos);
     this.breakables.update(dt, playerPos);
+    this.breakables.prefetch(playerPos);
     this.craters.update(dt);
     const sculpt = here ? REALM_SCULPTS[here as keyof typeof REALM_SCULPTS] : undefined;
     if (here === null || sculpt?.grass) this.grass.update(playerPos.x, playerPos.z);

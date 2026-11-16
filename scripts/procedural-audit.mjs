@@ -16,7 +16,7 @@ const ALLOW = new Set([
   'world/Dream.ts', // the dream's sky dome and fractal floor (sky and terrain); everything in it is a GLB
   'world/StoneHead.ts', // the glowing irises over the stone head's carved eyes (VFX); the head is a GLB
   'world/Graveyard.ts', // the alley's floor and plot tops (a terrain shader); walls, graves, trees and towers are GLBs
-  'world/Fracture.ts', 'world/Breakables.ts', 'world/Flora.ts', 'combat/Gore.ts', 'combat/Sever.ts', 'combat/SpellCast.ts', 'render/RuneCircle.ts', 'render/Spray.ts', // chunks, torn-off parts and stumps cut from the Meshy models themselves when they break (2026-11-15)
+  'world/Fracture.ts', 'world/SolidFracture.ts', 'world/FractureObject.ts', 'world/Breakables.ts', 'world/Flora.ts', 'combat/Gore.ts', 'combat/Sever.ts', 'combat/SpellCast.ts', 'render/RuneCircle.ts', 'render/Spray.ts', // chunks, torn-off parts and stumps cut from the Meshy models themselves when they break (2026-11-15)
   'world/Kingdom.ts', // the kingdom's sky (aurora, horizon grid, line-drawn computers, moons), floor, tea, lean surfaces and waves, fog, snow; cups, lotus and buildings are GLBs
 ]);
 const ALLOW_PREFIX = ['render/'];
