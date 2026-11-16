@@ -37,7 +37,7 @@ import { chainTo, steer, type Homing, type NearestQuarry } from './Homing';
 import { LootField, rollDrops } from './Loot';
 import { dressLoot } from './LootLooks';
 import { BURST, COMBO, CYCLONE, SKILLS, type AttackDef, type BurstKind, type CrescentShape, type GroundEffectDef, type HitShape, type StarfallShape, type VolleyShape } from './Skills';
-import { comboTiming, cutSpan, heavyTiming, heroClipsOf, moveCut, skillTiming } from '../characters/heroClips';
+import { comboTiming, cutSpan, heavyTiming, heroClipsOf, moveCut, skillTiming, spellCut } from '../characters/heroClips';
 import { atkMult, hpMult } from '../game/Progress';
 import { WORLD } from '../world/Terrain';
 import { disposeObject } from '../render/dispose';
@@ -338,6 +338,16 @@ function moveTimes(hero: string): MoveTimes {
   };
 }
 
+/** A bar spell's move: its game seconds, where it lands, and where the blade cuts in it (undefined: no table). */
+function spellMove(hero: string, spellId: string | undefined): { duration: number; strike: number; blade: Window | null } | undefined {
+  const cut = spellCut(hero, spellId);
+  if (!cut) return undefined;
+  const from = cut.from ?? 0;
+  const span = cutSpan(hero, cut);
+  const strike = cut.strike ?? 0.4;
+  return { duration: span / (cut.speed ?? 1), strike, blade: cutWindow(from, from + span, strike, BLADE_CUTS[hero]?.[cut.key]) };
+}
+
 /** The lean's purple: the cyclone's ribbon, its puddles, the drops flung off the blade. */
 const LEAN_PURPLE = 0xb36bff;
 /**
@@ -396,7 +406,11 @@ export class CombatSystem {
   private readonly combos = new Map<string, ComboTracker>();
   private readonly cooldowns = new Map<string, Cooldown>();
   readonly hp = new Map<string, number>();
-  private casting: { def: CharacterDef; t: number; fired: boolean; spell?: number; aim?: Vector3 } | null = null;
+  /**
+   * The skill or a bar spell in progress. A spell carries its own move (heroClips spellCut: Sir Aldric slams the ground
+   * for Stone Wall), measured once at the cast: its seconds, where it lands, and where the blade cuts in it.
+   */
+  private casting: { def: CharacterDef; t: number; fired: boolean; spell?: number; spellId?: string; aim?: Vector3; move?: { duration: number; strike: number; blade: Window | null } } | null = null;
   private heavy: { t: number; fired: boolean; charge: number } | null = null;
   private heavyCharge = 0;
   private poisonLeft = 0;
@@ -754,7 +768,7 @@ export class CombatSystem {
     if (this.heavy) return Math.min(1, this.heavy.t / this.timesOf(this.active.id).heavy.duration);
     // Charging: the wind-up builds toward the held frame (the body holds it; Orlan's robe leans into it).
     if (this.heavyCharge > 0) { const hold = this.timesOf(this.active.id).heavy.startAt; return Math.min(hold, this.heavyCharge * hold); }
-    if (this.casting) return Math.min(1, this.casting.t / this.timesOf(this.casting.def.id).skill.duration);
+    if (this.casting) return Math.min(1, this.casting.t / (this.casting.move ?? this.timesOf(this.casting.def.id).skill).duration);
     return this.combo.swinging ? this.combo.progress : undefined;
   }
 
@@ -763,15 +777,20 @@ export class CombatSystem {
     if (this.burstCast) return BURST[this.active.id].time;
     if (this.heavy) return this.timesOf(this.active.id).heavy.duration;
     if (this.heavyCharge > 0) return undefined;
-    if (this.casting) return this.timesOf(this.casting.def.id).skill.duration;
+    if (this.casting) return (this.casting.move ?? this.timesOf(this.casting.def.id).skill).duration;
     return this.combo.swinging ? this.combo.duration : undefined;
   }
 
-  get attackKind(): number | 'skill' | 'heavy' | 'burst' | undefined {
+  get attackKind(): number | 'skill' | 'heavy' | 'burst' | 'spell' | undefined {
     if (this.burstCast) return 'burst';
     if (this.heavy || this.heavyCharge > 0) return 'heavy';
-    if (this.casting) return 'skill';
+    if (this.casting) return this.casting.spell !== undefined ? 'spell' : 'skill';
     return this.combo.swinging ? this.combo.currentHit : undefined;
+  }
+
+  /** The bar spell being cast (its id picks the body's move), if any. */
+  get castSpellId(): string | undefined {
+    return this.casting?.spellId;
   }
 
   onSwitch(): void {
@@ -1087,12 +1106,13 @@ export class CombatSystem {
       this.softLock(9);
       this.spells.use(me.id, slot);
       this.spellsCast++;
-      this.casting = { def: me, t: 0, fired: false, spell: slot, aim: d.aim?.() ?? this.ahead(8) };
+      const spellId = SPELLS[me.id]?.[slot]?.id;
+      this.casting = { def: me, t: 0, fired: false, spell: slot, spellId, aim: d.aim?.() ?? this.ahead(8), move: spellMove(me.id, spellId) };
       d.audio.cast();
       this.sfx.effort(me.id);
     }
     if (this.casting && this.casting.spell !== undefined) {
-      const timing = this.timesOf(this.casting.def.id).skill;
+      const timing = this.casting.move ?? this.timesOf(this.casting.def.id).skill;
       this.casting.t += dt;
       if (!this.casting.fired && this.casting.t >= timing.duration * timing.strike) {
         this.casting.fired = true;
@@ -1173,7 +1193,7 @@ export class CombatSystem {
     const blade = this.bladeColor() !== null;
     if (blade && !this.bladeWas) {
       const k = this.attackKind;
-      this.sfx.swing('blade', k === 'heavy' || k === 'skill' || k === 'burst' || k === 2);
+      this.sfx.swing('blade', k === 'heavy' || k === 'skill' || k === 'spell' || k === 'burst' || k === 2);
     }
     this.bladeWas = blade;
 
@@ -1545,7 +1565,7 @@ export class CombatSystem {
     let w: Window | null;
     let p: number;
     if (this.heavy) { w = t.blade.heavy; p = this.heavy.t / t.heavy.duration; }
-    else if (this.casting) { w = t.blade.skill; p = this.casting.t / t.skill.duration; }
+    else if (this.casting) { const m = this.casting.move; w = m ? m.blade : t.blade.skill; p = this.casting.t / (m ?? t.skill).duration; }
     else if (this.combo.swinging) { w = t.blade.attack[this.combo.currentHit] ?? null; p = this.combo.progress; }
     else return null;
     p = Math.min(1, p);

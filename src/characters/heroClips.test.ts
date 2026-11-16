@@ -3,7 +3,7 @@ import { AnimationClip, Bone, BoxGeometry, Group, LoopOnce, Mesh, MeshStandardMa
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MODELS, type ClipName } from '../data/models';
 import { ModelRig } from '../models/ModelRig';
-import { HERO_CLIPS, SOURCE_SECONDS, comboTiming, cutSeconds, heavyTiming, skillTiming, type ClipCut, type HeroClips, type HeroId } from './heroClips';
+import { HERO_CLIPS, SOURCE_SECONDS, comboTiming, cutSeconds, heavyTiming, skillTiming, spellCut, spellTiming, moveCut, type ClipCut, type HeroClips, type HeroId } from './heroClips';
 
 const heroes = Object.keys(HERO_CLIPS) as HeroId[];
 
@@ -16,6 +16,8 @@ function cutsOf(h: HeroClips): Array<[string, ClipCut]> {
   ];
   if (h.charge) out.push(['charge', h.charge]);
   if (h.burst) out.push(['burst', h.burst]);
+  if (h.spell) out.push(['spell', h.spell]);
+  for (const [id, c] of Object.entries(h.spells ?? {})) out.push([`spells.${id}`, c]);
   return out;
 }
 
@@ -68,7 +70,7 @@ describe('HERO_CLIPS', () => {
 
   it('turns the cuts into the game timings', () => {
     const k = HERO_CLIPS.knight;
-    expect(cutSeconds('knight', k.attack[0])).toBeCloseTo(0.75 / 1.25, 5);
+    expect(cutSeconds('knight', k.attack[0])).toBeCloseTo(0.53 / 1.0, 5);
     expect(comboTiming('knight').durations).toHaveLength(3);
     expect(comboTiming('knight').strikes).toEqual(k.attack.map((a) => a.strike));
     // Sir Aldric holds his own wind-up: the swing resumes from it. Wren holds an aim clip: her shot starts fresh.
@@ -80,6 +82,48 @@ describe('HERO_CLIPS', () => {
     expect(comboTiming('witch').durations).toHaveLength(3);
     expect(heavyTiming('witch').startAt).toBe(0);
     expect(skillTiming('witch').strike).toBeGreaterThan(0);
+  });
+});
+
+/** Seconds into the source clip at which a cut's blow lands. */
+const blowAt = (hero: HeroId, c: ClipCut): number => (c.from ?? 0) + (c.strike ?? 0) * ((c.to ?? SOURCE_SECONDS[hero][c.key]!) - (c.from ?? 0));
+
+describe('v12 Meshy presets (2026-11-16)', () => {
+  it("Sir Aldric's light combo is Triple_Combo_Attack's three blows, cut back to back", () => {
+    const a = HERO_CLIPS.knight.attack;
+    for (const c of a) expect(c.key).toBe('combo');
+    expect(a[0].to).toBe(a[1].from);
+    expect(a[1].to).toBe(a[2].from);
+    // The blows measured by clip-strike.mjs (the sword hand's peaks): 0.75, 1.51, 2.21 s.
+    [0.75, 1.51, 2.21].forEach((t, i) => expect(Math.abs(blowAt('knight', a[i]) - t), `hit ${i}`).toBeLessThan(0.03));
+  });
+
+  it('Wren looses her first shot with the quick shot and rolls to dodge', () => {
+    const h = HERO_CLIPS.archer;
+    expect(h.attack[0].key).toBe('quick');
+    expect(Math.abs(blowAt('archer', h.attack[0]) - 0.23)).toBeLessThan(0.03);
+    expect(h.dodge.key).toBe('roll');
+  });
+
+  it('bar spells play their own cut: the slam for the earth spells, the spell push or quick shot for the rest', () => {
+    expect(spellCut('knight', 'stone-wall')!.key).toBe('slam');
+    expect(spellCut('knight', 'earthsplitter')!.key).toBe('slam');
+    expect(Math.abs(blowAt('knight', spellCut('knight', 'stone-wall')!) - 1.62)).toBeLessThan(0.03);
+    expect(spellCut('knight', 'chain-hook')!.key).toBe('spell');
+    expect(Math.abs(blowAt('knight', spellCut('knight', 'chain-hook')!) - 0.61)).toBeLessThan(0.03);
+    expect(spellCut('archer', 'moonbomb')!.key).toBe('quick');
+    // Orlan has no spell cut: his bar casts keep the skill's timing.
+    expect(spellCut('wizard', 'fireball')).toBe(HERO_CLIPS.wizard.skill);
+    expect(spellTiming('knight', 'stone-wall').duration).toBeCloseTo(cutSeconds('knight', spellCut('knight', 'stone-wall')!), 6);
+    expect(spellTiming('witch', 'x').strike).toBeGreaterThan(0);
+  });
+
+  it("the body's move for a bar spell is that spell's cut", () => {
+    const k = HERO_CLIPS.knight;
+    expect(moveCut(k, 'spell', 'stone-wall')!.key).toBe('slam');
+    expect(moveCut(k, 'spell', 'blood-moon')).toBe(k.spell);
+    expect(moveCut(k, 'spell')).toBe(k.spell);
+    expect(moveCut(HERO_CLIPS.wizard, 'spell', 'fireball')).toBe(HERO_CLIPS.wizard.skill);
   });
 });
 
@@ -152,9 +196,12 @@ function fakeKnight(): ModelRig {
 describe('ModelRig cuts (a stand-in skeleton with the knight clip names)', () => {
   const rig = fakeKnight();
   const K = HERO_CLIPS.knight;
+  // Cuts of the stand-in's slash (Sir Aldric's v11 combo hits; his v12 combo is a clip the stand-in does not carry).
+  const SLASH: ClipCut = { key: 'attack', from: 0.2, to: 0.95, strike: 0.43, speed: 1.25, fade: 0.08 };
+  const SLASH2: ClipCut = { key: 'attack', from: 0.26, to: 0.95, strike: 0.38, speed: 1.3, fade: 0.06 };
 
   it('cuts a window out of a clip, keys every bone of the source and knows its strike', () => {
-    const a = rig.cut('hero:attack0', K.attack[0]);
+    const a = rig.cut('hero:attack0', SLASH);
     expect(a).not.toBeNull();
     const clip = a!.getClip();
     expect(clip.duration).toBeCloseTo(0.75, 1);
@@ -170,9 +217,9 @@ describe('ModelRig cuts (a stand-in skeleton with the knight clip names)', () =>
     const fall = rig.cut('hero:death', { ...K.death });
     const fallHips = fall!.getClip().tracks.find((t) => t.name === 'mixamorigHips.position')!;
     expect(Array.from(fallHips.values).some((x, i) => i % 3 === 0 && x !== 0)).toBe(true); // a death keeps its fall (keepRoot)
-    expect(rig.strikeOf('hero:attack0')).toBe(K.attack[0].strike);
+    expect(rig.strikeOf('hero:attack0')).toBe(SLASH.strike);
     expect(rig.strikeOf('attack')).toBeCloseTo(0.38, 5); // STRIKE_AT for a slash, the mobs' rule
-    expect(rig.cut('hero:attack0', K.attack[0])).toBe(a); // cached by id
+    expect(rig.cut('hero:attack0', SLASH)).toBe(a); // cached by id
     expect(rig.cut('hero:none', { key: 'throw' })).toBeNull();
   });
 
@@ -186,7 +233,7 @@ describe('ModelRig cuts (a stand-in skeleton with the knight clip names)', () =>
   });
 
   it('fits a one-shot within 0.5–2.5× and restarts it on a twin action instead of popping', () => {
-    rig.cut('hero:attack1', K.attack[1]);
+    rig.cut('hero:attack1', SLASH2);
     rig.play('hero:attack0', { once: true, fitTo: 0.1 });
     expect(rig.action!.timeScale).toBe(2.5);
     rig.play('hero:attack1', { once: true, fitTo: 100 });

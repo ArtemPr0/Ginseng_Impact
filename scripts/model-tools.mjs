@@ -57,6 +57,9 @@
  *       animation export becomes a ~100 KB file the game layers onto the base model (see models.ts clipFiles).
  *       With a name pattern only the matching clips stay; --rot-only drops translation and scale tracks (a clip
  *       borrowed from another Meshy rig of the same skeleton: its root motion and bone lengths are not the target's).
+ *   node scripts/model-tools.mjs merge-clips <target.glb> <source.glb> <out.glb> <nameRegex>
+ *       copies the source's animations whose names match (and the target lacks) onto the target's joints by name,
+ *       leaving its mesh and skin untouched: new Meshy presets for a hero whose mesh was repaired or LOD-passed.
  *   node scripts/model-tools.mjs import <downloaded.glb> <name> [clipKey]
  *       Convenience: with a clipKey writes public/models/<name>-<clipKey>.glb (clip only), otherwise
  *       public/models/<name>.glb (optimized).
@@ -90,6 +93,42 @@ async function info(path) {
  * A Meshy export whose skeleton is in centimetres under a 0.01-scale Armature (the agent's rig): bakes that scale into
  * the joints, their inverse binds and every translation track, so the file is in metres with no scaled parent.
  */
+async function mergeClips(targetPath, srcPath, outPath, pattern) {
+  const doc = await io.read(targetPath);
+  const src = await io.read(srcPath);
+  const root = doc.getRoot();
+  const buffer = root.listBuffers()[0];
+  const byName = new Map(root.listNodes().map((n) => [n.getName(), n]));
+  const have = new Set(root.listAnimations().map((a) => a.getName()));
+  const re = new RegExp(pattern);
+  const copies = new Map();
+  const copy = (acc) => {
+    let c = copies.get(acc);
+    if (!c) {
+      c = doc.createAccessor().setType(acc.getType()).setArray(acc.getArray().slice()).setBuffer(buffer);
+      copies.set(acc, c);
+    }
+    return c;
+  };
+  const added = [];
+  for (const a of src.getRoot().listAnimations()) {
+    if (!re.test(a.getName()) || have.has(a.getName())) continue;
+    const anim = doc.createAnimation(a.getName());
+    for (const ch of a.listChannels()) {
+      const node = byName.get(ch.getTargetNode()?.getName());
+      // Scale tracks from a Meshy export are float noise round 1: dropped (the hero files have none).
+      if (!node || ch.getTargetPath() === 'scale') continue;
+      const s = ch.getSampler();
+      const sampler = doc.createAnimationSampler().setInput(copy(s.getInput())).setOutput(copy(s.getOutput())).setInterpolation(s.getInterpolation());
+      anim.addSampler(sampler).addChannel(doc.createAnimationChannel().setTargetNode(node).setTargetPath(ch.getTargetPath()).setSampler(sampler));
+    }
+    added.push(`${a.getName()} (${anim.listChannels().length} ch)`);
+  }
+  await doc.transform(resample(), prune());
+  await io.write(outPath, doc);
+  console.log(`merge-clips: ${added.join(', ') || 'nothing new'} → ${outPath} (${mb(outPath)})`);
+}
+
 async function flattenArmature(inPath, outPath) {
   const doc = await io.read(inPath);
   const root = doc.getRoot();
@@ -732,6 +771,7 @@ async function clip(inPath, outPath, nameRe, rotOnly = false) {
 
 async function main() {
   if (cmd === 'info') return info(a);
+  if (cmd === 'merge-clips') return mergeClips(a, b, c, d);
   if (cmd === 'flatten-armature') return flattenArmature(a, b);
   if (cmd === 'optimize') return optimize(a, b, c ? Number(c) : 1024, d ? Number(d) : 0);
   if (cmd === 'strip-floaters') return stripFloaters(a, b, c ? Number(c) : 0.45);

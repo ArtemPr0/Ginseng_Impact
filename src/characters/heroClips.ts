@@ -50,6 +50,10 @@ export interface HeroClips {
   charge?: ClipCut;
   skill: ClipCut;
   burst?: ClipCut;
+  /** A spell off the bar (slots 3-7): the body's cast (the skill's when unset). */
+  spell?: ClipCut;
+  /** Spells with a move of their own, by spell id (the earth spells slam the ground). */
+  spells?: Record<string, ClipCut>;
   /** A big hit (≥ 15 % of max HP, the caller decides): the whole reaction. */
   hit: ClipCut;
   /** A small hit: the reaction's upper body layered over whatever the hero is doing. */
@@ -71,10 +75,12 @@ export const SOURCE_SECONDS: Record<HeroId, Partial<Record<ClipName, number>>> =
   // knight.glb: Idle_02 1.875, Walking 1.042, Running 0.667, Basic_Jump 5.875, Right_Hand_Sword_Slash 1.5, Sword_Judgment 4.333,
   // Sword_Shout 6.208, Hit_Reaction 1.667, Stand_Dodge 1.417, dying_backwards 2.208, Stand_and_Drink 8.875, Swim_Forward 4.5,
   // Swim_Idle 3.0; hero-climb.glb: climbing_up_wall 2.0.
-  knight: { idle: 1.875, walk: 1.042, run: 0.667, jump: 5.875, attack: 1.5, heavy: 4.333, cast: 6.208, hit: 1.667, dodge: 1.417, death: 2.208, drink: 8.875, swim: 4.5, swimIdle: 3.0, climb: 2.0 },
+  // v12 presets (2026-11-16): Triple_Combo_Attack 4.333, Charged_Ground_Slam 3.0, Charged_Spell_Cast 2.667, Charged_Upward_Slash 3.167.
+  knight: { idle: 1.875, walk: 1.042, run: 0.667, jump: 5.875, attack: 1.5, heavy: 4.333, cast: 6.208, hit: 1.667, dodge: 1.417, death: 2.208, drink: 8.875, swim: 4.5, swimIdle: 3.0, climb: 2.0, combo: 4.333, slam: 3.0, spell: 2.667, upslash: 3.167 },
   // archer.glb: Idle_03 4.292, Walking 1.042, Running 0.667, Regular_Jump 1.875, Archery_Shot 5.0, Archery_Shot_1 1.0,
   // Archery_Aim_with_Lateral_Scan 5.0, Hit_Reaction 1.667, Stand_Dodge 1.417, dying_backwards 2.208, Swim_Forward 4.5, Swim_Idle 3.0.
-  archer: { idle: 4.292, walk: 1.042, run: 0.667, jump: 1.875, attack: 5.0, heavy: 1.0, cast: 5.0, hit: 1.667, dodge: 1.417, death: 2.208, swim: 4.5, swimIdle: 3.0, climb: 2.0 },
+  // v12 presets: Archery_Shot_3 0.667, Roll_Dodge_2 2.0.
+  archer: { idle: 4.292, walk: 1.042, run: 0.667, jump: 1.875, attack: 5.0, heavy: 1.0, cast: 5.0, hit: 1.667, dodge: 1.417, death: 2.208, swim: 4.5, swimIdle: 3.0, climb: 2.0, quick: 0.667, roll: 2.0 },
   wizard: { idle: 1, walk: 1, run: 1, jump: 0.45, attack: 0.5, heavy: 0.8, cast: 0.45, hit: 0.5, dodge: 0.5, death: 1.2 },
 };
 
@@ -86,13 +92,24 @@ export const SOURCE_SECONDS: Record<HeroId, Partial<Record<ClipName, number>>> =
  * see groundHips). Hit_Reaction flinches 0.1–0.4, settles by 1.3; Stand_Dodge rolls 0.14–0.75; dying_backwards staggers
  * 0.4–1.0, is down by 1.41. His second hit is the same slash, tighter: a mirrored slash would put the cut in his cup
  * hand (the off-hand moves at 44 % of the sword hand's speed in this clip).
+ *
+ * v12 (2026-11-16, Meshy presets): his light combo is Triple_Combo_Attack, its three blows (0.75, 1.51, 2.21) cut
+ * back to back at the lulls between them (0.98, 1.78), so a full combo flows as one clip. Charged_Ground_Slam (blow
+ * 1.62, the hands drive down from 1.44) raises Stone Wall and lands Earthsplitter; Charged_Spell_Cast pushes (0.61)
+ * for his other bar spells; Charged_Upward_Slash (blow 1.01) ends the Wrecking Charge.
  */
 const KNIGHT: HeroClips = {
   attack: [
-    { key: 'attack', from: 0.2, to: 0.95, strike: 0.43, speed: 1.25, fade: 0.08 },
-    { key: 'attack', from: 0.26, to: 0.95, strike: 0.38, speed: 1.3, fade: 0.06 },
-    { key: 'heavy', from: 0.44, to: 1.34, strike: 0.6, speed: 1.1, fade: 0.08 },
+    { key: 'combo', from: 0.45, to: 0.98, strike: 0.566, speed: 1.0, fade: 0.08 },
+    { key: 'combo', from: 0.98, to: 1.78, strike: 0.6625, speed: 1.3, fade: 0.04 },
+    { key: 'combo', from: 1.78, to: 2.75, strike: 0.443, speed: 1.15, fade: 0.04 },
   ],
+  spell: { key: 'spell', from: 0.3, to: 0.95, strike: 0.477, fade: 0.08 },
+  spells: {
+    'stone-wall': { key: 'slam', from: 1.3, to: 2.1, strike: 0.4, speed: 1.15, fade: 0.08 },
+    earthsplitter: { key: 'slam', from: 1.3, to: 2.1, strike: 0.4, speed: 1.15, fade: 0.08 },
+    'wrecking-charge': { key: 'upslash', from: 0.6, to: 1.5, strike: 0.456, speed: 1.2, fade: 0.08 },
+  },
   heavy: { key: 'heavy', from: 0.2, to: 1.7, strike: 0.52, speed: 1.3, fade: 0.1 },
   heavyHold: 0.24,
   skill: { key: 'cast', from: 1.8, to: 2.75, strike: 0.64, speed: 1.1, fade: 0.1 },
@@ -110,10 +127,13 @@ const KNIGHT: HeroClips = {
  * then a 2.4 s re-nock nobody needs. Archery_Shot_1: a one-second draw and release, the string leaves the fingers at
  * 0.47. Archery_Aim_with_Lateral_Scan holds a steady draw for its first 0.8 s (the charge). Regular_Jump: crouch 0.1–0.3,
  * apex 0.79, impact 1.27, standing by 1.7.
+ *
+ * v12 presets: Archery_Shot_3 is a snap shot (the string leaves at 0.23 of its 0.67 s): her first shot and the loose
+ * of every bar spell. Roll_Dodge_2 rolls 0.3–1.35 (the hands strike the ground at 1.1 and 1.27).
  */
 const ARCHER: HeroClips = {
   attack: [
-    { key: 'attack', from: 0.25, to: 1.5, strike: 0.7, speed: 2.2, fade: 0.08 },
+    { key: 'quick', from: 0, to: 0.62, strike: 0.371, fade: 0.06 },
     { key: 'heavy', from: 0.05, to: 0.75, strike: 0.6, speed: 1.3, fade: 0.08 },
     { key: 'attack', from: 0.25, to: 1.5, strike: 0.7, speed: 1.8, fade: 0.08 },
   ],
@@ -121,9 +141,10 @@ const ARCHER: HeroClips = {
   heavyHold: 0.4,
   charge: { key: 'cast', from: 0, to: 0.8, fade: 0.12 },
   skill: { key: 'attack', from: 0.1, to: 1.55, strike: 0.71, speed: 1.8, fade: 0.1 },
+  spell: { key: 'quick', from: 0, to: 0.62, strike: 0.371, speed: 1.1, fade: 0.06 },
   hit: { key: 'hit', from: 0, to: 1.25, speed: 1.4, fade: 0.06 },
   hitLayer: /spine|neck|head|arm/i,
-  dodge: { key: 'dodge', from: 0.1, to: 1.05, speed: 1.75, fade: 0.06 },
+  dodge: { key: 'roll', from: 0.25, to: 1.45, speed: 2.2, fade: 0.06 },
   death: { key: 'death', from: 0.3, to: 2.2, fade: 0.12, keepRoot: true },
   jump: { key: 'jump', takeoff: [0.2, 0.8], apex: 1, land: { key: 'jump', from: 1.15, to: 1.5, fade: 0.08, groundHips: true } },
   walk: 'walk',
@@ -175,9 +196,24 @@ export function cutStrike(cut: ClipCut): number {
   return cut.strike ?? 0.4;
 }
 
-/** The cut a swing or cast of this kind plays. */
-export function moveCut(clips: HeroClips, kind: number | 'skill' | 'heavy' | 'burst' | undefined): ClipCut | null {
+/** The cut a bar spell plays: its own, else the hero's spell cut, else the skill's (null for a body with no table). */
+export function spellCut(hero: string, spellId: string | undefined): ClipCut | null {
+  const clips = heroClipsOf(hero);
+  if (!clips) return null;
+  return (spellId ? clips.spells?.[spellId] : undefined) ?? clips.spell ?? clips.skill;
+}
+
+/** A bar spell's cast time and the fraction of it at which it lands. */
+export function spellTiming(hero: string, spellId: string | undefined): { duration: number; strike: number } {
+  const cut = spellCut(hero, spellId);
+  if (!cut) return { duration: 0.6, strike: 0.5 };
+  return { duration: cutSeconds(hero, cut), strike: cutStrike(cut) };
+}
+
+/** The cut a swing or cast of this kind plays (a bar spell's by its id). */
+export function moveCut(clips: HeroClips, kind: number | 'skill' | 'heavy' | 'burst' | 'spell' | undefined, spellId?: string): ClipCut | null {
   if (kind === undefined) return null;
+  if (kind === 'spell') return (spellId ? clips.spells?.[spellId] : undefined) ?? clips.spell ?? clips.skill;
   if (kind === 'heavy') return clips.heavy;
   if (kind === 'skill') return clips.skill;
   if (kind === 'burst') return clips.burst ?? null;

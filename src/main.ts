@@ -1138,6 +1138,7 @@ game
         speed: Math.hypot(controller.vel.x, controller.vel.z),
         attack: combat.attackProgress,
         attackKind: combat.attackKind,
+        spellId: combat.castSpellId,
         attackDuration: combat.attackDuration,
         charging: combat.charging > 0,
         landed: performance.now() / 1000 - landedAt,
