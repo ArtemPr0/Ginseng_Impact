@@ -78,8 +78,8 @@ while (performance.now() - t0 < S * 1000) {
     if (stuckT > 6) { ev('stuck', { kind: target.def.kind, d: +d.toFixed(1) }); skipped.add(target); target = null; stuckT = 0; }
   } else {
     keyUp('KeyW'); keyUp('ShiftLeft');
-    if (now() > nextSkill) { await press('KeyE', 60); nextSkill = now() + 3; }
-    else if (now() > nextBurst) { await press('KeyQ', 60); nextBurst = now() + 8; }
+    if (now() > nextSkill) { await barCast(1); nextSkill = now() + 3; }
+    else if (now() > nextBurst) { await barCast(2); nextBurst = now() + 8; }
     else if (++heavyEvery % 6 === 0) { mouseDown(2); await sleep(900); mouseUp(2); }
     else await clickMouse(0, 40);
     if (myHp() < 0.3 * G.combat.maxOf(me())) await press('KeyR', 60);

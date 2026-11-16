@@ -154,6 +154,8 @@ function enemiesOf(kind) { return G.combat.enemies.filter((e) => e.def.kind === 
 function weaken(e, hp = 1) { e.hp = Math.min(e.hp, hp); }
 
 /** The current hero: 0 knight, 1 archer, 2 wizard (F1-F3 since 2026-11-16). */
+/** v12 controls: pick bar slot `n` (1-7: 1 = the old E skill, 2 = the old Q burst) and right click to cast it. */
+async function barCast(n) { await press(`Digit${n}`, 40); await clickMouse(2, 60); }
 async function hero_(i) { await press(`F${i + 1}`, 60); await waitFor(() => G.party.activeIndex === i, 1500); await sleep(400); }
 
 /**

@@ -25,11 +25,11 @@ const setup = await ev(`(async () => {
   G.scene.traverse((o) => { if (o.isInstancedMesh && o !== G.area.grass.mesh) o.visible = false; });
   // Nobody else acts.
   for (const e of G.combat.enemies) { e.brain.state = 'idle'; e.brain.p.aggroRange = 0; }
-  // The hero asked for (1/2/3 switch the party, through the game's own keys).
+  // The hero asked for (F1/F2/F3 switch the party, through the game's own keys).
   const want = ['knight', 'archer', 'wizard'].indexOf('${hero}');
   if (want >= 0 && G.party.activeIndex !== want) {
-    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit' + (want + 1) }));
-    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Digit' + (want + 1) }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'F' + (want + 1) }));
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'F' + (want + 1) }));
     await new Promise((r) => setTimeout(r, 400));
   }
   const rig = G.rigs[G.party.activeIndex];
@@ -47,8 +47,9 @@ const setup = await ev(`(async () => {
   const moves = {
     light: () => { button(0); setTimeout(() => button(0), 300); setTimeout(() => button(0), 600); },
     heavy: () => button(2, 1200),
-    skill: () => key('KeyE'),
-    burst: () => { G.combat.burstEnergy = 100; key('KeyQ'); },
+    // v12: pick the bar slot (1 = skill, 2 = burst) and right click to cast it.
+    skill: () => { key('Digit1', 40); setTimeout(() => { G.renderer.gl.domElement.dispatchEvent(new MouseEvent('mousedown', { button: 2, bubbles: true })); setTimeout(() => window.dispatchEvent(new MouseEvent('mouseup', { button: 2, bubbles: true })), 60); }, 120); },
+    burst: () => { G.combat.burstEnergy = 100; key('Digit2', 40); setTimeout(() => { G.renderer.gl.domElement.dispatchEvent(new MouseEvent('mousedown', { button: 2, bubbles: true })); setTimeout(() => window.dispatchEvent(new MouseEvent('mouseup', { button: 2, bubbles: true })), 60); }, 120); },
     dodge: () => key('KeyR'),
     jump: () => key('Space', 250),
     run: () => key('KeyW', 1500),

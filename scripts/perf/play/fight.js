@@ -16,6 +16,14 @@ if (!G?.combat || !G.renderer) return { error: 'no window.__ginseng: load the pa
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const key = (code, type) => window.dispatchEvent(new KeyboardEvent(type, { code }));
 const tap = async (code) => { key(code, 'keydown'); await sleep(80); key(code, 'keyup'); };
+// v12 controls: F1-F3 switch hero; a bar slot (1 = skill, 2 = burst) is picked with its digit and cast with right click.
+const hero_ = async (i) => { await tap(`F${i + 1}`); await sleep(400); };
+const barCast = async (n) => {
+  await tap(`Digit${n}`);
+  G.renderer.gl.domElement.dispatchEvent(new MouseEvent('mousedown', { button: 2, bubbles: true }));
+  await sleep(80);
+  window.dispatchEvent(new MouseEvent('mouseup', { button: 2, bubbles: true }));
+};
 const hold = async (code, ms) => { key(code, 'keydown'); await sleep(ms); key(code, 'keyup'); };
 const until = async (fn, ms) => { const t0 = performance.now(); while (!fn() && performance.now() - t0 < ms) await sleep(50); };
 
@@ -109,12 +117,12 @@ const loop = (t) => {
 requestAnimationFrame(loop);
 
 phase = 'cleave';
-await tap('KeyE');
+await barCast(1);
 await sleep(2200);
 
 phase = 'cyclone';
 G.combat.burstEnergy = 100;
-await tap('KeyQ');
+await barCast(2);
 await sleep(900);
 await hold('KeyW', 1800);
 await hold('KeyS', 1800);
@@ -122,21 +130,21 @@ await until(() => !G.combat.burstState, 5000);
 await sleep(400);
 
 phase = 'volley';
-await tap('Digit2');
+await hero_(1);
 await sleep(500);
-await tap('KeyE');
+await barCast(1);
 await sleep(2600);
 
 phase = 'trip';
 G.combat.burstEnergy = 100;
-await tap('KeyQ');
+await barCast(2);
 await until(() => !G.combat.burstState, 4000);
 await sleep(1600);
 
 phase = 'starfall';
-await tap('Digit3');
+await hero_(2);
 await sleep(500);
-await tap('KeyE');
+await barCast(1);
 await sleep(2600);
 running = false;
 await sleep(100);
