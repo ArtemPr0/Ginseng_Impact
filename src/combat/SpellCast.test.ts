@@ -340,3 +340,16 @@ describe('SpellCast warns the mobs under its rune circles', () => {
     expect(asked).toEqual([1]);
   });
 });
+
+describe('SpellCast lasting spells keep sounding (v12 sound beds)', () => {
+  it('the black hole, both tornadoes and a fireball\'s fires start a bed', () => {
+    const beds: string[] = [];
+    for (const [hero, slot] of [['wizard', 1], ['wizard', 2], ['archer', 4], ['wizard', 0]] as const) {
+      const { host } = fakeHost({ audio: new Proxy({}, { get: (_t, k) => (...a: unknown[]) => { if (k === 'bed') beds.push(String(a[0])); } }) as SpellHost['audio'] });
+      const sc = new SpellCast(host);
+      sc.cast(hero, slot, new Vector3(0, 0, 10));
+      for (let i = 0; i < 10; i++) sc.update(0.1);
+    }
+    expect(beds).toEqual(['hole', 'tornado', 'fire', 'tornado', 'fire']);
+  });
+});

@@ -1,3 +1,4 @@
+import { bedPlan, type BedKind } from './Beds';
 import { musicUrl, trimSilence, type MusicSlot } from './music';
 import { SampleBank, type Manifest } from './SampleBank';
 import SFX_MANIFEST from '../../public/audio/sfx/manifest.json';
@@ -544,6 +545,15 @@ export class Audio {
       case 'whoosh':
         this.noise(0.35, 'bandpass', 500, 2200, 1, 0.4, 0, 0.04);
         break;
+    }
+  }
+
+  /** A sound that lasts `seconds` (Beds.ts): the tornado's roar, the fire's crackle, the black hole's drone. */
+  bed(kind: BedKind, seconds: number): void {
+    if (!this.ctx) return;
+    for (const c of bedPlan(kind, seconds)) {
+      if (c.tone) this.tone(c.tone, c.f0, c.f1, c.dur, c.peak, c.at, c.attack, 0.2);
+      else this.noise(c.dur, c.filter, c.f0, c.f1, c.q, c.peak, c.at, c.attack);
     }
   }
 

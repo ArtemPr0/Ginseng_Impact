@@ -207,6 +207,7 @@ export class SpellCast {
         h.fx.shock(aim, s.color, 9, 0.6);
         h.shake(0.3);
         h.audio.spell('vortex');
+        h.audio.bed('hole', HOLE_S);
         break;
       }
       case 'fire-tornado': {
@@ -220,6 +221,8 @@ export class SpellCast {
         this.tornados.push({ kind: 'fire', at, dir, t: 0, tick: 0, scorch: 0, tearAt: 0.3, boltAt: 0, fx, light, lifted: new Map() });
         h.audio.spell('wind');
         h.audio.spell('crackle');
+        h.audio.bed('tornado', TORNADO_S);
+        h.audio.bed('fire', TORNADO_S);
         break;
       }
       case 'storm-tornado': {
@@ -236,6 +239,7 @@ export class SpellCast {
         this.tornados.push({ kind: 'storm', at, dir: { x: dx / l, z: dz / l }, t: 0, tick: 0, scorch: 0, tearAt: 0.3, boltAt: 0.6, fx, light, lifted: new Map() });
         h.shake(0.3);
         h.audio.spell('wind');
+        h.audio.bed('tornado', STORM_S);
         break;
       }
       case 'overgrowth': this.overgrow(s, aim); break;
@@ -369,6 +373,7 @@ export class SpellCast {
         h.dig(at.x, at.z, s.radius, 0, 'burnt');
         h.audio.spell('whoomph');
         h.audio.spell('crackle');
+        h.audio.bed('fire', 7);
         break;
       case 'moonbomb':
         this.blast(at, s.radius, s.mult, 6, 0.1);
