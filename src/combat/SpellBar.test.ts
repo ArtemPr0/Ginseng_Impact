@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BAR, barActs, barKey, heroKey, LmbGesture, SpellBar, spellPress } from './SpellBar';
+import { AIM_WALK, BAR, barActs, chargeMove, barKey, heroKey, LmbGesture, SpellBar, spellPress } from './SpellBar';
 import { SPELLS } from './Spells';
 
 describe('BAR (the user calls of 2026-11-16: keys 1-7 pick, right click casts)', () => {
@@ -104,5 +104,24 @@ describe('barActs', () => {
     // A buffered cast wins over a slot picked since.
     expect(barActs('knight', 2, 4).cast).toEqual(BAR.knight[2].action);
     expect(barActs('knight', 2, 4).aim).toEqual(BAR.knight[2].action);
+  });
+});
+
+describe('spellPress and the wall model', () => {
+  it('Stone Wall is not cast (nor its cooldown spent) while its stone model loads', () => {
+    expect(spellPress('stone-wall', true, false, false)).toBe('none');
+    expect(spellPress('stone-wall', true, false, true)).toBe('cast');
+    expect(spellPress('fireball', true, false, false)).toBe('cast');
+  });
+});
+
+describe('chargeMove', () => {
+  it('Wren walks slowly with her bow drawn; the others stand to wind up', () => {
+    expect(chargeMove('archer', true)).toBe(AIM_WALK);
+    expect(AIM_WALK).toBeGreaterThan(0.2);
+    expect(AIM_WALK).toBeLessThan(0.6);
+    expect(chargeMove('knight', true)).toBe(0);
+    expect(chargeMove('wizard', true)).toBe(0);
+    expect(chargeMove('knight', false)).toBe(1);
   });
 });

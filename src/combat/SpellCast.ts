@@ -567,6 +567,9 @@ export class SpellCast {
     return m ? wallSource(m) : null;
   }
 
+  /** The wall's stone model has loaded (no wall can be raised before). */
+  wallLoaded(): boolean { return this.wallStone() !== null; }
+
   /** A Stone Wall stands (casting it again kicks it). */
   wallUp(): boolean { return !!this.wall?.up; }
 

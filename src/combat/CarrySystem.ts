@@ -34,6 +34,10 @@ export interface CarryHost {
   };
   shake(amount: number): void;
   sound: { grab(): void; throw(heavy: boolean): void; land(size: number): void };
+  /** Telekinesis is off cooldown (a lift may start); unset: always. */
+  mindReady?(): boolean;
+  /** What he held was thrown or slammed down: Telekinesis' cooldown starts. */
+  mindSpent?(): void;
 }
 
 export interface CarryInput {
@@ -153,7 +157,7 @@ export class CarrySystem {
   private wizard(dt: number, input: CarryInput): boolean {
     const me = this.h.hero();
     if (!this.mind) {
-      if (!input.heavyHeld || this.heavyWas) return false;
+      if (!input.heavyHeld || this.heavyWas || this.h.mindReady?.() === false) return false;
       return this.lift();
     }
     const m = this.mind;
@@ -227,6 +231,16 @@ export class CarrySystem {
     return b ? { kind: 'building', x: b.x, y: b.y, z: b.z, r: b.r } : null;
   }
 
+  private glowAge = Infinity;
+  private glowLast: ReturnType<CarrySystem['liftTarget']> = null;
+
+  /** liftTarget for the glow under the crosshair, looked up again at most ten times a second (it scans every piece). */
+  glowTarget(dt: number): ReturnType<CarrySystem['liftTarget']> {
+    this.glowAge += dt;
+    if (this.glowAge >= 0.1) { this.glowAge = 0; this.glowLast = this.liftTarget(); }
+    return this.glowLast;
+  }
+
   /** On the lift's press: what liftTarget finds — a mob, the rubble there, or a small building torn up. */
   private lift(): boolean {
     const t = this.liftTarget();
@@ -281,6 +295,7 @@ export class CarrySystem {
     }
     this.h.sound.throw(m.pieces.size > 8 || !!m.e);
     this.mind = null;
+    this.h.mindSpent?.();
   }
 
   // --- what is in the air -------------------------------------------------------------------------------------------

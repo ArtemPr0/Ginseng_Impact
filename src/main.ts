@@ -1,7 +1,7 @@
 import { CameraBob } from './render/CameraBob';
 import { aimPoint, AIM_RANGE, SpellBuffer, spellRange } from './combat/Aim';
 import { SPELLS } from './combat/Spells';
-import { BAR, barActs, barKey, LmbGesture, SpellBar } from './combat/SpellBar';
+import { BAR, barActs, barKey, chargeMove, LmbGesture, SpellBar } from './combat/SpellBar';
 import { LiftGlow } from './render/LiftGlow';
 import { MindBeam } from './render/MindBeam';
 import { Color, DirectionalLight, FogExp2, Frustum, HemisphereLight, Matrix4, type Object3D, PerspectiveCamera, Scene, Sphere, Vector3 } from 'three';
@@ -1008,12 +1008,14 @@ game
         grab: input.locked && input.justPressed('KeyG'),
       });
       if (combat.spellsCast !== castsBefore) spellBuffer.done();
-      liftGlow.update(dt, input.locked && !!slot.hold && !combat.carry.mind ? combat.carry.liftTarget() : null);
+      liftGlow.update(dt, input.locked && !!slot.hold && !combat.carry.mind ? combat.carry.glowTarget(dt) : null);
       // Telekinesis held: the beam from his hand to the hold.
       const held = combat.carry.holding();
       const cs = controller;
       mindBeam.update(dt, held ? { from: handAt.set(cs.pos.x + Math.cos(cs.yaw) * 0.5, cs.pos.y + 1.55, cs.pos.z + Math.sin(cs.yaw) * 0.5), to: held.to, r: held.r } : null);
-      const move = input.locked && !combat.busy && combat.charging === 0 ? tpc.moveToWorld(input.moveAxis()) : { x: 0, z: 0 };
+      // (Winding up a heavy he stands; Wren walks slowly with her bow drawn: chargeMove.)
+      const chargeK = chargeMove(party.active.id, combat.charging > 0);
+      const move = input.locked && !combat.busy && chargeK > 0 ? tpc.moveToWorld(input.moveAxis()) : { x: 0, z: 0 };
       const space = input.locked && input.justPressed('Space');
       adventures.update(dt);
       worldState.setShards(inventory.shards);
@@ -1027,7 +1029,7 @@ game
       hoardGlints.update(dt);
       if (resumed) save.tick(dt, snapshot);
       if (input.locked) { audio.score.zone(placeZone()); ambience.zone(placeZone(), dt); }
-      controller.speedScale = (combat.webbed > 0 ? 0 : combat.slowed > 0 ? 0.6 : combat.mired > 0 ? 0.55 : 1) * combat.carry.carrySlow;
+      controller.speedScale = (combat.webbed > 0 ? 0 : combat.slowed > 0 ? 0.6 : combat.mired > 0 ? 0.55 : 1) * combat.carry.carrySlow * chargeK;
       if (adventures.riding) { if (space) adventures.leaveBoat(); }
       // Driving the carriage: W/S and A/D take the reins, Space climbs down.
       else if (CARRIAGE.driving) {

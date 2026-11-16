@@ -89,10 +89,23 @@ export class LmbGesture {
   }
 }
 
-/** What a press on a spell slot does: cast it, kick Sir Aldric's standing Stone Wall apart, or nothing (cooling). */
-export function spellPress(id: string, ready: boolean, wallUp: boolean): 'cast' | 'kick' | 'none' {
+/**
+ * What a press on a spell slot does: cast it, kick Sir Aldric's standing Stone Wall apart, or nothing (cooling, or the
+ * wall's stone model still loading: no wall, so no cooldown spent).
+ */
+export function spellPress(id: string, ready: boolean, wallUp: boolean, wallLoaded = true): 'cast' | 'kick' | 'none' {
   if (id === 'stone-wall' && wallUp) return 'kick';
+  if (id === 'stone-wall' && !wallLoaded) return 'none';
   return ready ? 'cast' : 'none';
+}
+
+/** Wren's walk with her bow drawn (the heavy's charge held), as a share of her walking speed. */
+export const AIM_WALK = 0.35;
+
+/** How fast the hero may move this step: Wren walks drawn at AIM_WALK, the others stand to wind up their heavy. */
+export function chargeMove(hero: string, charging: boolean): number {
+  if (!charging) return 1;
+  return hero === 'archer' ? AIM_WALK : 0;
 }
 
 /**
