@@ -5,8 +5,8 @@
  * a rune circle where it is aimed. A shot flies from the hero's hand to the aim point and lands there.
  */
 import {
-  AdditiveBlending, NormalBlending, CanvasTexture, Color, CylinderGeometry, DoubleSide, Group, Mesh, MeshBasicMaterial, SphereGeometry, Sprite, SpriteMaterial,
-  TorusGeometry, Vector3, type Object3D, type Texture,
+  AdditiveBlending, NormalBlending, CanvasTexture, Color, Group, Mesh, MeshBasicMaterial, SphereGeometry, Sprite, SpriteMaterial,
+  Vector3, type Object3D, type Texture,
 } from 'three';
 import { startLeap, type ControllerState } from '../player/CharacterController';
 import type { CombatFx } from '../render/CombatFx';
@@ -14,9 +14,16 @@ import type { Audio } from '../audio/Audio';
 import type { DebrisSim, Piece } from '../world/Debris';
 import type { BlowKind } from '../world/Breakables';
 import { RuneCircles } from '../render/RuneCircle';
+import { BlackHoleFx, FireTornadoFx } from '../render/VortexFx';
 import { SPELLS, type SpellDef } from './Spells';
 import type { Element } from './Elements';
 import type { Enemy } from './Enemy';
+
+/** Lights a spell holds or flashes (LightBudget). */
+export interface SpellLights {
+  flash(at: Vector3, color: number, intensity: number, distance: number, seconds: number): void;
+  hold(color: number, intensity: number, distance: number): { pos: Vector3; intensity: number; done: boolean };
+}
 
 export interface SpellHost {
   readonly enemies: Enemy[];
@@ -41,11 +48,12 @@ export interface SpellHost {
   sprout?(ids: string[]): { object: Group; scale: number } | null;
   /** A solid trunk at (x, z) while a grown tree stands; returns its remover. */
   solid?(x: number, z: number, r: number, top: number): () => void;
+  lights?: SpellLights;
 }
 
 interface Flight { mesh: Mesh; from: Vector3; to: Vector3; t: number; T: number; arc: number; spell: SpellDef; color: number }
-interface Hole { at: Vector3; t: number; tick: number; mesh: Group }
-interface Tornado { at: Vector3; dir: { x: number; z: number }; t: number; tick: number; scorch: number; mesh: Group }
+interface Hole { at: Vector3; t: number; tick: number; fx: BlackHoleFx; light?: { pos: Vector3; intensity: number; done: boolean } }
+interface Tornado { at: Vector3; dir: { x: number; z: number }; t: number; tick: number; scorch: number; fx: FireTornadoFx; light?: { pos: Vector3; intensity: number; done: boolean } }
 interface Plant { obj: Group; to: number; t: number; grow: number; life: number; remove?: () => void }
 interface Rooted { e: Enemy; left: number; tick: number }
 interface Slam { at: Vector3; t: number }
@@ -159,38 +167,28 @@ export class SpellCast {
       case 'gale-shot': this.gale(s); break;
       case 'black-hole': {
         this.runes.show(aim, 3, s.color, HOLE_S);
-        const mesh = new Group();
-        const core = new Mesh(this.orbGeo, new MeshBasicMaterial({ color: 0x000000 }));
-        const ring = new Mesh(new TorusGeometry(1.8, 0.12, 8, 40), new MeshBasicMaterial({ color: s.color, blending: AdditiveBlending, transparent: true, depthWrite: false }));
-        const ring2 = ring.clone();
-        ring2.scale.setScalar(1.35);
-        mesh.add(core, ring, ring2);
-        mesh.position.set(aim.x, aim.y + 2.2, aim.z);
-        mesh.scale.setScalar(0.01);
-        h.scene.add(mesh);
-        this.holes.push({ at: aim.clone(), t: 0, tick: 0, mesh });
+        const fx = new BlackHoleFx(s.color, HOLE_S);
+        fx.group.position.set(aim.x, aim.y + 3.2, aim.z);
+        h.scene.add(fx.group);
+        const light = h.lights?.hold(s.color, 0, 22);
+        light?.pos.copy(fx.group.position);
+        this.holes.push({ at: aim.clone(), t: 0, tick: 0, fx, light });
+        // Space tears open: a flash and a ring, dust sucked toward it.
+        h.lights?.flash(fx.group.position, 0xe8d8ff, 60, 30, 0.35);
+        h.fx.shock(aim, s.color, 7, 0.5);
+        h.shake(0.25);
         h.audio.spell('vortex');
         break;
       }
       case 'fire-tornado': {
         const dir = { x: Math.cos(c.yaw), z: Math.sin(c.yaw) };
         const at = ground(new Vector3(c.pos.x + dir.x * 2.5, c.pos.y, c.pos.z + dir.z * 2.5), h);
-        // A funnel of fire: open cones nested inside each other, wide at the top, twisting opposite ways.
-        const mesh = new Group();
-        for (let i = 0; i < 3; i++) {
-          const geo = new CylinderGeometry(1.7 - i * 0.4, 0.25 + i * 0.1, 5.2 - i * 0.6, 20, 6, true).translate(0, (5.2 - i * 0.6) / 2, 0);
-          // (Twisted: each ring of the cone turned a little more than the one below.)
-          const pos = geo.attributes.position;
-          for (let v = 0; v < pos.count; v++) {
-            const y = pos.getY(v), a = y * 0.55 * (i % 2 ? -1 : 1), x = pos.getX(v), z = pos.getZ(v);
-            pos.setXYZ(v, x * Math.cos(a) - z * Math.sin(a), y, x * Math.sin(a) + z * Math.cos(a));
-          }
-          const cone = new Mesh(geo, new MeshBasicMaterial({ color: i === 2 ? 0xffd27a : i === 1 ? 0xff8a2a : s.color, blending: AdditiveBlending, transparent: true, opacity: 0.17 - i * 0.03, depthWrite: false, side: DoubleSide, wireframe: i === 0 }));
-          mesh.add(cone);
-        }
-        mesh.position.copy(at);
-        h.scene.add(mesh);
-        this.tornados.push({ at, dir, t: 0, tick: 0, scorch: 0, mesh });
+        const fx = new FireTornadoFx(s.color);
+        fx.group.position.copy(at);
+        fx.group.scale.setScalar(0.01);
+        h.scene.add(fx.group);
+        const light = h.lights?.hold(0xff7a28, 0, 20);
+        this.tornados.push({ at, dir, t: 0, tick: 0, scorch: 0, fx, light });
         h.audio.spell('wind');
         h.audio.spell('crackle');
         break;
@@ -281,6 +279,8 @@ export class SpellCast {
     _v.set(at.x, at.y + 0.8, at.z);
     h.fx.flash(_v, _c.set(color), r * 1.1);
     h.fx.flash(_v, _c.set(0xffffff).multiplyScalar(0.7), r * 0.5);
+    // The blast lights the ground, the walls and the bodies round it.
+    h.lights?.flash(_w.set(at.x, at.y + 1.5, at.z), _c.set(color).lerp(new Color(0xffffff), 0.35).getHex(), 18 + r * 9, r * 5, 0.55);
     h.fx.shock(at, color, r * 1.6, 0.5);
     h.fx.shock(at, 0xffffff, r * 0.9, 0.3);
     h.fx.sparks(_v, UP, 40, color, 11, 1.0);
@@ -480,11 +480,10 @@ export class SpellCast {
     const s = SPELLS.wizard[1];
     o.t += dt;
     o.tick -= dt;
-    const grow = Math.min(1, o.t / 0.4) * (o.t > HOLE_S - 0.25 ? Math.max(0.01, (HOLE_S - o.t) / 0.25) : 1);
-    o.mesh.scale.setScalar(grow);
-    o.mesh.children[1].rotation.x += dt * 2.3; o.mesh.children[1].rotation.y += dt * 3.1;
-    o.mesh.children[2].rotation.y -= dt * 2.7; o.mesh.children[2].rotation.z += dt * 1.9;
-    const cx = o.at.x, cz = o.at.z, cy = o.at.y + 2.2;
+    o.fx.update(o.t, dt);
+    const cx = o.at.x, cz = o.at.z, cy = o.at.y + 3.2;
+    // A violet glow pulsing on the ground and the bodies round it.
+    if (o.light) o.light.intensity = o.fx.group.scale.x * (14 + Math.sin(o.t * 5) * 4);
     // Pulls everything in: bodies slide to it, pieces fly to it and are ground away to nothing at the middle.
     for (const e of h.enemies) {
       if (!e.alive || e.def.boss) continue;
@@ -508,12 +507,19 @@ export class SpellCast {
     if (o.tick <= 0) {
       o.tick = 0.5;
       this.blast(new Vector3(cx, o.at.y, cz), 3.5, s.mult, 0, 0.02);
-      h.fx.sparks(_v.set(cx, cy, cz), UP, 14, s.color, -6, 1.0);
-      h.fx.shock(o.at, s.color, 5, 0.5);
+      // Dust and grit dragged in off the ground all round.
+      for (let k = 0; k < 3; k++) {
+        const a = Math.random() * Math.PI * 2, r = s.radius * (0.6 + Math.random() * 0.4);
+        h.fx.dust(_v.set(cx + Math.cos(a) * r, h.heightAt(cx + Math.cos(a) * r, cz + Math.sin(a) * r, o.at.y + 2), cz + Math.sin(a) * r), 0.8);
+      }
+      h.fx.sparks(_v.set(cx, cy, cz), UP, 10, 0xe8d8ff, -5, 0.7);
     }
     if (o.t < HOLE_S) return false;
-    // It collapses on itself and bursts.
-    o.mesh.removeFromParent();
+    // It collapses to a point and bursts.
+    o.fx.dispose();
+    if (o.light) o.light.done = true;
+    h.lights?.flash(_v.set(cx, cy, cz), 0xf0e4ff, 90, 40, 0.6);
+    h.fx.shock(o.at, 0xe8d8ff, 10, 0.7);
     const at = new Vector3(cx, o.at.y, cz);
     this.blast(at, 5, 2.5, 7, 0.12);
     this.boom(at, s.color, 5, 0.9);
@@ -532,16 +538,25 @@ export class SpellCast {
     const step = (TORNADO_RUN / TORNADO_S) * dt;
     o.at.x += o.dir.x * step; o.at.z += o.dir.z * step;
     ground(o.at, h);
-    o.mesh.position.copy(o.at);
-    o.mesh.children.forEach((r, i) => { r.rotation.y += dt * (i % 2 ? -7 : 9); r.position.x = Math.sin(o.t * 5 + i) * 0.2; r.position.z = Math.cos(o.t * 4 + i) * 0.2; });
-    const fade = Math.min(1, o.t / 0.3, (TORNADO_S - o.t) / 0.4);
-    o.mesh.scale.setScalar(Math.max(0.01, fade));
-    for (let k = 0; k < 3; k++) {
-      const a = o.t * 11 + k * 2.1, y = Math.random() * 4.2;
-      h.fx.sparks(_v.set(o.at.x + Math.cos(a) * (0.5 + y * 0.35), o.at.y + y, o.at.z + Math.sin(a) * (0.5 + y * 0.35)), UP, 1, k ? s.color : 0xffd27a, 3, 0.6);
+    // It wanders a little off its line as it runs.
+    o.at.x += Math.sin(o.t * 1.7) * 0.9 * dt * -o.dir.z; o.at.z += Math.sin(o.t * 1.7) * 0.9 * dt * o.dir.x;
+    o.fx.group.position.copy(o.at);
+    o.fx.update(o.t, dt, o.dir);
+    const fade = Math.min(1, o.t / 0.45, (TORNADO_S - o.t) / 0.5);
+    o.fx.group.scale.setScalar(Math.max(0.01, fade < 1 ? 1 - (1 - fade) ** 2 : 1));
+    if (o.light) { o.light.pos.set(o.at.x, o.at.y + 2.5, o.at.z); o.light.intensity = fade * (16 + Math.random() * 6); }
+    // Embers climbing in a spiral, flung out at the top.
+    for (let k = 0; k < 4; k++) {
+      const a = o.t * 9 + k * 1.6, y = Math.random() * 6.5, r = 0.6 + y * 0.32;
+      h.fx.sparks(_v.set(o.at.x + Math.cos(a) * r, o.at.y + y, o.at.z + Math.sin(a) * r), _w.set(-Math.sin(a), 1.4, Math.cos(a)), 1, k % 2 ? 0xffb040 : 0xffe0a0, 4 + y * 0.6, 0.9);
     }
     o.scorch -= dt;
-    if (o.scorch <= 0) { o.scorch = 0.35; h.dig(o.at.x, o.at.z, 1.4, 0, 'burnt'); h.fx.dust(o.at, 0.9); }
+    if (o.scorch <= 0) {
+      o.scorch = 0.3;
+      h.dig(o.at.x, o.at.z, 1.4, 0, 'burnt');
+      // The skirt: dust and grit whirled up round the base.
+      for (let k = 0; k < 2; k++) { const a = Math.random() * Math.PI * 2; h.fx.dust(_v.set(o.at.x + Math.cos(a) * 1.6, o.at.y + 0.2, o.at.z + Math.sin(a) * 1.6), 1.1); }
+    }
     for (const sim of h.debris()) sim.push(o.at.x, o.at.z, s.radius + 1, (p, dx, dz) => { sim.wake(p); p.vx += -dz * 6 * dt * 10 + o.dir.x * 2; p.vz += dx * 6 * dt * 10 + o.dir.z * 2; p.vy = Math.max(p.vy, 6); });
     o.tick -= dt;
     if (o.tick <= 0) {
@@ -550,7 +565,8 @@ export class SpellCast {
       h.smash(o.at.x, o.at.y + 1.2, o.at.z, s.radius, 'heavy');
     }
     if (o.t < TORNADO_S) return false;
-    o.mesh.removeFromParent();
+    o.fx.dispose();
+    if (o.light) o.light.done = true;
     return true;
   }
 

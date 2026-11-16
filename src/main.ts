@@ -317,6 +317,7 @@ const combat = new CombatSystem({
   // Spells land where the crosshair meets the ground (at most 25 m off; Aim.ts).
   aim: () => spellAim().at,
   debris: () => [area.breakables.sim],
+  lights: { flash: (at, c, i, d, s) => lightBudget.flash(at, c, i, d, s), hold: (c, i, d) => lightBudget.hold(c, i, d) },
   sprout: (ids) => area.sprout(ids),
   solid: (x, z, r, top) => {
     const f = { kind: 'cyl' as const, x, z, r, top };
@@ -1055,7 +1056,7 @@ game
       lastClimbY = controller.pos.y;
       // Benched party members are hidden: no need to animate them (companions animate in the fixed step, which hit-stop pauses).
       combat.render(animDt);
-      lightBudget.update(playerPos);
+      lightBudget.update(playerPos, dt);
       focus.set(drawPos.x, drawPos.y + 1.4, drawPos.z);
       if (!input.locked && hud.panel === 'none') {
         if (REALMS.some((r) => Math.hypot(drawPos.x - r.x, drawPos.z - r.z) < r.radius)) {

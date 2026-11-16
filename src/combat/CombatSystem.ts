@@ -51,6 +51,7 @@ import { edgeSafeReach, flightTime, lungeReach, SLOW_MO } from './Juice';
 import { blowKindOf, breaksThings, coneSmash } from './Smash';
 import { Gore } from './Gore';
 import type { DebrisSim } from '../world/Debris';
+import type { SpellLights } from './SpellCast';
 import { maimMult, pickPart, severRoll } from './Sever';
 import { SpellBook } from './Spells';
 import { SpellCast } from './SpellCast';
@@ -228,6 +229,8 @@ export interface CombatDeps {
   aim?: () => Vector3;
   /** Every live debris sim (rubble, body parts), for spells that move pieces. */
   debris?: () => DebrisSim[];
+  /** Lights that spells and blasts hold for a moment (LightBudget's pool). */
+  lights?: SpellLights;
   /** A copy of a reel flora model to grow (Overgrowth; World.sprout). */
   sprout?: (ids: string[]) => { object: Group; scale: number } | null;
   /** A solid trunk while a grown tree stands; returns its remover. */
@@ -501,7 +504,7 @@ export class CombatSystem {
       debris: () => [self.gore.sim, ...(d.debris?.() ?? [])],
       bloodMoon: (seconds) => { self.bloodMoon = seconds; },
       announce: (text) => d.hud.announce(text),
-      sprout: d.sprout, solid: d.solid,
+      sprout: d.sprout, solid: d.solid, lights: d.lights,
     });
     this.sfx = new CombatSfx(d.audio);
     this.rnd = d.rnd ?? Math.random;
