@@ -237,6 +237,8 @@ export interface CombatDeps {
   building?: (x: number, z: number) => { x: number; y: number; z: number; r: number } | null;
   /** Lights that spells and blasts hold for a moment (LightBudget's pool). */
   lights?: SpellLights;
+  /** Billowing smoke or dust (render/Billow). */
+  smoke?: (at: Vector3, r: number, color: number, life: number) => void;
   /** A copy of a reel flora model to grow (Overgrowth; World.sprout). */
   sprout?: (ids: string[]) => { object: Group; scale: number } | null;
   /** A solid trunk while a grown tree stands; returns its remover. */
@@ -517,7 +519,7 @@ export class CombatSystem {
       debris: () => [self.gore.sim, ...(d.debris?.() ?? [])],
       bloodMoon: (seconds) => { self.bloodMoon = seconds; },
       announce: (text) => d.hud.announce(text),
-      sprout: d.sprout, solid: d.solid, lights: d.lights,
+      sprout: d.sprout, solid: d.solid, lights: d.lights, smoke: d.smoke,
     });
     this.carry = new CarrySystem({
       enemies: () => self.enemies,

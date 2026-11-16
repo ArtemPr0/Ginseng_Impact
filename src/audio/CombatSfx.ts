@@ -78,6 +78,8 @@ export class CombatSfx {
     if (this.recent.length >= HIT_BURST) return;
     this.recent.push(t);
     const a = this.audio;
+    // The recorded blow under the made one: a punch into a body, a clack on bone, a pick on stone.
+    a.samples?.play(material === 'stone' ? 'hit-stone' : material === 'bone' ? 'hit-wood' : material === 'ghost' ? 'hit-glass' : 'hit-flesh', { gain: (heavy ? 0.9 : 0.6) * (material === 'ghost' ? 0.3 : 1), rate: heavy ? 0.85 : 1 });
     switch (material) {
       case 'flesh':
         a.toneAt(out, t, 'sine', heavy ? 130 : 170, heavy ? 40 : 55, heavy ? 0.2 : 0.11, heavy ? 0.8 : 0.55);

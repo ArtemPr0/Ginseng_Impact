@@ -1,4 +1,6 @@
 import { musicUrl, trimSilence, type MusicSlot } from './music';
+import { SampleBank, type Manifest } from './SampleBank';
+import SFX_MANIFEST from '../../public/audio/sfx/manifest.json';
 import { Score } from './Score';
 
 /** A decoded song and where its sound starts and ends (seconds, the silence at either end trimmed off). */
@@ -41,6 +43,8 @@ export class Audio {
   private listener: AudioListener | null = null;
   volume = 0.6;
   musicVolume = 0.5;
+  /** Recorded CC0 sound effects (SampleBank), made in unlock(). */
+  samples: SampleBank | null = null;
 
   /** Call from a user gesture (click / keydown). */
   unlock(): void {
@@ -68,6 +72,17 @@ export class Audio {
     this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
     const d = this.noiseBuf.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    this.samples = new SampleBank(this.ctx, SFX_MANIFEST as Manifest, `${import.meta.env.BASE_URL}audio/sfx/`, this.master);
+    for (const cat of Object.keys(SFX_MANIFEST)) this.samples.preload(cat);
+  }
+
+  /** A recorded take of `cat` (SampleBank), at a world point when `at` is given; false while it still loads. */
+  sample(cat: string, gain = 1, at?: { x: number; y: number; z: number }, rate = 1): boolean {
+    if (!this.samples || !this.ctx) return false;
+    if (!at) return this.samples.play(cat, { gain, rate });
+    let ok = false;
+    this.playAt(at.x, at.y, at.z, (_ctx, dest) => { ok = this.samples!.play(cat, { gain, rate, out: dest }); });
+    return ok;
   }
 
   private get now(): number { return this.ctx!.currentTime; }
@@ -222,6 +237,7 @@ export class Audio {
 
   /** Blade whoosh. `heavy` is slower and lower. */
   swing(heavy = false): void {
+    this.sample('cloth', heavy ? 0.5 : 0.3);
     this.noise(heavy ? 0.26 : 0.14, 'bandpass', heavy ? 900 : 2200, heavy ? 180 : 400, 1.2, heavy ? 0.5 : 0.35, 0, heavy ? 0.03 : 0.01);
   }
 
@@ -436,6 +452,9 @@ export class Audio {
   crumble(size: number, near = 1): void {
     if (near <= 0.02) return;
     const g = near * (0.5 + size * 0.5);
+    // Recorded stone and timber giving way, a few takes spread over the fall.
+    const takes = 2 + Math.round(size * 5);
+    for (let i = 0; i < takes; i++) this.samples?.play(i % 3 === 2 ? 'hit-wood' : 'hit-stone', { gain: g * (1 - i / (takes + 2)), rate: 0.75 - size * 0.15, delay: i * (0.08 + size * 0.25) * Math.random() });
     this.noise(0.06, 'highpass', 2400, 1200, 1, 0.55 * g);
     this.tone('square', 140 + Math.random() * 40, 60, 0.05, 0.12 * g);
     const n = 4 + Math.round(size * 14);
@@ -451,6 +470,7 @@ export class Audio {
 
   /** A part comes off (no blood, 2026-11-16): a dry crack and a short tearing rip of cloth or hide. */
   sever(): void {
+    this.sample('slice', 0.5);
     this.noise(0.05, 'highpass', 2600, 1400, 1.2, 0.4);
     this.noise(0.14, 'bandpass', 1800, 700, 1.6, 0.28, 0.03);
     this.tone('triangle', 180, 70, 0.08, 0.18);
@@ -458,6 +478,7 @@ export class Audio {
 
   /** Something soft lands (a severed limb): a dull thud. */
   thud(): void {
+    this.sample('hit-flesh', 0.35, undefined, 0.8);
     this.tone('sine', 110, 50, 0.12, 0.35);
     this.noise(0.06, 'lowpass', 400, 120, 1, 0.25);
   }
@@ -606,8 +627,13 @@ export class Audio {
     this.tone('triangle', 620, 740, 0.08, 0.12, 0.08, 0.004, 0.06);
   }
 
-  footstep(): void {
-    this.noise(0.05, 'lowpass', 500, 120, 0.8, 0.12);
+  footstep(surface: 'grass' | 'stone' | 'wood' | 'snow' = 'grass', gain = 1): void {
+    if (!this.sample(`step-${surface}`, 0.35 * gain)) this.noise(0.05, 'lowpass', 500, 120, 0.8, 0.12 * gain);
+  }
+
+  /** An axe or a blade biting wood (Sir Aldric's blows on trees and timber). */
+  chop(): void {
+    this.sample('chop', 0.7);
   }
 
   /** Updates the HRTF listener (call each frame from the camera or hero). */

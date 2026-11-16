@@ -1,0 +1,143 @@
+{
+ "hit-flesh": [
+  "impactPunch_heavy_000.m4a",
+  "impactPunch_heavy_001.m4a",
+  "impactPunch_heavy_002.m4a",
+  "impactPunch_heavy_003.m4a",
+  "impactPunch_heavy_004.m4a",
+  "impactPunch_medium_000.m4a",
+  "impactPunch_medium_001.m4a",
+  "impactPunch_medium_002.m4a",
+  "impactPunch_medium_003.m4a",
+  "impactPunch_medium_004.m4a",
+  "impactSoft_heavy_000.m4a",
+  "impactSoft_heavy_001.m4a",
+  "impactSoft_heavy_002.m4a",
+  "impactSoft_heavy_003.m4a",
+  "impactSoft_heavy_004.m4a"
+ ],
+ "hit-metal": [
+  "impactMetal_heavy_000.m4a",
+  "impactMetal_heavy_001.m4a",
+  "impactMetal_heavy_002.m4a",
+  "impactMetal_heavy_003.m4a",
+  "impactMetal_heavy_004.m4a",
+  "impactMetal_medium_000.m4a",
+  "impactMetal_medium_001.m4a",
+  "impactMetal_medium_002.m4a",
+  "impactMetal_medium_003.m4a",
+  "impactMetal_medium_004.m4a",
+  "impactPlate_heavy_000.m4a",
+  "impactPlate_heavy_001.m4a",
+  "impactPlate_heavy_002.m4a",
+  "impactPlate_heavy_003.m4a",
+  "impactPlate_heavy_004.m4a",
+  "impactPlate_medium_000.m4a",
+  "impactPlate_medium_001.m4a",
+  "impactPlate_medium_002.m4a",
+  "impactPlate_medium_003.m4a",
+  "impactPlate_medium_004.m4a"
+ ],
+ "hit-wood": [
+  "impactWood_heavy_000.m4a",
+  "impactWood_heavy_001.m4a",
+  "impactWood_heavy_002.m4a",
+  "impactWood_heavy_003.m4a",
+  "impactWood_heavy_004.m4a",
+  "impactWood_medium_000.m4a",
+  "impactWood_medium_001.m4a",
+  "impactWood_medium_002.m4a",
+  "impactWood_medium_003.m4a",
+  "impactWood_medium_004.m4a",
+  "impactPlank_medium_000.m4a",
+  "impactPlank_medium_001.m4a",
+  "impactPlank_medium_002.m4a",
+  "impactPlank_medium_003.m4a",
+  "impactPlank_medium_004.m4a"
+ ],
+ "hit-stone": [
+  "impactMining_000.m4a",
+  "impactMining_001.m4a",
+  "impactMining_002.m4a",
+  "impactMining_003.m4a",
+  "impactMining_004.m4a",
+  "impactPlate_light_000.m4a",
+  "impactPlate_light_001.m4a",
+  "impactPlate_light_002.m4a",
+  "impactPlate_light_003.m4a",
+  "impactPlate_light_004.m4a"
+ ],
+ "hit-glass": [
+  "impactGlass_heavy_000.m4a",
+  "impactGlass_heavy_001.m4a",
+  "impactGlass_heavy_002.m4a",
+  "impactGlass_heavy_003.m4a",
+  "impactGlass_heavy_004.m4a",
+  "impactGlass_medium_000.m4a",
+  "impactGlass_medium_001.m4a",
+  "impactGlass_medium_002.m4a",
+  "impactGlass_medium_003.m4a",
+  "impactGlass_medium_004.m4a"
+ ],
+ "step-grass": [
+  "footstep_grass_000.m4a",
+  "footstep_grass_001.m4a",
+  "footstep_grass_002.m4a",
+  "footstep_grass_003.m4a",
+  "footstep_grass_004.m4a"
+ ],
+ "step-stone": [
+  "footstep_concrete_000.m4a",
+  "footstep_concrete_001.m4a",
+  "footstep_concrete_002.m4a",
+  "footstep_concrete_003.m4a",
+  "footstep_concrete_004.m4a"
+ ],
+ "step-wood": [
+  "footstep_wood_000.m4a",
+  "footstep_wood_001.m4a",
+  "footstep_wood_002.m4a",
+  "footstep_wood_003.m4a",
+  "footstep_wood_004.m4a"
+ ],
+ "step-snow": [
+  "footstep_snow_000.m4a",
+  "footstep_snow_001.m4a",
+  "footstep_snow_002.m4a",
+  "footstep_snow_003.m4a",
+  "footstep_snow_004.m4a"
+ ],
+ "cloth": [
+  "cloth1.m4a",
+  "cloth2.m4a",
+  "cloth3.m4a",
+  "cloth4.m4a",
+  "clothBelt2.m4a"
+ ],
+ "blade-draw": [
+  "drawKnife1.m4a",
+  "drawKnife2.m4a",
+  "drawKnife3.m4a"
+ ],
+ "slice": [
+  "knifeSlice.m4a",
+  "knifeSlice2.m4a"
+ ],
+ "chop": [
+  "chop.m4a",
+  "impactWood_heavy_000.m4a",
+  "impactWood_heavy_001.m4a",
+  "impactWood_heavy_002.m4a",
+  "impactWood_heavy_003.m4a",
+  "impactWood_heavy_004.m4a"
+ ],
+ "coins": [
+  "handleCoins.m4a",
+  "handleCoins2.m4a"
+ ],
+ "creak": [
+  "creak1.m4a",
+  "creak2.m4a",
+  "creak3.m4a"
+ ]
+}

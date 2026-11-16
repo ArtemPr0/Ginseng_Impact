@@ -5,6 +5,9 @@ import { AimPreview } from './render/AimPreview';
 import { Color, DirectionalLight, FogExp2, Frustum, HemisphereLight, Matrix4, type Object3D, PerspectiveCamera, Scene, Sphere, Vector3 } from 'three';
 import { HarvestLedger, harvestOf } from './world/Harvest';
 import { Ejecta } from './render/Ejecta';
+import { Billow } from './render/Billow';
+import { StepClock, surfaceOf } from './audio/Steps';
+import { LAYER_COUNT } from './render/Ground';
 import { AutoQuality, nextMode, pickMode, QUALITY_KEY, settingsFor, type QualityLevel, type QualityMode } from './core/Quality';
 import { WorkerFracturer } from './world/FractureObject';
 import { Bubbles } from './world/Portal';
@@ -122,6 +125,10 @@ scene.add(aimPreview.group);
 /** Clods of earth thrown out of fresh craters (Ejecta). */
 const ejecta = new Ejecta((x, z, y) => world.heightAt(x, z, y));
 scene.add(ejecta.group);
+/** Billowing dust and smoke that lingers (collapses, blasts). */
+const billow = new Billow(260);
+const stepClock = new StepClock();
+scene.add(billow.mesh);
 const fogTarget = new Color();
 let portalCooldown = 0;
 
@@ -224,6 +231,7 @@ const COLLAPSE_YELLS = ['MY HOUSE!', 'Oi! I live there!', 'Who pays for that?!',
     // Sir Aldric's blows knock wood, planks and stone loose (Harvest): a few pieces at his feet.
     if (ROSTER[party.activeIndex].id === 'knight' && Math.hypot(x - controller.pos.x, z - controller.pos.z) < 7) {
       const h = harvestOf(b.target.material, !!b.target.tree, b.target.size, n, !!b.target.brief);
+      if (h && h.itemId !== 'stone') audio.chop();
       if (h && harvested.take(b, performance.now() / 1000)) combat.loot.spawn([{ kind: 'item', itemId: h.itemId, count: h.count }], new Vector3(x, Math.max(y, controller.pos.y + 0.6), z));
     }
   };
@@ -233,11 +241,11 @@ const COLLAPSE_YELLS = ['MY HOUSE!', 'Oi! I live there!', 'Who pays for that?!',
     tpc.shake(Math.min(1, b.target.size / 30) * k);
     // A cloud rising from the base all round, as wide as the thing.
     const base = b.target.object.getWorldPosition(new Vector3()).y;
-    const puffs = Math.min(10, 2 + Math.round(b.target.size / 5));
-    for (let i = 0; i < puffs; i++) {
-      const a = (i / puffs) * Math.PI * 2, d = b.r * (0.4 + Math.random() * 0.5);
-      combatFx.dust(new Vector3(b.x + Math.cos(a) * d, base + 0.5, b.z + Math.sin(a) * d), Math.min(5, 1.2 + b.target.size * 0.1));
-    }
+    // A big cloud of dust and plaster rolling out from the base and up, hanging in the air for many seconds.
+    const sz = b.target.size;
+    // (Trees, plants and little things only shed their own pieces: dust clouds come from buildings and stone.)
+    if (!b.target.tree && !b.target.brief && sz >= 3) billow.cloud(new Vector3(b.x, base + 0.3, b.z), Math.min(14, b.r * 0.9), 0x949cb6, { puffs: Math.round(Math.min(90, 14 + sz * 2.2)), life: Math.min(14, 6 + sz * 0.15), rise: 1 + Math.min(3, sz * 0.06), spread: 1.4 + Math.min(4, sz * 0.08) });
+    combatFx.dust(new Vector3(b.x, base + 0.5, b.z), Math.min(5, 1.2 + sz * 0.1));
     // The people of the place yell at you and run out (it stands again within a minute: Breakables.REBUILD_S.quick).
     if (b.target.size < 3) return;
     for (const n of area.npcs) {
@@ -363,6 +371,7 @@ const combat = new CombatSystem({
     return best;
   },
   lights: { flash: (at, c, i, d, s) => lightBudget.flash(at, c, i, d, s), hold: (c, i, d) => lightBudget.hold(c, i, d) },
+  smoke: (at, r, color, life) => billow.cloud(at, r, color, { life, puffs: Math.round(8 + r * 5), rise: 1.6 + r * 0.4, spread: 0.6 + r * 0.25, size: 0.5 + r * 0.3 }),
   sprout: (ids) => area.sprout(ids),
   solid: (x, z, r, top) => {
     const f = { kind: 'cyl' as const, x, z, r, top };
@@ -1117,6 +1126,20 @@ game
       combat.render(animDt);
       lightBudget.update(playerPos, dt);
       ejecta.update(dt);
+      billow.update(dt);
+      // Footsteps: a recorded take for the ground under the foot (grass, stone, snow), one per stride.
+      {
+        const sp = Math.hypot(controller.vel.x, controller.vel.z);
+        if (stepClock.update(dt, sp, controller.mode === 'ground')) {
+          const { x, z, y } = controller.pos;
+          const f = terrain.field;
+          const ix = Math.round((x - f.s.x0) / f.s.cell), iz = Math.round((z - f.s.z0) / f.s.cell);
+          const inside = ix >= 0 && iz >= 0 && ix <= f.n && iz <= f.n;
+          const o = inside ? f.indexOf(ix, iz) * LAYER_COUNT : 0;
+          const built = world.heightAt(x, z, y + 0.3) > terrain.heightAt(x, z) + 0.15;
+          audio.footstep(surfaceOf(inside ? f.layers.subarray(o, o + LAYER_COUNT) : null, built), Math.min(1, 0.5 + sp * 0.08));
+        }
+      }
       if (qualityMode === 'auto' && autoQuality.level === 'high' && autoQuality.update(dt, renderer.frameTime, renderer.atMinRatio) === 'low') {
         applyQuality();
         hud.announce('Quality lowered for a smoother frame rate (ESC to change)');

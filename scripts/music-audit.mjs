@@ -57,9 +57,30 @@ for (const file of shipped) {
 }
 for (const file of entries.keys()) if (!shipped.includes(file)) console.warn(`music audit: LICENSES.md names ${file}, which is not in licensed/`);
 
+// Sound effects (2026-11-16): every file in public/audio/sfx needs a CC0 line in docs/reference/sfx-credits.md.
+const SFX = 'public/audio/sfx';
+let sfxCount = 0;
+if (existsSync(SFX)) {
+  const credits = existsSync('docs/reference/sfx-credits.md') ? readFileSync('docs/reference/sfx-credits.md', 'utf8') : '';
+  const credited = new Map();
+  for (const line of credits.split('\n')) {
+    const m = line.match(/^\|\s*([^|]+?)\s*\|[^|]*\|\s*([^|]+?)\s*\|/);
+    if (m) credited.set(m[1], m[2]);
+  }
+  for (const cat of readdirSync(SFX, { withFileTypes: true }).filter((d) => d.isDirectory())) {
+    for (const f of readdirSync(join(SFX, cat.name))) {
+      sfxCount++;
+      const key = `${cat.name}/${f}`;
+      const lic = credited.get(key);
+      if (!lic) errors.push(`${SFX}/${key} has no line in docs/reference/sfx-credits.md`);
+      else if (!/CC0/i.test(lic)) errors.push(`${SFX}/${key}: licence "${lic}" is not CC0`);
+    }
+  }
+}
+
 if (errors.length) {
-  console.error('Music in src/assets/music/licensed/ without a licence line cannot ship (see src/assets/music/README.md):');
+  console.error('Music or sound effects without a licence line cannot ship (see src/assets/music/README.md, docs/reference/sfx-credits.md):');
   for (const e of errors) console.error('  ' + e);
   process.exit(1);
 }
-console.log(`music audit: clean (${shipped.length} licensed track(s) ship; ${parked.length} parked file(s) do not)`);
+console.log(`music audit: clean (${shipped.length} licensed track(s) ship; ${parked.length} parked file(s) do not; ${sfxCount} CC0 sound effect(s))`);
