@@ -338,6 +338,9 @@ function moveTimes(hero: string): MoveTimes {
   };
 }
 
+/** Orlan's Telekinesis on his bar (its cooldown starts when what he held is thrown). */
+const TK_SLOT = Math.max(0, SPELLS.wizard.findIndex((s) => s.id === 'telekinesis'));
+
 /** A bar spell's move: its game seconds, where it lands, and where the blade cuts in it (undefined: no table). */
 function spellMove(hero: string, spellId: string | undefined): { duration: number; strike: number; blade: Window | null } | undefined {
   const cut = spellCut(hero, spellId);
@@ -551,6 +554,8 @@ export class CombatSystem {
       enemies: () => self.enemies,
       hero: () => ({ pos: d.controller.pos as Vector3, yaw: d.controller.yaw, grounded: d.controller.mode === 'ground' }),
       heroId: () => self.active.id,
+      mindReady: () => self.spells.ready('wizard', TK_SLOT),
+      mindSpent: () => self.spells.use('wizard', TK_SLOT),
       aimAt: () => d.aim?.() ?? null,
       lookDir: () => d.camera.getWorldDirection(new Vector3()),
       debris: () => [self.gore.sim, ...(d.debris?.() ?? [])],
@@ -1095,7 +1100,7 @@ export class CombatSystem {
     this.caster.update(dt);
     if (this.bloodMoon > 0) this.bloodMoon = Math.max(0, this.bloodMoon - dt);
     const slot = input.spell ?? null;
-    const press = slot === null ? 'none' : spellPress(SPELLS[me.id]?.[slot]?.id ?? '', this.spells.ready(me.id, slot), this.caster.wallUp());
+    const press = slot === null ? 'none' : spellPress(SPELLS[me.id]?.[slot]?.id ?? '', this.spells.ready(me.id, slot), this.caster.wallUp(), this.caster.wallLoaded());
     if (press === 'kick' && !this.busy) {
       // Sir Aldric kicks his standing Stone Wall apart.
       this.caster.kickWall();

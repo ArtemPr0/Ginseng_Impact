@@ -1008,7 +1008,7 @@ game
         grab: input.locked && input.justPressed('KeyG'),
       });
       if (combat.spellsCast !== castsBefore) spellBuffer.done();
-      liftGlow.update(dt, input.locked && !!slot.hold && !combat.carry.mind ? combat.carry.liftTarget() : null);
+      liftGlow.update(dt, input.locked && !!slot.hold && !combat.carry.mind ? combat.carry.glowTarget(dt) : null);
       // Telekinesis held: the beam from his hand to the hold.
       const held = combat.carry.holding();
       const cs = controller;

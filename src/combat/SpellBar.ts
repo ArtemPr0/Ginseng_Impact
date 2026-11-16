@@ -89,9 +89,13 @@ export class LmbGesture {
   }
 }
 
-/** What a press on a spell slot does: cast it, kick Sir Aldric's standing Stone Wall apart, or nothing (cooling). */
-export function spellPress(id: string, ready: boolean, wallUp: boolean): 'cast' | 'kick' | 'none' {
+/**
+ * What a press on a spell slot does: cast it, kick Sir Aldric's standing Stone Wall apart, or nothing (cooling, or the
+ * wall's stone model still loading: no wall, so no cooldown spent).
+ */
+export function spellPress(id: string, ready: boolean, wallUp: boolean, wallLoaded = true): 'cast' | 'kick' | 'none' {
   if (id === 'stone-wall' && wallUp) return 'kick';
+  if (id === 'stone-wall' && !wallLoaded) return 'none';
   return ready ? 'cast' : 'none';
 }
 

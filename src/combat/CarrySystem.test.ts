@@ -4,7 +4,7 @@ import { CarrySystem, type CarryHost } from './CarrySystem';
 import type { Enemy } from './Enemy';
 
 function mob(x: number, z: number, over: Record<string, unknown> = {}): Enemy {
-  return { alive: true, held: false, pos: new Vector3(x, 0, z), def: { height: 1.8, bodyRadius: 0.4, scale: 1, ...over } } as unknown as Enemy;
+  return { alive: true, held: false, pos: new Vector3(x, 0, z), object: { rotation: { z: 0 } }, def: { height: 1.8, bodyRadius: 0.4, scale: 1, ...over } } as unknown as Enemy;
 }
 
 function host(o: { aim: Vector3 | null; enemies?: Enemy[]; pieces?: { x: number; y: number; z: number; dead?: boolean }[]; building?: boolean }): CarryHost {
@@ -53,5 +53,38 @@ describe('CarrySystem.holding (where the Telekinesis beam runs to)', () => {
     expect(h).not.toBeNull();
     expect(h!.r).toBeGreaterThan(0.5);
     expect(h!.to.y).toBeGreaterThan(1);
+  });
+});
+
+describe('Telekinesis cooldown', () => {
+  it('no lift while it cools; the throw spends it', () => {
+    const e = mob(6, 0);
+    let ready = false, spent = 0;
+    const h = { ...host({ aim: new Vector3(6, 0, 0), enemies: [e] }), mindReady: () => ready, mindSpent: () => { spent++; } };
+    const c = new CarrySystem(h);
+    c.update(0.016, { attack: false, heavyHeld: true, grab: false });
+    expect(c.mind).toBeNull();
+    c.update(0.016, { attack: false, heavyHeld: false, grab: false });
+    ready = true;
+    c.update(0.016, { attack: false, heavyHeld: true, grab: false });
+    expect(c.mind).not.toBeNull();
+    expect(spent).toBe(0);
+    c.update(0.016, { attack: false, heavyHeld: false, grab: false });
+    expect(c.mind).toBeNull();
+    expect(spent).toBe(1);
+  });
+});
+
+describe('CarrySystem.glowTarget (the glow under the crosshair)', () => {
+  it('looks again at most ten times a second', () => {
+    let scans = 0;
+    const base = host({ aim: new Vector3(6, 0, 0), enemies: [mob(6, 0)] });
+    const c = new CarrySystem({ ...base, enemies: () => { scans++; return base.enemies(); } });
+    const a = c.glowTarget(0.016);
+    expect(a?.kind).toBe('mob');
+    for (let i = 0; i < 4; i++) expect(c.glowTarget(0.016)).toBe(a);
+    expect(scans).toBe(1);
+    c.glowTarget(0.05);
+    expect(scans).toBe(2);
   });
 });

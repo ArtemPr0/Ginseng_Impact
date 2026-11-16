@@ -106,3 +106,11 @@ describe('barActs', () => {
     expect(barActs('knight', 2, 4).aim).toEqual(BAR.knight[2].action);
   });
 });
+
+describe('spellPress and the wall model', () => {
+  it('Stone Wall is not cast (nor its cooldown spent) while its stone model loads', () => {
+    expect(spellPress('stone-wall', true, false, false)).toBe('none');
+    expect(spellPress('stone-wall', true, false, true)).toBe('cast');
+    expect(spellPress('fireball', true, false, false)).toBe('cast');
+  });
+});
