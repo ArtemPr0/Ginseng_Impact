@@ -10,7 +10,6 @@ import {
 } from 'three';
 import { startLeap, type ControllerState } from '../player/CharacterController';
 import type { CombatFx } from '../render/CombatFx';
-import type { ImpactStars } from '../render/ImpactStars';
 import type { Audio } from '../audio/Audio';
 import type { DebrisSim, Piece } from '../world/Debris';
 import type { BlowKind } from '../world/Breakables';
@@ -23,7 +22,6 @@ export interface SpellHost {
   readonly enemies: Enemy[];
   readonly controller: ControllerState;
   readonly fx: CombatFx;
-  readonly stars: ImpactStars;
   readonly audio: Audio;
   readonly scene: Object3D;
   element(): Element;
@@ -288,7 +286,6 @@ export class SpellCast {
     h.fx.sparks(_v, UP, 40, color, 11, 1.0);
     h.fx.dust(at, r * 0.6);
     h.fx.dust(_v.set(at.x, at.y + 1.6, at.z), r * 0.45);
-    h.stars.pop(_v.set(at.x, at.y + 1.2, at.z), color, Math.min(5, r));
     h.shake(shake);
     // The fireball itself swelling out and gone in under a second, a white-hot core inside it, then smoke that rises
     // and thins slowly (the screenshots: slow fades, nothing popping off).

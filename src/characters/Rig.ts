@@ -12,7 +12,6 @@ import type { CharacterDef, WeaponKind } from './roster';
 import { CYCLONE, type BurstKind } from '../combat/Skills';
 import { cutSeconds, cutStrike, heroClipsOf, moveCut, type ClipCut, type HeroClips } from './heroClips';
 import { easeLean, slopeTarget, yawDelta, type Lean } from './SlopeLean';
-import { spinAngle } from '../combat/Juice';
 
 const _lookUp = new Vector3(0, 1, 0);
 /** The bone a look turns: the neck, else the head. */
@@ -1500,24 +1499,6 @@ export class Rig {
     r.rotation.z = this.lean.roll;
   }
 
-  /**
-   * The blade's finisher (combo hit 2) spins the body once round over its swing (Juice.spinAngle): a whirl, not a
-   * chop. The burst's cyclone owns the spin while it runs.
-   */
-  private animateFinisher(pose: RigPose): void {
-    const m = this.model;
-    if (!m || pose.burst) return;
-    const blade = this.def.weapon === 'sword' || this.def.weapon === 'greatsword';
-    if (blade && pose.attackKind === 2 && pose.attack !== undefined) {
-      m.root.rotation.y = spinAngle(pose.attack);
-      this.finisherSpin = true;
-    } else if (this.finisherSpin) {
-      m.root.rotation.y = 0;
-      this.finisherSpin = false;
-    }
-  }
-
-  private finisherSpin = false;
 
   private readonly lean: Lean = { pitch: 0, roll: 0 };
   private readonly leanTarget: Lean = { pitch: 0, roll: 0 };
@@ -1535,7 +1516,6 @@ export class Rig {
       this.flyPose(pose, dt);
       this.swimPose(pose, dt);
       this.animateCyclone(pose, dt);
-      this.animateFinisher(pose);
       this.animateCup(pose, dt);
       this.animateSnack(pose, dt);
       if (pose.look) {

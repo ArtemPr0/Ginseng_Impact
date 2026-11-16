@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Bone, BoxGeometry, Float32BufferAttribute, Group, MeshStandardMaterial, Skeleton, SkinnedMesh, Uint16BufferAttribute, Vector3 } from 'three';
-import { bakeTriangles, bloodOf, maimMult, partTriangles, pickPart, severRoll, subtreeIndices } from './Sever';
+import { bakeTriangles, woundOf, maimMult, partTriangles, pickPart, severRoll, subtreeIndices } from './Sever';
 
 /** A 2 m tall box skinned to hips → spine → head (top 0.5 m) and spine → leftArm (x > 0.3). */
 function body() {
@@ -102,10 +102,17 @@ describe('maimMult', () => {
   });
 });
 
-describe('bloodOf', () => {
-  it('flesh bleeds red; ghosts, crystal and lean things spurt their own glow; the toggle turns blood to glow', () => {
-    expect(bloodOf('flesh', 0x37f5ff, true)).toEqual({ glow: false, color: expect.any(Number) });
-    expect(bloodOf('ghost', 0x37f5ff, true)).toEqual({ glow: true, color: 0x37f5ff });
-    expect(bloodOf('flesh', 0x37f5ff, false)).toEqual({ glow: true, color: 0x37f5ff });
+describe('woundOf', () => {
+  it("no blood anywhere (the user's call of 2026-11-16): flesh and ghosts puff their element, bone and stone their dust", () => {
+    expect(woundOf('flesh', 0x37f5ff)).toEqual({ glow: true, color: 0x37f5ff });
+    expect(woundOf('ghost', 0x37f5ff)).toEqual({ glow: true, color: 0x37f5ff });
+    expect(woundOf('bone', 0x37f5ff).glow).toBe(false);
+    expect(woundOf('stone', 0x37f5ff).glow).toBe(false);
+    for (const [m, el] of [['flesh', 0x37f5ff], ['ghost', 0x37f5ff], ['bone', 0x37f5ff], ['stone', 0x37f5ff], ['flesh', 0xd0102a], ['ghost', 0xd0102a]] as const) {
+      const c = woundOf(m, el).color;
+      const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
+      // Never a blood red: red well above both other channels.
+      expect(r > g * 1.8 && r > b * 1.8).toBe(false);
+    }
   });
 });

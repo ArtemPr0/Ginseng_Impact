@@ -27,11 +27,6 @@ const CHAIN = 1.8;
 const MULTI = ['', '', 'Double Tap!', 'Triple Sip!', 'Quad Squad!', 'PENTA?! In this economy?'];
 
 /** Said over a body blown far past dead (picked at random). */
-export const OVERKILL_QUIPS = [
-  'Yeet.', 'Bonk.', 'OVERKILL', 'Sent to the shadow realm', 'Reduced to atoms', 'Rest in pieces', 'He had a family. Probably.',
-  'Ow.', 'Absolutely deleted', 'Return to sender', 'No refunds', 'Gravity disagrees',
-];
-
 /**
  * A big killing blow: 30 % of the body's whole health or more, and twice what it had left (a heavy or a skill finishing
  * a worn-down mob; not a light tap on a sliver, which is just a finish).
@@ -45,7 +40,7 @@ export class Hype {
   private chain = 0;
   private lastKill = -Infinity;
 
-  constructor(private readonly rand: () => number = Math.random) {}
+  constructor(_rand: () => number = Math.random) {}
 
   /** A hit landed and the streak is now `count`: the tier it just reached, if any. */
   hit(count: number): Callout | null {
@@ -65,10 +60,6 @@ export class Hype {
     return { text: MULTI[n] ?? `Lean Machine ×${n}`, tier: Math.min(6, n) };
   }
 
-  /** A line for an overkill. */
-  overkill(): Callout {
-    return { text: OVERKILL_QUIPS[Math.floor(this.rand() * OVERKILL_QUIPS.length) % OVERKILL_QUIPS.length], tier: 3 };
-  }
 }
 
 export interface TitleDef {

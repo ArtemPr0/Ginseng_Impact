@@ -47,8 +47,7 @@ import { Vfx } from './Vfx';
 import { PRESENT_MODELS } from '../data/colliderGrids';
 import type { HeightWorld } from '../world/Colliders';
 import { pushOut, SolidBodies, type PushBody } from './Solid';
-import { bonkWord, edgeSafeReach, flightTime, lungeReach, SLOW_MO } from './Juice';
-import { ImpactStars } from '../render/ImpactStars';
+import { edgeSafeReach, flightTime, lungeReach, SLOW_MO } from './Juice';
 import { blowKindOf, breaksThings, coneSmash } from './Smash';
 import { Gore } from './Gore';
 import type { DebrisSim } from '../world/Debris';
@@ -159,7 +158,7 @@ interface BurnPath { def: GroundEffectDef; atk: number; every: number; next: num
 
 /** What else a blow is (see hitEnemy). */
 interface HitOpts {
-  /** The move that struck (a combo hit, the heavy, the skill): its comic word (Juice.bonkWord). Default: by `heavy`. */
+  /** The move that struck (a combo hit, the heavy, the skill). Default: by `heavy`. */
   blow?: number | 'heavy' | 'skill';
   /** Charges the burst (default); lingering zones, the smoke and the spin do not, or a burst would refill itself. */
   energy?: boolean;
@@ -354,8 +353,6 @@ const _t = new Vector3();
 const _side = new Vector3();
 const _col = new Color();
 const MOON = new Color(PALETTE.moon);
-/** The comic words' colour: a punchy gold that reads over the cobalt night and every element's glow. */
-const BONK_GOLD = 0xffd23a;
 
 /**
  * Something that is not an enemy but reacts to being shot (the sky eyes, the eye pool): player shots that pass within
@@ -429,8 +426,6 @@ export class CombatSystem {
   private readonly tmp = new Vector3();
   private readonly screen = new Vector3();
   private readonly fx: CombatFx;
-  /** The comic star where a blow lands (render/ImpactStars). */
-  private readonly stars: ImpactStars;
   /** Mobs coming apart: limbs, heads, bones, blood (Gore). */
   readonly gore: Gore;
   /** Seconds of Blood Moon left: every blow tears something off. */
@@ -438,9 +433,6 @@ export class CombatSystem {
   /** Every hero's spell cooldowns (Z X C V), and the spells in the world. */
   readonly spells = new SpellBook();
   readonly caster: SpellCast;
-  /** When the last comic word went up (one a beat, however many bodies a blow cuts), and how many so far. */
-  private bonkAt = -1;
-  private bonkN = 0;
   private readonly sfx: CombatSfx;
   private readonly rnd: () => number;
   /** The combo counter (hits in a row, 1.2 s apart at most). */
@@ -492,14 +484,13 @@ export class CombatSystem {
 
   constructor(private readonly d: CombatDeps) {
     this.fx = d.fx;
-    this.stars = new ImpactStars(d.scene);
     this.gore = new Gore((x, z, y) => d.world.heightAt(x, z, y), {
       onLand: (x, _y, z, bone) => { if (Math.hypot(x - d.controller.pos.x, z - d.controller.pos.z) < 30) { if (bone) d.audio.clatter(); else d.audio.thud(); } },
     });
     d.scene.add(this.gore.group);
     const self = this;
     this.caster = new SpellCast({
-      enemies: this.enemies, controller: d.controller, fx: this.fx, stars: this.stars, audio: d.audio, scene: d.scene,
+      enemies: this.enemies, controller: d.controller, fx: this.fx, audio: d.audio, scene: d.scene,
       element: () => self.elementOf(self.active),
       hit: (e, mult, knockback, hitStop, at) => self.hitEnemy(e, self.atkOf(self.active), mult, self.elementOf(self.active), knockback, hitStop, { blow: 'skill', heavy: true, at }),
       reachable: (e, r, at) => self.reachable(e, r, at),
@@ -1007,7 +998,6 @@ export class CombatSystem {
           const at = _v.set(fx, this.d.world.heightAt(fx, fz, c.pos.y + 1), fz);
           this.fx.shock(at, color, 4 + ch * 3);
           this.fx.dust(at, 1.4 + ch);
-          this.stars.pop(_w.set(fx, at.y + 0.6, fz), color, 3.2);
           d.onShake?.(0.15 + ch * 0.35);
           // Everything small standing round the slam, on its floor, is bounced into the air (not the seated, the rooted
           // or the bystanders).
@@ -2725,14 +2715,6 @@ export class CombatSystem {
       if (heavy) this.fx.shock(_v.set(e.pos.x, e.pos.y, e.pos.z), color, 2.5 + 2 * weight);
     }
     this.showNumber(_v.copy(hitAt).add(_w.set(0, 0.5, 0)), dmg, crit ? PALETTE.moon : color, false, e.id, crit);
-    if (own) {
-      // Cartoon: a comic star where it struck, and the blow's sound written over it, one word a beat (Juice).
-      this.stars.pop(hitAt, crit ? PALETTE.moon : color, heavy ? 2.4 : crit ? 2 : 1.1 + Math.min(0.7, dmg / 400));
-      if (this.time - this.bonkAt > 0.14 || this.bonkAt < 0) {
-        this.bonkAt = this.time;
-        this.bonk(_v.copy(hitAt).add(_w.set(0, 1.1, 0)), bonkWord(this.active.weapon, o.blow ?? (heavy ? 'heavy' : 0), this.bonkN++));
-      }
-    }
     // (A piercing shot freezes the fight on the first body it cuts; on each after, the blow and any reaction there only
     // catch it: Combat.pierceStop. Not a piercing shot, 0: the full stop.)
     const nth = o.pierced ?? 0;
@@ -2757,11 +2739,8 @@ export class CombatSystem {
     let apart = false;
     if (!dot && !o.companion) apart = this.tearApart(e, { crit, heavy, skill: o.blow === 'skill' || o.blow === undefined, share: dmg / (e.def.maxHp * e.hpScale), died, hpBefore }, hitAt, kb);
     if (died) {
-      // Blown far past dead: launched off its feet, tumbling (Yeet.ts), with a bonk and a quip.
+      // Blown far past dead: thrown off its feet along the blow (Yeet.ts).
       if (!apart && own && isOverkill(dmg, hpBefore, e.def.maxHp) && e.launchFrom(kb.x, kb.z)) {
-        const q = this.hype.overkill();
-        this.d.hud.hype(q.text, q.tier);
-        this.d.audio.overkill();
         this.d.game.hitStop = Math.max(this.d.game.hitStop, 0.09);
       }
       this.onEnemyDeath(e, at);
@@ -2794,9 +2773,7 @@ export class CombatSystem {
     }
     const part = pickPart(this.gore.partsOf(e), hitAt, b.died);
     if (!part || !this.gore.sever(e, part, kb, strength)) return false;
-    this.d.audio.squelch();
-    if (part === 'head') this.d.hud.hype('HEADLESS!', 2);
-    else if (e.lostArms === 1 && !b.died) this.d.hud.hype('DISARMED', 1);
+    this.d.audio.sever();
     return false;
   }
 
@@ -3468,12 +3445,6 @@ export class CombatSystem {
   }
 
   /** A number (or a word) over `worldPos`; hits on one `targetId` merge on screen, a `crit` stands out. */
-  /** A blow's comic word over `worldPos` (Hud.bonk). */
-  private bonk(worldPos: Vector3, word: string): void {
-    this.screen.copy(worldPos).project(this.d.camera);
-    if (this.screen.z > 1) return;
-    this.d.hud.bonk((this.screen.x + 1) / 2 * window.innerWidth, (1 - this.screen.y) / 2 * window.innerHeight, word, BONK_GOLD);
-  }
 
   private showNumber(worldPos: Vector3, value: number | string, color: number, big: boolean, targetId: number | null = null, crit = false): void {
     this.screen.copy(worldPos).project(this.d.camera);
@@ -3486,7 +3457,6 @@ export class CombatSystem {
   /** Per-frame: enemy animation and HUD projection. */
   render(dt: number): void {
     const cam = this.d.camera;
-    this.stars.update(dt);
     this.gore.update(dt);
     for (const e of this.enemies) {
       e.animate(dt, !e.aggro && Math.hypot(e.pos.x - cam.position.x, e.pos.z - cam.position.z) > 110);

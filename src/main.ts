@@ -316,7 +316,6 @@ const combat = new CombatSystem({
   // A roll along the stick, or a backstep: the controller carries it (an impulse alone was eaten by the ground drag).
   onDodge: () => startDash(controller, tpc.moveToWorld(input.moveAxis())),
 });
-try { combat.gore.bloodOn = localStorage.getItem('ginseng.blood') !== '0' && !new URLSearchParams(location.search).has('noblood'); } catch { /* private window */ }
 
 /** Moves the hero (portals, doors, the frog's dream): everything that was chasing stays behind. */
 function teleport(x: number, y: number, z: number, yaw: number, name?: string): void {
@@ -737,13 +736,6 @@ window.addEventListener('keydown', (e) => {
   // (Held keys repeat: a held digit would pick choice after choice, a held I would flicker the bag.)
   if (e.repeat) return;
   if (e.code === 'KeyN' && !input.locked) { startNewGame(); return; }
-  // The Blood setting (on by default): off, wounds spurt their element's glow instead; remembered across visits.
-  if (e.code === 'KeyB') {
-    combat.gore.bloodOn = !combat.gore.bloodOn;
-    try { localStorage.setItem('ginseng.blood', combat.gore.bloodOn ? '1' : '0'); } catch { /* private window */ }
-    hud.announce(combat.gore.bloodOn ? 'Blood on' : 'Blood off', { seconds: 1.4 });
-    return;
-  }
   const digit = /^Digit([1-9])$/.exec(e.code);
   if (digit && hud.pickChoice(Number(digit[1]))) return;
   if (e.code === 'KeyJ' && hud.panel === 'none') { openPanel(() => hud.journal(adventures.quests.journal())); return; }

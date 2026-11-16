@@ -449,11 +449,11 @@ export class Audio {
     }
   }
 
-  /** A limb torn off: a wet rip and a slap. */
-  squelch(): void {
-    this.noise(0.16, 'bandpass', 900, 260, 2.5, 0.42);
-    this.noise(0.08, 'lowpass', 500, 120, 1, 0.35, 0.05);
-    this.tone('sine', 120, 60, 0.12, 0.3, 0.04);
+  /** A part comes off (no blood, 2026-11-16): a dry crack and a short tearing rip of cloth or hide. */
+  sever(): void {
+    this.noise(0.05, 'highpass', 2600, 1400, 1.2, 0.4);
+    this.noise(0.14, 'bandpass', 1800, 700, 1.6, 0.28, 0.03);
+    this.tone('triangle', 180, 70, 0.08, 0.18);
   }
 
   /** Something soft lands (a severed limb): a dull thud. */
@@ -559,13 +559,6 @@ export class Audio {
   multiKill(n: number): void {
     this.tone('sine', 90, 45, 0.25, 0.5, 0, 0.004, 0.15);
     for (let i = 0; i < Math.min(6, n); i++) { const f = 784 * Math.pow(1.19, i); this.tone('triangle', f, f, 0.14, 0.2, 0.04 + i * 0.07, 0.002, 0.1); }
-  }
-
-  /** An overkill: a cartoon bonk, then a slide whistle as the body flies off. */
-  overkill(): void {
-    this.tone('sine', 900, 110, 0.16, 0.5, 0, 0.002, 0.08);
-    this.noise(0.06, 'bandpass', 1800, 900, 2, 0.35);
-    this.tone('sine', 420, 1900, 0.42, 0.16, 0.1, 0.02, 0.1);
   }
 
   /** A chest opening: a creak of old wood, the lid's knock, a shower of coins and a sparkle. */

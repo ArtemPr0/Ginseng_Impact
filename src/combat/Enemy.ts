@@ -19,7 +19,6 @@ import { type AttackTokens, EnemyBrain, type EnemyState } from './EnemyBrain';
 import type { BossAttack, BossAttackKind } from '../data/enemies';
 import { ELEMENT_COLOR, tickAura, type Aura, type Element } from './Elements';
 import { KNOCK_DECAY, lungePush, lungeRoom } from './Warnings';
-import { squash } from './Juice';
 
 export type EnemyAction = { kind: 'melee' } | { kind: 'boss'; attack: BossAttackKind } | null;
 
@@ -211,9 +210,6 @@ export class Enemy {
   private gaitPhase = Math.random() * 6;
   private lunge = 0;
   private flinch = 0;
-  /** Seconds since the last hit (its squash, Juice.squash), -1 when settled; and how hard it squashes. */
-  private hitT = -1;
-  private hitK = 0;
   /** Walking back to its spot after losing the player (it heals and ignores the player on the way). */
   returning = false;
   /** How far from its spot this enemy will follow (its def's leash, or a default by size). */
@@ -823,9 +819,6 @@ export class Enemy {
     this.knock.x += kb.x * strength;
     this.knock.z += kb.z * strength;
     this.flashLeft = 0.09;
-    // The squash: harder the harder the blow; a boss's half as much.
-    this.hitT = 0;
-    this.hitK = Math.min(1, 0.45 + strength * 0.12) * (this.def.boss ? 0.5 : 1);
     // Flinch: every hit for small mobs; bosses only now and then, so their attacks are not interrupted constantly.
     if (!this.def.boss || this.time - this.lastFlinch > 3) { this.wantFlinch = true; this.flinch = 1; this.lastFlinch = this.time; }
     if (this.hp <= 0) {
@@ -879,7 +872,6 @@ export class Enemy {
     this.brain.stateTime = 0;
     this.lastState = 'idle';
     this.object.visible = true;
-    this.hitT = -1;
     this.object.scale.setScalar(this.model || this.bubble ? 1 : this.def.scale ?? 1);
     this.model?.play('idle');
   }
@@ -947,14 +939,6 @@ export class Enemy {
     if (entered && st === 'attack') { this.lunge = 1; if (this.def.stomp) this.onStomp?.(this.pos.x, this.pos.y, this.pos.z); }
     if (m && m.hasClips) this.driveClips(m, st, entered);
     this.lastState = st;
-    // A hit squashes the body flat and it springs back, cartoon-style (Juice.squash); a killing blow's settles as it falls.
-    if (this.hitT >= 0) {
-      this.hitT += dt;
-      const sq = squash(this.hitT, this.hitK);
-      const base = this.model || this.bubble ? 1 : this.def.scale ?? 1;
-      if (this.hitT > 0.7) { this.hitT = -1; this.object.scale.setScalar(base); }
-      else this.object.scale.set(base * sq.xz, base * sq.y, base * sq.xz);
-    }
     if (!this.alive) {
       if (this.heap) this.fallApart(dt);
       else if (this.toppleT >= 0) this.toppleOver(dt);

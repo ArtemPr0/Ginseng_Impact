@@ -125,13 +125,20 @@ export function maimMult(lostArms: number): number {
   return lostArms <= 0 ? 1 : lostArms === 1 ? 0.65 : 0.4;
 }
 
-/** Blood red. */
-export const BLOOD = 0x6a0a10;
+/** A blood-red element colour (the Blood element) puffs ember gold instead: no blood anywhere (2026-11-16). */
+const EMBER = 0xffb070;
 
-/** What spurts from a wound: red blood from flesh (glow of the element with the Blood setting off), dust from bone. */
-export function bloodOf(material: HitMaterial, element: number, bloodOn: boolean): { glow: boolean; color: number } {
-  if (material === 'ghost') return { glow: true, color: element };
+function notRed(c: number): number {
+  const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
+  return r > g * 1.8 && r > b * 1.8 ? EMBER : c;
+}
+
+/**
+ * What puffs out where a part comes off (the user's call of 2026-11-16: no blood, "they lose a part of the body"):
+ * flesh and ghosts a puff of their element's glow, bone its dust, stone its grit.
+ */
+export function woundOf(material: HitMaterial, element: number): { glow: boolean; color: number } {
   if (material === 'bone') return { glow: false, color: 0xd9d2bf };
   if (material === 'stone') return { glow: false, color: 0x8a8fa6 };
-  return bloodOn ? { glow: false, color: BLOOD } : { glow: true, color: element };
+  return { glow: true, color: notRed(element) };
 }

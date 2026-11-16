@@ -1,15 +1,16 @@
 /**
  * Mobs coming apart in the game (Sever.ts holds the pure parts): a limb or the head baked off the body as it stands and
- * thrown as debris, a red stump where it was, a spurt of blood and its stains; a skeleton bursting into its bones; a
- * body without a rig (robes, statues) or a frozen one shattering into chunks. Pieces bounce, rest a while and shrink away.
+ * thrown as debris, a dark charred stump where it was and a puff of the mob's element (no blood: the user's call of
+ * 2026-11-16); a skeleton bursting into its bones; a body without a rig (robes, statues) or a frozen one shattering into
+ * chunks. Pieces bounce, rest a while and shrink away.
  */
 import { Euler, Group, Mesh, MeshStandardMaterial, Quaternion, SphereGeometry, Vector3, type Material, type Object3D, type SkinnedMesh } from 'three';
 import { DebrisSim, type Piece } from '../world/Debris';
 import { fractureObject, fractureGeometry } from '../world/Fracture';
-import { Blood } from '../render/Blood';
+import { Spray } from '../render/Spray';
 import { hitMaterial } from '../audio/CombatSfx';
 import { ELEMENT_COLOR } from './Elements';
-import { BLOOD, bakeTriangles, bloodOf, partTriangles, subtreeIndices, type Part } from './Sever';
+import { bakeTriangles, partTriangles, subtreeIndices, woundOf, type Part } from './Sever';
 import type { Enemy } from './Enemy';
 
 /** Seconds a piece lies about before it shrinks away. */
@@ -58,12 +59,9 @@ export interface GoreHooks {
 export class Gore {
   readonly group = new Group();
   readonly sim: DebrisSim;
-  readonly blood: Blood;
-  /** The Blood setting: off, every wound spurts its element's glow instead. */
-  bloodOn = true;
+  readonly spray: Spray;
   private readonly bits: Bit[] = [];
   private readonly drips: Array<{ at: Object3D; left: number; glow: boolean; color: number; every: number }> = [];
-  private readonly stumpMat = new MeshStandardMaterial({ color: 0x5a0610, emissive: 0x1a0003, roughness: 0.35 });
   private readonly stumpGeo = new SphereGeometry(1, 10, 8);
   /** Ice, for a frozen body shattering. */
   readonly ice = new MeshStandardMaterial({ color: 0xbfefff, emissive: 0x3a8aa8, emissiveIntensity: 0.6, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.85 });
@@ -72,8 +70,8 @@ export class Gore {
 
   constructor(groundAt: (x: number, z: number, y: number) => number, private readonly hooks: GoreHooks = {}) {
     this.sim = new DebrisSim(groundAt, 160);
-    this.blood = new Blood(groundAt);
-    this.group.add(this.blood.group);
+    this.spray = new Spray(groundAt);
+    this.group.add(this.spray.group);
   }
 
   /** Parts `e` still has, with where their joints are now. */
@@ -92,28 +90,26 @@ export class Gore {
     const m = e.model;
     const bone = boneOf(e, part);
     if (!m || !bone || e.lost.has(part)) return false;
-    const look = bloodOf(hitMaterial(e.def.kind), ELEMENT_COLOR[e.def.element], this.bloodOn);
-    const bleeds = !look.glow && look.color === BLOOD;
+    const look = woundOf(hitMaterial(e.def.kind), ELEMENT_COLOR[e.def.element]);
     let made = 0, radius = 0.1;
     for (const mesh of skinnedOf(m.root)) {
       const tris = partTriangles(mesh, subtreeIndices(mesh, bone));
       if (tris.length < 4) continue;
       const b = bakeTriangles(mesh, tris);
       radius = Math.max(radius, b.radius);
-      this.throwPiece(b.geometry, mesh.material as Material, b.pivot, b.radius, kb, (part === 'head' ? 6 : 4.5) * strength, true, false, 1, undefined, bleeds);
+      this.throwPiece(b.geometry, mesh.material as Material, b.pivot, b.radius, kb, (part === 'head' ? 6 : 4.5) * strength, true);
       made++;
     }
     if (!made) return false;
     e.lost.add(part);
     if (part !== 'head') e.lostArms++;
     e.severed.push(bone);
-    // The stump: a dark red cap at the joint, riding the parent bone (in its own scale: rigs are often 0.01-scaled).
+    // The stump: a dark cap at the joint, riding the parent bone (in its own scale: rigs are often 0.01-scaled).
     const at = bone.getWorldPosition(new Vector3());
     const parent = bone.parent;
     if (parent) {
-      // Flesh: a dark red cap; a ghost's or lean thing's: its glow; stone or bone: its own broken grey.
-      const mat = bleeds ? this.stumpMat
-        : look.glow ? new MeshStandardMaterial({ color: look.color, emissive: look.color, emissiveIntensity: 0.8 })
+      // Flesh and ghosts: charred dark with a faint rim of their element; stone or bone: its own broken grey.
+      const mat = look.glow ? new MeshStandardMaterial({ color: 0x14121a, emissive: look.color, emissiveIntensity: 0.35, roughness: 0.95 })
         : new MeshStandardMaterial({ color: look.color, roughness: 0.9 });
       const stump = new Mesh(this.stumpGeo, mat);
       stump.position.copy(bone.position);
@@ -125,7 +121,7 @@ export class Gore {
       this.drips.push({ at: stump, left: 1.4, glow: look.glow, color: look.color, every: 0 });
     }
     _d.set(kb.x, 0.8, kb.z).normalize();
-    this.blood.spurt(at, _d, 30, 5, look.glow, look.color);
+    this.spray.spurt(at, _d, 30, 5, look.glow, look.color);
     return true;
   }
 
@@ -153,7 +149,7 @@ export class Gore {
     if (!made) return false;
     m.root.visible = false;
     const at = new Vector3(e.pos.x, e.pos.y + e.def.height * (e.def.scale ?? 1) * 0.5, e.pos.z);
-    this.blood.spurt(at, _d.set(0, 1, 0), 16, 3, false, 0xd9d2bf);
+    this.spray.spurt(at, _d.set(0, 1, 0), 16, 3, false, 0xd9d2bf);
     return true;
   }
 
@@ -204,14 +200,14 @@ export class Gore {
   update(dt: number): void {
     this.clock += dt;
     this.sim.step(dt);
-    this.blood.update(dt);
+    this.spray.update(dt);
     for (const d of this.drips) {
       d.left -= dt;
       d.every -= dt;
       if (d.every > 0 || !d.at.parent) continue;
       d.every = 0.08;
       d.at.getWorldPosition(_v);
-      this.blood.spurt(_v, _d.set((Math.random() - 0.5) * 0.4, 0.5, (Math.random() - 0.5) * 0.4), 2, 2.2 * Math.max(0.3, d.left), d.glow, d.color);
+      this.spray.spurt(_v, _d.set((Math.random() - 0.5) * 0.4, 0.5, (Math.random() - 0.5) * 0.4), 2, 2.2 * Math.max(0.3, d.left), d.glow, d.color);
     }
     for (let i = this.drips.length - 1; i >= 0; i--) if (this.drips[i].left <= 0) this.drips.splice(i, 1);
     for (let i = this.bits.length - 1; i >= 0; i--) {
@@ -227,7 +223,7 @@ export class Gore {
     }
   }
 
-  private throwPiece(geometry: Mesh['geometry'], material: Material, at: Vector3, r: number, kb: { x: number; z: number }, speed: number, own: boolean, bone = false, scale = 1, rot?: Euler, bleeds = false): void {
+  private throwPiece(geometry: Mesh['geometry'], material: Material, at: Vector3, r: number, kb: { x: number; z: number }, speed: number, own: boolean, bone = false, scale = 1, rot?: Euler): void {
     const mesh = new Mesh(geometry, material);
     mesh.scale.setScalar(scale);
     mesh.castShadow = true;
@@ -244,7 +240,6 @@ export class Gore {
         if (this.clock - this.landAt < 0.05 || v < 4) return;
         this.landAt = this.clock;
         this.hooks.onLand?.(p.x, p.y, p.z, bone);
-        if (bleeds) this.blood.stain(p.x, p.y - p.r, p.z, 0.3 + Math.random() * 0.3);
       },
     });
     this.bits.push({ mesh, piece, life: PIECE_LIFE + Math.random() * 3, scale, own });
