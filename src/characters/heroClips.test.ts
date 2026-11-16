@@ -103,6 +103,9 @@ describe('v12 Meshy presets (2026-11-16)', () => {
     expect(h.attack[0].key).toBe('quick');
     expect(Math.abs(blowAt('archer', h.attack[0]) - 0.23)).toBeLessThan(0.03);
     expect(h.dodge.key).toBe('roll');
+    // Walking with the bow drawn (the charge held): Walk_Forward_with_Bow_Aimed.
+    expect(h.aimWalk).toBe('aimWalk');
+    expect(knows('archer', h.aimWalk!)).toBe(true);
   });
 
   it('bar spells play their own cut: the slam for the earth spells, the spell push or quick shot for the rest', () => {

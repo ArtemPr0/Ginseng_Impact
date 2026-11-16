@@ -64,6 +64,8 @@ export interface HeroClips {
   jump: JumpClips;
   walk: ClipName;
   run: ClipName;
+  /** Walking with the heavy's charge held (Wren's bow drawn), looped at the walk's pace. */
+  aimWalk?: ClipName;
 }
 
 export type HeroId = 'knight' | 'archer' | 'wizard';
@@ -149,6 +151,7 @@ const ARCHER: HeroClips = {
   jump: { key: 'jump', takeoff: [0.2, 0.8], apex: 1, land: { key: 'jump', from: 1.15, to: 1.5, fade: 0.08, groundHips: true } },
   walk: 'walk',
   run: 'run',
+  aimWalk: 'aimWalk',
 };
 
 /**

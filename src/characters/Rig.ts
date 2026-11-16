@@ -1287,7 +1287,9 @@ export class Rig {
       if (pose.charging) {
         // Hold the heavy at its wind-up while the charge builds: the charge clip when there is one (Wren aims), else
         // the heavy cut itself, frozen at heavyHold.
-        if (hero) {
+        if (hero?.aimWalk && v > 0.3 && m.play(hero.aimWalk, false, Math.max(0.5, Math.min(1.5, v / Math.max(0.5, m.strideSpeed(hero.aimWalk)))))) {
+          // Walking with the bow drawn (Wren): the aimed walk, its steps at the pace she moves.
+        } else if (hero) {
           const held = hero.charge ?? hero.heavy;
           const holdKey = hero.charge ? this.heroCut('charge', hero.charge) ?? key : key;
           if (fresh || m.playing !== holdKey) { if (!m.play(holdKey, { once: true, fade: held.fade ?? 0.12, speed: held.speed ?? 1 })) m.play('attack', true, 0.9); }

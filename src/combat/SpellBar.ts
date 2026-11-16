@@ -99,6 +99,15 @@ export function spellPress(id: string, ready: boolean, wallUp: boolean, wallLoad
   return ready ? 'cast' : 'none';
 }
 
+/** Wren's walk with her bow drawn (the heavy's charge held), as a share of her walking speed. */
+export const AIM_WALK = 0.35;
+
+/** How fast the hero may move this step: Wren walks drawn at AIM_WALK, the others stand to wind up their heavy. */
+export function chargeMove(hero: string, charging: boolean): number {
+  if (!charging) return 1;
+  return hero === 'archer' ? AIM_WALK : 0;
+}
+
 /**
  * What the bar does this frame: `cast` only when a right click was buffered on a slot (that slot's action), `aim` the
  * slot whose reach the crosshair takes (the buffered one, else the picked one, so Earthsplitter aims at its leap range
