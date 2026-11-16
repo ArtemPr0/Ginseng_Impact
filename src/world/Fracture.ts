@@ -157,6 +157,9 @@ export function blockCount(size: number, scale = 1): number {
 const BLOCK_RATIO: Record<string, number> = { stone: 1.6, plaster: 1.6, earth: 1.6, bone: 1.6, crystal: 1.4, wood: 3 };
 
 /** A course height and block length (source units) that cut `area` of surface into about `n` blocks; null: not blocks. */
+/** True for materials that break into laid blocks (blockSize has a shape for them); metal and glass shatter. */
+export function hasBlocks(kind: string): boolean { return !!BLOCK_RATIO[kind]; }
+
 export function blockSize(area: number, n: number, kind: string): { course: number; length: number } | null {
   const r = BLOCK_RATIO[kind];
   if (!r || n <= 0 || area <= 0) return null;

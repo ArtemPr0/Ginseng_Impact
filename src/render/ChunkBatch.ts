@@ -65,15 +65,24 @@ export class ChunkBatch {
   }
 
   /** Copies every stand-in's place, turn, size and visibility into the batches. */
+  /** Each block's last written position, turn and scale (10 floats), so blocks at rest are never rewritten. */
+  private last: Float64Array | null = null;
+
   update(): void {
-    for (let i = 0; i < this.proxies.length; i++) {
+    const n = this.proxies.length;
+    if (!this.last) { this.last = new Float64Array(n * 10); this.last.fill(NaN); }
+    const L = this.last;
+    for (let i = 0; i < n; i++) {
       const p = this.proxies[i];
       const show = p.visible && p.scale.x > 1e-4;
-      if (show) p.updateMatrix();
-      for (const s of this.slots[i]) {
-        if (s.mesh.getVisibleAt(s.id) !== show) s.mesh.setVisibleAt(s.id, show);
-        if (show) s.mesh.setMatrixAt(s.id, p.matrix);
-      }
+      for (const s of this.slots[i]) if (s.mesh.getVisibleAt(s.id) !== show) s.mesh.setVisibleAt(s.id, show);
+      if (!show) continue;
+      const o = i * 10, q = p.quaternion, t = p.position, c = p.scale;
+      if (L[o] === t.x && L[o + 1] === t.y && L[o + 2] === t.z && L[o + 3] === q.x && L[o + 4] === q.y && L[o + 5] === q.z && L[o + 6] === q.w
+        && L[o + 7] === c.x && L[o + 8] === c.y && L[o + 9] === c.z) continue;
+      L[o] = t.x; L[o + 1] = t.y; L[o + 2] = t.z; L[o + 3] = q.x; L[o + 4] = q.y; L[o + 5] = q.z; L[o + 6] = q.w; L[o + 7] = c.x; L[o + 8] = c.y; L[o + 9] = c.z;
+      p.updateMatrix();
+      for (const s of this.slots[i]) s.mesh.setMatrixAt(s.id, p.matrix);
     }
   }
 

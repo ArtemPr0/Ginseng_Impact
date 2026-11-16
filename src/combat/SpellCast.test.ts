@@ -353,3 +353,30 @@ describe('SpellCast lasting spells keep sounding (v12 sound beds)', () => {
     expect(beds).toEqual(['hole', 'tornado', 'fire', 'tornado', 'fire']);
   });
 });
+
+describe('review 2026-11-16 fixes', () => {
+  it('fire ticks are burns (damage over time), not heavy hits', () => {
+    const e = { id: 1, alive: true, pos: new Vector3(0, 0, 12), def: {} } as never;
+    let burns = 0, hits = 0;
+    const { host } = fakeHost({ enemies: [e], hit: () => { hits++; }, burn: () => { burns++; } });
+    const sc = new SpellCast(host);
+    sc.fires.ignite(new Vector3(0, 0, 12), 1, 10, () => 0);
+    for (let i = 0; i < 30; i++) sc.update(0.1);
+    expect(burns).toBeGreaterThanOrEqual(4);
+    expect(hits).toBe(0);
+  });
+  it('the wall is kicked along the way he faces when he kicks, not when he raised it', () => {
+    const { host, sim } = fakeHost();
+    const sc = new SpellCast(host);
+    host.controller.yaw = Math.PI / 2;
+    sc.cast('knight', 4, new Vector3(0, 0, 6));
+    for (let i = 0; i < 10; i++) sc.update(0.1);
+    // He walks round it and kicks back the other way (-z).
+    host.controller.yaw = -Math.PI / 2;
+    sc.kickWall();
+    let vz = 0, n = 0;
+    for (const p of sim.pieces) { vz += p.vz; n++; }
+    expect(n).toBeGreaterThan(10);
+    expect(vz / n).toBeLessThan(-8);
+  });
+});

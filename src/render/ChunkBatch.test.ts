@@ -39,3 +39,20 @@ describe('ChunkBatch (a broken building\'s blocks drawn in one batch per materia
     expect(outer.getVisibleAt(0)).toBe(true);
   });
 });
+
+describe('ChunkBatch only uploads what moved (review 2026-11-16: rubble at rest re-uploaded every frame)', () => {
+  it('a second update with nothing changed writes no matrices; moving one block writes just that one', () => {
+    const m = new MeshStandardMaterial();
+    const b = new ChunkBatch(Array.from({ length: 50 }, () => ({ geometry: chunkGeo(), material: m })), m, (x) => x);
+    b.update();
+    const outer = b.group.children.find((c) => (c as BatchedMesh).isBatchedMesh) as BatchedMesh;
+    let writes = 0;
+    const orig = outer.setMatrixAt.bind(outer);
+    outer.setMatrixAt = (i: number, mat: Matrix4) => { writes++; return orig(i, mat); };
+    b.update();
+    expect(writes).toBe(0);
+    b.proxies[7].position.x += 1;
+    b.update();
+    expect(writes).toBe(1);
+  });
+});

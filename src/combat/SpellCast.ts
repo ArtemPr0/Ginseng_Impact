@@ -41,6 +41,8 @@ export interface SpellHost {
   hit(e: Enemy, mult: number, knockback: number, hitStop: number, at?: Vector3): void;
   reachable(e: Enemy, r: number, at: Vector3): boolean;
   smash(x: number, y: number, z: number, r: number, kind: BlowKind): void;
+  /** Damage over time on `e` (a fire it stands in): no kick, no combo, no heavy-hit feel. Falls back to `hit`. */
+  burn?(e: Enemy, mult: number, knockback?: number, hitStop?: number): void;
   /** A vortex tears up to `count` standing blocks loose within `r` of (x, z); returns how many came loose. */
   tear?(x: number, z: number, r: number, count: number): number;
   dig(x: number, z: number, r: number, depth: number, scorch?: 'burnt' | 'frozen'): void;
@@ -274,7 +276,7 @@ export class SpellCast {
     this.burnTick -= dt;
     if (this.burnTick <= 0 && this.fires.live) {
       this.burnTick = 0.5;
-      for (const e of h.enemies) if (e.alive && this.fires.burning(e.pos.x, e.pos.z, 0.9)) h.hit(e, 0.12, 0, 0);
+      for (const e of h.enemies) if (e.alive && this.fires.burning(e.pos.x, e.pos.z, 0.9)) (h.burn ?? h.hit)(e, 0.12, 0, 0);
     }
     for (const [id, left] of this.frozen) { if (left - dt <= 0) this.frozen.delete(id); else this.frozen.set(id, left - dt); }
     // Shots in flight.
@@ -573,7 +575,8 @@ export class SpellCast {
     const w = this.wall;
     if (!w?.up) return;
     const h = this.h;
-    w.kick(this.wallSim());
+    // Along the way he faces as he kicks (he may have walked round it since he raised it).
+    w.kick(this.wallSim(), 16, h.controller.yaw);
     this.rubble.push(w);
     this.wall = null;
     const c = h.controller;

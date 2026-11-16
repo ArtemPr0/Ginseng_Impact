@@ -171,14 +171,15 @@ export class StoneWall {
     this.batch.update();
   }
 
-  /** Every block flies off along his facing (`speed` m/s), spinning; the wall stops being solid. */
-  kick(sim: DebrisSim, speed = 16): void {
+  /** Every block flies off along `yaw` (his facing as he kicks; the raise's by default) at `speed` m/s, spinning. */
+  kick(sim: DebrisSim, speed = 16, yaw?: number): void {
     if (!this.up) return;
     this.release();
+    const dx = yaw === undefined ? this.dir.x : Math.cos(yaw), dz = yaw === undefined ? this.dir.z : Math.sin(yaw);
     for (const b of this.blocks) {
       const k = speed * (0.85 + Math.random() * 0.3);
       const up = 1.5 + Math.random() * 2.5;
-      b.piece = this.add(sim, b, this.dir.x * k + (Math.random() - 0.5) * 2, up, this.dir.z * k + (Math.random() - 0.5) * 2, 6);
+      b.piece = this.add(sim, b, dx * k + (Math.random() - 0.5) * 2, up, dz * k + (Math.random() - 0.5) * 2, 6);
     }
   }
 

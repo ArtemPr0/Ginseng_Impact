@@ -29,13 +29,18 @@ export function knockdownTilt(t: number, len: number): number {
 }
 
 /**
- * The body's lean (radians, in its own frame: pitch forward-positive, roll) for a blow pushing along (kx, kz) on a
- * body facing (fx, fz), at `tilt` (0..1).
+ * The body's lean for a blow pushing along (kx, kz), `tilt` (0..1) of the way over: the Euler pitch (x) and roll (z)
+ * that, under the model's own turn `rotY` (Euler order YXZ, as Enemy sets it), tip its top along the push.
  */
-export function knockdownLean(kx: number, kz: number, yaw: number, tilt: number): { pitch: number; roll: number } {
+export function knockdownLean(kx: number, kz: number, rotY: number, tilt: number): { pitch: number; roll: number } {
   const l = Math.hypot(kx, kz) || 1;
-  const fx = Math.cos(yaw), fz = Math.sin(yaw);
-  const along = (kx * fx + kz * fz) / l;
-  const side = (kx * -fz + kz * fx) / l;
-  return { pitch: along * FLAT * tilt, roll: -side * FLAT * tilt };
+  const ux = kx / l, uz = kz / l;
+  // Under YXZ the up axis goes to sin(p)cos(r)·A + sin(r)·B (+ y), with A = (sin rotY, 0, cos rotY) and
+  // B = (-cos rotY, 0, sin rotY): split the push between them.
+  const a = ux * Math.sin(rotY) + uz * Math.cos(rotY);
+  const b = -ux * Math.cos(rotY) + uz * Math.sin(rotY);
+  const s = Math.sin(FLAT * tilt);
+  const roll = Math.asin(Math.max(-1, Math.min(1, s * b)));
+  const pitch = Math.asin(Math.max(-1, Math.min(1, (s * a) / Math.max(1e-6, Math.cos(roll)))));
+  return { pitch, roll };
 }

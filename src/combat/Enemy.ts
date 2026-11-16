@@ -880,6 +880,8 @@ export class Enemy {
     }
     if (this.hp <= 0) {
       this.hp = 0;
+      // Killed on the ground: stood back up for its own death fall (the clip or the topple), never tipped past flat.
+      if (this.downT >= 0) { this.downT = -1; this.object.rotation.x = 0; this.object.rotation.z = 0; }
       this.returning = false;
       this.brain.kill();
       this.deadFor = 0;
@@ -1047,7 +1049,7 @@ export class Enemy {
       // Knocked down: over about its feet along the blow, lying, back up (Knockdown.ts).
       this.downT += dt;
       const tilt = knockdownTilt(this.downT, KNOCKDOWN_S);
-      const l = knockdownLean(this.downK.x, this.downK.z, this.yaw, tilt);
+      const l = knockdownLean(this.downK.x, this.downK.z, yawToRotation(this.yaw), tilt);
       this.object.rotation.order = 'YXZ';
       this.object.rotation.x = l.pitch;
       this.object.rotation.z = l.roll;

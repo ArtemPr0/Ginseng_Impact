@@ -168,3 +168,17 @@ describe('dodging telegraphed spells (v12: smarter mobs)', () => {
     expect(e.dodge(-1, 0, 4, () => 0)).toBe(false);
   });
 });
+
+describe('dying while knocked down (review 2026-11-16)', () => {
+  it('the body is set upright for its death fall, not tipped past flat', async () => {
+    const { Enemy } = await import('./Enemy');
+    const { ENEMY_DEFS } = await import('../data/enemies');
+    const e = new Enemy(ENEMY_DEFS.beast, { x: 0, z: 0 } as never, { heightAt: () => 0 } as never);
+    e.takeDamage(1, { x: 1, z: 0 }, 8);
+    for (let i = 0; i < 20; i++) { e.update(0.02, [{ x: 30, y: 0, z: 30 }]); e.animate(0.02); }
+    e.takeDamage(1e6, { x: 1, z: 0 }, 1);
+    e.animate(0.02);
+    expect(e.downed).toBe(false);
+    expect(Math.hypot(e.object.rotation.x, e.object.rotation.z)).toBeLessThan(0.05);
+  });
+});

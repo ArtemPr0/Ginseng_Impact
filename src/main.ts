@@ -990,8 +990,10 @@ game
       const mind = input.locked && input.mouseDown(2) && (!!slot.hold || holding);
       if (input.locked && input.mouseJustPressed(2) && !slot.hold && !holding) spellBuffer.push(picked);
       const buffered = spellBuffer.peek(dt);
-      const act = buffered !== null ? BAR[hero][buffered]?.action : undefined;
-      if (act?.kind === 'spell') castRange = spellRange(SPELLS[hero][act.slot].id);
+      // The aim reaches as far as the spell about to be cast (a buffered one), else the picked one: Earthsplitter's
+      // leap range must not stick to every aim after it (Telekinesis' grab, the other heroes).
+      const act = BAR[hero][buffered ?? picked]?.action;
+      castRange = act?.kind === 'spell' ? spellRange(SPELLS[hero][act.slot].id) : AIM_RANGE;
       const castsBefore = combat.spellsCast;
       const swing = lmb.update(dt, input.locked && input.mouseDown(0));
       combat.update(dt, {

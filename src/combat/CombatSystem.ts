@@ -520,6 +520,8 @@ export class CombatSystem {
       enemies: this.enemies, controller: d.controller, fx: this.fx, audio: d.audio, scene: d.scene,
       element: () => self.elementOf(self.active),
       hit: (e, mult, knockback, hitStop, at) => self.hitEnemy(e, self.atkOf(self.active), mult, self.elementOf(self.active), knockback, hitStop, { blow: 'skill', heavy: true, at }),
+      // Fires burn as damage over time: no kick, no combo, no heavy-hit feel.
+      burn: (e, mult) => self.hitEnemy(e, self.atkOf(self.active), mult, null, 0, 0, { energy: false, dot: true }),
       reachable: (e, r, at) => self.reachable(e, r, at),
       smash: (x, y, z, r, kind) => self.smash(x, y, z, r, kind),
       tear: (x, z, r, n) => d.tear?.(x, z, r, n) ?? 0,

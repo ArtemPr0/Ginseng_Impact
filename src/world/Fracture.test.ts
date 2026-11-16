@@ -99,3 +99,11 @@ describe('blocks (v12: buildings come apart block by block, as in the godofpromp
     expect(blockSize(200, 200, 'glass')).toBeNull();
   });
 });
+
+describe('hasBlocks (review 2026-11-16: metal and glass got 200-800 Voronoi shards)', () => {
+  it('stone, plaster, wood, earth, bone and crystal break into blocks; metal and glass do not', async () => {
+    const { hasBlocks } = await import('./Fracture');
+    for (const k of ['stone', 'plaster', 'wood', 'earth', 'bone', 'crystal']) expect(hasBlocks(k)).toBe(true);
+    for (const k of ['metal', 'glass', 'nonsense']) expect(hasBlocks(k)).toBe(false);
+  });
+});

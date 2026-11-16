@@ -10,7 +10,7 @@
  */
 import { Group, Quaternion, Vector3, type Material, type Object3D } from 'three';
 import { ChunkBatch } from '../render/ChunkBatch';
-import { blockCount, chunkCount } from './Fracture';
+import { blockCount, hasBlocks, chunkCount } from './Fracture';
 import { SyncFracturer, type Fracturer, type ObjectChunk } from './FractureObject';
 import { DebrisSim, type Piece } from './Debris';
 import type { Footprint, GridFootprint } from './Colliders';
@@ -410,7 +410,8 @@ export class Breakables {
     if (hit) return hit;
     const kind = t.material ?? 'stone';
     // Buildings and big things come apart block by block (v12, the reel); props, trees and leaves in Voronoi chunks.
-    const blocks = t.tree || t.brief ? 0 : blockCount(t.size, this.blockScale);
+    // (Metal and glass have no block shape: they shatter in chunkCount's few pieces.)
+    const blocks = t.tree || t.brief || !hasBlocks(kind) ? 0 : blockCount(t.size, this.blockScale);
     const n = blocks || chunkCount(t.size);
     const s = t.object.getWorldScale(new Vector3()).x || 1;
     const f = this.fracturer.get(`${t.id}:${n}:${b.variant}${blocks ? ':b' : ''}`, t.object, n, 1 + b.variant * 977, thicknessOf(kind, t.size) / s, blocks ? kind : undefined);
