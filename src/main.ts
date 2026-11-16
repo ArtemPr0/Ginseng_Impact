@@ -5,6 +5,7 @@ import { AimPreview } from './render/AimPreview';
 import { Color, DirectionalLight, FogExp2, Frustum, HemisphereLight, Matrix4, type Object3D, PerspectiveCamera, Scene, Sphere, Vector3 } from 'three';
 import { HarvestLedger, harvestOf } from './world/Harvest';
 import { Ejecta } from './render/Ejecta';
+import { Billow } from './render/Billow';
 import { AutoQuality, nextMode, pickMode, QUALITY_KEY, settingsFor, type QualityLevel, type QualityMode } from './core/Quality';
 import { WorkerFracturer } from './world/FractureObject';
 import { Bubbles } from './world/Portal';
@@ -122,6 +123,9 @@ scene.add(aimPreview.group);
 /** Clods of earth thrown out of fresh craters (Ejecta). */
 const ejecta = new Ejecta((x, z, y) => world.heightAt(x, z, y));
 scene.add(ejecta.group);
+/** Billowing dust and smoke that lingers (collapses, blasts). */
+const billow = new Billow(260);
+scene.add(billow.mesh);
 const fogTarget = new Color();
 let portalCooldown = 0;
 
@@ -233,11 +237,10 @@ const COLLAPSE_YELLS = ['MY HOUSE!', 'Oi! I live there!', 'Who pays for that?!',
     tpc.shake(Math.min(1, b.target.size / 30) * k);
     // A cloud rising from the base all round, as wide as the thing.
     const base = b.target.object.getWorldPosition(new Vector3()).y;
-    const puffs = Math.min(10, 2 + Math.round(b.target.size / 5));
-    for (let i = 0; i < puffs; i++) {
-      const a = (i / puffs) * Math.PI * 2, d = b.r * (0.4 + Math.random() * 0.5);
-      combatFx.dust(new Vector3(b.x + Math.cos(a) * d, base + 0.5, b.z + Math.sin(a) * d), Math.min(5, 1.2 + b.target.size * 0.1));
-    }
+    // A big cloud of dust and plaster rolling out from the base and up, hanging in the air for many seconds.
+    const sz = b.target.size;
+    billow.cloud(new Vector3(b.x, base + 0.3, b.z), Math.min(14, b.r * 0.9), 0x949cb6, { puffs: Math.round(Math.min(90, 14 + sz * 2.2)), life: Math.min(14, 6 + sz * 0.15), rise: 1 + Math.min(3, sz * 0.06), spread: 1.4 + Math.min(4, sz * 0.08) });
+    combatFx.dust(new Vector3(b.x, base + 0.5, b.z), Math.min(5, 1.2 + sz * 0.1));
     // The people of the place yell at you and run out (it stands again within a minute: Breakables.REBUILD_S.quick).
     if (b.target.size < 3) return;
     for (const n of area.npcs) {
@@ -363,6 +366,7 @@ const combat = new CombatSystem({
     return best;
   },
   lights: { flash: (at, c, i, d, s) => lightBudget.flash(at, c, i, d, s), hold: (c, i, d) => lightBudget.hold(c, i, d) },
+  smoke: (at, r, color, life) => billow.cloud(at, r, color, { life, puffs: Math.round(6 + r * 3) }),
   sprout: (ids) => area.sprout(ids),
   solid: (x, z, r, top) => {
     const f = { kind: 'cyl' as const, x, z, r, top };
@@ -1117,6 +1121,7 @@ game
       combat.render(animDt);
       lightBudget.update(playerPos, dt);
       ejecta.update(dt);
+      billow.update(dt);
       if (qualityMode === 'auto' && autoQuality.level === 'high' && autoQuality.update(dt, renderer.frameTime, renderer.atMinRatio) === 'low') {
         applyQuality();
         hud.announce('Quality lowered for a smoother frame rate (ESC to change)');

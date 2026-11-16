@@ -53,6 +53,8 @@ export interface SpellHost {
   /** A solid trunk at (x, z) while a grown tree stands; returns its remover. */
   solid?(x: number, z: number, r: number, top: number): () => void;
   lights?: SpellLights;
+  /** Billowing smoke or dust rising from (at), `r` metres across at its base (render/Billow). */
+  smoke?: (at: Vector3, r: number, color: number, life: number) => void;
 }
 
 interface Flight { mesh: Mesh; from: Vector3; to: Vector3; t: number; T: number; arc: number; spell: SpellDef; color: number }
@@ -299,7 +301,11 @@ export class SpellCast {
     // and thins slowly (the screenshots: slow fades, nothing popping off).
     this.puff(at, r * 0.75, color, 0.8, 0, false);
     this.puff(at, r * 0.4, 0xfff4d8, 0.45, 0, false);
-    for (let i = 0; i < 4; i++) {
+    // Then dark smoke rolling up out of it and thinning over several seconds, and dust thrown up round its foot.
+    if (h.smoke) {
+      h.smoke(at, r * 0.5, 0x2a2c3c, 6);
+      h.smoke(at, r * 0.9, 0x7a8098, 4);
+    } else for (let i = 0; i < 4; i++) {
       const a = i * 1.7;
       this.puff(_v.set(at.x + Math.cos(a) * r * 0.25, at.y + 0.6, at.z + Math.sin(a) * r * 0.25), r * (0.45 + i * 0.08), 0x16182a, 3.2 + i * 0.4, 0.8 + i * 0.2, true);
     }
