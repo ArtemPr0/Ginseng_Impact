@@ -64,3 +64,17 @@ describe('Explosions near the camera (critic round 2: Earthsplitter whited out t
   });
 });
 
+describe('Explosions stay inside the frame\'s light budget (critic round 2: Earthsplitter blew the screen to white)', () => {
+  const frag = (new Explosions().mesh.material as unknown as { fragmentShader: string }).fragmentShader;
+  it('hot puffs are opaque fire, not light piled on light: each covers what is behind it', () => {
+    const m = /emit \* shape \* \(vAlpha \* vNear\) \* ([0-9.]+)\)/.exec(frag);
+    expect(m).not.toBeNull();
+    expect(Number(m![1])).toBeGreaterThanOrEqual(0.5);
+  });
+  it('the white-hot core shines at most about twice its colour (bloom glows, never whites out)', () => {
+    const m = /\* \(([0-9.]+) \+ ([0-9.]+) \* h\)/.exec(frag);
+    expect(m).not.toBeNull();
+    expect(Number(m![1]) + Number(m![2])).toBeLessThanOrEqual(2.2);
+  });
+});
+

@@ -4,7 +4,7 @@
  * they are born white-hot, cool through the spell's colour (orange for fire, ice-blue for a moonbomb) to red and then
  * to dark smoke that keeps swelling and rises for a few seconds, with a ring of dust rolling out along the ground.
  * Every puff is one instance of a camera-facing quad with its own noise seed and heat, drawn in one call with
- * premultiplied blending, so hot puffs add light and cooled smoke darkens what is behind it.
+ * premultiplied blending: hot puffs are opaque glowing fire and cooled smoke darkens what is behind it.
  */
 import {
   Color, CustomBlending, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, OneFactor, OneMinusSrcAlphaFactor,
@@ -74,8 +74,10 @@ void main() {
   float lit = mix(0.45, 1.35, smoothstep(0.1, 0.95, vUp + (n - 0.5) * 0.5));
   vec3 smoke = vec3(0.035, 0.04, 0.065) * (0.6 + 0.9 * n) * lit;
   float smokeA = (1.0 - emit) * shape * (vAlpha * vNear) * 0.5 * (0.6 + 0.6 * n);
-  vec3 rgb = fire * emit * shape * (vAlpha * vNear) * (1.0 + 2.2 * h) + smoke * smokeA;
-  gl_FragColor = vec4(rgb, smokeA + emit * shape * (vAlpha * vNear) * 0.12);
+  // Fire is opaque: a hot puff covers what is behind it (alpha 0.7), so a hundred overlapping puffs settle on the
+  // fire's own colour (white-hot core at most ~2.6x) instead of adding up to a white screen.
+  vec3 rgb = fire * emit * shape * (vAlpha * vNear) * (0.6 + 1.2 * h) + smoke * smokeA;
+  gl_FragColor = vec4(rgb, smokeA + emit * shape * (vAlpha * vNear) * 0.7);
 }`;
 
 interface Puff {
