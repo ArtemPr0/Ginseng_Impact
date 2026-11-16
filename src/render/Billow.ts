@@ -48,14 +48,14 @@ void main() {
   float n = fbm(w + fbm(w * 0.8 + 3.0));
   // Billows: a round body broken at its rim by the noise.
   float body = smoothstep(1.0, 0.25, r + (n - 0.5) * 0.9);
-  float a = body * vAlpha * 0.95;
+  float a = body * vAlpha * 0.8;
   if (a < 0.01) discard;
   // Lit from above and one side (the moon), darker underneath: a cloud with volume.
   float lit = 0.8 + 0.55 * clamp(-c.y * 1.2 + c.x * 0.4 + (n - 0.5) * 0.6, -0.5, 0.6);
   gl_FragColor = vec4(vColor * lit, a);
 }`;
 
-export interface CloudOptions { puffs?: number; life?: number; rise?: number; spread?: number }
+export interface CloudOptions { puffs?: number; life?: number; rise?: number; spread?: number; /** Puff size at birth, metres. */ size?: number }
 
 export class Billow {
   readonly mesh: Mesh;
@@ -126,8 +126,8 @@ export class Billow {
       this.start.setXYZ(i, x, at.y + Math.random() * r * 0.25, z);
       const out = spread * (0.5 + Math.random() * 0.7);
       this.vel.setXYZ(i, Math.cos(a) * out, rise * (0.5 + Math.random() * 0.9), Math.sin(a) * out);
-      const s0 = 0.6 + r * 0.35 * (0.6 + Math.random() * 0.6);
-      this.lifeA.setXYZW(i, this.time + Math.random() * Math.min(0.6, life * 0.1), life * (0.7 + Math.random() * 0.5), s0, s0 * (2.4 + Math.random()));
+      const s0 = (o.size ?? 0.6 + r * 0.3) * (0.6 + Math.random() * 0.6);
+      this.lifeA.setXYZW(i, this.time + Math.random() * Math.min(0.6, life * 0.1), life * (0.7 + Math.random() * 0.5), s0, s0 * (1.8 + Math.random() * 0.8));
       const v = 0.85 + Math.random() * 0.25;
       this.color.setXYZ(i, this.col.r * v, this.col.g * v, this.col.b * v);
     }

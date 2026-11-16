@@ -5,7 +5,7 @@
  * a rune circle where it is aimed. A shot flies from the hero's hand to the aim point and lands there.
  */
 import {
-  AdditiveBlending, NormalBlending, CanvasTexture, Color, Group, Mesh, MeshBasicMaterial, SphereGeometry, Sprite, SpriteMaterial,
+  AdditiveBlending, NormalBlending, CanvasTexture, Color, Group, Sprite, SpriteMaterial,
   Vector3, type Object3D, type Texture,
 } from 'three';
 import { startLeap, type ControllerState } from '../player/CharacterController';
@@ -17,6 +17,7 @@ import { RuneCircles } from '../render/RuneCircle';
 import { BlackHoleFx, FireTornadoFx } from '../render/VortexFx';
 import { LEAP_RANGE } from './Aim';
 import { Lightning } from '../render/Lightning';
+import { spellMissile, type SpellMissile } from '../render/SpellMissile';
 import { SPELLS, type SpellDef } from './Spells';
 import type { Element } from './Elements';
 import type { Enemy } from './Enemy';
@@ -57,7 +58,7 @@ export interface SpellHost {
   smoke?: (at: Vector3, r: number, color: number, life: number) => void;
 }
 
-interface Flight { mesh: Mesh; from: Vector3; to: Vector3; t: number; T: number; arc: number; spell: SpellDef; color: number }
+interface Flight { mesh: Object3D; missile: SpellMissile; from: Vector3; to: Vector3; t: number; T: number; arc: number; spell: SpellDef; color: number }
 interface Hole { at: Vector3; t: number; tick: number; fx: BlackHoleFx; light?: { pos: Vector3; intensity: number; done: boolean } }
 interface Tornado { at: Vector3; dir: { x: number; z: number }; t: number; tick: number; scorch: number; fx: FireTornadoFx; light?: { pos: Vector3; intensity: number; done: boolean } }
 interface Plant { obj: Group; to: number; t: number; grow: number; life: number; remove?: () => void }
@@ -115,7 +116,6 @@ export class SpellCast {
   private slam: Slam | null = null;
   private charge: Charge | null = null;
   private readonly puffs: Puff[] = [];
-  private readonly orbGeo = new SphereGeometry(1, 14, 10);
   /** Seconds each frozen body has left, by enemy id (killed while frozen, it shatters into ice). */
   readonly frozen = new Map<number, number>();
 
@@ -217,11 +217,13 @@ export class SpellCast {
       const f = this.flights[i];
       f.t += dt;
       const k = Math.min(1, f.t / f.T);
+      _w.copy(f.mesh.position);
       f.mesh.position.lerpVectors(f.from, f.to, k);
       f.mesh.position.y += Math.sin(k * Math.PI) * f.arc;
-      f.mesh.rotation.y += dt * 9;
-      h.fx.sparks(f.mesh.position, _w.set(0, 0.3, 0), 2, f.color, 1.2, 1.0);
-      if (k >= 1) { f.mesh.removeFromParent(); this.flights.splice(i, 1); this.land(f.spell, f.to); }
+      f.missile.update(dt, _w.subVectors(f.mesh.position, _w));
+      // Embers (a fireball) or a faint glittering wake (an arrow) left behind.
+      h.fx.sparks(f.mesh.position, _w.set(0, 0.3, 0), f.spell.id === 'fireball' ? 3 : 1, f.color, 1.2, 1.0);
+      if (k >= 1) { f.mesh.removeFromParent(); f.missile.dispose(); this.flights.splice(i, 1); this.land(f.spell, f.to); }
     }
     for (let i = this.puffs.length - 1; i >= 0; i--) {
       const p = this.puffs[i];
@@ -259,11 +261,11 @@ export class SpellCast {
   // ------------------------------------------------------------------------------------------------ pieces of spells
 
   private fly(s: SpellDef, from: Vector3, to: Vector3, T: number, arc: number): void {
-    const mesh = new Mesh(this.orbGeo, new MeshBasicMaterial({ color: _c.set(s.color).multiplyScalar(1.4), blending: AdditiveBlending, transparent: true, depthWrite: false }));
-    mesh.scale.setScalar(s.id === 'fireball' ? 0.45 : s.id === 'moonbomb' ? 0.32 : 0.18);
+    const missile = spellMissile(s.id, s.color);
+    const mesh = missile.object;
     mesh.position.copy(from);
     this.h.scene.add(mesh);
-    this.flights.push({ mesh, from: from.clone(), to: to.clone(), t: 0, T, arc, spell: s, color: s.color });
+    this.flights.push({ mesh, missile, from: from.clone(), to: to.clone(), t: 0, T, arc, spell: s, color: s.color });
   }
 
   private leap(dx: number, dz: number, air: number, dist: number): void {
@@ -303,8 +305,8 @@ export class SpellCast {
     this.puff(at, r * 0.4, 0xfff4d8, 0.45, 0, false);
     // Then dark smoke rolling up out of it and thinning over several seconds, and dust thrown up round its foot.
     if (h.smoke) {
-      h.smoke(at, r * 0.5, 0x2a2c3c, 6);
-      h.smoke(at, r * 0.9, 0x7a8098, 4);
+      h.smoke(at, r * 0.35, 0x1e202c, 6);
+      h.smoke(at, r * 0.6, 0x3a3f52, 3.5);
     } else for (let i = 0; i < 4; i++) {
       const a = i * 1.7;
       this.puff(_v.set(at.x + Math.cos(a) * r * 0.25, at.y + 0.6, at.z + Math.sin(a) * r * 0.25), r * (0.45 + i * 0.08), 0x16182a, 3.2 + i * 0.4, 0.8 + i * 0.2, true);

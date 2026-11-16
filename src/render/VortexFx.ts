@@ -245,7 +245,8 @@ void main() {
   float h = n * uHeat;
   vec3 col = mix(vec3(0.45, 0.04, 0.0), vec3(1.0, 0.36, 0.03), smoothstep(0.3, 0.58, h));
   col = mix(col, vec3(1.0, 0.88, 0.55), smoothstep(0.62, 0.9, h));
-  float a = smoothstep(0.4, 0.66, n) * smoothstep(0.0, 0.06, vUv.y) * smoothstep(1.0, 0.72, vUv.y);
+  // Ragged tongues of flame with dark gaps between (three shells add up: each keeps to its brightest third).
+  float a = smoothstep(0.5, 0.74, n) * smoothstep(0.0, 0.06, vUv.y) * smoothstep(1.0, 0.72, vUv.y);
   gl_FragColor = vec4(col * a * uI, 1.0);
 }`;
 
@@ -281,9 +282,9 @@ export class FireTornadoFx {
     };
     const shells: Array<[number, number, number, number, number]> = [
       // radius scale, height scale, heat, brightness, spin
-      [1, 1, 0.95, 0.9, 2.4],
-      [0.72, 0.94, 1.15, 1.0, -3.1],
-      [0.42, 0.85, 1.4, 1.1, 3.8],
+      [1, 1, 0.95, 0.5, 2.4],
+      [0.72, 0.94, 1.1, 0.5, -3.1],
+      [0.42, 0.85, 1.3, 0.55, 3.8],
     ];
     shells.forEach(([k, hk, heat, i, spin], n) => {
       const m = additive(FIRE_V, FIRE_F, { uT: { value: 0 }, uSeed: { value: n * 1.7 }, uHeat: { value: heat }, uI: { value: i }, uSpin: { value: spin } });

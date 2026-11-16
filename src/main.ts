@@ -239,7 +239,8 @@ const COLLAPSE_YELLS = ['MY HOUSE!', 'Oi! I live there!', 'Who pays for that?!',
     const base = b.target.object.getWorldPosition(new Vector3()).y;
     // A big cloud of dust and plaster rolling out from the base and up, hanging in the air for many seconds.
     const sz = b.target.size;
-    billow.cloud(new Vector3(b.x, base + 0.3, b.z), Math.min(14, b.r * 0.9), 0x949cb6, { puffs: Math.round(Math.min(90, 14 + sz * 2.2)), life: Math.min(14, 6 + sz * 0.15), rise: 1 + Math.min(3, sz * 0.06), spread: 1.4 + Math.min(4, sz * 0.08) });
+    // (Trees, plants and little things only shed their own pieces: dust clouds come from buildings and stone.)
+    if (!b.target.tree && !b.target.brief && sz >= 3) billow.cloud(new Vector3(b.x, base + 0.3, b.z), Math.min(14, b.r * 0.9), 0x949cb6, { puffs: Math.round(Math.min(90, 14 + sz * 2.2)), life: Math.min(14, 6 + sz * 0.15), rise: 1 + Math.min(3, sz * 0.06), spread: 1.4 + Math.min(4, sz * 0.08) });
     combatFx.dust(new Vector3(b.x, base + 0.5, b.z), Math.min(5, 1.2 + sz * 0.1));
     // The people of the place yell at you and run out (it stands again within a minute: Breakables.REBUILD_S.quick).
     if (b.target.size < 3) return;
@@ -366,7 +367,7 @@ const combat = new CombatSystem({
     return best;
   },
   lights: { flash: (at, c, i, d, s) => lightBudget.flash(at, c, i, d, s), hold: (c, i, d) => lightBudget.hold(c, i, d) },
-  smoke: (at, r, color, life) => billow.cloud(at, r, color, { life, puffs: Math.round(6 + r * 3) }),
+  smoke: (at, r, color, life) => billow.cloud(at, r, color, { life, puffs: Math.round(8 + r * 5), rise: 1.6 + r * 0.4, spread: 0.6 + r * 0.25, size: 0.5 + r * 0.3 }),
   sprout: (ids) => area.sprout(ids),
   solid: (x, z, r, top) => {
     const f = { kind: 'cyl' as const, x, z, r, top };
