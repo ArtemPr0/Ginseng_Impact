@@ -4,6 +4,7 @@ import { SPELL_KEYS, SPELLS, spellSlot } from './combat/Spells';
 import { AimPreview } from './render/AimPreview';
 import { Color, DirectionalLight, FogExp2, Frustum, HemisphereLight, Matrix4, type Object3D, PerspectiveCamera, Scene, Sphere, Vector3 } from 'three';
 import { HarvestLedger, harvestOf } from './world/Harvest';
+import { Ejecta } from './render/Ejecta';
 import { WorkerFracturer } from './world/FractureObject';
 import { Bubbles } from './world/Portal';
 import { LightBudget } from './render/LightBudget';
@@ -116,6 +117,9 @@ scene.add(combatFx.group);
 const aimHold = new AimHold();
 const aimPreview = new AimPreview((x, z, y) => world.heightAt(x, z, y));
 scene.add(aimPreview.group);
+/** Clods of earth thrown out of fresh craters (Ejecta). */
+const ejecta = new Ejecta((x, z, y) => world.heightAt(x, z, y));
+scene.add(ejecta.group);
 const fogTarget = new Color();
 let portalCooldown = 0;
 
@@ -319,12 +323,12 @@ const combat = new CombatSystem({
   onInk: () => inkSplat.splash(),
   breakAt: (x, y, z, radius, kind) => area.breakables.damageAt(x, y, z, radius, kind),
   dig: (x, z, r, depth, scorch) => {
-    if (depth > 0) area.craters.crater(x, z, r, depth);
+    if (depth > 0 && area.craters.crater(x, z, r, depth)) ejecta.spawn(x, world.heightAt(x, z), z, r, depth);
     if (scorch) area.craters.scorch(x, z, r * 1.1, scorch);
   },
   // Spells land where the crosshair meets the ground (at most 25 m off; Aim.ts).
   aim: () => spellAim().at,
-  debris: () => [area.breakables.sim],
+  debris: () => [area.breakables.sim, ejecta.sim],
   // A house, a stall, a tree or a rock under the crosshair that Orlan can tear up whole (not a castle, not a flower).
   building: (x, z) => {
     let best: { x: number; y: number; z: number; r: number } | null = null, bd = Infinity;
@@ -1081,6 +1085,7 @@ game
       // Benched party members are hidden: no need to animate them (companions animate in the fixed step, which hit-stop pauses).
       combat.render(animDt);
       lightBudget.update(playerPos, dt);
+      ejecta.update(dt);
       focus.set(drawPos.x, drawPos.y + 1.4, drawPos.z);
       if (!input.locked && hud.panel === 'none') {
         if (REALMS.some((r) => Math.hypot(drawPos.x - r.x, drawPos.z - r.z) < r.radius)) {

@@ -314,7 +314,7 @@ export class SpellCast {
         this.blast(at, s.radius, s.mult, 5, 0.1);
         this.boom(at, s.color, s.radius, 0.75);
         h.smash(at.x, at.y + 0.8, at.z, s.radius * 0.8, 'spell');
-        h.dig(at.x, at.z, s.radius * 0.55, 0.45, 'burnt');
+        h.dig(at.x, at.z, s.radius * 0.6, 1.1, 'burnt');
         h.dig(at.x, at.z, s.radius, 0, 'burnt');
         h.audio.spell('whoomph');
         h.audio.spell('crackle');
@@ -323,7 +323,7 @@ export class SpellCast {
         this.blast(at, s.radius, s.mult, 6, 0.1);
         this.boom(at, s.color, s.radius, 0.85);
         h.smash(at.x, at.y + 0.8, at.z, s.radius * 0.8, 'spell');
-        h.dig(at.x, at.z, s.radius * 0.5, 0.55, 'burnt');
+        h.dig(at.x, at.z, s.radius * 0.55, 1.2, 'burnt');
         h.audio.spell('whoomph');
         break;
       case 'frost-arrow': {
@@ -392,7 +392,7 @@ export class SpellCast {
     }
     this.boom(at, s.color, s.radius, 1.0);
     h.smash(at.x, at.y + 0.6, at.z, s.radius, 'burst');
-    h.dig(at.x, at.z, 3, 0.8);
+    h.dig(at.x, at.z, 3.6, 1.5);
     h.dig(at.x, at.z, s.radius + 1, 0, 'burnt');
     // Rocks thrown up out of the crater.
     for (const sim of h.debris()) sim.blast(at.x, at.y, at.z, s.radius + 2, 9);
@@ -524,7 +524,7 @@ export class SpellCast {
     this.blast(at, 5, 2.5, 7, 0.12);
     this.boom(at, s.color, 5, 0.9);
     h.smash(cx, o.at.y + 1, cz, 4, 'spell');
-    h.dig(cx, cz, 2.6, 0.6);
+    h.dig(cx, cz, 3.4, 1.4);
     for (const sim of h.debris()) sim.blast(cx, cy, cz, 6, 10);
     h.audio.spell('whoomph');
     return true;

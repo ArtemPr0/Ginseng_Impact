@@ -88,6 +88,17 @@ describe('Craters', () => {
     expect(field.heightAt(0, 0)).toBeGreaterThanOrEqual(2 - MAX_DEPTH - 1e-3);
   });
 
+  it('bombed again and again a hole goes down to 3 m and widens, its sides always walkable (2026-11-16)', () => {
+    const { field, c } = setup();
+    for (let i = 0; i < 6; i++) c.crater(0, 0, 5, 1.6);
+    expect(MAX_DEPTH).toBe(3);
+    expect(field.heightAt(0, 0)).toBeLessThan(2 - 2.2);
+    expect(field.heightAt(0, 0)).toBeGreaterThanOrEqual(2 - MAX_DEPTH - 1e-3);
+    let steepest = 0;
+    for (let x = -14; x < 14; x += 0.25) for (const z of [0.3, 2.1, -3.7]) steepest = Math.max(steepest, field.slopeAt(x, z));
+    expect(steepest).toBeLessThan(0.55);
+  });
+
   it('knows where the ground is marked (no grass grows there until it heals)', () => {
     const { c } = setup();
     c.scorch(0, 0, 3, 'burnt');

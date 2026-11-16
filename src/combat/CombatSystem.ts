@@ -1347,7 +1347,7 @@ export class CombatSystem {
         // Where it ends it breaks things: a hero's shot by its blow, a boss's log, barrel or rock as a stomp.
         if (p.owner === 'player') this.smash(p.pos.x, p.pos.y, p.pos.z, Math.max(0.9, p.aoe), p.aoe > 0 ? 'skill' : blowKindOf(p.blow));
         else if (p.kind === 'log' || p.kind === 'prop' || p.look?.burst === 'crater') this.smash(p.pos.x, p.pos.y, p.pos.z, 2.2, 'stomp');
-        if (p.look?.burst === 'crater') this.d.dig?.(p.pos.x, p.pos.z, 2.4, 0.7);
+        if (p.look?.burst === 'crater') this.d.dig?.(p.pos.x, p.pos.z, 2.8, 1.1);
         else if (p.look?.burst === 'frost') this.d.dig?.(p.pos.x, p.pos.z, 1.2, 0, 'frozen');
         if (p.aoe > 0) this.starBurst(p);
         else if (p.kind === 'crescent') {

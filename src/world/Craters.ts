@@ -6,8 +6,13 @@
  */
 import { LAYER, type Heightfield } from '../render/Ground';
 
-/** Deepest a crater (or craters on craters) may dig below the original ground, metres. */
-export const MAX_DEPTH = 1.2;
+/**
+ * Deepest a crater (or craters on craters) may dig below the original ground, metres: a field bombed again and again
+ * goes down to a real shell hole (the user's request of 2026-11-16, "the floor could get bombed").
+ */
+export const MAX_DEPTH = 3;
+/** Steepest a crater's side may be, metres of drop per metre across (walkable: the controller climbs it). */
+const MAX_STEP = 0.8;
 /** Seconds a crater or a scorch takes to heal. */
 export const HEAL_S = 180;
 const LAYER_COUNT = 12;
@@ -64,8 +69,41 @@ export class Craters {
       data[i] = Math.max(rec.h0 - MAX_DEPTH, data[i] + craterProfile(d, r, dep));
       rec.h1 = data[i];
     });
-    if (box) this.hooks.refresh(...box, true);
+    // Craters on craters deepen the middle: the sides slump back until they are walkable again, so a deep hole is a
+    // wide one (as real shell holes are), and you can always climb out.
+    const wide = this.relax(x, z, r * 1.5 + MAX_DEPTH / MAX_STEP + 1);
+    if (box) this.hooks.refresh(...(wide ?? box), true);
     return true;
+  }
+
+  /** Lowers ground standing more than MAX_STEP a cell above a neighbour within `r` of (x, z); returns the box changed. */
+  private relax(x: number, z: number, r: number): [number, number, number, number] | null {
+    const { s, n, data } = this.field;
+    const n1 = n + 1, step = MAX_STEP * s.cell;
+    const ix0 = Math.max(0, Math.floor((x - r - s.x0) / s.cell)), ix1 = Math.min(n, Math.ceil((x + r - s.x0) / s.cell));
+    const iz0 = Math.max(0, Math.floor((z - r - s.z0) / s.cell)), iz1 = Math.min(n, Math.ceil((z + r - s.z0) / s.cell));
+    let changed = false;
+    for (let pass = 0; pass < 24; pass++) {
+      let any = false;
+      for (let iz = iz0; iz <= iz1; iz++) for (let ix = ix0; ix <= ix1; ix++) {
+        const i = iz * n1 + ix;
+        const h = data[i];
+        for (const [jx, jz] of [[ix + 1, iz], [ix - 1, iz], [ix, iz + 1], [ix, iz - 1]]) {
+          if (jx < ix0 || jx > ix1 || jz < iz0 || jz > iz1) continue;
+          const j = jz * n1 + jx;
+          if (data[j] <= h + step + 1e-6) continue;
+          if (!this.hooks.canDig(s.x0 + jx * s.cell, s.z0 + jz * s.cell)) continue;
+          const rec = this.rec(j);
+          const to = Math.max(rec.h0 - MAX_DEPTH, h + step);
+          if (to >= data[j] - 1e-6) continue;
+          data[j] = to;
+          rec.h1 = to;
+          any = changed = true;
+        }
+      }
+      if (!any) break;
+    }
+    return changed ? [s.x0 + ix0 * s.cell, s.z0 + iz0 * s.cell, s.x0 + ix1 * s.cell, s.z0 + iz1 * s.cell] : null;
   }
 
   /** Burns (`burnt`: ash black) or freezes (`frozen`: pale frost) the ground within `r` metres of (x, z). */
