@@ -1,5 +1,5 @@
 import { summonKind } from './summon';
-import { BoxGeometry, IcosahedronGeometry, BufferGeometry, CircleGeometry, Color, Float32BufferAttribute, Group, LineBasicMaterial, LineSegments, Mesh, PerspectiveCamera, Scene, Vector3, ConeGeometry, CylinderGeometry, TorusGeometry, MeshBasicMaterial, AdditiveBlending, DoubleSide, Sprite, SpriteMaterial } from 'three';
+import { BoxGeometry, IcosahedronGeometry, BufferGeometry, CircleGeometry, Color, Float32BufferAttribute, Group, LineBasicMaterial, LineSegments, Mesh, PerspectiveCamera, Scene, Vector3, ConeGeometry, CylinderGeometry, TorusGeometry, MeshBasicMaterial, AdditiveBlending, DoubleSide, Sprite, SpriteMaterial, type Object3D } from 'three';
 import { CoinStreak, Hype, isOverkill } from '../game/Hype';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Audio } from '../audio/Audio';
@@ -47,8 +47,17 @@ import { Vfx } from './Vfx';
 import { PRESENT_MODELS } from '../data/colliderGrids';
 import type { HeightWorld } from '../world/Colliders';
 import { pushOut, SolidBodies, type PushBody } from './Solid';
-import { bonkWord, edgeSafeReach, flightTime, lungeReach, SLOW_MO } from './Juice';
-import { ImpactStars } from '../render/ImpactStars';
+import { edgeSafeReach, flightTime, lungeReach, SLOW_MO } from './Juice';
+import { blowKindOf, breaksThings, coneSmash } from './Smash';
+import { Gore } from './Gore';
+import type { DebrisSim } from '../world/Debris';
+import type { SpellLights } from './SpellCast';
+import { maimMult, pickPart, severRoll, wearCrossed, wearPart } from './Sever';
+import { StuckArrows, entryPoint } from './StuckArrows';
+import { CarrySystem } from './CarrySystem';
+import { SpellBook } from './Spells';
+import { SpellCast } from './SpellCast';
+import type { BlowKind } from '../world/Breakables';
 import { CONTROLLER, rolling, startLeap, startLunge } from '../player/CharacterController';
 
 interface Projectile {
@@ -152,7 +161,7 @@ interface BurnPath { def: GroundEffectDef; atk: number; every: number; next: num
 
 /** What else a blow is (see hitEnemy). */
 interface HitOpts {
-  /** The move that struck (a combo hit, the heavy, the skill): its comic word (Juice.bonkWord). Default: by `heavy`. */
+  /** The move that struck (a combo hit, the heavy, the skill). Default: by `heavy`. */
   blow?: number | 'heavy' | 'skill';
   /** Charges the burst (default); lingering zones, the smoke and the spin do not, or a burst would refill itself. */
   energy?: boolean;
@@ -173,7 +182,13 @@ interface HitOpts {
   cast?: CastCharge | null;
 }
 
-export interface CombatInput { attack: boolean; heavyHeld: boolean; heavyRelease: boolean; skill: boolean; burst: boolean; dodge: boolean }
+export interface CombatInput {
+  attack: boolean; heavyHeld: boolean; heavyRelease: boolean; skill: boolean; burst: boolean; dodge: boolean;
+  /** The spell slot pressed this step (Z X C V: 0-3), if any (Spells.spellSlot). */
+  spell?: number | null;
+  /** G this step: Sir Aldric grabs (or drops) the mob in front of him (CarrySystem). */
+  grab?: boolean;
+}
 
 export interface CombatDeps {
   scene: Scene; world: WorldQuery; sky: Sky; hud: Hud; camera: PerspectiveCamera; game: Game; audio: Audio; inventory: Inventory;
@@ -210,6 +225,22 @@ export interface CombatDeps {
   rnd?: () => number;
   /** The companions following the hero: the enemies fight them too (main passes its list). */
   allies?: () => ReadonlyArray<CombatAlly>;
+  /** A blow breaks the world there (World.breakables): returns how many things it broke. */
+  breakAt?: (x: number, y: number, z: number, radius: number, kind: BlowKind) => number;
+  /** A blow digs the ground (World.craters): a bowl `r` metres across, `depth` deep, burnt or frozen around it. */
+  dig?: (x: number, z: number, r: number, depth: number, scorch?: 'burnt' | 'frozen') => void;
+  /** Where the crosshair points on the ground (spells land there; Aim.ts). */
+  aim?: () => Vector3;
+  /** Every live debris sim (rubble, body parts), for spells that move pieces. */
+  debris?: () => DebrisSim[];
+  /** A small standing building at (x, z) that Orlan can tear up (CarrySystem), with its middle and reach. */
+  building?: (x: number, z: number) => { x: number; y: number; z: number; r: number } | null;
+  /** Lights that spells and blasts hold for a moment (LightBudget's pool). */
+  lights?: SpellLights;
+  /** A copy of a reel flora model to grow (Overgrowth; World.sprout). */
+  sprout?: (ids: string[]) => { object: Group; scale: number } | null;
+  /** A solid trunk while a grown tree stands; returns its remover. */
+  solid?: (x: number, z: number, r: number, top: number) => () => void;
 }
 
 /** Orlan's smoke: a cloud that lingers where he blew it, the puffs that make it, and his attack when he blew it. */
@@ -331,8 +362,6 @@ const _t = new Vector3();
 const _side = new Vector3();
 const _col = new Color();
 const MOON = new Color(PALETTE.moon);
-/** The comic words' colour: a punchy gold that reads over the cobalt night and every element's glow. */
-const BONK_GOLD = 0xffd23a;
 
 /**
  * Something that is not an enemy but reacts to being shot (the sky eyes, the eye pool): player shots that pass within
@@ -358,7 +387,7 @@ export class CombatSystem {
   private readonly combos = new Map<string, ComboTracker>();
   private readonly cooldowns = new Map<string, Cooldown>();
   readonly hp = new Map<string, number>();
-  private casting: { def: CharacterDef; t: number; fired: boolean } | null = null;
+  private casting: { def: CharacterDef; t: number; fired: boolean; spell?: number; aim?: Vector3 } | null = null;
   private heavy: { t: number; fired: boolean; charge: number } | null = null;
   private heavyCharge = 0;
   private poisonLeft = 0;
@@ -406,11 +435,20 @@ export class CombatSystem {
   private readonly tmp = new Vector3();
   private readonly screen = new Vector3();
   private readonly fx: CombatFx;
-  /** The comic star where a blow lands (render/ImpactStars). */
-  private readonly stars: ImpactStars;
-  /** When the last comic word went up (one a beat, however many bodies a blow cuts), and how many so far. */
-  private bonkAt = -1;
-  private bonkN = 0;
+  /** Mobs coming apart: limbs, heads, bones, blood (Gore). */
+  readonly gore: Gore;
+  /** Sir Aldric's fist and Orlan's mind: things picked up and thrown (CarrySystem). */
+  readonly carry: CarrySystem;
+  /** Spells cast so far (main's SpellBuffer lets go of a released spell once this moves). */
+  spellsCast = 0;
+  /** Wren's arrows left in the bodies they hit (StuckArrows). */
+  readonly stuck = new StuckArrows();
+  private readonly bonesOf = new Map<number, Object3D[]>();
+  /** Seconds of Blood Moon left: every blow tears something off. */
+  bloodMoon = 0;
+  /** Every hero's spell cooldowns (Z X C V), and the spells in the world. */
+  readonly spells = new SpellBook();
+  readonly caster: SpellCast;
   private readonly sfx: CombatSfx;
   private readonly rnd: () => number;
   /** The combo counter (hits in a row, 1.2 s apart at most). */
@@ -462,7 +500,40 @@ export class CombatSystem {
 
   constructor(private readonly d: CombatDeps) {
     this.fx = d.fx;
-    this.stars = new ImpactStars(d.scene);
+    this.gore = new Gore((x, z, y) => d.world.heightAt(x, z, y), {
+      onLand: (x, _y, z, bone) => { if (Math.hypot(x - d.controller.pos.x, z - d.controller.pos.z) < 30) { if (bone) d.audio.clatter(); else d.audio.thud(); } },
+    });
+    d.scene.add(this.gore.group);
+    const self = this;
+    this.caster = new SpellCast({
+      enemies: this.enemies, controller: d.controller, fx: this.fx, audio: d.audio, scene: d.scene,
+      element: () => self.elementOf(self.active),
+      hit: (e, mult, knockback, hitStop, at) => self.hitEnemy(e, self.atkOf(self.active), mult, self.elementOf(self.active), knockback, hitStop, { blow: 'skill', heavy: true, at }),
+      reachable: (e, r, at) => self.reachable(e, r, at),
+      smash: (x, y, z, r, kind) => self.smash(x, y, z, r, kind),
+      dig: (x, z, r, depth, scorch) => d.dig?.(x, z, r, depth, scorch),
+      shake: (n) => d.onShake?.(n),
+      heightAt: (x, z, y) => d.world.heightAt(x, z, y),
+      debris: () => [self.gore.sim, ...(d.debris?.() ?? [])],
+      bloodMoon: (seconds) => { self.bloodMoon = seconds; },
+      announce: (text) => d.hud.announce(text),
+      sprout: d.sprout, solid: d.solid, lights: d.lights,
+    });
+    this.carry = new CarrySystem({
+      enemies: () => self.enemies,
+      hero: () => ({ pos: d.controller.pos as Vector3, yaw: d.controller.yaw, grounded: d.controller.mode === 'ground' }),
+      heroId: () => self.active.id,
+      aimAt: () => d.aim?.() ?? null,
+      lookDir: () => d.camera.getWorldDirection(new Vector3()),
+      debris: () => [self.gore.sim, ...(d.debris?.() ?? [])],
+      breakAt: (x, y, z, r, kind) => self.smash(x, y, z, r, kind),
+      building: (x, z) => d.building?.(x, z) ?? null,
+      hit: (e, share, at, heavy) => self.hitEnemy(e, self.atkOf(self.active), share, null, heavy ? 3 : 1.2, heavy ? 0.08 : 0.03, { blow: 'skill', heavy, at }),
+      groundAt: (x, z, y) => d.world.heightAt(x, z, y),
+      fx: this.fx,
+      shake: (n) => d.onShake?.(n),
+      sound: { grab: () => d.audio.thud(), throw: (heavy) => self.sfx.swing('blade', heavy), land: (size) => d.audio.crumble(Math.min(1, size * 0.35), 1) },
+    });
     this.sfx = new CombatSfx(d.audio);
     this.rnd = d.rnd ?? Math.random;
     d.scene.add(this.vfx.group);
@@ -580,7 +651,8 @@ export class CombatSystem {
     e.noRespawn = noRespawn;
     // A melee mob takes turns with its pack (two striking at once); a boss or a mob that keeps its distance needs no token.
     if (!def.boss && !((def.brain.preferredRange ?? 0) > 0)) e.tokens = this.tokens;
-    e.onDissolve = () => this.dissolveBurst(e);
+    e.onDissolve = () => { this.stuck.clear(e.id); this.dissolveBurst(e); };
+    e.onRespawn = (x) => { this.stuck.clear(x.id); this.gore.mend(x); };
     e.onCollapse = () => this.d.audio.clatter();
     e.onStomp = (sx, sy, sz) => {
       this.fx.dust(_v.set(sx, sy + 0.1, sz), 2.2);
@@ -777,6 +849,11 @@ export class CombatSystem {
     const d = this.d;
     const c = d.controller;
     const me = this.active;
+    // Picking up and throwing (CarrySystem): while a hero holds something the buttons are its.
+    if (input.dodge || this.downed) this.carry.drop();
+    if (this.carry.update(dt, { grab: !!input.grab, attack: input.attack, heavyHeld: input.heavyHeld }) || this.carry.busy) {
+      input = { ...input, attack: false, heavyHeld: false, heavyRelease: false, skill: false, burst: false };
+    }
     this.iframes = Math.max(0, this.iframes - dt);
     this.dodgeCd = Math.max(0, this.dodgeCd - dt);
     this.frenzyLeft = Math.max(0, this.frenzyLeft - dt);
@@ -957,7 +1034,6 @@ export class CombatSystem {
           const at = _v.set(fx, this.d.world.heightAt(fx, fz, c.pos.y + 1), fz);
           this.fx.shock(at, color, 4 + ch * 3);
           this.fx.dust(at, 1.4 + ch);
-          this.stars.pop(_w.set(fx, at.y + 0.6, fz), color, 3.2);
           d.onShake?.(0.15 + ch * 0.35);
           // Everything small standing round the slam, on its floor, is bounced into the air (not the seated, the rooted
           // or the bystanders).
@@ -980,7 +1056,32 @@ export class CombatSystem {
       d.audio.cast();
       this.sfx.effort(me.id);
     }
-    if (this.casting) {
+    // --- spells (Z X C V): the skill's cast, landing a spell instead (SpellCast) ---
+    this.spells.update(dt);
+    this.caster.update(dt);
+    if (this.bloodMoon > 0) this.bloodMoon = Math.max(0, this.bloodMoon - dt);
+    const slot = input.spell ?? null;
+    if (slot !== null && (grounded || flying) && !this.busy && this.heavyCharge === 0 && this.spells.ready(me.id, slot)) {
+      this.softLock(9);
+      this.spells.use(me.id, slot);
+      this.spellsCast++;
+      this.casting = { def: me, t: 0, fired: false, spell: slot, aim: d.aim?.() ?? this.ahead(8) };
+      d.audio.cast();
+      this.sfx.effort(me.id);
+    }
+    if (this.casting && this.casting.spell !== undefined) {
+      const timing = this.timesOf(this.casting.def.id).skill;
+      this.casting.t += dt;
+      if (!this.casting.fired && this.casting.t >= timing.duration * timing.strike) {
+        this.casting.fired = true;
+        // (Locked on, it lands on the target where it stands now.)
+        const lock = this.lockPoint(new Vector3());
+        const aim = lock ? new Vector3(lock.x, d.world.heightAt(lock.x, lock.z, lock.y + 1), lock.z) : this.casting.aim!;
+        this.caster.cast(this.casting.def.id, this.casting.spell, aim);
+        this.feel.punch = true;
+      }
+      if (this.casting.t >= timing.duration) this.casting = null;
+    } else if (this.casting) {
       const skill = SKILLS[this.casting.def.id];
       // The cast lasts as long as its clip cut and fires on the cut's measured blow (heroClips.ts).
       const timing = this.timesOf(this.casting.def.id).skill;
@@ -989,6 +1090,12 @@ export class CombatSystem {
         this.casting.fired = true;
         const color = ELEMENT_COLOR[this.elementOf(this.casting.def)];
         this.fx.flash(_v.copy(this.playerPos()).add(_w.set(0, 1.1, 0)), _col.set(color).multiplyScalar(0.7), 2);
+        // A rune circle flares under the hero as the skill goes off; a blade's skill scorches the ground it cuts.
+        this.caster.runes.show(this.ahead(0.5), 2.4, color, 0.35);
+        if (this.casting.def.weapon === 'greatsword' || this.casting.def.weapon === 'sword') {
+          for (const k of [2, 3.6, 5.2]) { const at = this.ahead(k); this.d.dig?.(at.x, at.z, 1.1, 0, 'burnt'); }
+          d.onShake?.(0.3);
+        }
         // (The crescent lays the skill's burning ground along its own path; any other skill's goes down in front.)
         this.resolveAttack(this.casting.def, skill.attack, 'skill', skill.ground);
         if (skill.ground && skill.attack.shape.kind !== 'crescent') {
@@ -1021,6 +1128,9 @@ export class CombatSystem {
       this.feel.pulse = Math.max(this.feel.pulse, 0.25);
       d.sky.setBloodMoon(true);
       d.hud.announce(BURST[me.id].name);
+      // The burst opens on a great rune under the hero, and the ground shakes.
+      this.caster.runes.show(this.ahead(0), 5, ELEMENT_COLOR[this.elementOf(me)], BURST[me.id].time * 0.6);
+      d.onShake?.(0.5);
     }
     if (this.burstCast) {
       const b = this.burstCast;
@@ -1058,6 +1168,7 @@ export class CombatSystem {
       this.solids?.before(e);
       const action = e.update(dt, foe ? this.brawlMark : this.marks);
       this.solids?.after(e);
+      this.trample(e, dt);
       // Its wind-up's warning on the ground, filling with the wind-up (gone with a blow that will not come).
       this.warnWindup(e, foe !== null);
       const boss = !!e.def.boss && e.aggro && e.alive;
@@ -1102,7 +1213,7 @@ export class CombatSystem {
       const e = this.enemies[i];
       if (!e.alive && e.noRespawn && !e.object.visible) this.despawn(e);
     }
-    d.sky.setBloodMoon(anyAggro || this.burstCast !== null);
+    d.sky.setBloodMoon(anyAggro || this.burstCast !== null || this.bloodMoon > 0);
     if (bossNear) d.hud.setBoss(bossNear.def.name, bossNear.def.title ?? '', bossNear.hp / bossNear.def.maxHp, true);
     else d.hud.setBoss('', '', 0, false);
     // The score's boss layer: on while a boss has the hero in its sights (or brawls in the smoke), off once it falls or
@@ -1197,6 +1308,7 @@ export class CombatSystem {
           // (The crescent freezes the fight on the first body it cuts and only catches on each after, a reaction there
           // too, its blows as heavy; a shot of a many-shot skill charges the burst through its cast.)
           this.hitEnemy(e, p.atk, p.mult, p.element, p.knockback, p.hitStop, { at: p.object.position, heavy: p.hitStop >= 0.08, blow: p.blow, pierced: p.pierce ? p.hit.size : 0, cast: p.cast });
+          if (p.kind === 'arrow' || p.kind === 'trip') this.lodgeArrow(e, p.pos, p.vel);
           p.onHit?.(e);
           // The crescent cuts on through.
           if (p.pierce) continue;
@@ -1235,6 +1347,11 @@ export class CombatSystem {
         }
       }
       if (dead) {
+        // Where it ends it breaks things: a hero's shot by its blow, a boss's log, barrel or rock as a stomp.
+        if (p.owner === 'player') this.smash(p.pos.x, p.pos.y, p.pos.z, Math.max(0.9, p.aoe), p.aoe > 0 ? 'skill' : blowKindOf(p.blow));
+        else if (p.kind === 'log' || p.kind === 'prop' || p.look?.burst === 'crater') this.smash(p.pos.x, p.pos.y, p.pos.z, 2.2, 'stomp');
+        if (p.look?.burst === 'crater') this.d.dig?.(p.pos.x, p.pos.z, 2.8, 1.1);
+        else if (p.look?.burst === 'frost') this.d.dig?.(p.pos.x, p.pos.z, 1.2, 0, 'frozen');
         if (p.aoe > 0) this.starBurst(p);
         else if (p.kind === 'crescent') {
           // The wave breaks: a last patch of burning ground where it stopped, unless one lies just behind.
@@ -1300,12 +1417,14 @@ export class CombatSystem {
     this.vfx.update(dt);
     d.hud.setHp(this.hp.get(me.id)!, this.maxOf(me));
     d.hud.setSkill(SKILLS[me.id].name, cd.fraction, cd.ready && (grounded || flying));
+    d.hud.setSpells(me.id, [0, 1, 2, 3].map((i) => this.spells.fraction(me.id, i)), [0, 1, 2, 3].map((i) => this.spells.ready(me.id, i) && (grounded || flying)));
     d.hud.setBurst(this.burstEnergy / BURST_MAX, this.burstEnergy >= BURST_MAX && canBurst, BURST[me.id].name);
     d.hud.setCharge(this.heavyCharge);
     d.hud.setShards(d.inventory.shards);
     d.hud.setFrenzy(this.frenzyLeft);
     d.hud.setCombo(this.streak.count);
-    d.hud.setCrosshair(this.attackKind !== undefined);
+    // (Always on now: every hero has spells to aim.)
+    d.hud.setCrosshair(true);
     this.flushFeel();
   }
 
@@ -1368,6 +1487,7 @@ export class CombatSystem {
     this.fx.shock(at, p.color, p.aoe * 1.6);
     this.fx.dust(at, 1.2);
     this.d.audio.stomp();
+    this.d.dig?.(at.x, at.z, p.aoe * 0.9, 0.35, 'burnt');
   }
 
   /** The ground `dist` metres in front of the hero. */
@@ -1442,6 +1562,7 @@ export class CombatSystem {
       this.fx.sparks(_v.set(e.pos.x, e.pos.y + e.def.height * (e.def.scale ?? 1) * 0.6, e.pos.z), UP, 8, LEAN_PURPLE, 3, 1.0);
     }
     this.fx.sparks(_v.copy(at).add(_w.set(0, 1.1, 0)), UP, 12, LEAN_PURPLE, 6, 1.0);
+    this.smash(at.x, at.y + 1, at.z, radius, last ? 'burst' : 'heavy');
     if (!b.fired || last) { this.fx.shock(at, 0x8b3dff, radius * 1.4); b.fired = true; }
     this.sfx.swing('blade', last);
     if (last) this.feel.punch = true;
@@ -1628,8 +1749,10 @@ export class CombatSystem {
   private strike(e: Enemy, mult: number, inside: (x: number, z: number, y: number, hero: boolean) => boolean): number {
     const c = this.d.controller;
     let n = 0;
-    if (inside(c.pos.x, c.pos.z, c.pos.y, true)) { this.damagePlayer(e.def.atk * mult, e.def.element, e.def.kind); n++; }
-    for (const a of this.allies) if (a.hp > 0 && inside(a.pos.x, a.pos.z, a.pos.y, false)) { this.hurtAlly(a, e.def.atk * mult); n++; }
+    // (Missing an arm or two it hits softer: Sever.maimMult.)
+    const maim = maimMult(e.lostArms);
+    if (inside(c.pos.x, c.pos.z, c.pos.y, true)) { this.damagePlayer(e.def.atk * mult * maim, e.def.element, e.def.kind); n++; }
+    for (const a of this.allies) if (a.hp > 0 && inside(a.pos.x, a.pos.z, a.pos.y, false)) { this.hurtAlly(a, e.def.atk * mult * maim); n++; }
     return n;
   }
 
@@ -1770,6 +1893,22 @@ export class CombatSystem {
   }
 
   /** A dead body starts to burn away (Enemy.burnAway): one shock on the ground under it and a spray of sparks, in its element's colour. */
+  /** Leaves the arrow that hit `e` in it (StuckArrows), where a shot at `at` flying along `vel` met its body. */
+  private lodgeArrow(e: Enemy, at: Vector3, vel: Vector3): void {
+    const m = e.model;
+    if (!m || e.def.body || e.def.eye) return;
+    let bones = this.bonesOf.get(e.id);
+    if (!bones) {
+      bones = [];
+      const list = bones;
+      m.root.traverse((o) => { if ((o as { isBone?: boolean }).isBone && !/end$|top$|toe/i.test(o.name)) list.push(o); });
+      this.bonesOf.set(e.id, bones);
+    }
+    const sc = e.def.scale ?? 1;
+    const hit = entryPoint(e.pos, e.def.bodyRadius * sc, e.def.height * sc, _v.copy(at).addScaledVector(vel, -0.05));
+    this.stuck.stick(e.id, bones.length ? bones : [m.root], hit, vel, Math.max(0.12, e.def.bodyRadius * sc * 0.6));
+  }
+
   private dissolveBurst(e: Enemy): void {
     const color = dissolveEdge(e.def.element);
     const sc = e.def.scale ?? 1;
@@ -1885,6 +2024,7 @@ export class CombatSystem {
         this.fx.dust(at, 3.2);
         this.d.onShake?.(1);
         this.d.audio.stomp();
+        if (breaksThings(e.def)) { this.smash(at.x, at.y + 1, at.z, r, 'stomp'); this.d.dig?.(at.x, at.z, r * 0.6, 0.6); }
         // (On the ground only: a hero in the air clears it.)
         this.strike(e, 1.4, (x, z, _y, hero) => Math.hypot(x - e.pos.x, z - e.pos.z) < r && (!hero || c.mode === 'ground'));
         break;
@@ -2174,6 +2314,7 @@ export class CombatSystem {
         this.d.onShake?.(0.6);
         this.d.audio.stomp();
         const inside = (x: number, z: number): boolean => inCone(e.pos, e.yaw, { x, z }, range, PUNCH_HALF);
+        if (breaksThings(e.def)) this.smash(e.pos.x + Math.cos(e.yaw) * range * 0.6, e.pos.y + e.def.height * sc * 0.5, e.pos.z + Math.sin(e.yaw) * range * 0.6, range * 0.5, 'stomp');
         const hit = inside(c.pos.x, c.pos.z);
         this.strike(e, 1.1, inside);
         if (hit) {
@@ -2357,6 +2498,33 @@ export class CombatSystem {
         : inRadius(origin, t, shape.radius + e.def.bodyRadius * sc);
       if (ok) this.hitEnemy(e, atk, def.mult, element, def.knockback, def.hitStop, { heavy, blow: phase });
     }
+    // The blow breaks what it reaches: props to a combo hit, walls to a heavy or a skill.
+    const kind = blowKindOf(phase);
+    if (shape.kind === 'cone') { const s = coneSmash(c.pos, c.yaw, shape.range); this.smash(s.x, s.y, s.z, s.r, kind); }
+    else this.smash(c.pos.x, c.pos.y + 1, c.pos.z, shape.radius, kind);
+  }
+
+  /** A big mob on the move breaks what it walks into, twice a second. */
+  private trample(e: Enemy, dt: number): void {
+    if (!e.alive || !this.d.breakAt || !breaksThings(e.def)) return;
+    let t = this.trampled.get(e);
+    if (!t) this.trampled.set(e, (t = { left: 0, x: e.pos.x, z: e.pos.z }));
+    t.left -= dt;
+    if (t.left > 0) return;
+    t.left = 0.5;
+    const moved = Math.hypot(e.pos.x - t.x, e.pos.z - t.z);
+    t.x = e.pos.x; t.z = e.pos.z;
+    if (moved < 0.3 || this.playerPos().distanceTo(e.pos) > 80) return;
+    const sc = e.def.scale ?? 1;
+    this.smash(e.pos.x, e.pos.y + e.def.height * sc * 0.4, e.pos.z, e.def.bodyRadius * sc + 0.6, 'stomp');
+  }
+  private readonly trampled = new WeakMap<Enemy, { left: number; x: number; z: number }>();
+
+  /** Breaks the world at (x, y, z) (Breakables): a crack shakes the camera a little. */
+  private smash(x: number, y: number, z: number, radius: number, kind: BlowKind): number {
+    const n = this.d.breakAt?.(x, y, z, radius, kind) ?? 0;
+    if (n && kind !== 'light') this.d.onShake?.(kind === 'burst' ? 0.7 : 0.35);
+    return n;
   }
 
   /**
@@ -2601,14 +2769,6 @@ export class CombatSystem {
       if (heavy) this.fx.shock(_v.set(e.pos.x, e.pos.y, e.pos.z), color, 2.5 + 2 * weight);
     }
     this.showNumber(_v.copy(hitAt).add(_w.set(0, 0.5, 0)), dmg, crit ? PALETTE.moon : color, false, e.id, crit);
-    if (own) {
-      // Cartoon: a comic star where it struck, and the blow's sound written over it, one word a beat (Juice).
-      this.stars.pop(hitAt, crit ? PALETTE.moon : color, heavy ? 2.4 : crit ? 2 : 1.1 + Math.min(0.7, dmg / 400));
-      if (this.time - this.bonkAt > 0.14 || this.bonkAt < 0) {
-        this.bonkAt = this.time;
-        this.bonk(_v.copy(hitAt).add(_w.set(0, 1.1, 0)), bonkWord(this.active.weapon, o.blow ?? (heavy ? 'heavy' : 0), this.bonkN++));
-      }
-    }
     // (A piercing shot freezes the fight on the first body it cuts; on each after, the blow and any reaction there only
     // catch it: Combat.pierceStop. Not a piercing shot, 0: the full stop.)
     const nth = o.pierced ?? 0;
@@ -2629,16 +2789,63 @@ export class CombatSystem {
     // The burst: a blow's worth a hit, or through a many-shot cast, once a body (o.cast).
     if (o.energy ?? true) this.burstEnergy = Math.min(BURST_MAX, this.burstEnergy + (o.cast ? o.cast.take(e.id) : HIT_ENERGY));
     if (reaction) { this.applyReaction(e, reaction, dmg, at, pierceStop(REACTION_STOP, nth)); this.d.audio.reaction(); }
+    // Torn apart: a limb or the head off a strong blow, a skeleton into its bones (Gore, Sever).
+    let apart = false;
+    if (!dot && !o.companion) apart = this.tearApart(e, { crit, heavy, skill: o.blow === 'skill' || o.blow === undefined, share: dmg / (e.def.maxHp * e.hpScale), died, hpBefore }, hitAt, kb);
     if (died) {
-      // Blown far past dead: launched off its feet, tumbling (Yeet.ts), with a bonk and a quip.
-      if (own && isOverkill(dmg, hpBefore, e.def.maxHp) && e.launchFrom(kb.x, kb.z)) {
-        const q = this.hype.overkill();
-        this.d.hud.hype(q.text, q.tier);
-        this.d.audio.overkill();
+      // Blown far past dead: thrown off its feet along the blow (Yeet.ts).
+      if (!apart && own && isOverkill(dmg, hpBefore, e.def.maxHp) && e.launchFrom(kb.x, kb.z)) {
         this.d.game.hitStop = Math.max(this.d.game.hitStop, 0.09);
       }
       this.onEnemyDeath(e, at);
     }
+  }
+
+  /**
+   * Tears something off `e` after a blow, if the blow earns it (Sever.severRoll): a skeleton killed bursts into its bones,
+   * a body with no rig killed hard shatters, else the part nearest the blow comes off (the head only on a kill).
+   * Returns true when the body itself came apart (no overkill launch then).
+   */
+  private tearApart(e: Enemy, b: { crit: boolean; heavy: boolean; skill: boolean; share: number; died: boolean; hpBefore: number }, hitAt: Vector3, kb: { x: number; z: number }): boolean {
+    const m = e.model;
+    if (!m || e.def.body) return false;
+    const strength = b.heavy || b.skill ? 1.3 : 1;
+    // Killed while frozen (Frost Arrow): it shatters into ice.
+    if (b.died && this.caster.frozen.has(e.id) && !e.def.boss) {
+      this.caster.frozen.delete(e.id);
+      if (this.gore.shatter(e, kb, 12, this.gore.ice)) { this.d.audio.spell('frost'); this.d.audio.crumble(0.4, 1); return true; }
+    }
+    if (b.died && e.def.collapse) {
+      if (this.gore.burstBones(e, kb, strength)) { this.d.audio.clatter(); return true; }
+      return false;
+    }
+    const max = e.def.maxHp * e.hpScale;
+    // Worn down: a hand at 70 %, an arm at 45 % (bosses 50 / 25), on the side the blow came from (Sever.wearCrossed).
+    if (!b.died && m.hasClips) {
+      const parts = this.gore.partsOf(e);
+      const l = parts.find((p) => p.part === 'leftArm' || p.part === 'leftHand')?.at;
+      const r = parts.find((p) => p.part === 'rightArm' || p.part === 'rightHand')?.at;
+      const side = l && r ? (l.distanceTo(hitAt) <= r.distanceTo(hitAt) ? 'left' : 'right') : l ? 'left' : 'right';
+      let wore = false;
+      // From the last share it was checked at, so health lost to burns between blows still counts.
+      const from = Math.max(e.wearFrom, b.hpBefore / max);
+      e.wearFrom = e.hp / max;
+      for (const w of wearCrossed(from, e.hp / max, !!e.def.boss)) {
+        const part = wearPart(w, side, e.lost);
+        if (part && this.gore.sever(e, part, kb, strength * 0.8)) wore = true;
+      }
+      if (wore) { this.d.audio.sever(); return false; }
+    }
+    const roll = severRoll({ crit: b.crit, heavy: b.heavy, skill: b.skill, share: b.share, died: b.died, bloodMoon: this.bloodMoon > 0, boss: !!e.def.boss, hpShare: e.hp / max }, this.rnd);
+    if (!roll) return false;
+    if (!m.hasClips) {
+      if (b.died && !e.def.boss && this.gore.shatter(e, kb, 10)) { this.d.audio.crumble(0.3, 1); return true; }
+      return false;
+    }
+    const part = pickPart(this.gore.partsOf(e), hitAt, b.died);
+    if (!part || !this.gore.sever(e, part, kb, strength)) return false;
+    this.d.audio.sever();
+    return false;
   }
 
   private onEnemyDeath(e: Enemy, at: Vector3): void {
@@ -2655,6 +2862,8 @@ export class CombatSystem {
     this.voiceClock = 0;
     this.say(e, e.def.voices?.death);
     this.burstEnergy = Math.min(BURST_MAX, this.burstEnergy + 18);
+    // Under the Blood Moon every kill gives back 3 % of the hero's health.
+    if (this.bloodMoon > 0) this.healActive(this.maxOf(this.active) * 0.03);
     // Summoned mobs drop nothing (they would be an endless farm).
     if (!e.summoned) {
       // A flyer killed over a drop (the Blood Eye over the chasm) leaves its loot where the hero can reach it.
@@ -3255,6 +3464,7 @@ export class CombatSystem {
     this.heavyCharge = 0;
     this.burstCast = null;
     this.grab = null;
+    this.carry.drop();
     for (const cb of this.combos.values()) { cb.swinging = false; cb.swingTime = 0; }
     this.iframes = DOWN_HOLD + 1;
     this.d.events?.emit({ kind: 'down', hero: this.active.id as HeroId });
@@ -3307,12 +3517,6 @@ export class CombatSystem {
   }
 
   /** A number (or a word) over `worldPos`; hits on one `targetId` merge on screen, a `crit` stands out. */
-  /** A blow's comic word over `worldPos` (Hud.bonk). */
-  private bonk(worldPos: Vector3, word: string): void {
-    this.screen.copy(worldPos).project(this.d.camera);
-    if (this.screen.z > 1) return;
-    this.d.hud.bonk((this.screen.x + 1) / 2 * window.innerWidth, (1 - this.screen.y) / 2 * window.innerHeight, word, BONK_GOLD);
-  }
 
   private showNumber(worldPos: Vector3, value: number | string, color: number, big: boolean, targetId: number | null = null, crit = false): void {
     this.screen.copy(worldPos).project(this.d.camera);
@@ -3325,7 +3529,7 @@ export class CombatSystem {
   /** Per-frame: enemy animation and HUD projection. */
   render(dt: number): void {
     const cam = this.d.camera;
-    this.stars.update(dt);
+    this.gore.update(dt);
     for (const e of this.enemies) {
       e.animate(dt, !e.aggro && Math.hypot(e.pos.x - cam.position.x, e.pos.z - cam.position.z) > 110);
       if (!e.alive) continue;

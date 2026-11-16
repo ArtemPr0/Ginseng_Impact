@@ -88,6 +88,16 @@ export class Grass {
     return true;
   }
 
+  /** Forgets the tiles over [x0, x1] × [z0, z1] so they grow again from the ground as it is now (a crater healed). */
+  regrow(x0: number, z0: number, x1: number, z1: number): void {
+    for (let tz = Math.floor(z0 / TILE); tz <= Math.floor(z1 / TILE); tz++) for (let tx = Math.floor(x0 / TILE); tx <= Math.floor(x1 / TILE); tx++) {
+      const k = tx + ',' + tz;
+      this.tiles.delete(k);
+      if (this.growing?.key === k) this.growing = null;
+    }
+    this.lastTile = '';
+  }
+
   /**
    * Keeps grass within RADIUS of the player: missing tiles are grown a couple per frame (no hitch when crossing
    * the map), and the instance buffer is refilled from the cached tiles whenever the set changes.

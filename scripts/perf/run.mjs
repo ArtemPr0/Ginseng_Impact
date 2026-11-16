@@ -40,7 +40,13 @@ const onBinding = async (p) => {
   const { name, token } = JSON.parse(p.payload);
   let saved = null;
   if (shotDir) {
-    const r = await Promise.race([send('Page.captureScreenshot', { format: 'png' }), new Promise((ok) => setTimeout(() => ok(null), 20000))]);
+    let r = await Promise.race([send('Page.captureScreenshot', { format: 'png' }), new Promise((ok) => setTimeout(() => ok(null), 8000))]);
+    // (With the Mac's display asleep the page capture hangs: grab the game's canvas instead, in a frame after the game's.)
+    if (!r?.result?.data) {
+      const c = await send('Runtime.evaluate', { awaitPromise: true, returnByValue: true, expression: `new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(() => { try { ok(window.__ginseng.renderer.gl.domElement.toDataURL('image/png').split(',')[1]); } catch { ok(null); } })))` });
+      const data = c?.result?.result?.value;
+      if (data) r = { result: { data } };
+    }
     if (r?.result?.data) { mkdirSync(shotDir, { recursive: true }); saved = join(shotDir, `${name.replace(/[^\w.-]+/g, '_')}.png`); writeFileSync(saved, Buffer.from(r.result.data, 'base64')); }
   }
   void send('Runtime.evaluate', { expression: `window.__shotDone && window.__shotDone(${JSON.stringify(token)}, ${JSON.stringify(saved)})` });

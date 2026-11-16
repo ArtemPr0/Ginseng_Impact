@@ -46,6 +46,10 @@ export const ITEMS: Record<string, ItemDef> = {
   'lotus-tea': { id: 'lotus-tea', name: 'Lotus Tea', kind: 'consumable', desc: 'Restores 350 HP and steadies the hand: +50% attack for 20 s.', value: 10, rarity: 1, heal: 350, frenzy: 20 },
   'rot-salve': { id: 'rot-salve', name: 'Rot Salve', kind: 'consumable', desc: 'Restores 900 HP. Smells like the pot.', value: 12, rarity: 2, heal: 900 },
   // Materials
+  // What the knight's blows knock off trees, rocks and houses (world/Harvest).
+  wood: { id: 'wood', name: 'Wood', kind: 'material', desc: 'A split log. Smells of sap and moonlight.', value: 2, rarity: 1 },
+  plank: { id: 'plank', name: 'Plank', kind: 'material', desc: 'A board off somebody\'s house. Sorry.', value: 3, rarity: 1 },
+  stone: { id: 'stone', name: 'Stone', kind: 'material', desc: 'A good heavy chunk of masonry.', value: 2, rarity: 1 },
   'wisp-ember': { id: 'wisp-ember', name: 'Wisp Ember', kind: 'material', desc: 'A cold blue coal that never goes out.', value: 6, rarity: 1 },
   'rune-shard': { id: 'rune-shard', name: 'Rune Shard', kind: 'material', desc: 'A flake of carved stone, still humming.', value: 9, rarity: 1 },
   'sentinel-core': { id: 'sentinel-core', name: 'Sentinel Core', kind: 'material', desc: 'The heart-stone of a sentry. Warm.', value: 40, rarity: 2 },

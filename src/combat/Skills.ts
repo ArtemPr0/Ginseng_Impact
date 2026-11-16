@@ -80,7 +80,7 @@ export const COMBO: Record<WeaponKind, ComboDef> = {
     hits: [
       { mult: 0.9, element: null, shape: cone(2.8, 70), knockback: 0.6, hitStop: 0.03 },
       { mult: 1.0, element: null, shape: cone(2.8, 70), knockback: 0.6, hitStop: 0.03 },
-      // (The finisher spins the hero once round: it cuts all about, Juice.spinAngle.)
+      // (The finisher cuts all about.)
       { mult: 1.6, element: 'own', shape: cone(3.2, 180), knockback: 1.8, hitStop: 0.07 },
     ],
   },

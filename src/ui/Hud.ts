@@ -1,3 +1,4 @@
+import { SPELLS, SPELL_LETTERS } from '../combat/Spells';
 import type { CharacterDef } from '../characters/roster';
 import { BABBLE_CPS } from '../audio/Babble';
 import { ELEMENT_COLOR, ROSTER } from '../characters/roster';
@@ -235,8 +236,8 @@ export class Hud {
   constructor(container: HTMLElement) {
     this.root = container;
     container.innerHTML = `
-      <div class="hud-prompt" id="hud-prompt"><div class="hud-subtitle">A SILENT KINGDOM BEYOND THE FOG</div><div class="hud-wordmark">GINSENG IMPACT</div><div class="hud-press" id="hud-press">CLICK TO ENTER THE FOG</div><button type="button" class="hud-new-game" id="hud-new-game" style="display:none">NEW GAME</button>
-        <div class="hud-controls">WASD move · SHIFT sprint · SPACE jump, again to fly (hold to rise) · C dive · X land · LMB attack · hold RMB heavy · E skill · Q burst · R dodge · TAB lock on · F talk / loot · I inventory · 1 2 3 switch · ESC pause</div></div>
+      <div class="hud-prompt" id="hud-prompt"><div class="hud-subtitle">A SILENT KINGDOM BEYOND THE FOG</div><div class="hud-wordmark">GINSENG IMPACT</div><div class="hud-press" id="hud-press">CLICK TO ENTER THE FOG</div><button type="button" class="hud-new-game" id="hud-new-game" style="display:none">NEW GAME</button><button type="button" class="hud-new-game hud-quality" id="hud-quality">QUALITY: AUTO</button>
+        <div class="hud-controls">WASD move · SHIFT sprint · SPACE jump, again to fly (hold to rise) · C dive · X land · LMB attack · hold RMB heavy · E skill · Q burst · hold Z X C V to aim a spell, release to cast (RMB cancels) · G (Sir Aldric) grab a mob, LMB throw it · hold RMB on something (Orlan) lift it, release to hurl · R dodge · TAB lock on · F talk / loot · I inventory · 1 2 3 switch · ESC pause</div></div>
       <div class="hud-boss panel" id="hud-boss"><div class="hud-boss-name" id="hud-boss-name"></div><div class="hud-boss-title" id="hud-boss-title"></div><div class="hud-boss-bar"><div class="hud-boss-fill" id="hud-boss-fill"></div></div></div>
       <div class="hud-shards panel" id="hud-shards"><span class="hud-shard-glyph hud-coin">●</span><span id="hud-shards-n">0</span><span class="hud-shards-pop" id="hud-shards-pop"></span></div>
       <div class="hud-active panel"><div class="hud-name" id="hud-name"></div><div class="hud-title" id="hud-title"></div>
@@ -251,6 +252,7 @@ export class Hud {
       <div class="hud-interact" id="hud-interact"></div>
       <div class="hud-numbers" id="hud-numbers"></div>
       <div class="hud-crosshair" id="hud-crosshair"></div>
+      <div class="hud-spells" id="hud-spells"></div>
       <div class="hud-lock" id="hud-lock">${LOCK_SVG}</div>
       <div class="hud-combo" id="hud-combo"></div>
       <div class="hud-hype" id="hud-hype"></div>
@@ -258,11 +260,25 @@ export class Hud {
       <div class="hud-xp" id="hud-xp"><div class="hud-xp-fill" id="hud-xp-fill"></div><span class="hud-xp-pop" id="hud-xp-pop"></span></div>
       <div class="hud-banner" id="hud-banner"></div>
       <div class="hud-curtain" id="hud-curtain"></div>
-      <div class="hud-hint">LMB attack · RMB heavy · E skill · Q burst · R dodge · TAB lock · F interact · I bag</div>
+      <div class="hud-hint">LMB attack · RMB heavy · E skill · Q burst · hold Z X C V aim, release cast · G grab · R dodge · TAB lock · F interact · I bag</div>
       <div class="hud-quests" id="hud-quests"></div>
       <div class="hud-timer panel" id="hud-timer"><div class="hud-timer-label" id="hud-timer-label"></div><div class="hud-timer-time" id="hud-timer-time"></div></div>
       <div class="hud-panel panel" id="hud-dialog"></div>`;
     this.q('#hud-new-game')?.addEventListener?.('click', (e) => { e.stopPropagation(); this.onNewGame?.(); });
+    this.q('#hud-quality')?.addEventListener?.('click', (e) => { e.stopPropagation(); this.onQuality?.(); });
+  }
+
+  private onQuality: (() => void) | null = null;
+
+  /** The pause screen's Quality button (Auto / High / Low, core/Quality): clicked, it calls `fn`. */
+  setOnQuality(fn: () => void): void {
+    this.onQuality = fn;
+  }
+
+  /** Names the Quality mode on its button, and what Auto has picked. */
+  setQuality(mode: string, level: string): void {
+    const el = this.q('#hud-quality');
+    if (el) el.textContent = `QUALITY: ${mode.toUpperCase()}${mode === 'auto' ? ` (${level.toUpperCase()})` : ''}`;
   }
 
   /** Same handler as KeyN on the title screen. */
@@ -329,6 +345,24 @@ export class Hud {
     this.q('#hud-skill-name').textContent = name;
     this.q('#hud-skill-cd').style.setProperty('--cd', `${Math.round(cooldownFraction * 360)}deg`);
     this.q('#hud-skill').classList.toggle('ready', ready);
+  }
+
+  /**
+   * The spell bar at the top centre (2026-11-15): the active hero's four spells on Z X C V, each its code-drawn icon in
+   * its colour, the key letter, and a conic cooldown sweeping off as it comes back.
+   */
+  setSpells(hero: string, cooldowns: number[], ready: boolean[]): void {
+    const book = SPELLS[hero] ?? [];
+    // (In 6-degree steps: the bar is rebuilt at most ~60 times over a cooldown, never every frame.)
+    const deg = cooldowns.map((c) => Math.round((c * 360) / 6) * 6);
+    if (!this.changed('spells', `${hero}|${deg.join(',')}|${ready.join(',')}`)) return;
+    this.q('#hud-spells').innerHTML = book.map((s, i) => {
+      const color = `#${s.color.toString(16).padStart(6, '0')}`;
+      return `<div class="hud-spell panel${ready[i] ? ' ready' : ''}" style="--spell:${color}" title="${s.name}">`
+        + `<svg viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${s.icon}</svg>`
+        + `<div class="hud-spell-cd" style="--cd:${deg[i]}deg"></div><div class="hud-spell-key">${SPELL_LETTERS[i]}</div>`
+        + `<div class="hud-spell-name">${s.name}</div></div>`;
+    }).join('');
   }
 
   setBurst(fraction: number, ready: boolean, name?: string): void {
@@ -417,11 +451,6 @@ export class Hud {
    */
   damageNumber(x: number, y: number, value: number | string, color: number, big: boolean, targetId: number | null = null, crit = false): void {
     this.numbers.push(value, color, x, y, { big, crit, target: targetId });
-  }
-
-  /** A blow's comic word over where it struck (BONK, ZAP, KA-THOOM!), tilted and chunky. */
-  bonk(x: number, y: number, word: string, color: number): void {
-    this.numbers.push(word, color, x, y, { bonk: true });
   }
 
   /** The combo counter over the hero card ("×3"), shown from the second hit in a row; each new count pops it. */

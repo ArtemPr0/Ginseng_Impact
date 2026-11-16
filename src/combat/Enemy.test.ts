@@ -114,3 +114,14 @@ describe('dissolveEdge', () => {
     if (blood.l >= 0.5) expect(dissolveEdge('blood')).toBe(new Color(ELEMENT_COLOR.blood).getHex());
   });
 });
+
+describe('no cartoon squash (the user\'s call of 2026-11-16: realistic, not comic)', () => {
+  it('a hit leaves the body its own size', async () => {
+    const { Enemy } = await import('./Enemy');
+    const { ENEMY_DEFS } = await import('../data/enemies');
+    const e = new Enemy(ENEMY_DEFS.beast, { x: 0, z: 0 } as never, { heightAt: () => 0 } as never);
+    const s0 = e.object.scale.y;
+    e.takeDamage(1, { x: 1, z: 0 }, 6);
+    for (let i = 0; i < 6; i++) { e.update(0.02, [{ x: 30, y: 0, z: 30 }]); e.animate(0.02); expect(e.object.scale.y).toBeCloseTo(s0, 5); expect(e.object.scale.x).toBeCloseTo(s0, 5); }
+  });
+});

@@ -3,7 +3,7 @@
  * decide where things grow; this file only turns a loaded GLB into InstancedMeshes (one per mesh in the
  * file). A missing file leaves the set empty and warns once.
  */
-import { type BufferGeometry, Group, InstancedMesh, Matrix4, Object3D, type MeshStandardMaterial } from 'three';
+import { type BufferGeometry, Group, InstancedMesh, Matrix4, Mesh, Object3D, type MeshStandardMaterial } from 'three';
 import { MODELS } from '../data/models';
 import { firstMeshes, loadModelOrWarn, normaliseTransform } from '../models/ModelRig';
 import { patchWind } from '../render/Materials';
@@ -14,7 +14,22 @@ export interface Placement { x: number; y: number; z: number; yaw: number; scale
 export interface FloraSet {
   group: Group;
   update(dt: number): void;
+  /** A stand-in for instance `i` as real meshes where it stands (to shatter it), or null before the model loads. */
+  instanceObject?(i: number): Group | null;
+  /** Hides instance `i` (it broke) or shows it again (rebuilt). */
+  setHidden?(i: number, hidden: boolean): void;
 }
+
+/** The matrix of placement `p` with the model's normalising transform. */
+function placementMatrix(p: Placement, scale: number, offset: { x: number; y: number; z: number }, yaw: number, out: Matrix4): Matrix4 {
+  local.makeTranslation(offset.x, offset.y, offset.z).multiply(scaleM.makeScale(scale, scale, scale));
+  dummy.position.set(p.x, p.y, p.z);
+  dummy.rotation.set(p.pitch ?? 0, p.yaw + yaw, 0, 'YXZ');
+  dummy.scale.setScalar(p.scale);
+  dummy.updateMatrix();
+  return out.copy(dummy.matrix).multiply(local);
+}
+const ZERO = new Matrix4().makeScale(0, 0, 0);
 
 export interface FloraOptions {
   shadows?: boolean;
@@ -63,12 +78,15 @@ export function floraSet(id: string, placements: Placement[], opts: FloraOptions
   group.userData.placements = placements;
   const chunks: Chunk[] = [];
   let transform: ReturnType<typeof normaliseTransform> | null = null;
+  let parts: Array<{ geo: BufferGeometry; mat: MeshStandardMaterial }> = [];
+  /** Each placement's cell and index there. */
+  const slot = new Map<Placement, { chunk: Chunk; i: number }>();
   const def = MODELS[id];
   if (placements.length > 0) {
     void loadModelOrWarn(id, def?.label).then((gltf) => {
       if (!gltf || !def) return;
       transform = normaliseTransform(gltf.scene, def);
-      const parts = firstMeshes(gltf.scene).map((src) => {
+      parts = firstMeshes(gltf.scene).map((src) => {
         let mat = (Array.isArray(src.material) ? src.material[0] : src.material) as MeshStandardMaterial;
         if (opts.patch && mat) mat = mat.clone();
         if (opts.wind && mat && 'emissive' in mat) patchWind(mat, opts.wind);
@@ -92,6 +110,7 @@ export function floraSet(id: string, placements: Placement[], opts: FloraOptions
       const shadows = opts.shadows ?? def.height * Math.max(...placements.map((p) => p.scale)) >= SHADOW_HEIGHT;
       for (const items of cells.values()) {
         const chunk: Chunk = { items, meshes: [] };
+        items.forEach((p, i) => slot.set(p, { chunk, i }));
         for (const { geo, mat } of parts) {
           const inst = new InstancedMesh(geo, mat, items.length);
           inst.castShadow = shadows;
@@ -106,8 +125,24 @@ export function floraSet(id: string, placements: Placement[], opts: FloraOptions
     });
   }
   let t = 0;
+  const m = new Matrix4();
   return {
     group,
+    instanceObject(i) {
+      const p = placements[i];
+      if (!transform || !parts.length || !p) return null;
+      const g = new Group();
+      placementMatrix(p, transform.scale, transform.offset, transform.yaw, m).decompose(g.position, g.quaternion, g.scale);
+      for (const { geo, mat } of parts) g.add(new Mesh(geo, mat));
+      return g;
+    },
+    setHidden(i, hidden) {
+      const p = placements[i];
+      const s = p && slot.get(p);
+      if (!s || !transform) return;
+      const mat = hidden ? ZERO : placementMatrix(p, transform.scale, transform.offset, transform.yaw, m);
+      for (const mesh of s.chunk.meshes) { mesh.setMatrixAt(s.i, mat); mesh.instanceMatrix.needsUpdate = true; }
+    },
     update(dt) {
       if (!opts.update || !transform) return;
       t += dt;

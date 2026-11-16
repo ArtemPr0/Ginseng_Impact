@@ -19,7 +19,8 @@ import { type AttackTokens, EnemyBrain, type EnemyState } from './EnemyBrain';
 import type { BossAttack, BossAttackKind } from '../data/enemies';
 import { ELEMENT_COLOR, tickAura, type Aura, type Element } from './Elements';
 import { KNOCK_DECAY, lungePush, lungeRoom } from './Warnings';
-import { squash } from './Juice';
+import { weakness } from './Sever';
+import { flightStep, type Flight } from './Carry';
 
 export type EnemyAction = { kind: 'melee' } | { kind: 'boss'; attack: BossAttackKind } | null;
 
@@ -136,6 +137,9 @@ const _wq = new Quaternion();
 const _aq = new Quaternion();
 const _fq = new Quaternion();
 const _fwd = new Vector3();
+const _hq = new Quaternion();
+/** A Mixamo spine's side axis (its local x): turning about it bends the body forward. */
+const _hx = new Vector3(1, 0, 0);
 
 /** Turns `bone` about a world axis from its pose now, returning the local rotation that results (not applied). */
 function turnedAbout(bone: Object3D, axis: Vector3, angle: number, out = new Quaternion()): Quaternion {
@@ -183,6 +187,23 @@ export class Enemy {
   /** Called up by a boss: drops nothing, and leaves with its caster. */
   summoned = false;
   model: ModelRig | null = null;
+  /** Parts torn off (Gore): their bones are held shrunk to nothing after every animation step until it respawns. */
+  readonly severed: Object3D[] = [];
+  readonly lost = new Set<string>();
+  lostArms = 0;
+  /** Held up by a hero (Carry): its AI waits and whoever holds it sets `pos`. */
+  held = false;
+  /** Thrown alive (Carry): flying until it lands. */
+  thrown: Flight | null = null;
+  /** It landed from a throw at `speed` m/s (the combat system hurts it and what it lands on). */
+  onThrownLand?: (e: Enemy, speed: number) => void;
+  /** Health share the last wear check was made at (Sever.wearCrossed). */
+  wearFrom = 1;
+  private hunched: { bone: Object3D; q: Quaternion } | null = null;
+  /** The red caps where parts came off (Gore removes them when it mends the body). */
+  readonly stumps: Object3D[] = [];
+  /** Called as it respawns (Gore.mend). */
+  onRespawn?: (e: Enemy) => void;
   private placeholder: MissingModelPlaceholder | null = null;
   private lastState: EnemyState = 'idle';
   /** Animation bookkeeping: measured ground speed and direction, the one-shot clip in flight, procedural pose state. */
@@ -203,9 +224,6 @@ export class Enemy {
   private gaitPhase = Math.random() * 6;
   private lunge = 0;
   private flinch = 0;
-  /** Seconds since the last hit (its squash, Juice.squash), -1 when settled; and how hard it squashes. */
-  private hitT = -1;
-  private hitK = 0;
   /** Walking back to its spot after losing the player (it heals and ignores the player on the way). */
   returning = false;
   /** How far from its spot this enemy will follow (its def's leash, or a default by size). */
@@ -470,7 +488,8 @@ export class Enemy {
 
   /** Pace of everything it does: 1, or the slow's fraction while slowed. */
   get pace(): number {
-    return this.status.slow > 0 ? this.status.slowBy : 1;
+    const worn = this.alive ? weakness(this.hp / (this.def.maxHp * this.hpScale)).pace : 1;
+    return (this.status.slow > 0 ? this.status.slowBy : 1) * worn;
   }
 
   get state(): EnemyState {
@@ -545,6 +564,13 @@ export class Enemy {
     if (!this.alive) {
       this.deadFor += dt;
       if (this.deadFor >= this.def.respawn) this.respawn();
+      return null;
+    }
+    // Held by a hero: it kicks and waits. Thrown: it flies until it lands, then lies stunned a moment.
+    if (this.held) return null;
+    if (this.thrown) {
+      const hit = flightStep(this.thrown, this.pos, dt, (x, z) => this.world.heightAt(x, z, this.pos.y + 0.5));
+      if (hit) { this.thrown = null; this.afflict('stun', 1.4); this.onThrownLand?.(this, hit); }
       return null;
     }
     // Out of its territory (or out of this world, through a portal): walk home and heal.
@@ -815,9 +841,6 @@ export class Enemy {
     this.knock.x += kb.x * strength;
     this.knock.z += kb.z * strength;
     this.flashLeft = 0.09;
-    // The squash: harder the harder the blow; a boss's half as much.
-    this.hitT = 0;
-    this.hitK = Math.min(1, 0.45 + strength * 0.12) * (this.def.boss ? 0.5 : 1);
     // Flinch: every hit for small mobs; bosses only now and then, so their attacks are not interrupted constantly.
     if (!this.def.boss || this.time - this.lastFlinch > 3) { this.wantFlinch = true; this.flinch = 1; this.lastFlinch = this.time; }
     if (this.hp <= 0) {
@@ -835,6 +858,7 @@ export class Enemy {
 
   private respawn(): void {
     if (this.noRespawn) return;
+    this.onRespawn?.(this);
     this.returning = false;
     this.provoked = false;
     this.seatedNow = false;
@@ -844,6 +868,8 @@ export class Enemy {
     this.heap = null;
     this.toppleT = -1;
     this.yeet = null;
+    this.held = false;
+    this.thrown = null;
     this.tauntT = 0;
     this.object.rotation.x = 0;
     this.oneShot = null;
@@ -870,7 +896,6 @@ export class Enemy {
     this.brain.stateTime = 0;
     this.lastState = 'idle';
     this.object.visible = true;
-    this.hitT = -1;
     this.object.scale.setScalar(this.model || this.bubble ? 1 : this.def.scale ?? 1);
     this.model?.play('idle');
   }
@@ -938,14 +963,6 @@ export class Enemy {
     if (entered && st === 'attack') { this.lunge = 1; if (this.def.stomp) this.onStomp?.(this.pos.x, this.pos.y, this.pos.z); }
     if (m && m.hasClips) this.driveClips(m, st, entered);
     this.lastState = st;
-    // A hit squashes the body flat and it springs back, cartoon-style (Juice.squash); a killing blow's settles as it falls.
-    if (this.hitT >= 0) {
-      this.hitT += dt;
-      const sq = squash(this.hitT, this.hitK);
-      const base = this.model || this.bubble ? 1 : this.def.scale ?? 1;
-      if (this.hitT > 0.7) { this.hitT = -1; this.object.scale.setScalar(base); }
-      else this.object.scale.set(base * sq.xz, base * sq.y, base * sq.xz);
-    }
     if (!this.alive) {
       if (this.heap) this.fallApart(dt);
       else if (this.toppleT >= 0) this.toppleOver(dt);
@@ -986,6 +1003,9 @@ export class Enemy {
       this.object.rotation.x = this.lean.pitch;
       this.object.rotation.z = this.lean.roll;
     }
+    // Hanging from a fist it kicks and squirms; in the air it tumbles end over end.
+    if (this.held) { this.object.rotation.x = Math.sin(this.time * 9) * 0.18; this.object.rotation.z = Math.sin(this.time * 6.5) * 0.12; }
+    else if (this.thrown) this.object.rotation.x = this.thrown.angle;
     if (!m) { this.placeholder?.update(dt); return; }
     if (this.def.stomp && st === 'chase' && this.groundSpeed > 0.4) {
       const prev = this.stepPhase;
@@ -1001,8 +1021,22 @@ export class Enemy {
     if (!far) this.flapWings(m, dt);
     // (Far bodies still tick about once a second, so they hold a real clip pose, never the bind pose: a body whose
     // clips stand lower than its bind pose would float there.)
+    // Worn out under 30 %: bent over at the spine (restored before the mixer, so it never piles up).
+    if (this.hunched) { this.hunched.bone.quaternion.copy(this.hunched.q); this.hunched = null; }
     if (!far) m.update(dt * this.pace);
     else if ((this.farAnim += dt) > 1) { m.update(this.farAnim * this.pace); this.farAnim = 0; }
+    // A torn-off part stays gone whatever the clip does (set, not turned: nothing piles up across frames).
+    for (const b of this.severed) b.scale.setScalar(1e-4);
+    const hunch = this.alive && !far ? weakness(this.hp / (this.def.maxHp * this.hpScale)).hunch : 0;
+    if (hunch > 0) {
+      const spine = m.bone(/spine1?$/i);
+      if (spine) {
+        this.hunched = { bone: spine, q: spine.quaternion.clone() };
+        // Forward about the body's side axis, with a slow heavy breath.
+        _hq.setFromAxisAngle(_hx, hunch * (1 + Math.sin(this.time * 2.4) * 0.12));
+        spine.quaternion.multiply(_hq);
+      }
+    }
     this.lunge = Math.max(0, this.lunge - dt * 2.8);
     this.flinch = Math.max(0, this.flinch - dt * 4);
     this.animateHalo(m.height);

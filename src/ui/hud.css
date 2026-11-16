@@ -35,6 +35,7 @@ body { font-family: var(--font-body); color: var(--moon); }
   background: transparent; border: 1px solid var(--panel-border); border-radius: 2px; padding: 8px 18px;
   cursor: pointer; pointer-events: auto; animation: none;
 }
+.hud-quality { margin-top: 8px; font-size: 12px; opacity: 0.85; }
 .hud-new-game:hover { box-shadow: inset 0 0 10px rgba(79, 124, 255, 0.35); }
 .hud-controls { font-size: 12px; letter-spacing: 0.08em; color: var(--cloth); opacity: 0.8; }
 @keyframes blink { 50% { opacity: 0.2; } }
@@ -105,7 +106,7 @@ body { font-family: var(--font-body); color: var(--moon); }
 #hud:not(.locked) .hud-minimap { opacity: 0.35; }
 
 /* ---------- mechanics HUD ---------- */
-.hud-boss { position: absolute; left: 50%; top: 22px; transform: translateX(-50%); width: min(560px, 70vw); padding: 6px 14px 8px; text-align: center; display: none; }
+.hud-boss { position: absolute; left: 50%; top: 96px; transform: translateX(-50%); width: min(560px, 70vw); padding: 6px 14px 8px; text-align: center; display: none; }
 .hud-boss-name { font-family: var(--font-title); font-weight: 700; font-size: 18px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--blood); }
 .hud-boss-title { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--cloth); }
 .hud-boss-bar { height: 8px; margin-top: 6px; background: var(--void); border: 1px solid rgba(223,230,255,0.25); }
@@ -228,3 +229,13 @@ body { font-family: var(--font-body); color: var(--moon); }
   65% { transform: translate(-50%, -44%) rotate(var(--turn)) scale(1, 1.06); opacity: 0.85; }
   100% { transform: translate(-50%, -38%) rotate(var(--turn)) scale(1, 1.1); opacity: 0; }
 }
+
+/* The spell bar (Z X C V), top centre; the boss bar sits just under it. */
+.hud-spells { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); display: flex; gap: 10px; pointer-events: none; }
+.hud-spell { position: relative; width: 58px; height: 58px; border-radius: 12px; display: flex; align-items: center; justify-content: center; overflow: hidden; opacity: 0.72; transition: opacity 120ms, box-shadow 120ms; }
+.hud-spell.ready { opacity: 1; box-shadow: 0 0 10px -2px var(--spell), inset 0 0 8px -4px var(--spell); }
+.hud-spell svg { width: 32px; height: 32px; filter: drop-shadow(0 0 3px var(--spell)); }
+.hud-spell-cd { position: absolute; inset: 0; background: conic-gradient(rgba(6,10,34,0.82) var(--cd, 0deg), transparent 0); pointer-events: none; }
+.hud-spell-key { position: absolute; left: 5px; top: 3px; font-family: var(--font-title); font-size: 11px; color: var(--cloth); text-shadow: 0 0 3px #000; }
+.hud-spell-name { position: absolute; left: 50%; bottom: -15px; transform: translateX(-50%); white-space: nowrap; font-size: 9px; letter-spacing: 0.06em; color: var(--cloth); opacity: 0; }
+.hud-spell.ready:hover .hud-spell-name { opacity: 0.8; }

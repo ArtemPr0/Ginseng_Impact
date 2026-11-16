@@ -1,4 +1,12 @@
-import { Color, DirectionalLight, FogExp2, HemisphereLight, type Object3D, PerspectiveCamera, Scene, Vector3 } from 'three';
+import { CameraBob } from './render/CameraBob';
+import { AimHold, aimPoint, AIM_RANGE, aimShape, SpellBuffer, spellRange } from './combat/Aim';
+import { SPELL_KEYS, SPELLS, spellSlot } from './combat/Spells';
+import { AimPreview } from './render/AimPreview';
+import { Color, DirectionalLight, FogExp2, Frustum, HemisphereLight, Matrix4, type Object3D, PerspectiveCamera, Scene, Sphere, Vector3 } from 'three';
+import { HarvestLedger, harvestOf } from './world/Harvest';
+import { Ejecta } from './render/Ejecta';
+import { AutoQuality, nextMode, pickMode, QUALITY_KEY, settingsFor, type QualityLevel, type QualityMode } from './core/Quality';
+import { WorkerFracturer } from './world/FractureObject';
 import { Bubbles } from './world/Portal';
 import { LightBudget } from './render/LightBudget';
 import { loadModel, ModelRig, yawToRotation } from './models/ModelRig';
@@ -107,6 +115,13 @@ scene.add(bubbles.group);
 // (Twelve ground warnings: a snowstorm lays four, a cup volley three, and two mobs and a boss may wind up at once.)
 const combatFx = new CombatFx({ telegraphs: 12 });
 scene.add(combatFx.group);
+const aimHold = new AimHold();
+const spellBuffer = new SpellBuffer();
+const aimPreview = new AimPreview((x, z, y) => world.heightAt(x, z, y));
+scene.add(aimPreview.group);
+/** Clods of earth thrown out of fresh craters (Ejecta). */
+const ejecta = new Ejecta((x, z, y) => world.heightAt(x, z, y));
+scene.add(ejecta.group);
 const fogTarget = new Color();
 let portalCooldown = 0;
 
@@ -196,6 +211,61 @@ let wasBouncing = false;
 let wasDriving = false;
 rigs[party.activeIndex].root.visible = rigs[party.activeIndex].trailObject.visible = true;
 const tpc = new ThirdPersonCamera(camera, world);
+/** What the people of a building say when it comes down on them. */
+const COLLAPSE_YELLS = ['MY HOUSE!', 'Oi! I live there!', 'Who pays for that?!', 'That was load-bearing!', 'Not again...', 'I just swept in there!', 'Rude!', 'You owe me a roof.'];
+// Things breaking (Breakables): a crack and a crumble by size and distance, dust where it breaks, a shake when a building comes down.
+{
+  const near = (x: number, z: number) => Math.max(0, 1 - Math.hypot(x - controller.pos.x, z - controller.pos.z) / 70);
+  const harvested = new HarvestLedger();
+  area.breakables.onRebuild = (b) => harvested.reset(b);
+  area.breakables.onBreak = (b, x, y, z, n) => {
+    audio.crumble(Math.min(1, b.target.size / 40) * Math.min(1, n / 4), near(x, z));
+    combatFx.dust(new Vector3(x, y, z), 1 + Math.min(2.5, n * 0.4));
+    // Sir Aldric's blows knock wood, planks and stone loose (Harvest): a few pieces at his feet.
+    if (ROSTER[party.activeIndex].id === 'knight' && Math.hypot(x - controller.pos.x, z - controller.pos.z) < 7) {
+      const h = harvestOf(b.target.material, !!b.target.tree, b.target.size, n, !!b.target.brief);
+      if (h && harvested.take(b, performance.now() / 1000)) combat.loot.spawn([{ kind: 'item', itemId: h.itemId, count: h.count }], new Vector3(x, Math.max(y, controller.pos.y + 0.6), z));
+    }
+  };
+  area.breakables.onCollapse = (b) => {
+    const k = near(b.x, b.z);
+    audio.crumble(Math.min(1, b.target.size / 25), k);
+    tpc.shake(Math.min(1, b.target.size / 30) * k);
+    // A cloud rising from the base all round, as wide as the thing.
+    const base = b.target.object.getWorldPosition(new Vector3()).y;
+    const puffs = Math.min(10, 2 + Math.round(b.target.size / 5));
+    for (let i = 0; i < puffs; i++) {
+      const a = (i / puffs) * Math.PI * 2, d = b.r * (0.4 + Math.random() * 0.5);
+      combatFx.dust(new Vector3(b.x + Math.cos(a) * d, base + 0.5, b.z + Math.sin(a) * d), Math.min(5, 1.2 + b.target.size * 0.1));
+    }
+    // The people of the place yell at you and run out (it stands again within a minute: Breakables.REBUILD_S.quick).
+    if (b.target.size < 3) return;
+    for (const n of area.npcs) {
+      if (n.hidden || Math.hypot(n.pos.x - b.x, n.pos.z - b.z) > b.r + 4) continue;
+      n.bubble(COLLAPSE_YELLS[Math.floor(Math.random() * COLLAPSE_YELLS.length)], 3);
+      n.flee({ x: b.x, z: b.z }, b.r);
+    }
+  };
+  // Rubble landing: dust where it hits, a thud by its size. A wall giving way: a crack and dust off it.
+  area.breakables.onLand = (x, y, z, size) => {
+    combatFx.dust(new Vector3(x, y, z), 0.4 + size * 1.6);
+    if (size > 0.25) audio.crumble(Math.min(0.5, size * 0.4), near(x, z) * 0.7);
+  };
+  area.breakables.onFail = (x, y, z, size) => {
+    if (Math.random() < 0.35) combatFx.dust(new Vector3(x, y, z), 0.5 + size);
+  };
+  // Rebuilds wait until the spot is out of the camera's view.
+  const frustum = new Frustum(), m4 = new Matrix4(), sphere = new Sphere();
+  area.breakables.inView = (x, z, r) => {
+    m4.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    frustum.setFromProjectionMatrix(m4);
+    return frustum.intersectsSphere(sphere.set(new Vector3(x, area.heights.heightAt(x, z) + r * 0.5, z), r));
+  };
+  // Buildings are cut into their pieces off the main thread, ahead of time as the hero comes near.
+  try {
+    area.breakables.fracturer = new WorkerFracturer(new Worker(new URL('./world/FractureWorker.ts', import.meta.url), { type: 'module' }));
+  } catch { /* (no workers: cut on the spot) */ }
+}
 const camParam = new URLSearchParams(location.search).get('cam')?.split(',').map(Number).filter((n) => Number.isFinite(n));
 // `?face=x,z` (debug) aims the camera from the spawn toward a world point.
 const faceParam = new URLSearchParams(location.search).get('face')?.split(',').map(Number);
@@ -230,6 +300,27 @@ Npc.sound = { voice: (url, gain, channel) => audio.voice(url, gain, channel), sl
 // (Rig.sound.slurp is Sir Aldric's own cup of lean: the hero's sip is a feat.)
 Rig.sound = { slurp: (gain) => { audio.slurp(gain); events.emit({ kind: 'feat', what: 'sip' }); }, rustle: () => audio.rustle(), munch: () => audio.munch() };
 const lightBudget = new LightBudget(scene, 6);
+// Quality (core/Quality): Auto / High / Low from the pause screen, ?quality= in the URL, kept in localStorage.
+let qualityMode: QualityMode = pickMode(location.search, (() => { try { return localStorage.getItem(QUALITY_KEY); } catch { return null; } })());
+const autoQuality = new AutoQuality();
+let qualityLevel: QualityLevel | null = null;
+function applyQuality(): void {
+  const level: QualityLevel = qualityMode === 'auto' ? autoQuality.level : qualityMode;
+  hud.setQuality(qualityMode, level);
+  if (level === qualityLevel) return;
+  qualityLevel = level;
+  const q = settingsFor(level);
+  renderer.setMaxRatio(q.maxRatio);
+  lightBudget.setLimit(q.lights);
+  area.breakables.sim.maxActive = q.debris;
+  area.breakables.variants = q.variants;
+}
+hud.setOnQuality(() => {
+  qualityMode = nextMode(qualityMode);
+  try { localStorage.setItem(QUALITY_KEY, qualityMode); } catch { /* private window: this session only */ }
+  applyQuality();
+});
+applyQuality();
 lightBudget.collect(scene);
 
 const progress = new Progress();
@@ -242,6 +333,7 @@ let shopClock = 0;
 let playTime = 0;
 const openedAt = new Map<string, number>();
 let freshStart = false;
+const cameraBob = new CameraBob();
 const combat = new CombatSystem({
   scene, world, sky, hud, camera, game, audio, inventory, controller, party, spawn: SPAWN, events, fx: combatFx,
   onForceSwitch: (i) => { party.update(Party.cooldown); switchTo(i); },
@@ -252,6 +344,31 @@ const combat = new CombatSystem({
   weaponTips: (guard, tip) => rigs[party.activeIndex].weaponTips(guard, tip),
   onTrip: (strength, seconds) => renderer.trip(strength, seconds),
   onInk: () => inkSplat.splash(),
+  breakAt: (x, y, z, radius, kind) => area.breakables.damageAt(x, y, z, radius, kind),
+  dig: (x, z, r, depth, scorch) => {
+    if (depth > 0 && area.craters.crater(x, z, r, depth)) ejecta.spawn(x, world.heightAt(x, z), z, r, depth);
+    if (scorch) area.craters.scorch(x, z, r * 1.1, scorch);
+  },
+  // Spells land where the crosshair meets the ground (at most 25 m off; Aim.ts).
+  aim: () => spellAim().at,
+  debris: () => [area.breakables.sim, ejecta.sim],
+  // A house, a stall, a tree or a rock under the crosshair that Orlan can tear up whole (not a castle, not a flower).
+  building: (x, z) => {
+    let best: { x: number; y: number; z: number; r: number } | null = null, bd = Infinity;
+    for (const b of area.breakables.near(x, z, 8)) {
+      if (b.state !== 'intact' || b.target.brief || b.target.size < 1 || b.target.size >= 12) continue;
+      const d = Math.hypot(b.x - x, b.z - z) - b.r;
+      if (d < 1.5 && d < bd) { bd = d; best = { x: b.x, y: b.target.object.getWorldPosition(new Vector3()).y, z: b.z, r: b.r }; }
+    }
+    return best;
+  },
+  lights: { flash: (at, c, i, d, s) => lightBudget.flash(at, c, i, d, s), hold: (c, i, d) => lightBudget.hold(c, i, d) },
+  sprout: (ids) => area.sprout(ids),
+  solid: (x, z, r, top) => {
+    const f = { kind: 'cyl' as const, x, z, r, top };
+    world.add(f);
+    return () => world.remove(f);
+  },
   onKill: (kind) => {
     adventures.quests.kill(kind);
     const foe = ENEMY_DEFS[kind as keyof typeof ENEMY_DEFS];
@@ -733,14 +850,18 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
 });
 
+const HARVEST = new Set(['wood', 'plank', 'stone']);
+
 /** An item on the ground becomes the hero's: it flies in, chimes by rarity (a jackpot for the rare ones), is announced. */
 function takeItem(pickup: Pickup): void {
   if (pickup.drop.kind !== 'item') return;
   const def = ITEMS[pickup.drop.itemId];
   combat.loot.take(pickup);
-  inventory.add(def.id, 1);
+  const n = Math.max(1, pickup.drop.count);
+  inventory.add(def.id, n);
   if (def.rarity >= 3) { audio.jackpot(); hud.hype(def.rarity >= 4 ? 'JACKPOT' : 'Ooh, shiny', def.rarity + 1); renderer.pulse(0.35); } else audio.loot(def.rarity);
-  hud.announce(`${def.name}`);
+  // (The harvest counts up: "Wood ×3 · 17 in the bag".)
+  hud.announce(n > 1 || HARVEST.has(def.id) ? `${def.name} ×${n} · ${inventory.count(def.id)} in the bag` : `${def.name}`);
   events.emit({ kind: 'loot', item: def.id, rarity: def.rarity });
 }
 
@@ -820,14 +941,42 @@ game
       if (input.locked && input.justPressed('KeyF')) pressF();
       // Tab: lock on to the nearest enemy in front of the camera, or let go.
       if (input.locked && input.justPressed('Tab')) combat.toggleLock(tpc.forward(lookAhead));
+      // Spells: hold Z X C V to aim (the landing shows on the ground), release to cast, right mouse or Esc cancels.
+      if (input.locked) for (const k of SPELL_KEYS) {
+        if (!input.justPressed(k)) continue;
+        const s = spellSlot(k, controller.mode === 'fly');
+        if (s !== null && combat.spells.ready(party.active.id, s)) aimHold.press(s);
+      }
+      const aimingSlot = aimHold.slot;
+      const castSlot = aimHold.update(dt, aimingSlot !== null && input.isDown(SPELL_KEYS[aimingSlot]), !input.locked || input.mouseJustPressed(2) || input.justPressed('Escape'));
+      const released = castSlot;
+      if (released !== null) spellBuffer.push(released);
+      const trySpell = spellBuffer.peek(dt);
+      const castsBefore = combat.spellsCast;
+      // (A right-click that cancelled an aim is not a heavy: not while held, not on its release.)
+      const heavyOk = aimHold.heavyOk(true);
+      aimHold.heavyOk(input.mouseDown(2));
+      if (aimHold.aiming) {
+        const def = SPELLS[party.active.id]?.[aimHold.slot!];
+        const shape = def ? aimShape(def.id, def.radius) : { kind: 'none' as const };
+        const fwd = tpc.forward(new Vector3());
+        const fl = Math.hypot(fwd.x, fwd.z) || 1;
+        if (shape.kind === 'ring') {
+          const a = spellAim(spellRange(def!.id));
+          aimPreview.show(shape, a.at.x, a.at.y, a.at.z, { x: fwd.x / fl, z: fwd.z / fl }, def!.color, a.far, dt);
+        } else aimPreview.show(shape, controller.pos.x, controller.pos.y, controller.pos.z, { x: fwd.x / fl, z: fwd.z / fl }, def?.color ?? 0xffffff, false, dt);
+      } else aimPreview.hide();
       combat.update(dt, {
         attack: input.locked && input.mouseJustPressed(0),
-        heavyHeld: input.locked && input.mouseDown(2),
-        heavyRelease: input.locked && input.mouseJustReleased(2),
+        heavyHeld: input.locked && input.mouseDown(2) && aimingSlot === null && heavyOk,
+        heavyRelease: input.locked && input.mouseJustReleased(2) && heavyOk,
         skill: input.locked && input.justPressed('KeyE'),
+        spell: trySpell,
         burst: input.locked && input.justPressed('KeyQ'),
         dodge: input.locked && input.justPressed('KeyR'),
+        grab: input.locked && input.justPressed('KeyG'),
       });
+      if (combat.spellsCast !== castsBefore) spellBuffer.done();
       const move = input.locked && !combat.busy && combat.charging === 0 ? tpc.moveToWorld(input.moveAxis()) : { x: 0, z: 0 };
       const space = input.locked && input.justPressed('Space');
       adventures.update(dt);
@@ -842,7 +991,7 @@ game
       hoardGlints.update(dt);
       if (resumed) save.tick(dt, snapshot);
       if (input.locked) { audio.score.zone(placeZone()); ambience.zone(placeZone(), dt); }
-      controller.speedScale = combat.webbed > 0 ? 0 : combat.slowed > 0 ? 0.6 : combat.mired > 0 ? 0.55 : 1;
+      controller.speedScale = (combat.webbed > 0 ? 0 : combat.slowed > 0 ? 0.6 : combat.mired > 0 ? 0.55 : 1) * combat.carry.carrySlow;
       if (adventures.riding) { if (space) adventures.leaveBoat(); }
       // Driving the carriage: W/S and A/D take the reins, Space climbs down.
       else if (CARRIAGE.driving) {
@@ -961,11 +1110,17 @@ game
         hurt: combat.hurtState,
         dodge: combat.dodgeState,
         dead: combat.dead,
+        holding: combat.carry.hand ? Math.min(1, combat.carry.hand.t / 0.2) : 0,
       }, animDt);
       lastClimbY = controller.pos.y;
       // Benched party members are hidden: no need to animate them (companions animate in the fixed step, which hit-stop pauses).
       combat.render(animDt);
-      lightBudget.update(playerPos);
+      lightBudget.update(playerPos, dt);
+      ejecta.update(dt);
+      if (qualityMode === 'auto' && autoQuality.level === 'high' && autoQuality.update(dt, renderer.frameTime, renderer.atMinRatio) === 'low') {
+        applyQuality();
+        hud.announce('Quality lowered for a smoother frame rate (ESC to change)');
+      }
       focus.set(drawPos.x, drawPos.y + 1.4, drawPos.z);
       if (!input.locked && hud.panel === 'none') {
         if (REALMS.some((r) => Math.hypot(drawPos.x - r.x, drawPos.z - r.z) < r.radius)) {
@@ -1000,6 +1155,8 @@ game
         if (!wasLocked) { endOrbit(); tpc.snapTo(focus); wasLocked = true; }
         // Locked on: the camera eases round to keep the hero and the target in frame (not during the plaza concert).
         if (ending.phase !== 'concert' && ending.phase !== 'awaken') tpc.update(focus, dt, combat.lockPoint(lockAt));
+        // A gentle bob with each step on the ground (CameraBob).
+        camera.position.y += cameraBob.step(dt, controller.mode === 'ground' && !combat.busy ? Math.hypot(controller.vel.x, controller.vel.z) : 0);
         // `?cam=x,y,z` (debug) pins the camera at a world position looking at the `face` point.
         if (camParam) { camera.position.set(camParam[0], camParam[1], camParam[2]); const fx = faceParam ? faceParam[0] : SPAWN.x; const fz = faceParam ? faceParam[1] : SPAWN.z; camera.lookAt(fx, world.heightAt(fx, fz) + 1.2, fz); }
         // Sizzlin' Slowness: the world leans a little and sways while the lean has hold of you.
@@ -1124,3 +1281,13 @@ declare global {
   }
 }
 window.__ginseng = { models: { load: loadModel, ModelRig, MODELS }, groundOnly: (x: number, z: number) => area.ground.heightAt(x, z), loadSave: () => { const s = save.load(); if (s) applySave(s); return !!s; }, snapshot, scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, fx: combatFx, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs, events, ending, save, progress, realms: REALMS, teleport, carriage: CARRIAGE, worldState, story };
+
+/** Where the crosshair meets the ground, at most AIM_RANGE metres off (`far`: it was clamped to that edge). */
+function spellAim(range = AIM_RANGE): { at: Vector3; far: boolean } {
+  const dir = camera.getWorldDirection(new Vector3());
+  const p = aimPoint(camera.position, dir, (x, z, y) => world.heightAt(x, z, y));
+  const dx = p.x - controller.pos.x, dz = p.z - controller.pos.z, d = Math.hypot(dx, dz);
+  let far = false;
+  if (d > range) { far = true; p.x = controller.pos.x + (dx / d) * range; p.z = controller.pos.z + (dz / d) * range; p.y = world.heightAt(p.x, p.z, controller.pos.y + 3); }
+  return { at: new Vector3(p.x, p.y, p.z), far: far || d > range - 0.5 };
+}
