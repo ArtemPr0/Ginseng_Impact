@@ -282,9 +282,10 @@ export class FireTornadoFx {
     };
     const shells: Array<[number, number, number, number, number]> = [
       // radius scale, height scale, heat, brightness, spin
-      [1, 1, 0.95, 0.62, 2.4],
-      [0.72, 0.94, 1.1, 0.68, -3.1],
-      [0.42, 0.85, 1.3, 0.8, 3.8],
+      // (They add up: together about 1.5x the fire's colour, so the column glows without hazing the frame.)
+      [1, 1, 0.95, 0.42, 2.4],
+      [0.72, 0.94, 1.1, 0.48, -3.1],
+      [0.42, 0.85, 1.3, 0.6, 3.8],
     ];
     shells.forEach(([k, hk, heat, i, spin], n) => {
       const m = additive(FIRE_V, FIRE_F, { uT: { value: 0 }, uSeed: { value: n * 1.7 }, uHeat: { value: heat }, uI: { value: i }, uSpin: { value: spin } });

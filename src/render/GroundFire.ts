@@ -46,9 +46,14 @@ void main() {
   body *= 1.0 - smoothstep(0.55, 1.0, y + (n - 0.5) * 0.35);
   body *= smoothstep(0.0, 0.08, y);
   if (body <= 0.002) discard;
+  // Hot down the middle, cooling to orange and deep red toward the licking edges (a solid pale tongue reads as a cone).
+  float core = 1.0 - smoothstep(0.0, w * 0.7, abs(x) + (n - 0.5) * 0.3);
   float heat = clamp(1.0 - y * 1.25 + (n - 0.5) * 0.3, 0.0, 1.0);
+  heat *= 0.35 + 0.65 * core;
+  // Ragged and see-through toward its edges.
+  float a = body * (0.45 + 0.55 * core) * (0.75 + 0.5 * n);
   vec3 col = heat > 0.6 ? mix(vec3(1.0, 0.45, 0.08), vec3(1.0, 0.9, 0.62), (heat - 0.6) / 0.4) : mix(vec3(0.6, 0.08, 0.02), vec3(1.0, 0.45, 0.08), heat / 0.6);
-  gl_FragColor = vec4(col * body * (0.75 + heat * 1.0), body);
+  gl_FragColor = vec4(col * a * (0.45 + heat * 0.75), a);
 }`;
 
 export interface FireTongue {

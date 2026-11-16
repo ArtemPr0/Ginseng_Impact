@@ -39,3 +39,17 @@ describe('GroundFires (v12: the reel\'s fires left burning after a blast)', () =
     expect(f.list().every((t) => t.x > 15)).toBe(true);
   });
 });
+
+describe('GroundFires light (critic round 2: the fires read as pale cones and hazed the frame)', () => {
+  const frag = (new GroundFires(10).mesh.material as unknown as { fragmentShader: string }).fragmentShader;
+  it('each tongue has a hot core down its middle and darker orange-red edges, not one solid pale shape', () => {
+    expect(frag).toMatch(/float core\s*=/);
+    expect(frag).toMatch(/heat\s*\*=?\s*.*core|core\s*\*\s*heat/);
+  });
+  it('shines at most about its own colour (the bloom glows, it does not haze the frame)', () => {
+    const m = /\* \(([0-9.]+) \+ heat \* ([0-9.]+)\)/.exec(frag);
+    expect(m).not.toBeNull();
+    expect(Number(m![1]) + Number(m![2])).toBeLessThanOrEqual(1.25);
+  });
+});
+

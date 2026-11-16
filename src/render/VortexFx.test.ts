@@ -65,3 +65,14 @@ describe('FireTornadoFx', () => {
     expect(tilts.size).toBeGreaterThan(2);
   });
 });
+
+describe('FireTornadoFx light (critic round 2: its three additive shells hazed the frame orange-white)', () => {
+  it('the shells together shine no brighter than about one and a half times their colour', () => {
+    const fx = new FireTornadoFx(0xff6a1a);
+    let sum = 0;
+    fx.group.traverse((o) => { if (/^shell\d$/.test(o.name)) sum += ((o as Mesh).material as unknown as { uniforms: { uI: { value: number } } }).uniforms.uI.value; });
+    expect(sum).toBeGreaterThan(0.8);
+    expect(sum).toBeLessThanOrEqual(1.6);
+  });
+});
+
