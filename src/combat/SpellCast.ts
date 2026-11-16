@@ -74,7 +74,7 @@ interface Tornado {
 interface Plant { obj: Group; to: number; t: number; grow: number; life: number; remove?: () => void }
 interface Rooted { e: Enemy; left: number; tick: number }
 interface Slam { at: Vector3; t: number }
-interface Charge { left: number; dir: { x: number; z: number }; hit: Set<number> }
+interface Charge { left: number; dir: { x: number; z: number }; hit: Set<number>; tear?: number }
 
 /** The reel's stacked circles: how many over each spell's target, and how high the top one stands. */
 const RUNE_STACK: Partial<Record<string, { stack: number; height: number }>> = {
@@ -102,6 +102,13 @@ const UP = new Vector3(0, 1, 0);
 
 function ground(p: Vector3, h: SpellHost): Vector3 { p.y = h.heightAt(p.x, p.z, p.y + 2); return p; }
 
+
+/** How big each bar skill's landing is (metres round, fires left, blocks torn off, smoke share). */
+const SKILL_IMPACT = {
+  star: { r: 1.8, fires: 3, tear: 5, smoke: 0.8 },
+  crescent: { r: 1.6, fires: 0, tear: 8, smoke: 0.6 },
+  arrow: { r: 0.6, fires: 0, tear: 2, smoke: 0.3 },
+} as const;
 
 export class SpellCast {
   readonly runes = new RuneCircles();
@@ -376,6 +383,8 @@ export class SpellCast {
         h.fx.flash(_v.set(at.x, at.y + 0.6, at.z), _c.set(s.color), s.radius);
         h.fx.shock(at, 0xd8fbff, s.radius * 1.3, 0.6);
         h.fx.sparks(_v, UP, 30, 0xeaffff, 5, 1.0);
+        // A burst of freezing mist rolling out over the frozen ground.
+        this.impact(at, 0xd8fbff, s.radius * 0.7, { tear: 4 });
         h.dig(at.x, at.z, s.radius, 0, 'frozen');
         h.shake(0.3);
         h.audio.spell('frost');
@@ -402,6 +411,7 @@ export class SpellCast {
           from = to;
         }
         h.fx.flash(_v.set(at.x, at.y + 1, at.z), _c.set(0xffffff), 4);
+        this.impact(at, 0xcfd8ff, s.radius, { fires: 4, tear: 6 });
         h.dig(at.x, at.z, 1.6, 0.3, 'burnt');
         h.smash(at.x, at.y + 0.8, at.z, 2, 'spell');
         h.shake(0.45);
@@ -432,6 +442,7 @@ export class SpellCast {
     h.dig(at.x, at.z, s.radius + 1, 0, 'burnt');
     // Rocks thrown up out of the crater.
     for (const sim of h.debris()) sim.blast(at.x, at.y, at.z, s.radius + 2, 9);
+    h.tear?.(at.x, at.z, s.radius + 1.5, 24);
     // Slabs of stone burst up round it, leaning out, and break up a few seconds later.
     const src = this.wallStone();
     if (src) {
@@ -451,6 +462,9 @@ export class SpellCast {
     const ax = c.pos.x + ch.dir.x * 1.6, az = c.pos.z + ch.dir.z * 1.6;
     // Through walls: what is just ahead breaks first, so the rush carries on through the hole.
     h.smash(ax, c.pos.y + 1, az, s.radius, 'burst');
+    // Blocks burst off the walls he rams through (every tenth of a second).
+    ch.tear = (ch.tear ?? 0) - dt;
+    if (ch.tear <= 0) { ch.tear = 0.1; h.tear?.(ax, az, s.radius + 0.5, 6); }
     h.fx.dust(_v.set(c.pos.x, c.pos.y, c.pos.z), 0.8);
     h.fx.sparks(_v.set(c.pos.x, c.pos.y + 1, c.pos.z), _w.set(-ch.dir.x, 0.3, -ch.dir.z), 4, s.color, 5, 0.5);
     for (const e of h.enemies.slice()) {
@@ -509,12 +523,31 @@ export class SpellCast {
     for (let k = 1; k <= 3; k++) {
       const x = c.pos.x + fx * k * 3, z = c.pos.z + fz * k * 3;
       h.smash(x, c.pos.y + 1, z, 1.2 + k * 0.6, 'heavy');
+      // The wind rips the blocks off whatever stands in its cone, and they fly with it (the push below).
+      h.tear?.(x, z, 1.5 + k * 0.7, 3 + k * 2);
       h.fx.dust(_v.set(x, c.pos.y + 0.3, z), 1 + k * 0.3);
       h.fx.sparks(_v.set(x, c.pos.y + 1, z), _w.set(fx, 0.15, fz), 10, s.color, 12, 0.35);
     }
     for (const sim of h.debris()) sim.push(c.pos.x + fx * 5, c.pos.z + fz * 5, 6, (p) => { p.vx += fx * 14; p.vz += fz * 14; p.vy += 4; sim.wake(p); });
     h.shake(0.35);
     h.audio.spell('wind');
+  }
+
+  /**
+   * A spell hit lands as the reel's blast (v12): a billowing cloud `r` metres round in `color` (white-hot through the
+   * colour to smoke), `fires` flames left burning, `tear` blocks torn off anything standing there.
+   */
+  impact(at: Vector3, color: number, r: number, o: { fires?: number; tear?: number; smoke?: number } = {}): void {
+    const h = this.h;
+    this.explosions.burst(at, r * 1.5, { hot: color, smoke: o.smoke });
+    if (o.fires) this.fires.ignite(at, r * 0.8, o.fires, (x, z) => h.heightAt(x, z, at.y + 2));
+    if (o.tear) h.tear?.(at.x, at.z, r * 1.2, o.tear);
+  }
+
+  /** Where a bar skill's shot lands (CombatSystem's projectiles): a falling star, the crescent breaking, a volley arrow. */
+  skillImpact(kind: 'star' | 'crescent' | 'arrow', at: Vector3, color: number): void {
+    const k = SKILL_IMPACT[kind];
+    this.impact(at, color, k.r, { fires: k.fires, tear: k.tear, smoke: k.smoke });
   }
 
   /** The Meshy dry-stone wall cut into blocks (null while its model loads). */
@@ -796,6 +829,9 @@ export class SpellCast {
       e.afflict('stun', 3);
       this.rooted.push({ e, left: 3, tick: 0 });
     }
+    // The roots heave up through anything built there, prising its blocks loose; earth bursts out round them.
+    h.tear?.(at.x, at.z, s.radius, 10);
+    for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; h.fx.dust(_v.set(at.x + Math.cos(a) * s.radius * 0.6, at.y + 0.2, at.z + Math.sin(a) * s.radius * 0.6), 1.1); }
     h.fx.shock(at, s.color, s.radius * 1.4, 0.8);
     h.fx.flash(_v.set(at.x, at.y + 0.5, at.z), _c.set(s.color), 3);
     h.fx.sparks(_v, UP, 30, s.color, 4, 0.8);

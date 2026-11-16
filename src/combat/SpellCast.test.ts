@@ -236,3 +236,96 @@ describe('SpellCast Earthsplitter (v12: slabs of stone burst up round where he l
     expect(sim.pieces.length).toBeGreaterThanOrEqual(10);
   });
 });
+
+describe('SpellCast.impact (v12: every spell hit lands as the reel\'s blast)', () => {
+  it('a hot impact billows, tears blocks loose and leaves fires', () => {
+    const tears: number[] = [];
+    const { host } = fakeHost({ tear: (_x, _z, _r, n) => { tears.push(n); return n; } });
+    const sc = new SpellCast(host);
+    sc.impact(new Vector3(0, 0, 5), 0xffd27a, 2, { fires: 4, tear: 5 });
+    sc.update(0.1);
+    expect(sc.explosions.live).toBeGreaterThan(15);
+    expect(sc.fires.live).toBe(4);
+    expect(tears).toEqual([5]);
+  });
+  it('a cold one billows without fires', () => {
+    const { host } = fakeHost();
+    const sc = new SpellCast(host);
+    sc.impact(new Vector3(0, 0, 5), 0x7fe8ff, 2);
+    sc.update(0.1);
+    expect(sc.explosions.live).toBeGreaterThan(15);
+    expect(sc.fires.live).toBe(0);
+  });
+});
+
+describe('SpellCast older spells use the v12 blasts', () => {
+  const run = (hero: string, slot: number, over: Partial<SpellHost> = {}) => {
+    const tears: number[] = [];
+    const { host } = fakeHost({ tear: (_x, _z, _r, n) => { tears.push(n); return n; }, ...over });
+    const sc = new SpellCast(host);
+    sc.cast(hero, slot, new Vector3(0, 0, 10));
+    for (let i = 0; i < 12; i++) sc.update(0.1);
+    return { sc, tears };
+  };
+  it('storm arrow: a blast and a few fires where the bolt strikes', () => {
+    const { sc } = run('archer', 2);
+    expect(sc.explosions.live).toBeGreaterThan(15);
+    expect(sc.fires.live).toBeGreaterThanOrEqual(3);
+  });
+  it('frost arrow: an icy burst, nothing burning', () => {
+    const { sc } = run('archer', 1);
+    expect(sc.explosions.live).toBeGreaterThan(15);
+    expect(sc.fires.live).toBe(0);
+  });
+  it('gale shot tears blocks loose down its cone', () => {
+    const { tears } = run('archer', 3);
+    expect(tears.length).toBeGreaterThanOrEqual(3);
+  });
+  it('wrecking charge tears blocks loose along its rush', () => {
+    const { tears } = run('knight', 1);
+    expect(tears.length).toBeGreaterThanOrEqual(2);
+  });
+  it('earthsplitter tears the blocks off what it lands by', () => {
+    const { tears } = run('knight', 0);
+    expect(tears.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('SpellCast.skillImpact (the 1-2 slot skills land as v12 blasts)', () => {
+  const at = new Vector3(0, 0, 5);
+  const one = (kind: Parameters<SpellCast['skillImpact']>[0]) => {
+    const tears: number[] = [];
+    const { host } = fakeHost({ tear: (_x, _z, _r, n) => { tears.push(n); return n; } });
+    const sc = new SpellCast(host);
+    sc.skillImpact(kind, at, 0xff3a4a);
+    sc.update(0.1);
+    return { sc, tears };
+  };
+  it('a falling star: a blast, a couple of fires, blocks off', () => {
+    const { sc, tears } = one('star');
+    expect(sc.explosions.live).toBeGreaterThan(15);
+    expect(sc.fires.live).toBeGreaterThanOrEqual(2);
+    expect(tears[0]).toBeGreaterThan(0);
+  });
+  it('the crescent breaking: a blast and blocks off, no fire (it burns its own ground)', () => {
+    const { sc, tears } = one('crescent');
+    expect(sc.explosions.live).toBeGreaterThan(15);
+    expect(sc.fires.live).toBe(0);
+    expect(tears[0]).toBeGreaterThan(0);
+  });
+  it('a volley arrow: a small puff, a block or two', () => {
+    const { sc, tears } = one('arrow');
+    expect(sc.explosions.live).toBeGreaterThan(0);
+    expect(sc.explosions.live).toBeLessThanOrEqual(40);
+    expect(tears[0]).toBeGreaterThan(0);
+  });
+});
+
+describe('SpellCast overgrowth (v12)', () => {
+  it('its roots prise blocks off anything built where it grows', () => {
+    const tears: number[] = [];
+    const { host } = fakeHost({ tear: (_x, _z, _r, n) => { tears.push(n); return n; } });
+    new SpellCast(host).cast('wizard', 3, new Vector3(0, 0, 8));
+    expect(tears.length).toBe(1);
+  });
+});

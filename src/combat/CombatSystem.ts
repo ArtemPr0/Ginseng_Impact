@@ -1373,12 +1373,17 @@ export class CombatSystem {
         else if (p.kind === 'log' || p.kind === 'prop' || p.look?.burst === 'crater') this.smash(p.pos.x, p.pos.y, p.pos.z, 2.2, 'stomp');
         if (p.look?.burst === 'crater') this.d.dig?.(p.pos.x, p.pos.z, 2.8, 1.1);
         else if (p.look?.burst === 'frost') this.d.dig?.(p.pos.x, p.pos.z, 1.2, 0, 'frozen');
-        if (p.aoe > 0) this.starBurst(p);
+        if (p.aoe > 0) { this.starBurst(p); this.caster.skillImpact('star', p.pos, p.color); }
         else if (p.kind === 'crescent') {
+          this.caster.skillImpact('crescent', p.pos, p.color);
           // The wave breaks: a last patch of burning ground where it stopped, unless one lies just behind.
           if (p.burn && Math.hypot(p.pos.x - p.from.x, p.pos.z - p.from.z) - (p.burn.next - p.burn.every) > p.burn.every * 0.5) this.layBurn(p);
           this.fx.flash(_v.set(p.pos.x, p.pos.y + 0.7, p.pos.z), p.color, 2.2);
-        } else if (p.owner === 'player') this.fx.flash(p.pos, _col.set(ELEMENT_COLOR[p.element ?? 'lunar']).multiplyScalar(0.6), 1.4);
+        } else if (p.owner === 'player') {
+          this.fx.flash(p.pos, _col.set(ELEMENT_COLOR[p.element ?? 'lunar']).multiplyScalar(0.6), 1.4);
+          // A volley's arrow (a skill's shot) bursts where it lands.
+          if (p.kind === 'trip' || (p.kind === 'arrow' && p.cast)) this.caster.skillImpact('arrow', p.pos, p.color);
+        }
         else this.fx.flash(p.pos, p.color, p.kind === 'log' ? 3.5 : 1.6);
         if (p.kind === 'log') { this.fx.dust(p.pos, 2.4); this.d.onShake?.(0.4); this.d.audio.stomp(); }
         if (p.look) {
@@ -1588,6 +1593,9 @@ export class CombatSystem {
     }
     this.fx.sparks(_v.copy(at).add(_w.set(0, 1.1, 0)), UP, 12, LEAN_PURPLE, 6, 1.0);
     this.smash(at.x, at.y + 1, at.z, radius, last ? 'burst' : 'heavy');
+    // The spin rips the blocks off anything it reaches; the last turn throws out a burst of purple.
+    this.d.tear?.(at.x, at.z, radius, last ? 14 : 3);
+    if (last) this.caster.impact(at, LEAN_PURPLE, radius * 0.6, { smoke: 0.5 });
     if (!b.fired || last) { this.fx.shock(at, 0x8b3dff, radius * 1.4); b.fired = true; }
     this.sfx.swing('blade', last);
     if (last) this.feel.punch = true;
