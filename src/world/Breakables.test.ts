@@ -195,6 +195,40 @@ describe('Breakables', () => {
     for (let i = 0; i < 3; i++) b.damageAt(10, 1, 12, 2, 'burst');
     expect(fell).toBe(1);
   });
+
+  it('blows that waited for the cut collapse a building once, not once per blow (review 2026-11-16)', async () => {
+    const { SyncFracturer } = await import('./FractureObject');
+    const h = world();
+    const b = new Breakables(h);
+    const sync = new SyncFracturer();
+    let ready = false;
+    b.fracturer = { get: (...a) => (ready ? sync.get(...a) : null) };
+    const { target } = house();
+    let fell = 0;
+    b.onCollapse = () => { fell++; };
+    b.register({ ...target, quick: true });
+    for (let i = 0; i < 4; i++) b.damageAt(10, 1, 12, 2, 'burst');
+    expect(fell).toBe(0);
+    ready = true;
+    b.update(0.016, { x: 0, z: 0 });
+    expect(fell).toBe(1);
+  });
+});
+
+describe('rebuild and the zone (review 2026-11-16)', () => {
+  it('a thing rebuilt while its place is not shown (the hero in a realm) stays hidden, and is no longer marked broken', () => {
+    const h = world();
+    const b = new Breakables(h);
+    b.shownNow = () => false;
+    const { target } = house();
+    b.register({ ...target, quick: true });
+    for (let i = 0; i < 3; i++) b.damageAt(10, 1, 12, 2, 'burst');
+    expect(target.object.visible).toBe(false);
+    for (let t = 0; t < 400; t += 1) b.update(1, { x: 500, z: 500 }, () => false);
+    expect(b.entries[0].state).toBe('intact');
+    expect(target.object.visible).toBe(false);
+    expect(target.object.userData.hidden).toBeUndefined();
+  });
 });
 
 describe('Breakables providers (instanced flora)', () => {

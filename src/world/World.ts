@@ -375,6 +375,12 @@ export class World {
     this.ground = new GroundQuery(terrain, this.realmGround);
     this.heights = new HeightWorld(this.ground);
     this.breakables = new Breakables(this.heights);
+    // A building rebuilt while the hero is elsewhere stays hidden with the rest of its place (showZone's rule).
+    this.breakables.shownNow = (o) => {
+      if (o.parent !== this.group) return true;
+      const realm = o.name.startsWith('realm:') ? o.name.slice(6) : null;
+      return realm !== null ? realm === this.here : this.here === null;
+    };
     this.craters = new Craters(terrain.field, {
       refresh: (x0, z0, x1, z1, regrow) => { terrain.refresh(x0, z0, x1, z1); if (regrow) this.grass?.regrow(x0, z0, x1, z1); },
       // Not under or against anything standing (a crater would undercut it), nor in the water.

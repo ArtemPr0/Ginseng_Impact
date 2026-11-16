@@ -170,3 +170,28 @@ describe('DebrisSim', () => {
     }
   });
 });
+
+describe('a resting piece and its own rubble collider (review 2026-11-16)', () => {
+  it('the sleep check asks for the ground under the piece itself, so a host can leave its own collider out', () => {
+    let floor = 2;
+    const asked: unknown[] = [];
+    const sim = new DebrisSim((_x, _z, _y, p) => { asked.push(p); return floor; });
+    const p = sim.add({ x: 0, y: 3, z: 0, r: 0.3 });
+    run(sim, 4);
+    expect(p.awake).toBe(false);
+    floor = 0;
+    run(sim, 0.5);
+    expect(asked).toContain(p);
+    expect(p.awake).toBe(true);
+  });
+  it('onWake fires when a sleeping piece wakes (the host drops its rubble collider then)', () => {
+    const sim = new DebrisSim(flat);
+    const woke: unknown[] = [];
+    sim.onWake = (q) => woke.push(q);
+    const p = sim.add({ x: 0, y: 1, z: 0, r: 0.3 });
+    run(sim, 4);
+    expect(p.awake).toBe(false);
+    sim.blast(0, 0, 0, 3, 5);
+    expect(woke).toEqual([p]);
+  });
+});

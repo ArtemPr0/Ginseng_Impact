@@ -99,6 +99,18 @@ describe('Craters', () => {
     expect(steepest).toBeLessThan(0.55);
   });
 
+  it('a crater that heals while another still heals gets its grass back (review 2026-11-16)', () => {
+    const { c, refreshed } = setup();
+    c.crater(-12, -12, 3, 1);
+    for (let t = 0; t < HEAL_S * 0.6; t += 0.5) c.update(0.5);
+    c.crater(12, 12, 3, 1);
+    refreshed.length = 0;
+    for (let t = 0; t < HEAL_S * 0.5; t += 0.5) c.update(0.5);
+    expect(c.healing).toBeGreaterThan(0);
+    const regrew = refreshed.filter((b) => b[4] === true) as number[][];
+    expect(regrew.some((b) => b[0] <= -12 && b[2] >= -12 && b[1] <= -12 && b[3] >= -12)).toBe(true);
+  });
+
   it('knows where the ground is marked (no grass grows there until it heals)', () => {
     const { c } = setup();
     c.scorch(0, 0, 3, 'burnt');

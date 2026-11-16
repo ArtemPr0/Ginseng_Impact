@@ -144,6 +144,8 @@ export class Craters {
     const { data, layers, tints, s } = this.field;
     const n1 = this.field.n + 1;
     let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    // Where ground finished healing this tick: its grass grows back even while other craters still heal.
+    let hx0 = Infinity, hz0 = Infinity, hx1 = -Infinity, hz1 = -Infinity;
     for (const [i, r] of this.recs) {
       const u = Math.min(1, (this.now - r.at) / HEAL_S);
       const k = u * u * (3 - 2 * u);
@@ -153,6 +155,8 @@ export class Craters {
         layers.set(r.l0, o);
         tints[i * 3] = r.t0[0]; tints[i * 3 + 1] = r.t0[1]; tints[i * 3 + 2] = r.t0[2];
         this.recs.delete(i);
+        const hx = s.x0 + (i % n1) * s.cell, hz = s.z0 + Math.floor(i / n1) * s.cell;
+        hx0 = Math.min(hx0, hx); hx1 = Math.max(hx1, hx); hz0 = Math.min(hz0, hz); hz1 = Math.max(hz1, hz);
       } else {
         data[i] = r.h1 + (r.h0 - r.h1) * k;
         for (let j = 0; j < LAYER_COUNT; j++) layers[o + j] = Math.round(r.l1[j] + (r.l0[j] - r.l1[j]) * k);
@@ -162,6 +166,7 @@ export class Craters {
       x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z);
     }
     if (x0 <= x1) this.hooks.refresh(x0, z0, x1, z1, this.recs.size === 0);
+    if (this.recs.size > 0 && hx0 <= hx1) this.hooks.refresh(hx0, hz0, hx1, hz1, true);
   }
 
   /** The vertex's record, made on its first edit; an edit restarts its healing from where it is now. */

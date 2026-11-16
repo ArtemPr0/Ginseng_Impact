@@ -9,7 +9,11 @@ interface Job {
 
 self.onmessage = (ev: MessageEvent<Job>) => {
   const j = ev.data;
-  const r = cutJob(j, j.seed, j.thickness);
+  let r: ReturnType<typeof cutJob>;
+  try { r = cutJob(j, j.seed, j.thickness); } catch (e) {
+    (self as unknown as Worker).postMessage({ id: j.id, error: String(e) });
+    return;
+  }
   const chunks = r.chunks.map(toData);
   const transfer: ArrayBuffer[] = [];
   for (const c of chunks) transfer.push(c.position.buffer as ArrayBuffer, c.normal.buffer as ArrayBuffer, c.uv.buffer as ArrayBuffer);

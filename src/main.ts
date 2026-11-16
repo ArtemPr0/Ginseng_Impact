@@ -1,5 +1,5 @@
 import { CameraBob } from './render/CameraBob';
-import { AimHold, aimPoint, AIM_RANGE, aimShape } from './combat/Aim';
+import { AimHold, aimPoint, AIM_RANGE, aimShape, SpellBuffer, spellRange } from './combat/Aim';
 import { SPELL_KEYS, SPELLS, spellSlot } from './combat/Spells';
 import { AimPreview } from './render/AimPreview';
 import { Color, DirectionalLight, FogExp2, Frustum, HemisphereLight, Matrix4, type Object3D, PerspectiveCamera, Scene, Sphere, Vector3 } from 'three';
@@ -116,6 +116,7 @@ scene.add(bubbles.group);
 const combatFx = new CombatFx({ telegraphs: 12 });
 scene.add(combatFx.group);
 const aimHold = new AimHold();
+const spellBuffer = new SpellBuffer();
 const aimPreview = new AimPreview((x, z, y) => world.heightAt(x, z, y));
 scene.add(aimPreview.group);
 /** Clods of earth thrown out of fresh craters (Ejecta). */
@@ -948,26 +949,34 @@ game
       }
       const aimingSlot = aimHold.slot;
       const castSlot = aimHold.update(dt, aimingSlot !== null && input.isDown(SPELL_KEYS[aimingSlot]), !input.locked || input.mouseJustPressed(2) || input.justPressed('Escape'));
+      const released = castSlot;
+      if (released !== null) spellBuffer.push(released);
+      const trySpell = spellBuffer.peek(dt);
+      const castsBefore = combat.spellsCast;
+      // (A right-click that cancelled an aim is not a heavy: not while held, not on its release.)
+      const heavyOk = aimHold.heavyOk(true);
+      aimHold.heavyOk(input.mouseDown(2));
       if (aimHold.aiming) {
         const def = SPELLS[party.active.id]?.[aimHold.slot!];
         const shape = def ? aimShape(def.id, def.radius) : { kind: 'none' as const };
         const fwd = tpc.forward(new Vector3());
         const fl = Math.hypot(fwd.x, fwd.z) || 1;
         if (shape.kind === 'ring') {
-          const a = spellAim();
+          const a = spellAim(spellRange(def!.id));
           aimPreview.show(shape, a.at.x, a.at.y, a.at.z, { x: fwd.x / fl, z: fwd.z / fl }, def!.color, a.far, dt);
         } else aimPreview.show(shape, controller.pos.x, controller.pos.y, controller.pos.z, { x: fwd.x / fl, z: fwd.z / fl }, def?.color ?? 0xffffff, false, dt);
       } else aimPreview.hide();
       combat.update(dt, {
         attack: input.locked && input.mouseJustPressed(0),
-        heavyHeld: input.locked && input.mouseDown(2) && aimingSlot === null,
-        heavyRelease: input.locked && input.mouseJustReleased(2),
+        heavyHeld: input.locked && input.mouseDown(2) && aimingSlot === null && heavyOk,
+        heavyRelease: input.locked && input.mouseJustReleased(2) && heavyOk,
         skill: input.locked && input.justPressed('KeyE'),
-        spell: castSlot,
+        spell: trySpell,
         burst: input.locked && input.justPressed('KeyQ'),
         dodge: input.locked && input.justPressed('KeyR'),
         grab: input.locked && input.justPressed('KeyG'),
       });
+      if (combat.spellsCast !== castsBefore) spellBuffer.done();
       const move = input.locked && !combat.busy && combat.charging === 0 ? tpc.moveToWorld(input.moveAxis()) : { x: 0, z: 0 };
       const space = input.locked && input.justPressed('Space');
       adventures.update(dt);
@@ -1274,11 +1283,11 @@ declare global {
 window.__ginseng = { models: { load: loadModel, ModelRig, MODELS }, groundOnly: (x: number, z: number) => area.ground.heightAt(x, z), loadSave: () => { const s = save.load(); if (s) applySave(s); return !!s; }, snapshot, scene, camera, terrain, world, area, sky, controller, party, tpc, input, game, renderer, combat, fx: combatFx, inventory, hud, companions, audio, adventures, pressF, interactTarget, rigs, events, ending, save, progress, realms: REALMS, teleport, carriage: CARRIAGE, worldState, story };
 
 /** Where the crosshair meets the ground, at most AIM_RANGE metres off (`far`: it was clamped to that edge). */
-function spellAim(): { at: Vector3; far: boolean } {
+function spellAim(range = AIM_RANGE): { at: Vector3; far: boolean } {
   const dir = camera.getWorldDirection(new Vector3());
   const p = aimPoint(camera.position, dir, (x, z, y) => world.heightAt(x, z, y));
   const dx = p.x - controller.pos.x, dz = p.z - controller.pos.z, d = Math.hypot(dx, dz);
   let far = false;
-  if (d > AIM_RANGE) { far = true; p.x = controller.pos.x + (dx / d) * AIM_RANGE; p.z = controller.pos.z + (dz / d) * AIM_RANGE; p.y = world.heightAt(p.x, p.z, controller.pos.y + 3); }
-  return { at: new Vector3(p.x, p.y, p.z), far: far || d > AIM_RANGE - 0.5 };
+  if (d > range) { far = true; p.x = controller.pos.x + (dx / d) * range; p.z = controller.pos.z + (dz / d) * range; p.y = world.heightAt(p.x, p.z, controller.pos.y + 3); }
+  return { at: new Vector3(p.x, p.y, p.z), far: far || d > range - 0.5 };
 }

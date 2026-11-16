@@ -58,3 +58,23 @@ describe('fracturers and models still loading', () => {
     expect(f.get('house', root, 6, 1, 0.1)!.chunks.length).toBeGreaterThan(1);
   });
 });
+
+describe('WorkerFracturer when the worker fails (review 2026-11-16)', () => {
+  it('a job that errors, or a worker that dies, falls back to cutting on the main thread: nothing stays unbreakable', async () => {
+    const { WorkerFracturer } = await import('./FractureObject');
+    const { BoxGeometry: B, Group: Gr, Mesh: M, MeshStandardMaterial: Mat } = await import('three');
+    const fake = { onmessage: null as null | ((e: MessageEvent) => void), onerror: null as null | ((e: unknown) => void), posted: [] as Array<{ id: number }>, postMessage(m: { id: number }) { this.posted.push(m); } };
+    const f = new WorkerFracturer(fake as unknown as Worker, 0);
+    const g = new Gr();
+    g.add(new M(new B(2, 2, 2, 3, 3, 3), new Mat()));
+    expect(f.get('a', g, 6, 1, 0.1)).toBeNull();
+    // The job comes back as an error.
+    fake.onmessage!({ data: { id: fake.posted[0].id, error: 'boom' } } as MessageEvent);
+    expect(f.get('a', g, 6, 1, 0.1)?.chunks.length).toBeGreaterThan(0);
+    // The worker dies: what was waiting, and everything after, is cut on the spot.
+    expect(f.get('b', g, 6, 2, 0.1)).toBeNull();
+    fake.onerror!(new Event('error'));
+    expect(f.get('b', g, 6, 2, 0.1)?.chunks.length).toBeGreaterThan(0);
+    expect(f.get('c', g, 6, 3, 0.1)?.chunks.length).toBeGreaterThan(0);
+  });
+});

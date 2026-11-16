@@ -15,6 +15,7 @@ import type { DebrisSim, Piece } from '../world/Debris';
 import type { BlowKind } from '../world/Breakables';
 import { RuneCircles } from '../render/RuneCircle';
 import { BlackHoleFx, FireTornadoFx } from '../render/VortexFx';
+import { LEAP_RANGE } from './Aim';
 import { Lightning } from '../render/Lightning';
 import { SPELLS, type SpellDef } from './Spells';
 import type { Element } from './Elements';
@@ -143,10 +144,11 @@ export class SpellCast {
       case 'earthsplitter': {
         // Up and over to the aim point (at most 12 m), down on it 0.7 s later: the slam lands as he does.
         const dx = aim.x - c.pos.x, dz = aim.z - c.pos.z;
-        const d = Math.min(12, Math.hypot(dx, dz));
-        this.runes.show(aim, s.radius, s.color, 0.7);
-        this.slam = { at: new Vector3(c.pos.x + (dx / (Math.hypot(dx, dz) || 1)) * d, 0, c.pos.z + (dz / (Math.hypot(dx, dz) || 1)) * d), t: 0.7 };
+        const d = Math.min(LEAP_RANGE, Math.hypot(dx, dz));
+        // (Its height from the aim, so a bridge or a deck he lands on is the ground, not the land under it.)
+        this.slam = { at: new Vector3(c.pos.x + (dx / (Math.hypot(dx, dz) || 1)) * d, Math.hypot(dx, dz) <= LEAP_RANGE ? aim.y : c.pos.y, c.pos.z + (dz / (Math.hypot(dx, dz) || 1)) * d), t: 0.7 };
         ground(this.slam.at, h);
+        this.runes.show(this.slam.at, s.radius, s.color, 0.7);
         this.leap(dx, dz, 0.7, d);
         h.audio.spell('charge');
         break;

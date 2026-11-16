@@ -439,6 +439,8 @@ export class CombatSystem {
   readonly gore: Gore;
   /** Sir Aldric's fist and Orlan's mind: things picked up and thrown (CarrySystem). */
   readonly carry: CarrySystem;
+  /** Spells cast so far (main's SpellBuffer lets go of a released spell once this moves). */
+  spellsCast = 0;
   /** Wren's arrows left in the bodies they hit (StuckArrows). */
   readonly stuck = new StuckArrows();
   private readonly bonesOf = new Map<number, Object3D[]>();
@@ -1062,6 +1064,7 @@ export class CombatSystem {
     if (slot !== null && (grounded || flying) && !this.busy && this.heavyCharge === 0 && this.spells.ready(me.id, slot)) {
       this.softLock(9);
       this.spells.use(me.id, slot);
+      this.spellsCast++;
       this.casting = { def: me, t: 0, fired: false, spell: slot, aim: d.aim?.() ?? this.ahead(8) };
       d.audio.cast();
       this.sfx.effort(me.id);

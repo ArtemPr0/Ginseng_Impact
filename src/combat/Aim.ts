@@ -3,6 +3,13 @@
  * metres off, or on the mob locked with Tab): a ray from the camera through the screen's centre marched over the ground.
  */
 export const AIM_RANGE = 25;
+/** Farthest Sir Aldric's Earthsplitter leap carries him. */
+export const LEAP_RANGE = 12;
+
+/** How far from the hero a spell may land (the aim ring clamps to it, so it shows where the spell really lands). */
+export function spellRange(id: string): number {
+  return id === 'earthsplitter' ? LEAP_RANGE : AIM_RANGE;
+}
 
 interface P { x: number; y: number; z: number }
 
@@ -33,6 +40,15 @@ export class AimHold {
 
   get aiming(): boolean { return this.slot !== null; }
 
+  /** Set by a cancel: the right mouse that cancelled must be let go before it charges a heavy (or Orlan's lift). */
+  private heavyBlocked = false;
+
+  /** May right mouse (`rmbDown`) count as the heavy button this frame? */
+  heavyOk(rmbDown: boolean): boolean {
+    if (!rmbDown) this.heavyBlocked = false;
+    return !this.heavyBlocked;
+  }
+
   press(slot: number): void {
     if (this.slot !== null) return;
     this.slot = slot;
@@ -42,7 +58,7 @@ export class AimHold {
   /** `down`: the aimed spell's key is still held; `cancel`: right mouse or Escape. Returns the slot to cast now. */
   update(dt: number, down: boolean, cancel: boolean): number | null {
     if (this.slot === null) return null;
-    if (cancel) { this.slot = null; return null; }
+    if (cancel) { this.slot = null; this.heavyBlocked = true; return null; }
     this.held += dt;
     if (down) return null;
     const s = this.slot;
@@ -66,4 +82,23 @@ export function aimShape(id: string, radius: number): AimShape {
     case 'blood-moon': return { kind: 'none' };
     default: return { kind: 'ring', radius: Math.max(1.2, radius) };
   }
+}
+
+/** A spell released while the hero was busy (mid-swing): offered to combat each frame until cast, at most 0.6 s. */
+export class SpellBuffer {
+  private slot: number | null = null;
+  private left = 0;
+
+  push(slot: number): void { this.slot = slot; this.left = 0.6; }
+
+  /** The slot to try this frame, or null. */
+  peek(dt: number): number | null {
+    if (this.slot === null) return null;
+    this.left -= dt;
+    if (this.left < 0) { this.slot = null; return null; }
+    return this.slot;
+  }
+
+  /** Combat cast it. */
+  done(): void { this.slot = null; }
 }

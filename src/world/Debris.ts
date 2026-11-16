@@ -166,7 +166,11 @@ export class DebrisSim {
   readonly pieces: Piece[] = [];
   private checkAt = 0;
 
-  constructor(private readonly groundAt: (x: number, z: number, y: number) => number, public maxActive = MAX_ACTIVE) {}
+  /** Called when a sleeping piece wakes (Breakables takes its rubble collider away then). */
+  onWake?: (p: Piece) => void;
+
+  /** `groundAt` gets the piece asking when a resting one checks its support, so a host can leave out its own collider. */
+  constructor(private readonly groundAt: (x: number, z: number, y: number, p?: Piece) => number, public maxActive = MAX_ACTIVE) {}
 
   /** Pieces awake with full contacts. */
   get active(): number {
@@ -245,7 +249,7 @@ export class DebrisSim {
 
   wake(p: Piece): void {
     if (p.dead) return;
-    if (!p.awake) { p.awake = true; p.cheap = false; }
+    if (!p.awake) { p.awake = true; p.cheap = false; this.onWake?.(p); }
     p.still = 0;
     p.grounded = false;
   }
@@ -261,7 +265,7 @@ export class DebrisSim {
       this.checkAt = 0;
       for (const p of this.pieces) {
         if (p.awake || p.dead) continue;
-        if (this.groundAt(p.x, p.z, p.y) < p.y - this.reach(p) - 0.15 && !this.supported(p, grid)) this.wake(p);
+        if (this.groundAt(p.x, p.z, p.y, p) < p.y - this.reach(p) - 0.15 && !this.supported(p, grid)) this.wake(p);
       }
       this.cap();
     }

@@ -211,11 +211,28 @@ export class Breakables {
   private readonly restSince = new Map<Piece, number>();
   private readonly falling: Array<{ b: Breakable; c: ChunkState; bx: number; bz: number }> = [];
 
+  /** Is `o`'s place on show now? (World: false for island things while the hero is in a realm.) */
+  shownNow: (o: Object3D) => boolean = () => true;
+
   /** Ways each thing may break, one after another as it is rebuilt (Quality: 3 on High, 1 on Low). */
   variants = 3;
 
   constructor(private readonly heights: HeightsLike) {
-    this.sim = new DebrisSim((x, z, y) => heights.heightAt(x, z, y));
+    // A resting piece's own rubble collider is not its ground (it would hold itself up after the wall under it broke).
+    this.sim = new DebrisSim((x, z, y, p) => {
+      const foot = p && this.owner.get(p)?.b.rubble.get(p);
+      if (!foot) return heights.heightAt(x, z, y);
+      heights.remove(foot);
+      const g = heights.heightAt(x, z, y);
+      heights.add(foot);
+      return g;
+    });
+    // A piece knocked awake lets go of its collider before it moves (no pop up off itself).
+    this.sim.onWake = (p) => {
+      const o = this.owner.get(p);
+      const foot = o?.b.rubble.get(p);
+      if (o && foot) { heights.remove(foot); o.b.rubble.delete(p); }
+    };
   }
 
   register(t: BreakTarget): Breakable {
@@ -290,7 +307,10 @@ export class Breakables {
       if (!b.pending.length || b.state !== 'intact') continue;
       if (!this.shatter(b)) continue;
       const blows = b.pending.splice(0);
-      for (const [x, y, z, r, k] of blows) this.strike(b, x, y, z, r, k);
+      for (const [x, y, z, r, k] of blows) {
+        if ((b.state as Breakable['state']) === 'rubble') break;
+        this.strike(b, x, y, z, r, k);
+      }
     }
     // The collapse wave: chunks giving way on time.
     for (let i = this.falling.length - 1; i >= 0; i--) {
@@ -527,7 +547,7 @@ export class Breakables {
     this.heights.remove(...b.live);
     this.heights.add(...b.target.footprints);
     b.live = b.target.footprints.slice();
-    if (b.target.show) b.target.show(); else { b.target.object.visible = true; delete b.target.object.userData.hidden; }
+    if (b.target.show) b.target.show(); else { b.target.object.visible = this.shownNow(b.target.object); delete b.target.object.userData.hidden; }
     b.hp = b.maxHp;
     b.state = 'intact';
     // Next time it breaks another way.

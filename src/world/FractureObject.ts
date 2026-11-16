@@ -185,13 +185,20 @@ export class WorkerFracturer implements Fracturer {
   private next = 1;
   private readonly jobKey = new Map<number, { key: string; slot: number }>();
 
+  /** The worker died (failed to load or crashed): everything is cut on the main thread from now on. */
+  private dead = false;
+  /** Keys whose cut threw in the worker: cut on the main thread next time they are asked for. */
+  private readonly local = new Set<string>();
+
   constructor(private readonly worker: Worker, private readonly syncTris = 4000) {
-    worker.onmessage = (ev: MessageEvent<{ id: number; chunks: ChunkData[]; adjacent: number[][] }>) => {
+    worker.onmessage = (ev: MessageEvent<{ id: number; chunks?: ChunkData[]; adjacent?: number[][]; error?: string }>) => {
       const j = this.jobKey.get(ev.data.id);
       if (!j) return;
       this.jobKey.delete(ev.data.id);
-      const list = this.parts.get(j.key)!;
-      const w = this.waiting.get(j.key)!;
+      if (ev.data.error || !ev.data.chunks || !ev.data.adjacent) { this.forget(j.key); this.local.add(j.key); return; }
+      const list = this.parts.get(j.key);
+      const w = this.waiting.get(j.key);
+      if (!list || !w) return;
       list[j.slot] = { chunks: ev.data.chunks.map(fromData), adjacent: ev.data.adjacent, material: w[j.slot].material };
       if (list.every(Boolean)) {
         this.cache.set(j.key, assemble(list as Array<{ chunks: SolidChunk[]; adjacent: number[][]; material: Material }>));
@@ -199,6 +206,17 @@ export class WorkerFracturer implements Fracturer {
         this.waiting.delete(j.key);
       }
     };
+    worker.onerror = () => {
+      this.dead = true;
+      for (const key of [...this.waiting.keys()]) this.forget(key);
+    };
+  }
+
+  /** Drops a key's jobs in flight (their answers, if any come, are ignored). */
+  private forget(key: string): void {
+    for (const [id, j] of this.jobKey) if (j.key === key) this.jobKey.delete(id);
+    this.waiting.delete(key);
+    this.parts.delete(key);
   }
 
   /** True when `key` is cut or being cut. */
@@ -212,7 +230,7 @@ export class WorkerFracturer implements Fracturer {
     // (Its model still loading: ask again later.)
     if (!jobs.length) return null;
     const tris = jobs.reduce((s, j) => s + (j.index ? j.index.length : j.position.length / 3) / 3, 0);
-    if (tris <= this.syncTris) {
+    if (tris <= this.syncTris || this.dead || this.local.has(key)) {
       const f = assemble(jobs.map((j, i) => ({ ...cutJob(j, seed + i * 101, thickness), material: j.material })));
       this.cache.set(key, f);
       return f;
