@@ -6,6 +6,8 @@ import { Color, DirectionalLight, FogExp2, Frustum, HemisphereLight, Matrix4, ty
 import { HarvestLedger, harvestOf } from './world/Harvest';
 import { Ejecta } from './render/Ejecta';
 import { Billow } from './render/Billow';
+import { StepClock, surfaceOf } from './audio/Steps';
+import { LAYER_COUNT } from './render/Ground';
 import { AutoQuality, nextMode, pickMode, QUALITY_KEY, settingsFor, type QualityLevel, type QualityMode } from './core/Quality';
 import { WorkerFracturer } from './world/FractureObject';
 import { Bubbles } from './world/Portal';
@@ -125,6 +127,7 @@ const ejecta = new Ejecta((x, z, y) => world.heightAt(x, z, y));
 scene.add(ejecta.group);
 /** Billowing dust and smoke that lingers (collapses, blasts). */
 const billow = new Billow(260);
+const stepClock = new StepClock();
 scene.add(billow.mesh);
 const fogTarget = new Color();
 let portalCooldown = 0;
@@ -228,6 +231,7 @@ const COLLAPSE_YELLS = ['MY HOUSE!', 'Oi! I live there!', 'Who pays for that?!',
     // Sir Aldric's blows knock wood, planks and stone loose (Harvest): a few pieces at his feet.
     if (ROSTER[party.activeIndex].id === 'knight' && Math.hypot(x - controller.pos.x, z - controller.pos.z) < 7) {
       const h = harvestOf(b.target.material, !!b.target.tree, b.target.size, n, !!b.target.brief);
+      if (h && h.itemId !== 'stone') audio.chop();
       if (h && harvested.take(b, performance.now() / 1000)) combat.loot.spawn([{ kind: 'item', itemId: h.itemId, count: h.count }], new Vector3(x, Math.max(y, controller.pos.y + 0.6), z));
     }
   };
@@ -1123,6 +1127,19 @@ game
       lightBudget.update(playerPos, dt);
       ejecta.update(dt);
       billow.update(dt);
+      // Footsteps: a recorded take for the ground under the foot (grass, stone, snow), one per stride.
+      {
+        const sp = Math.hypot(controller.vel.x, controller.vel.z);
+        if (stepClock.update(dt, sp, controller.mode === 'ground')) {
+          const { x, z, y } = controller.pos;
+          const f = terrain.field;
+          const ix = Math.round((x - f.s.x0) / f.s.cell), iz = Math.round((z - f.s.z0) / f.s.cell);
+          const inside = ix >= 0 && iz >= 0 && ix <= f.n && iz <= f.n;
+          const o = inside ? f.indexOf(ix, iz) * LAYER_COUNT : 0;
+          const built = world.heightAt(x, z, y + 0.3) > terrain.heightAt(x, z) + 0.15;
+          audio.footstep(surfaceOf(inside ? f.layers.subarray(o, o + LAYER_COUNT) : null, built), Math.min(1, 0.5 + sp * 0.08));
+        }
+      }
       if (qualityMode === 'auto' && autoQuality.level === 'high' && autoQuality.update(dt, renderer.frameTime, renderer.atMinRatio) === 'low') {
         applyQuality();
         hud.announce('Quality lowered for a smoother frame rate (ESC to change)');
