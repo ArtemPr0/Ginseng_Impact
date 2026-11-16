@@ -76,3 +76,33 @@ describe('FireTornadoFx light (critic round 2: its three additive shells hazed t
   });
 });
 
+describe('BlackHoleFx core (critic round 2: the bloom off a too-bright photon ring filled the core grey)', () => {
+  it('the photon ring peaks at about white, so the bloom halos it without flooding the black core', () => {
+    const fx = new BlackHoleFx(0x9a5cff, 8);
+    let frag = '';
+    fx.group.traverse((o) => { if (o.name === 'photon-ring') frag = ((o as Mesh).material as unknown as { fragmentShader: string }).fragmentShader; });
+    const ring = /float ring = .*\* ([0-9.]+) \* flick;/.exec(frag);
+    const glow = /float glow = .*\* ([0-9.]+);/.exec(frag);
+    expect(ring).not.toBeNull();
+    expect(glow).not.toBeNull();
+    // flick reaches 1.2
+    expect(Number(ring![1]) * 1.2 + Number(glow![1])).toBeLessThanOrEqual(1.6);
+  });
+});
+
+describe('BlackHoleFx accretion discs (critic round 2: their hot side bloomed over the core)', () => {
+  it('the hottest, approaching edge peaks at about twice its colour', () => {
+    const fx = new BlackHoleFx(0x9a5cff, 8);
+    let peak = 0;
+    fx.group.traverse((o) => {
+      if (o.name !== 'disc' && o.name !== 'disc2') return;
+      const m = (o as Mesh).material as unknown as { fragmentShader: string; uniforms: { uI: { value: number } } };
+      const k = /n \* \(([0-9.]+) \+ ([0-9.]+) \* heat \* heat\) \* \(1\.0 \+ ([0-9.]+) \* vDop\)/.exec(m.fragmentShader);
+      expect(k).not.toBeNull();
+      peak = Math.max(peak, (Number(k![1]) + Number(k![2])) * (1 + Number(k![3])) * m.uniforms.uI.value);
+    });
+    expect(peak).toBeGreaterThan(1);
+    expect(peak).toBeLessThanOrEqual(2.1);
+  });
+});
+
