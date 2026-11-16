@@ -1,4 +1,5 @@
 import { PerspectiveCamera, Vector3 } from 'three';
+import { shakeOffset } from './Shake';
 
 export interface CameraWorld {
   heightAt(x: number, z: number, y?: number): number;
@@ -109,12 +110,13 @@ export class ThirdPersonCamera {
     const breathe = 0.012;
     this.camera.position.x += Math.sin(this.time * 0.9) * breathe;
     this.camera.position.y += Math.sin(this.time * 1.3 + 1) * breathe;
-    if (this.shakeAmount > 0.001) {
-      const a = this.shakeAmount * 0.25;
-      this.camera.position.x += (Math.random() - 0.5) * a;
-      this.camera.position.y += (Math.random() - 0.5) * a;
-      this.camera.position.z += (Math.random() - 0.5) * a;
-      this.shakeAmount *= Math.exp(-dt * 9);
+    // Trauma shake (player/Shake): smooth, a nudge and a small turn, scaled by trauma squared; trauma drains 1.4/s.
+    const sh = shakeOffset(this.time, this.shakeAmount);
+    if (this.shakeAmount > 0) {
+      this.camera.position.x += sh.x;
+      this.camera.position.y += sh.y;
+      this.camera.position.z += sh.z;
+      this.shakeAmount = Math.max(0, this.shakeAmount - dt * 1.4);
     }
     if (this.kickVec.lengthSq() > 1e-8) {
       const p = this.camera.position;
@@ -126,6 +128,7 @@ export class ThirdPersonCamera {
       if (this.kickVec.lengthSq() < 1e-8) this.kickVec.set(0, 0, 0);
     }
     this.camera.lookAt(this.focus);
+    if (sh.roll || sh.pitch || sh.yaw) { this.camera.rotateZ(sh.roll); this.camera.rotateX(sh.pitch); this.camera.rotateY(sh.yaw); }
     if (this.punchActive) {
       this.punchT += dt;
       const k = Math.min(1, this.punchT / this.punchSeconds);
