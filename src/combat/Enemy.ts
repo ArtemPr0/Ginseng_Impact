@@ -1,3 +1,4 @@
+import { KNOCKDOWN_S, canKnockDown, knockdownLean, knockdownTilt } from './Knockdown';
 import { loadModelOrWarn, ModelRig, yawToRotation } from '../models/ModelRig';
 import { MissingModelPlaceholder } from '../models/Placeholder';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -250,6 +251,9 @@ export class Enemy {
   private heap: { t: number; bones: Array<{ b: Object3D; from: Quaternion; to: Quaternion; delay: number }>; tipAxis: Vector3; drop: number } | null = null;
   /** Death without a death clip (see topplePose): seconds into the topple, or -1. */
   private toppleT = -1;
+  /** Knocked down (Knockdown.ts): seconds into it (-1 standing), and the blow's direction it fell along. */
+  private downT = -1;
+  private downK = { x: 0, z: 0 };
   /** Blown off its feet by an overkill (Yeet.ts): the flight, until it lands. */
   private yeet: Yeet | null = null;
   /** Dancing over a fallen hero (taunt), seconds left. */
@@ -832,6 +836,9 @@ export class Enemy {
     return null;
   }
 
+  /** On the ground after a heavy blow. */
+  get downed(): boolean { return this.downT >= 0; }
+
   takeDamage(amount: number, kb: { x: number; z: number }, strength: number): boolean {
     if (!this.alive) return false;
     // Hit: a neutral mob turns on you (passive flyers never fight back), a seated one jumps up at once.
@@ -843,6 +850,12 @@ export class Enemy {
     this.flashLeft = 0.09;
     // Flinch: every hit for small mobs; bosses only now and then, so their attacks are not interrupted constantly.
     if (!this.def.boss || this.time - this.lastFlinch > 3) { this.wantFlinch = true; this.flinch = 1; this.lastFlinch = this.time; }
+    // A heavy blow puts a small mob on the ground, away from the blow (not again while it is down).
+    if (this.hp > 0 && this.downT < 0 && !this.seatedNow && canKnockDown({ ...this.def, height: this.def.height * (this.def.scale ?? 1) }, strength)) {
+      this.downT = 0;
+      this.downK = { x: kb.x, z: kb.z };
+      this.afflict('stun', KNOCKDOWN_S);
+    }
     if (this.hp <= 0) {
       this.hp = 0;
       this.returning = false;
@@ -867,11 +880,13 @@ export class Enemy {
     if (this.heap) for (const x of this.heap.bones) x.b.quaternion.copy(x.from);
     this.heap = null;
     this.toppleT = -1;
+    this.downT = -1;
     this.yeet = null;
     this.held = false;
     this.thrown = null;
     this.tauntT = 0;
     this.object.rotation.x = 0;
+    this.object.rotation.z = 0;
     this.oneShot = null;
     this.wantFlinch = false;
     this.lunge = this.flinch = 0;
@@ -1006,6 +1021,16 @@ export class Enemy {
     // Hanging from a fist it kicks and squirms; in the air it tumbles end over end.
     if (this.held) { this.object.rotation.x = Math.sin(this.time * 9) * 0.18; this.object.rotation.z = Math.sin(this.time * 6.5) * 0.12; }
     else if (this.thrown) this.object.rotation.x = this.thrown.angle;
+    else if (this.downT >= 0) {
+      // Knocked down: over about its feet along the blow, lying, back up (Knockdown.ts).
+      this.downT += dt;
+      const tilt = knockdownTilt(this.downT, KNOCKDOWN_S);
+      const l = knockdownLean(this.downK.x, this.downK.z, this.yaw, tilt);
+      this.object.rotation.order = 'YXZ';
+      this.object.rotation.x = l.pitch;
+      this.object.rotation.z = l.roll;
+      if (this.downT >= KNOCKDOWN_S) this.downT = -1;
+    }
     if (!m) { this.placeholder?.update(dt); return; }
     if (this.def.stomp && st === 'chase' && this.groundSpeed > 0.4) {
       const prev = this.stepPhase;
