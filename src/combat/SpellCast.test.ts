@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
-import { SpellCast, type SpellHost } from './SpellCast';
+import { HOLE_BURST, SpellCast, type SpellHost } from './SpellCast';
+import { Color } from 'three';
 import { createControllerState } from '../player/CharacterController';
 import { DebrisSim } from '../world/Debris';
 
@@ -380,3 +381,13 @@ describe('review 2026-11-16 fixes', () => {
     expect(vz / n).toBeLessThan(-8);
   });
 });
+
+describe('the black hole\'s collapse (critic round 2: it burst as a flat white disc)', () => {
+  it('bursts deep violet, not near-white, with a flash that lights the scene without blowing it out', () => {
+    const hsl = new Color(HOLE_BURST.hot).getHSL({ h: 0, s: 0, l: 0 });
+    expect(hsl.s).toBeGreaterThanOrEqual(0.8);
+    expect(hsl.l).toBeLessThanOrEqual(0.7);
+    expect(HOLE_BURST.flash).toBeLessThanOrEqual(70);
+  });
+});
+

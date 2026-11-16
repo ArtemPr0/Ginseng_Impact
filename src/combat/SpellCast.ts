@@ -112,6 +112,12 @@ const SKILL_IMPACT = {
   arrow: { r: 0.6, fires: 0, tear: 2, smoke: 0.3 },
 } as const;
 
+/**
+ * The black hole's collapse: a deep violet blast (a pale violet let the white-hot core take over, and it burst as a
+ * flat white disc) and a flash that lights the scene round it without blowing it out.
+ */
+export const HOLE_BURST = { hot: 0x7a3cff, flash: 60 } as const;
+
 export class SpellCast {
   readonly runes = new RuneCircles();
   readonly lightning = new Lightning(6);
@@ -697,8 +703,8 @@ export class SpellCast {
     o.fx.dispose();
     if (o.light) o.light.done = true;
     const top = new Vector3(cx, cy, cz);
-    h.lights?.flash(top, 0xf0e4ff, 120, 60, 0.7);
-    this.explosions.burst(top, 6, { hot: 0xc9a0ff, smoke: 0.6 });
+    h.lights?.flash(top, 0xc8a8ff, HOLE_BURST.flash, 60, 0.7);
+    this.explosions.burst(top, 6, { hot: HOLE_BURST.hot, smoke: 0.6 });
     h.fx.shock(o.at, 0xe8d8ff, 14, 0.8);
     for (const [e] of o.lifted) {
       e.held = false;
