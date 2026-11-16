@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial } from 'three';
 import { Breakables, breakHp, canBreak, collapseDelay, POWER, rebuildDue, trimGrid, unheld, type BreakTarget } from './Breakables';
 import type { GridFootprint } from './Colliders';
+import { blockCount, chunkCount } from './Fracture';
 
 function grid(): GridFootprint {
   // 4 x 4 cells of 1 m, centred on (10, 10), all solid 6 m tall (unit 0.1 → top 60).
@@ -212,6 +213,65 @@ describe('Breakables', () => {
     ready = true;
     b.update(0.016, { x: 0, z: 0 });
     expect(fell).toBe(1);
+  });
+});
+
+describe('blocks (v12: a house comes apart block by block, the reel\'s look)', () => {
+  it('a stone house breaks into about blockCount(size) brick-sized blocks, drawn in a few batches', () => {
+    const h = world();
+    const b = new Breakables(h);
+    const { target } = house();
+    b.register(target);
+    b.damageAt(10, 1, 12, 1.5, 'spell');
+    const e = b.entries[0];
+    expect(e.chunks.length).toBeGreaterThan(blockCount(6) * 0.6);
+    expect(e.chunks.length).toBeLessThan(blockCount(6) * 1.6);
+    expect(e.group!.children.filter((c) => (c as { isBatchedMesh?: boolean }).isBatchedMesh).length).toBe(2);
+  });
+  it('Low quality cuts fewer, bigger blocks', () => {
+    const h = world();
+    const b = new Breakables(h);
+    b.blockScale = 0.4;
+    const { target } = house();
+    b.register(target);
+    b.damageAt(10, 1, 12, 1.5, 'spell');
+    expect(b.entries[0].chunks.length).toBeLessThan(blockCount(6) * 0.7);
+  });
+  it('a tree keeps its Voronoi logs', () => {
+    const h = world();
+    const b = new Breakables(h);
+    const { target } = house();
+    b.register({ ...target, id: 'tree', tree: true });
+    b.damageAt(10, 1, 12, 1.5, 'spell');
+    expect(b.entries[0].chunks.length).toBeLessThanOrEqual(chunkCount(6) + 2);
+  });
+});
+
+describe('tear (v12: a vortex lifts a building away block by block, the reel\'s black hole)', () => {
+  it('pulls loose a few standing blocks a call, the top ones first, without throwing them', () => {
+    const h = world();
+    const b = new Breakables(h);
+    const { target } = house();
+    h.add(...target.footprints);
+    b.register(target);
+    const n = b.tear(10, 10, 8, 5);
+    expect(n).toBe(5);
+    const e = b.entries[0];
+    expect(e.state).toBe('broken');
+    const gone = e.chunks.filter((c) => !c.standing);
+    expect(gone).toHaveLength(5);
+    const top = Math.max(...e.chunks.map((c) => c.y));
+    for (const c of gone) expect(c.y).toBeGreaterThan(top - 1);
+    for (const c of gone) expect(Math.hypot(c.piece!.vx, c.piece!.vz)).toBeLessThan(1.5);
+  });
+  it('out of reach: nothing; torn to the last third: it comes down', () => {
+    const h = world();
+    const b = new Breakables(h);
+    const { target } = house();
+    b.register(target);
+    expect(b.tear(40, 40, 5, 5)).toBe(0);
+    for (let i = 0; i < 200 && b.entries[0].state !== 'rubble'; i++) b.tear(10, 10, 8, 6);
+    expect(b.entries[0].state).toBe('rubble');
   });
 });
 

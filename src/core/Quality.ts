@@ -30,12 +30,16 @@ export interface QualitySettings {
   debris: number;
   /** Ways each building can break (fracture variants cached per model). */
   variants: number;
+  /** How many blocks a building breaks into, as a share of High's (fewer, bigger blocks on Low). */
+  blocks: number;
+  /** Ground fires burning at once (GroundFires cap). */
+  fires: number;
 }
 
 export function settingsFor(level: QualityLevel): QualitySettings {
   return level === 'high'
-    ? { maxRatio: 1.25, lights: 6, debris: 300, variants: 3 }
-    : { maxRatio: 0.9, lights: 3, debris: 150, variants: 1 };
+    ? { maxRatio: 1.25, lights: 6, debris: 900, variants: 3, blocks: 1, fires: 120 }
+    : { maxRatio: 0.9, lights: 3, debris: 350, variants: 1, blocks: 0.4, fires: 40 };
 }
 
 /** Auto: High until 3 s of slow frames (over 25 ms) at the lowest resolution, then Low for the rest of the session. */

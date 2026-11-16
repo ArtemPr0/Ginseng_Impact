@@ -193,6 +193,18 @@ export class CarrySystem {
     return true;
   }
 
+  /** Where Orlan's hold is and how big what he holds is (the beam and field run to it), or null. */
+  holding(): { to: Vector3; r: number } | null {
+    const m = this.mind;
+    if (!m) return null;
+    const me = this.h.hero();
+    const c = mindHold(me.pos, me.yaw, m.t);
+    let r = 0.6;
+    if (m.e) r = Math.max(r, m.e.def.height * (m.e.def.scale ?? 1) * 0.55);
+    for (const off of m.pieces.values()) r = Math.max(r, Math.hypot(off.x, off.y, off.z) + 0.4);
+    return { to: new Vector3(c.x, c.y, c.z), r };
+  }
+
   /**
    * What a lift would take now (Orlan's Telekinesis glows on it under the crosshair): a mob near the crosshair (not a
    * boss or a giant), else loose rubble there, else a small building to tear up; nothing past 22 m.

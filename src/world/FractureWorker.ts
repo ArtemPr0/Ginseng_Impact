@@ -5,12 +5,14 @@ interface Job {
   id: number;
   position: Float32Array; normal: Float32Array | null; uv: Float32Array | null; index: Uint32Array | null;
   n: number; seed: number; thickness: number;
+  /** Block mode (v12): cut into blocks of this size instead of Voronoi chunks. */
+  block?: { course: number; length: number } | null;
 }
 
 self.onmessage = (ev: MessageEvent<Job>) => {
   const j = ev.data;
   let r: ReturnType<typeof cutJob>;
-  try { r = cutJob(j, j.seed, j.thickness); } catch (e) {
+  try { r = cutJob(j, j.seed, j.thickness, j.block); } catch (e) {
     (self as unknown as Worker).postMessage({ id: j.id, error: String(e) });
     return;
   }

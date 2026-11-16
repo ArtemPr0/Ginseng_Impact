@@ -3,6 +3,7 @@ import { aimPoint, AIM_RANGE, SpellBuffer, spellRange } from './combat/Aim';
 import { SPELLS } from './combat/Spells';
 import { BAR, barKey, LmbGesture, SpellBar } from './combat/SpellBar';
 import { LiftGlow } from './render/LiftGlow';
+import { MindBeam } from './render/MindBeam';
 import { Color, DirectionalLight, FogExp2, Frustum, HemisphereLight, Matrix4, type Object3D, PerspectiveCamera, Scene, Sphere, Vector3 } from 'three';
 import { HarvestLedger, harvestOf } from './world/Harvest';
 import { Ejecta } from './render/Ejecta';
@@ -13,7 +14,7 @@ import { AutoQuality, nextMode, pickMode, QUALITY_KEY, settingsFor, type Quality
 import { WorkerFracturer } from './world/FractureObject';
 import { Bubbles } from './world/Portal';
 import { LightBudget } from './render/LightBudget';
-import { loadModel, ModelRig, yawToRotation } from './models/ModelRig';
+import { loadModel, loadModelOrWarn, ModelRig, yawToRotation } from './models/ModelRig';
 import { MODELS } from './data/models';
 import { Audio } from './audio/Audio';
 import { babbleVoice, renderBabble } from './audio/Babble';
@@ -128,6 +129,19 @@ let castRange = AIM_RANGE;
 /** What Telekinesis would lift glows under the crosshair. */
 const liftGlow = new LiftGlow();
 scene.add(liftGlow.group);
+/** Meshy models spells are made of (the Stone Wall's stone), loaded once on first ask. */
+const spellModels = new Map<string, Object3D | null>();
+function spellModel(id: string): Object3D | null {
+  if (!spellModels.has(id)) {
+    spellModels.set(id, null);
+    void loadModelOrWarn(id, MODELS[id]?.label).then((g) => { if (g) spellModels.set(id, g.scene); });
+  }
+  return spellModels.get(id) ?? null;
+}
+spellModel('stone-wall');
+const mindBeam = new MindBeam();
+scene.add(mindBeam.group);
+const handAt = new Vector3();
 /** Clods of earth thrown out of fresh craters (Ejecta). */
 const ejecta = new Ejecta((x, z, y) => world.heightAt(x, z, y));
 scene.add(ejecta.group);
@@ -318,6 +332,8 @@ const lightBudget = new LightBudget(scene, 6);
 let qualityMode: QualityMode = pickMode(location.search, (() => { try { return localStorage.getItem(QUALITY_KEY); } catch { return null; } })());
 const autoQuality = new AutoQuality();
 let qualityLevel: QualityLevel | null = null;
+/** Quality settings for parts made after the first applyQuality (the fight): set once they exist. */
+let onQualityLate: ((q: ReturnType<typeof settingsFor>) => void) | null = null;
 function applyQuality(): void {
   const level: QualityLevel = qualityMode === 'auto' ? autoQuality.level : qualityMode;
   hud.setQuality(qualityMode, level);
@@ -328,6 +344,8 @@ function applyQuality(): void {
   lightBudget.setLimit(q.lights);
   area.breakables.sim.maxActive = q.debris;
   area.breakables.variants = q.variants;
+  area.breakables.blockScale = q.blocks;
+  onQualityLate?.(q);
 }
 hud.setOnQuality(() => {
   qualityMode = nextMode(qualityMode);
@@ -359,6 +377,7 @@ const combat = new CombatSystem({
   onTrip: (strength, seconds) => renderer.trip(strength, seconds),
   onInk: () => inkSplat.splash(),
   breakAt: (x, y, z, radius, kind) => area.breakables.damageAt(x, y, z, radius, kind),
+  tear: (x, z, radius, count) => area.breakables.tear(x, z, radius, count),
   dig: (x, z, r, depth, scorch) => {
     if (depth > 0 && area.craters.crater(x, z, r, depth)) ejecta.spawn(x, world.heightAt(x, z), z, r, depth);
     if (scorch) area.craters.scorch(x, z, r * 1.1, scorch);
@@ -379,6 +398,7 @@ const combat = new CombatSystem({
   lights: { flash: (at, c, i, d, s) => lightBudget.flash(at, c, i, d, s), hold: (c, i, d) => lightBudget.hold(c, i, d) },
   smoke: (at, r, color, life) => billow.cloud(at, r, color, { life, puffs: Math.round(8 + r * 5), rise: 1.6 + r * 0.4, spread: 0.6 + r * 0.25, size: 0.5 + r * 0.3 }),
   sprout: (ids) => area.sprout(ids),
+  model: (id) => spellModel(id),
   solid: (x, z, r, top) => {
     const f = { kind: 'cyl' as const, x, z, r, top };
     world.add(f);
@@ -401,6 +421,8 @@ const combat = new CombatSystem({
   // A roll along the stick, or a backstep: the controller carries it (an impulse alone was eaten by the ground drag).
   onDodge: () => startDash(controller, tpc.moveToWorld(input.moveAxis())),
 });
+onQualityLate = (q) => { combat.caster.fires.cap = q.fires; };
+onQualityLate(settingsFor(qualityLevel ?? 'high'));
 
 /** Moves the hero (portals, doors, the frog's dream): everything that was chasing stays behind. */
 function teleport(x: number, y: number, z: number, yaw: number, name?: string): void {
@@ -985,6 +1007,10 @@ game
       });
       if (combat.spellsCast !== castsBefore) spellBuffer.done();
       liftGlow.update(dt, input.locked && !!slot.hold && !combat.carry.mind ? combat.carry.liftTarget() : null);
+      // Telekinesis held: the beam from his hand to the hold.
+      const held = combat.carry.holding();
+      const cs = controller;
+      mindBeam.update(dt, held ? { from: handAt.set(cs.pos.x + Math.cos(cs.yaw) * 0.5, cs.pos.y + 1.55, cs.pos.z + Math.sin(cs.yaw) * 0.5), to: held.to, r: held.r } : null);
       const move = input.locked && !combat.busy && combat.charging === 0 ? tpc.moveToWorld(input.moveAxis()) : { x: 0, z: 0 };
       const space = input.locked && input.justPressed('Space');
       adventures.update(dt);

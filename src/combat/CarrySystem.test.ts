@@ -42,3 +42,16 @@ describe('CarrySystem.liftTarget (what Orlan\'s Telekinesis would take: it glows
     expect(new CarrySystem(host({ aim: null })).liftTarget()).toBeNull();
   });
 });
+
+describe('CarrySystem.holding (where the Telekinesis beam runs to)', () => {
+  it('nothing held: null; a mob lifted: the hold ahead of him, sized to the mob', () => {
+    const e = mob(6, 0);
+    const c = new CarrySystem(host({ aim: new Vector3(6, 0, 0), enemies: [e] }));
+    expect(c.holding()).toBeNull();
+    c.update(0.016, { attack: false, heavyHeld: true, grab: false } as never);
+    const h = c.holding();
+    expect(h).not.toBeNull();
+    expect(h!.r).toBeGreaterThan(0.5);
+    expect(h!.to.y).toBeGreaterThan(1);
+  });
+});

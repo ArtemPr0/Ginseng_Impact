@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BAR, barKey, heroKey, LmbGesture, SpellBar } from './SpellBar';
+import { BAR, barKey, heroKey, LmbGesture, SpellBar, spellPress } from './SpellBar';
 import { SPELLS } from './Spells';
 
 describe('BAR (the user calls of 2026-11-16: keys 1-7 pick, right click casts)', () => {
@@ -79,5 +79,15 @@ describe('LmbGesture (tap = combo, hold = charged heavy)', () => {
     expect(o.heavyHeld).toBe(false);
     o = g.update(0.016, false);
     expect(o.heavyRelease).toBe(false);
+  });
+});
+
+describe('spellPress (a press on a spell slot)', () => {
+  it('casts when ready; with his Stone Wall standing, pressing it again kicks the wall, cooldown or not', () => {
+    expect(spellPress('fireball', true, false)).toBe('cast');
+    expect(spellPress('fireball', false, false)).toBe('none');
+    expect(spellPress('stone-wall', false, true)).toBe('kick');
+    expect(spellPress('stone-wall', true, true)).toBe('kick');
+    expect(spellPress('stone-wall', true, false)).toBe('cast');
   });
 });

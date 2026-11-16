@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BoxGeometry, type BufferGeometry, Group, Mesh, MeshStandardMaterial, SphereGeometry } from 'three';
-import { chunkCount, fractureGeometry, fractureObject } from './Fracture';
+import { chunkCount, fractureGeometry, fractureObject, blockCount, blockSize } from './Fracture';
 
 const triCount = (g: BufferGeometry) => (g.getIndex()?.count ?? g.attributes.position.count) / 3;
 
@@ -74,5 +74,28 @@ describe('chunkCount', () => {
 
   it('halves far away', () => {
     expect(chunkCount(8, true)).toBeLessThan(chunkCount(8));
+  });
+});
+
+describe('blocks (v12: buildings come apart block by block, as in the godofprompt reel)', () => {
+  it('only buildings and big things (2.5 m and up) break into blocks; houses ~200, landmarks ~600, capped', () => {
+    expect(blockCount(1.5)).toBe(0);
+    expect(blockCount(3)).toBeGreaterThanOrEqual(50);
+    expect(blockCount(8)).toBeGreaterThan(180);
+    expect(blockCount(8)).toBeLessThan(260);
+    expect(blockCount(55)).toBeGreaterThan(550);
+    expect(blockCount(500)).toBeLessThanOrEqual(800);
+  });
+  it('Low quality: fewer, bigger blocks, never under 24', () => {
+    expect(blockCount(8, 0.4)).toBeCloseTo(blockCount(8) * 0.4, -1);
+    expect(blockCount(3, 0.1)).toBe(24);
+  });
+  it('sizes the blocks so the surface makes about n of them: stone as bricks, wood as long planks', () => {
+    const b = blockSize(200, 200, 'stone')!;
+    expect(b.course * b.length * 200).toBeCloseTo(200, 0);
+    expect(b.length / b.course).toBeCloseTo(1.6, 1);
+    const w = blockSize(200, 200, 'wood')!;
+    expect(w.length / w.course).toBeCloseTo(3, 1);
+    expect(blockSize(200, 200, 'glass')).toBeNull();
   });
 });

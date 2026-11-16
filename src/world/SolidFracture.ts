@@ -169,6 +169,120 @@ export function fractureSolid(geo: BufferGeometry, n: number, o: FractureOptions
   return { chunks, adjacent };
 }
 
+export interface BlockOptions {
+  /** Height of a course of blocks (source units). */
+  course: number;
+  /** Length (and depth) of a block along the ground. */
+  length: number;
+  thickness: number;
+}
+
+/**
+ * Cuts `geo` into blocks (2026-11-16, after the godofprompt reel, where towers and cottages come apart block by block):
+ * the model's surface is sliced into courses `course` high, and each course into blocks `length` long and deep, every
+ * other course shifted half a block so the joints stagger like masonry. Every triangle is clipped to the blocks it
+ * crosses (nothing is lost, the outside keeps its normals and uvs), each block solidified like a Voronoi chunk.
+ */
+export function fractureBlocks(geo: BufferGeometry, o: BlockOptions): SolidFracture {
+  const pos = geo.attributes.position;
+  const nrm = geo.attributes.normal;
+  const uv = geo.attributes.uv;
+  const index = geo.getIndex();
+  const triN = (index ? index.count : pos.count) / 3;
+  const vi = (t: number, k: number) => (index ? index.getX(t * 3 + k) : t * 3 + k);
+  const H = o.course, L = o.length;
+  const vert = (v: number): number[] => [
+    pos.getX(v), pos.getY(v), pos.getZ(v),
+    nrm ? nrm.getX(v) : 0, nrm ? nrm.getY(v) : 0, nrm ? nrm.getZ(v) : 0,
+    uv ? uv.getX(v) : 0, uv ? uv.getY(v) : 0,
+  ];
+  const cells = new Map<string, { ix: number; iy: number; iz: number; out: number[]; splits: number }>();
+  let diag = 0;
+  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  const range = (poly: number[][], a: number) => {
+    let mn = Infinity, mx = -Infinity;
+    for (const p of poly) { mn = Math.min(mn, p[a]); mx = Math.max(mx, p[a]); }
+    return [mn, mx];
+  };
+  // The part of `poly` with a <= x[axis] < b.
+  const slab = (poly: number[][], axis: number, a: number, b: number) => {
+    const n1 = [0, 0, 0], n2 = [0, 0, 0];
+    n1[axis] = -1; n2[axis] = 1;
+    // (The lower face is inclusive, so a face lying exactly on a grid plane is kept, in the cell above it.)
+    const p = clip(poly, n1[0], n1[1], n1[2], -a + L * 1e-6);
+    return p.length < 3 ? p : clip(p, n2[0], n2[1], n2[2], b);
+  };
+  const minArea = (H * L) * 1e-6;
+  const areaOf = (poly: number[][]) => {
+    let ax = 0, ay = 0, az = 0;
+    for (let i = 1; i + 1 < poly.length; i++) {
+      const a = poly[0], b = poly[i], c = poly[i + 1];
+      const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+      ax += uy * vz - uz * vy; ay += uz * vx - ux * vz; az += ux * vy - uy * vx;
+    }
+    return Math.hypot(ax, ay, az) / 2;
+  };
+  const near = L * 1e-5;
+  const same = (a: number[], b: number[]) => Math.abs(a[0] - b[0]) < near && Math.abs(a[1] - b[1]) < near && Math.abs(a[2] - b[2]) < near;
+  const emit = (raw: number[][], ix: number, iy: number, iz: number, split: boolean) => {
+    // (Corners a hair apart — a slab's inclusive edge — are one corner: no sliver triangles to tear the solid.)
+    const poly: number[][] = [];
+    for (const v of raw) if (!poly.length || !same(poly[poly.length - 1], v)) poly.push(v);
+    while (poly.length > 1 && same(poly[0], poly[poly.length - 1])) poly.pop();
+    if (poly.length < 3) return;
+    const key = `${ix},${iy},${iz}`;
+    let c = cells.get(key);
+    if (!c) { c = { ix, iy, iz, out: [], splits: 0 }; cells.set(key, c); }
+    for (let i = 1; i + 1 < poly.length; i++) {
+      if (areaOf([poly[0], poly[i], poly[i + 1]]) <= minArea * 1e-3) continue;
+      c.out.push(...poly[0], ...poly[i], ...poly[i + 1]);
+      if (split) c.splits++;
+    }
+  };
+  for (let t = 0; t < triN; t++) {
+    const tri = [vert(vi(t, 0)), vert(vi(t, 1)), vert(vi(t, 2))];
+    for (const p of tri) for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], p[a]); hi[a] = Math.max(hi[a], p[a]); }
+    const [y0, y1] = range(tri, 1);
+    const iys = [Math.floor(y0 / H), Math.floor(y1 / H)];
+    const pieces: Array<[number[][], number, number, number]> = [];
+    for (let iy = iys[0]; iy <= iys[1]; iy++) {
+      const py = iys[0] === iys[1] ? tri : slab(tri, 1, iy * H, (iy + 1) * H);
+      if (py.length < 3) continue;
+      // Every other course shifted half a block.
+      const off = (((iy % 2) + 2) % 2) * L * 0.5;
+      const [x0, x1] = range(py, 0);
+      const ixa = Math.floor((x0 + off) / L), ixb = Math.floor((x1 + off) / L);
+      for (let ix = ixa; ix <= ixb; ix++) {
+        const px = ixa === ixb ? py : slab(py, 0, ix * L - off, (ix + 1) * L - off);
+        if (px.length < 3) continue;
+        const [z0, z1] = range(px, 2);
+        const iza = Math.floor((z0 + off) / L), izb = Math.floor((z1 + off) / L);
+        for (let iz = iza; iz <= izb; iz++) {
+          const pz = iza === izb ? px : slab(px, 2, iz * L - off, (iz + 1) * L - off);
+          if (pz.length >= 3 && areaOf(pz) > minArea) pieces.push([pz, ix, iy, iz]);
+        }
+      }
+    }
+    for (const [poly, ix, iy, iz] of pieces) emit(poly, ix, iy, iz, pieces.length > 1);
+  }
+  diag = Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) || 1;
+  const list = [...cells.values()].filter((c) => c.out.length >= W * 3);
+  const chunks = list.map((c) => solidify(c.out, o.thickness, diag * 1e-5, c.splits, true));
+  // Touching: side by side in a course; over and under where the staggered blocks overlap.
+  const adjacent: number[][] = list.map(() => []);
+  const span = (i: number, iy: number) => { const off = (((iy % 2) + 2) % 2) * L * 0.5; return [i * L - off, (i + 1) * L - off]; };
+  const overlap = (a: number[], b: number[]) => Math.min(a[1], b[1]) - Math.max(a[0], b[0]) > L * 0.01;
+  for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+    const a = list[i], b = list[j];
+    const dy = Math.abs(a.iy - b.iy);
+    const touch = dy === 0
+      ? Math.abs(a.ix - b.ix) + Math.abs(a.iz - b.iz) === 1
+      : dy === 1 && overlap(span(a.ix, a.iy), span(b.ix, b.iy)) && overlap(span(a.iz, a.iy), span(b.iz, b.iy));
+    if (touch) { adjacent[i].push(j); adjacent[j].push(i); }
+  }
+  return { chunks, adjacent };
+}
+
 /** Sutherland–Hodgman: the part of `poly` where n·x < d, attributes interpolated. */
 function clip(poly: number[][], nx: number, ny: number, nz: number, d: number): number[][] {
   const out: number[][] = [];
@@ -190,7 +304,7 @@ function clip(poly: number[][], nx: number, ny: number, nz: number, d: number): 
  * Gives an outside patch (flat W-float triangles) thickness `t`, fits its box (principal axes) and returns it centred
  * in that frame.
  */
-function solidify(flat: number[], t: number, eps: number, split: number): SolidChunk {
+function solidify(flat: number[], t: number, eps: number, split: number, grid = false): SolidChunk {
   const triN = flat.length / (W * 3);
   const vN = triN * 3;
   // Weld by position, averaging normals (a face normal where the model has none).
@@ -266,13 +380,24 @@ function solidify(flat: number[], t: number, eps: number, split: number): SolidC
     face(bx, by, bz, inner(a, 0), inner(a, 1), inner(a, 2), inner(b, 0), inner(b, 1), inner(b, 2));
   }
 
-  // Its box: principal axes of the points, then the bounds along them.
-  const axes = principalAxes(P);
-  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
-  for (let i = 0; i < P.length; i += 3) for (let j = 0; j < 3; j++) {
-    const d = P[i] * axes[j * 3] + P[i + 1] * axes[j * 3 + 1] + P[i + 2] * axes[j * 3 + 2];
-    lo[j] = Math.min(lo[j], d); hi[j] = Math.max(hi[j], d);
+  // Its box: principal axes of the points, then the bounds along them (a block cut on the grid: the grid's axes when
+  // they fit tighter, as they do for near-square blocks whose principal axes are a toss-up).
+  const bounds = (ax: number[]) => {
+    const l = [Infinity, Infinity, Infinity], h = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < P.length; i += 3) for (let j = 0; j < 3; j++) {
+      const d = P[i] * ax[j * 3] + P[i + 1] * ax[j * 3 + 1] + P[i + 2] * ax[j * 3 + 2];
+      l[j] = Math.min(l[j], d); h[j] = Math.max(h[j], d);
+    }
+    return { l, h, v: (h[0] - l[0]) * (h[1] - l[1]) * (h[2] - l[2]) };
+  };
+  let axes = principalAxes(P);
+  let fit = bounds(axes);
+  if (grid) {
+    const id = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+    const g = bounds(id);
+    if (g.v <= fit.v * 1.001) { axes = id; fit = g; }
   }
+  const lo = fit.l, hi = fit.h;
   const mid = [0, 1, 2].map((j) => (lo[j] + hi[j]) / 2);
   const pivot = new Vector3(
     axes[0] * mid[0] + axes[3] * mid[1] + axes[6] * mid[2],

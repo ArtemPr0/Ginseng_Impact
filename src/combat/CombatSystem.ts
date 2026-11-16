@@ -56,6 +56,7 @@ import { maimMult, pickPart, severRoll, wearCrossed, wearPart } from './Sever';
 import { StuckArrows, entryPoint } from './StuckArrows';
 import { CarrySystem } from './CarrySystem';
 import { SpellBook, SPELLS } from './Spells';
+import { spellPress } from './SpellBar';
 import { SpellCast } from './SpellCast';
 import type { BlowKind } from '../world/Breakables';
 import { CONTROLLER, rolling, startLeap, startLunge } from '../player/CharacterController';
@@ -229,6 +230,8 @@ export interface CombatDeps {
   allies?: () => ReadonlyArray<CombatAlly>;
   /** A blow breaks the world there (World.breakables): returns how many things it broke. */
   breakAt?: (x: number, y: number, z: number, radius: number, kind: BlowKind) => number;
+  /** A vortex tears up to `count` standing blocks loose within `radius` of (x, z) (Breakables.tear). */
+  tear?: (x: number, z: number, radius: number, count: number) => number;
   /** A blow digs the ground (World.craters): a bowl `r` metres across, `depth` deep, burnt or frozen around it. */
   dig?: (x: number, z: number, r: number, depth: number, scorch?: 'burnt' | 'frozen') => void;
   /** Where the crosshair points on the ground (spells land there; Aim.ts). */
@@ -241,6 +244,8 @@ export interface CombatDeps {
   lights?: SpellLights;
   /** Billowing smoke or dust (render/Billow). */
   smoke?: (at: Vector3, r: number, color: number, life: number) => void;
+  /** A loaded Meshy model by id, or null while it loads (the Stone Wall's stone). */
+  model?: (id: string) => Object3D | null;
   /** A copy of a reel flora model to grow (Overgrowth; World.sprout). */
   sprout?: (ids: string[]) => { object: Group; scale: number } | null;
   /** A solid trunk while a grown tree stands; returns its remover. */
@@ -517,13 +522,14 @@ export class CombatSystem {
       hit: (e, mult, knockback, hitStop, at) => self.hitEnemy(e, self.atkOf(self.active), mult, self.elementOf(self.active), knockback, hitStop, { blow: 'skill', heavy: true, at }),
       reachable: (e, r, at) => self.reachable(e, r, at),
       smash: (x, y, z, r, kind) => self.smash(x, y, z, r, kind),
+      tear: (x, z, r, n) => d.tear?.(x, z, r, n) ?? 0,
       dig: (x, z, r, depth, scorch) => d.dig?.(x, z, r, depth, scorch),
       shake: (n) => d.onShake?.(n),
       heightAt: (x, z, y) => d.world.heightAt(x, z, y),
       debris: () => [self.gore.sim, ...(d.debris?.() ?? [])],
       bloodMoon: (seconds) => { self.bloodMoon = seconds; },
       announce: (text) => d.hud.announce(text),
-      sprout: d.sprout, solid: d.solid, lights: d.lights, smoke: d.smoke,
+      sprout: d.sprout, solid: d.solid, lights: d.lights, smoke: d.smoke, model: d.model,
     });
     this.carry = new CarrySystem({
       enemies: () => self.enemies,
@@ -1068,7 +1074,14 @@ export class CombatSystem {
     this.caster.update(dt);
     if (this.bloodMoon > 0) this.bloodMoon = Math.max(0, this.bloodMoon - dt);
     const slot = input.spell ?? null;
-    if (slot !== null && (grounded || flying) && !this.busy && this.heavyCharge === 0 && this.spells.ready(me.id, slot)) {
+    const press = slot === null ? 'none' : spellPress(SPELLS[me.id]?.[slot]?.id ?? '', this.spells.ready(me.id, slot), this.caster.wallUp());
+    if (press === 'kick' && !this.busy) {
+      // Sir Aldric kicks his standing Stone Wall apart.
+      this.caster.kickWall();
+      this.spellsCast++;
+      this.feel.punch = true;
+      this.sfx.effort(me.id);
+    } else if (press === 'cast' && slot !== null && (grounded || flying) && !this.busy && this.heavyCharge === 0) {
       this.softLock(9);
       this.spells.use(me.id, slot);
       this.spellsCast++;

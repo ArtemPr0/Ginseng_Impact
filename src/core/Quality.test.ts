@@ -22,6 +22,16 @@ describe('Quality', () => {
     expect(lo.variants).toBe(1);
     expect(hi.variants).toBe(3);
   });
+  it('blocks (v12, the user\'s call: about 1,500 pieces on High, 500 on Low): Low cuts buildings into fewer, bigger blocks', () => {
+    const hi = settingsFor('high'), lo = settingsFor('low');
+    expect(hi.blocks).toBe(1);
+    expect(lo.blocks).toBeGreaterThan(0.3);
+    expect(lo.blocks).toBeLessThan(0.5);
+    expect(hi.debris).toBeGreaterThanOrEqual(800);
+    expect(lo.debris).toBeGreaterThanOrEqual(300);
+    expect(hi.fires).toBe(120);
+    expect(lo.fires).toBe(40);
+  });
   it('Auto drops to Low after 3 s of slow frames at the lowest resolution, and never flaps back', () => {
     const a = new AutoQuality();
     expect(a.level).toBe('high');

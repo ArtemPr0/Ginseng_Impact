@@ -88,3 +88,9 @@ export class LmbGesture {
     return { attack, heavyHeld: this.charging, heavyRelease };
   }
 }
+
+/** What a press on a spell slot does: cast it, kick Sir Aldric's standing Stone Wall apart, or nothing (cooling). */
+export function spellPress(id: string, ready: boolean, wallUp: boolean): 'cast' | 'kick' | 'none' {
+  if (id === 'stone-wall' && wallUp) return 'kick';
+  return ready ? 'cast' : 'none';
+}

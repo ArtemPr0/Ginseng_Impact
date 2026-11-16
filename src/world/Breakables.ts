@@ -8,8 +8,9 @@
  * drop and pile. Rubble rests as real boxes (Debris) and becomes box colliders you climb; small bits fade after a
  * while; and only out of the hero's sight, far off, does the building stand again.
  */
-import { Group, Mesh, Quaternion, Vector3, type Material, type Object3D } from 'three';
-import { chunkCount } from './Fracture';
+import { Group, Quaternion, Vector3, type Material, type Object3D } from 'three';
+import { ChunkBatch } from '../render/ChunkBatch';
+import { blockCount, chunkCount } from './Fracture';
 import { SyncFracturer, type Fracturer, type ObjectChunk } from './FractureObject';
 import { DebrisSim, type Piece } from './Debris';
 import type { Footprint, GridFootprint } from './Colliders';
@@ -115,7 +116,8 @@ export interface BreakTarget {
 
 export interface ChunkState {
   chunk: ObjectChunk;
-  mesh: Mesh;
+  /** Its stand-in: the physics moves this, its building's ChunkBatch draws it. */
+  mesh: Object3D;
   /** Centre in world space, its box half extents (scaled) and bounding radius. */
   x: number; y: number; z: number; r: number;
   half: { x: number; y: number; z: number };
@@ -142,6 +144,8 @@ export interface Breakable {
   chunks: ChunkState[];
   adjacent: number[][];
   group: Group | null;
+  /** Draws its pieces in a few calls (ChunkBatch). */
+  batch: ChunkBatch | null;
   /** Colliders in the height field now (the original, a trimmed copy, or none). */
   live: Footprint[];
   /** Rubble colliders by piece. */
@@ -185,6 +189,8 @@ function thicknessOf(kind: BreakKind, size: number): number {
 const TRUNK = 0.42;
 
 export class Breakables {
+  /** How many blocks buildings break into, as a share of High's (the quality setting). */
+  blockScale = 1;
   /** When each piece was thrown (a brief thing's leaves shrink from then). */
   private readonly born = new WeakMap<Piece, number>();
   readonly entries: Breakable[] = [];
@@ -240,7 +246,7 @@ export class Breakables {
     const p = t.object.parent ? t.object.getWorldPosition(t.object.position.clone()) : t.object.position.clone();
     const b: Breakable = {
       target: t, hp: breakHp(t.size), maxHp: breakHp(t.size), state: 'intact', brokeAt: 0,
-      x: p.x, z: p.z, r: t.size / 2, chunks: [], adjacent: [], group: null, live: t.footprints.slice(), rubble: new Map(),
+      x: p.x, z: p.z, r: t.size / 2, chunks: [], adjacent: [], group: null, batch: null, live: t.footprints.slice(), rubble: new Map(),
       pending: [], variant: Math.floor(Math.random() * 3),
     };
     this.entries.push(b);
@@ -271,6 +277,33 @@ export class Breakables {
     }
     if (hit) this.sim.blast(x, y, z, radius + 1, THROW[kind] * 0.45);
     return hit;
+  }
+
+  /**
+   * A vortex over (x, z) tears up to `count` standing blocks loose from what stands within `radius` (v12, the reel's
+   * black hole lifting a temple block by block): the highest go first, let go with no throw (the vortex's own pull
+   * carries them). A building torn down to its last third comes down. Only big things (heavy blows' size) are torn.
+   * Returns how many came loose.
+   */
+  tear(x: number, z: number, radius: number, count: number): number {
+    let torn = 0;
+    for (const b of this.near(x, z, radius)) {
+      if (torn >= count) break;
+      if (b.state === 'rubble' || !canBreak(b.target.size, 'heavy')) continue;
+      if (!this.shatter(b)) continue;
+      const up = b.chunks.filter((c) => c.standing && Math.hypot(c.x - x, c.z - z) <= radius).sort((p, q) => q.y - p.y);
+      for (const c of up.slice(0, count - torn)) {
+        this.add(b, c, (Math.random() - 0.5) * 0.6, 0.8, (Math.random() - 0.5) * 0.6,
+          (Math.random() - 0.5) * 1.5, (Math.random() - 0.5) * 1.5, (Math.random() - 0.5) * 1.5);
+        torn++;
+      }
+      if (!up.length) continue;
+      const left = b.chunks.filter((c) => c.standing).length;
+      if (left < b.chunks.length * 0.35) { this.collapse(b, x, b.chunks[0].y, z, radius, 1); continue; }
+      this.dropUnheld(b);
+      this.trim(b);
+    }
+    return torn;
   }
 
   private strike(b: Breakable, x: number, y: number, z: number, radius: number, kind: BlowKind): void {
@@ -354,6 +387,7 @@ export class Breakables {
       const d = Math.hypot(b.x - hero.x, b.z - hero.z);
       if (rebuildDue({ brokeAt: b.brokeAt, quick: !!b.target.quick }, this.now, d, inView(b.x, b.z, b.r))) this.rebuild(b);
     }
+    for (const b of this.entries) if (b.batch && b.group?.visible !== false) b.batch.update();
   }
 
   /** Cuts the nearest intact building within `range` ahead of time (the worker), one a call. */
@@ -374,10 +408,12 @@ export class Breakables {
     const t = b.target;
     const hit = this.cut.get(b);
     if (hit) return hit;
-    const n = chunkCount(t.size);
     const kind = t.material ?? 'stone';
+    // Buildings and big things come apart block by block (v12, the reel); props, trees and leaves in Voronoi chunks.
+    const blocks = t.tree || t.brief ? 0 : blockCount(t.size, this.blockScale);
+    const n = blocks || chunkCount(t.size);
     const s = t.object.getWorldScale(new Vector3()).x || 1;
-    const f = this.fracturer.get(`${t.id}:${n}:${b.variant}`, t.object, n, 1 + b.variant * 977, thicknessOf(kind, t.size) / s);
+    const f = this.fracturer.get(`${t.id}:${n}:${b.variant}${blocks ? ':b' : ''}`, t.object, n, 1 + b.variant * 977, thicknessOf(kind, t.size) / s, blocks ? kind : undefined);
     if (f) this.cut.set(b, f);
     return f;
   }
@@ -392,7 +428,8 @@ export class Breakables {
     if (!f || !f.chunks.length) return false;
     const kind = t.material ?? 'stone';
     const inside = breakMaterial(kind);
-    const group = new Group();
+    const batch = new ChunkBatch(f.chunks, inside, outerMaterial);
+    const group = batch.group;
     group.name = 'broken:' + t.id;
     parent.add(group);
     t.object.updateMatrixWorld(true);
@@ -400,17 +437,14 @@ export class Breakables {
     const wq = t.object.getWorldQuaternion(new Quaternion());
     const height = t.size;
     const floorY = new Vector3(0, f.floor, 0).applyMatrix4(t.object.matrixWorld).y;
-    b.chunks = f.chunks.map((chunk) => {
-      const mesh = new Mesh(chunk.geometry, [outerMaterial(chunk.material), inside]);
+    b.chunks = f.chunks.map((chunk, i) => {
+      const mesh = batch.proxies[i];
       const w = chunk.pivot.clone().applyMatrix4(t.object.matrixWorld);
       const q = wq.clone().multiply(chunk.q);
       mesh.position.copy(w);
       mesh.quaternion.copy(q);
       mesh.scale.setScalar(s);
       mesh.userData.scale = s;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      group.add(mesh);
       const half = { x: chunk.half.x * s, y: chunk.half.y * s, z: chunk.half.z * s };
       // Lowest corner of its box, to know what stands on the ground.
       let low = Infinity;
@@ -427,6 +461,8 @@ export class Breakables {
     });
     b.adjacent = f.adjacent;
     b.group = group;
+    b.batch = batch;
+    batch.update();
     // (Marked hidden too, so a zone change does not show it again: World.showZone.)
     if (t.hide) t.hide(); else { t.object.visible = false; t.object.userData.hidden = true; }
     b.state = 'broken';
@@ -540,6 +576,8 @@ export class Breakables {
     b.rubble.clear();
     this.sim.step(0);
     for (let i = this.sim.pieces.length - 1; i >= 0; i--) if (this.sim.pieces[i].dead) this.sim.pieces.splice(i, 1);
+    b.batch?.dispose();
+    b.batch = null;
     b.group?.removeFromParent();
     b.group = null;
     b.chunks = [];
