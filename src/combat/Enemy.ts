@@ -19,6 +19,7 @@ import { type AttackTokens, EnemyBrain, type EnemyState } from './EnemyBrain';
 import type { BossAttack, BossAttackKind } from '../data/enemies';
 import { ELEMENT_COLOR, tickAura, type Aura, type Element } from './Elements';
 import { KNOCK_DECAY, lungePush, lungeRoom } from './Warnings';
+import { weakness } from './Sever';
 
 export type EnemyAction = { kind: 'melee' } | { kind: 'boss'; attack: BossAttackKind } | null;
 
@@ -135,6 +136,9 @@ const _wq = new Quaternion();
 const _aq = new Quaternion();
 const _fq = new Quaternion();
 const _fwd = new Vector3();
+const _hq = new Quaternion();
+/** A Mixamo spine's side axis (its local x): turning about it bends the body forward. */
+const _hx = new Vector3(1, 0, 0);
 
 /** Turns `bone` about a world axis from its pose now, returning the local rotation that results (not applied). */
 function turnedAbout(bone: Object3D, axis: Vector3, angle: number, out = new Quaternion()): Quaternion {
@@ -186,6 +190,9 @@ export class Enemy {
   readonly severed: Object3D[] = [];
   readonly lost = new Set<string>();
   lostArms = 0;
+  /** Health share the last wear check was made at (Sever.wearCrossed). */
+  wearFrom = 1;
+  private hunched: { bone: Object3D; q: Quaternion } | null = null;
   /** The red caps where parts came off (Gore removes them when it mends the body). */
   readonly stumps: Object3D[] = [];
   /** Called as it respawns (Gore.mend). */
@@ -474,7 +481,8 @@ export class Enemy {
 
   /** Pace of everything it does: 1, or the slow's fraction while slowed. */
   get pace(): number {
-    return this.status.slow > 0 ? this.status.slowBy : 1;
+    const worn = this.alive ? weakness(this.hp / (this.def.maxHp * this.hpScale)).pace : 1;
+    return (this.status.slow > 0 ? this.status.slowBy : 1) * worn;
   }
 
   get state(): EnemyState {
@@ -994,10 +1002,22 @@ export class Enemy {
     if (!far) this.flapWings(m, dt);
     // (Far bodies still tick about once a second, so they hold a real clip pose, never the bind pose: a body whose
     // clips stand lower than its bind pose would float there.)
+    // Worn out under 30 %: bent over at the spine (restored before the mixer, so it never piles up).
+    if (this.hunched) { this.hunched.bone.quaternion.copy(this.hunched.q); this.hunched = null; }
     if (!far) m.update(dt * this.pace);
     else if ((this.farAnim += dt) > 1) { m.update(this.farAnim * this.pace); this.farAnim = 0; }
     // A torn-off part stays gone whatever the clip does (set, not turned: nothing piles up across frames).
     for (const b of this.severed) b.scale.setScalar(1e-4);
+    const hunch = this.alive && !far ? weakness(this.hp / (this.def.maxHp * this.hpScale)).hunch : 0;
+    if (hunch > 0) {
+      const spine = m.bone(/spine1?$/i);
+      if (spine) {
+        this.hunched = { bone: spine, q: spine.quaternion.clone() };
+        // Forward about the body's side axis, with a slow heavy breath.
+        _hq.setFromAxisAngle(_hx, hunch * (1 + Math.sin(this.time * 2.4) * 0.12));
+        spine.quaternion.multiply(_hq);
+      }
+    }
     this.lunge = Math.max(0, this.lunge - dt * 2.8);
     this.flinch = Math.max(0, this.flinch - dt * 4);
     this.animateHalo(m.height);

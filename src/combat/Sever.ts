@@ -8,13 +8,15 @@
 import { BufferAttribute, BufferGeometry, Vector3, type Object3D, type SkinnedMesh } from 'three';
 import type { HitMaterial } from '../audio/CombatSfx';
 
-export type Part = 'head' | 'leftArm' | 'rightArm';
+export type Part = 'head' | 'leftArm' | 'rightArm' | 'leftHand' | 'rightHand';
 
 /** The bone each part hangs from (Mixamo names, as Meshy rigs use them). */
 export const PART_BONE: Record<Part, RegExp> = {
   head: /(^|[^a-z])(mixamorig)?:?neck$|(^|[^a-z])(mixamorig)?:?head$/i,
   leftArm: /leftforearm$/i,
   rightArm: /rightforearm$/i,
+  leftHand: /lefthand$/i,
+  rightHand: /righthand$/i,
 };
 
 /** Skeleton indices of `bone` and every bone under it in `mesh`'s skeleton. */
@@ -114,6 +116,7 @@ export function pickPart(parts: Array<{ part: Part; at: Vector3 }>, hit: Vector3
   let best: Part | null = null, bd = Infinity;
   for (const p of parts) {
     if (p.part === 'head' && !died) continue;
+    if (p.part === 'leftHand' || p.part === 'rightHand') continue;
     const d = p.at.distanceTo(hit);
     if (d < bd) { bd = d; best = p.part; }
   }
@@ -141,4 +144,41 @@ export function woundOf(material: HitMaterial, element: number): { glow: boolean
   if (material === 'bone') return { glow: false, color: 0xd9d2bf };
   if (material === 'stone') return { glow: false, color: 0x8a8fa6 };
   return { glow: true, color: notRed(element) };
+}
+
+/**
+ * Wear: a mob comes apart as its health drops (the user's call of 2026-11-16, "after a few hits the mob should start
+ * losing some parts of the body based on % of health remaining so he looks weakened"). A blow that takes its health
+ * past 70 % takes a hand, past 45 % an arm; bosses only at 50 % and 25 %. (The Mixamo rigs have no ear or horn bones,
+ * so there is no smaller chip stage.)
+ */
+export type Wear = 'hand' | 'arm';
+
+export function wearCrossed(before: number, after: number, boss: boolean): Wear[] {
+  const marks: Array<[number, Wear]> = boss ? [[0.5, 'hand'], [0.25, 'arm']] : [[0.7, 'hand'], [0.45, 'arm']];
+  return marks.filter(([m]) => before > m && after <= m).map(([, w]) => w);
+}
+
+/** The part `wear` takes from a mob hit on `side`, missing `lost` (the other side when this one is gone). */
+export function wearPart(wear: Wear, side: 'left' | 'right', lost: Set<string>): Part | null {
+  const other = side === 'left' ? 'right' : 'left';
+  for (const s of [side, other]) {
+    const arm = `${s}Arm` as Part, hand = `${s}Hand` as Part;
+    if (lost.has(arm)) continue;
+    if (wear === 'arm') return arm;
+    if (!lost.has(hand)) return hand;
+  }
+  return null;
+}
+
+/** Under 30 % a mob is worn out: slower (`pace`) and bent over (`hunch`, radians at the spine) the lower it gets. */
+export function weakness(hpShare: number): { pace: number; hunch: number } {
+  if (hpShare >= 0.3) return { pace: 1, hunch: 0 };
+  const f = 1 - Math.max(0, hpShare) / 0.3;
+  return { pace: 0.85 - 0.15 * f, hunch: 0.2 + 0.3 * f };
+}
+
+/** Sides of the body that have lost a hand or an arm (for maimMult). */
+export function armsLost(lost: Set<string>): number {
+  return (['left', 'right'] as const).filter((s) => lost.has(`${s}Arm`) || lost.has(`${s}Hand`)).length;
 }

@@ -116,3 +116,37 @@ describe('woundOf', () => {
     }
   });
 });
+
+describe('wear (mobs coming apart as their health drops, 2026-11-16)', () => {
+  it('a blow crossing 70 % takes a hand, 45 % an arm; under 30 % nothing more but it is weakened', async () => {
+    const { wearCrossed } = await import('./Sever');
+    expect(wearCrossed(1, 0.8, false)).toEqual([]);
+    expect(wearCrossed(0.8, 0.65, false)).toEqual(['hand']);
+    expect(wearCrossed(0.65, 0.4, false)).toEqual(['arm']);
+    expect(wearCrossed(1, 0.3, false)).toEqual(['hand', 'arm']);
+    expect(wearCrossed(0.4, 0.1, false)).toEqual([]);
+  });
+  it('bosses wear only at 50 % and 25 %', async () => {
+    const { wearCrossed } = await import('./Sever');
+    expect(wearCrossed(1, 0.6, true)).toEqual([]);
+    expect(wearCrossed(0.6, 0.45, true)).toEqual(['hand']);
+    expect(wearCrossed(0.45, 0.2, true)).toEqual(['arm']);
+  });
+  it('the part worn is on the side hit, falling back to the other side, never a hand on an arm already gone', async () => {
+    const { wearPart } = await import('./Sever');
+    expect(wearPart('hand', 'left', new Set())).toBe('leftHand');
+    expect(wearPart('hand', 'left', new Set(['leftHand']))).toBe('rightHand');
+    expect(wearPart('hand', 'left', new Set(['leftArm']))).toBe('rightHand');
+    expect(wearPart('arm', 'right', new Set(['rightHand']))).toBe('rightArm');
+    expect(wearPart('arm', 'right', new Set(['rightArm', 'leftArm']))).toBe(null);
+  });
+  it('weakened under 30 %: slower, and bent over more the lower it gets', async () => {
+    const { weakness } = await import('./Sever');
+    expect(weakness(0.8)).toEqual({ pace: 1, hunch: 0 });
+    const w = weakness(0.2), w2 = weakness(0.05);
+    expect(w.pace).toBeLessThan(1);
+    expect(w.pace).toBeGreaterThan(0.6);
+    expect(w2.hunch).toBeGreaterThan(w.hunch);
+    expect(w2.hunch).toBeLessThan(0.6);
+  });
+});

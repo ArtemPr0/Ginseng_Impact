@@ -10,7 +10,7 @@ import { fractureObject, fractureGeometry } from '../world/Fracture';
 import { Spray } from '../render/Spray';
 import { hitMaterial } from '../audio/CombatSfx';
 import { ELEMENT_COLOR } from './Elements';
-import { bakeTriangles, partTriangles, subtreeIndices, woundOf, type Part } from './Sever';
+import { armsLost, bakeTriangles, partTriangles, subtreeIndices, woundOf, type Part } from './Sever';
 import type { Enemy } from './Enemy';
 
 /** Seconds a piece lies about before it shrinks away. */
@@ -21,6 +21,8 @@ const PART_BONES: Record<Part, RegExp[]> = {
   head: [/neck$/i, /head$/i],
   leftArm: [/leftforearm$/i, /leftarm$/i],
   rightArm: [/rightforearm$/i, /rightarm$/i],
+  leftHand: [/lefthand$/i],
+  rightHand: [/righthand$/i],
 };
 
 /** A skeleton's bones: each group of bone names one piece; whatever no group claims goes with the ribs. */
@@ -77,7 +79,7 @@ export class Gore {
   /** Parts `e` still has, with where their joints are now. */
   partsOf(e: Enemy): Array<{ part: Part; at: Vector3 }> {
     const out: Array<{ part: Part; at: Vector3 }> = [];
-    for (const part of ['head', 'leftArm', 'rightArm'] as Part[]) {
+    for (const part of ['head', 'leftArm', 'rightArm', 'leftHand', 'rightHand'] as Part[]) {
       if (e.lost.has(part)) continue;
       const b = boneOf(e, part);
       if (b) out.push({ part, at: b.getWorldPosition(new Vector3()) });
@@ -97,12 +99,12 @@ export class Gore {
       if (tris.length < 4) continue;
       const b = bakeTriangles(mesh, tris);
       radius = Math.max(radius, b.radius);
-      this.throwPiece(b.geometry, mesh.material as Material, b.pivot, b.radius, kb, (part === 'head' ? 6 : 4.5) * strength, true);
+      this.throwPiece(b.geometry, mesh.material as Material, b.pivot, b.radius, kb, (part === 'head' ? 6 : part.endsWith('Hand') ? 3.5 : 4.5) * strength, true);
       made++;
     }
     if (!made) return false;
     e.lost.add(part);
-    if (part !== 'head') e.lostArms++;
+    e.lostArms = armsLost(e.lost);
     e.severed.push(bone);
     // The stump: a dark cap at the joint, riding the parent bone (in its own scale: rigs are often 0.01-scaled).
     const at = bone.getWorldPosition(new Vector3());
@@ -194,6 +196,7 @@ export class Gore {
     e.stumps.length = 0;
     e.lost.clear();
     e.lostArms = 0;
+    e.wearFrom = 1;
     if (e.model) e.model.root.visible = true;
   }
 

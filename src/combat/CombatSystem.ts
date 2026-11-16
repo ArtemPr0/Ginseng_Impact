@@ -1,5 +1,5 @@
 import { summonKind } from './summon';
-import { BoxGeometry, IcosahedronGeometry, BufferGeometry, CircleGeometry, Color, Float32BufferAttribute, Group, LineBasicMaterial, LineSegments, Mesh, PerspectiveCamera, Scene, Vector3, ConeGeometry, CylinderGeometry, TorusGeometry, MeshBasicMaterial, AdditiveBlending, DoubleSide, Sprite, SpriteMaterial } from 'three';
+import { BoxGeometry, IcosahedronGeometry, BufferGeometry, CircleGeometry, Color, Float32BufferAttribute, Group, LineBasicMaterial, LineSegments, Mesh, PerspectiveCamera, Scene, Vector3, ConeGeometry, CylinderGeometry, TorusGeometry, MeshBasicMaterial, AdditiveBlending, DoubleSide, Sprite, SpriteMaterial, type Object3D } from 'three';
 import { CoinStreak, Hype, isOverkill } from '../game/Hype';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Audio } from '../audio/Audio';
@@ -52,7 +52,8 @@ import { blowKindOf, breaksThings, coneSmash } from './Smash';
 import { Gore } from './Gore';
 import type { DebrisSim } from '../world/Debris';
 import type { SpellLights } from './SpellCast';
-import { maimMult, pickPart, severRoll } from './Sever';
+import { maimMult, pickPart, severRoll, wearCrossed, wearPart } from './Sever';
+import { StuckArrows, entryPoint } from './StuckArrows';
 import { SpellBook } from './Spells';
 import { SpellCast } from './SpellCast';
 import type { BlowKind } from '../world/Breakables';
@@ -431,6 +432,9 @@ export class CombatSystem {
   private readonly fx: CombatFx;
   /** Mobs coming apart: limbs, heads, bones, blood (Gore). */
   readonly gore: Gore;
+  /** Wren's arrows left in the bodies they hit (StuckArrows). */
+  readonly stuck = new StuckArrows();
+  private readonly bonesOf = new Map<number, Object3D[]>();
   /** Seconds of Blood Moon left: every blow tears something off. */
   bloodMoon = 0;
   /** Every hero's spell cooldowns (Z X C V), and the spells in the world. */
@@ -623,8 +627,8 @@ export class CombatSystem {
     e.noRespawn = noRespawn;
     // A melee mob takes turns with its pack (two striking at once); a boss or a mob that keeps its distance needs no token.
     if (!def.boss && !((def.brain.preferredRange ?? 0) > 0)) e.tokens = this.tokens;
-    e.onDissolve = () => this.dissolveBurst(e);
-    e.onRespawn = (x) => this.gore.mend(x);
+    e.onDissolve = () => { this.stuck.clear(e.id); this.dissolveBurst(e); };
+    e.onRespawn = (x) => { this.stuck.clear(x.id); this.gore.mend(x); };
     e.onCollapse = () => this.d.audio.clatter();
     e.onStomp = (sx, sy, sz) => {
       this.fx.dust(_v.set(sx, sy + 0.1, sz), 2.2);
@@ -1274,6 +1278,7 @@ export class CombatSystem {
           // (The crescent freezes the fight on the first body it cuts and only catches on each after, a reaction there
           // too, its blows as heavy; a shot of a many-shot skill charges the burst through its cast.)
           this.hitEnemy(e, p.atk, p.mult, p.element, p.knockback, p.hitStop, { at: p.object.position, heavy: p.hitStop >= 0.08, blow: p.blow, pierced: p.pierce ? p.hit.size : 0, cast: p.cast });
+          if (p.kind === 'arrow' || p.kind === 'trip') this.lodgeArrow(e, p.pos, p.vel);
           p.onHit?.(e);
           // The crescent cuts on through.
           if (p.pierce) continue;
@@ -1858,6 +1863,22 @@ export class CombatSystem {
   }
 
   /** A dead body starts to burn away (Enemy.burnAway): one shock on the ground under it and a spray of sparks, in its element's colour. */
+  /** Leaves the arrow that hit `e` in it (StuckArrows), where a shot at `at` flying along `vel` met its body. */
+  private lodgeArrow(e: Enemy, at: Vector3, vel: Vector3): void {
+    const m = e.model;
+    if (!m || e.def.body || e.def.eye) return;
+    let bones = this.bonesOf.get(e.id);
+    if (!bones) {
+      bones = [];
+      const list = bones;
+      m.root.traverse((o) => { if ((o as { isBone?: boolean }).isBone && !/end$|top$|toe/i.test(o.name)) list.push(o); });
+      this.bonesOf.set(e.id, bones);
+    }
+    const sc = e.def.scale ?? 1;
+    const hit = entryPoint(e.pos, e.def.bodyRadius * sc, e.def.height * sc, _v.copy(at).addScaledVector(vel, -0.05));
+    this.stuck.stick(e.id, bones.length ? bones : [m.root], hit, vel, Math.max(0.12, e.def.bodyRadius * sc * 0.6));
+  }
+
   private dissolveBurst(e: Enemy): void {
     const color = dissolveEdge(e.def.element);
     const sc = e.def.scale ?? 1;
@@ -2768,7 +2789,24 @@ export class CombatSystem {
       if (this.gore.burstBones(e, kb, strength)) { this.d.audio.clatter(); return true; }
       return false;
     }
-    const roll = severRoll({ crit: b.crit, heavy: b.heavy, skill: b.skill, share: b.share, died: b.died, bloodMoon: this.bloodMoon > 0, boss: !!e.def.boss, hpShare: e.hp / (e.def.maxHp * e.hpScale) }, this.rnd);
+    const max = e.def.maxHp * e.hpScale;
+    // Worn down: a hand at 70 %, an arm at 45 % (bosses 50 / 25), on the side the blow came from (Sever.wearCrossed).
+    if (!b.died && m.hasClips) {
+      const parts = this.gore.partsOf(e);
+      const l = parts.find((p) => p.part === 'leftArm' || p.part === 'leftHand')?.at;
+      const r = parts.find((p) => p.part === 'rightArm' || p.part === 'rightHand')?.at;
+      const side = l && r ? (l.distanceTo(hitAt) <= r.distanceTo(hitAt) ? 'left' : 'right') : l ? 'left' : 'right';
+      let wore = false;
+      // From the last share it was checked at, so health lost to burns between blows still counts.
+      const from = Math.max(e.wearFrom, b.hpBefore / max);
+      e.wearFrom = e.hp / max;
+      for (const w of wearCrossed(from, e.hp / max, !!e.def.boss)) {
+        const part = wearPart(w, side, e.lost);
+        if (part && this.gore.sever(e, part, kb, strength * 0.8)) wore = true;
+      }
+      if (wore) { this.d.audio.sever(); return false; }
+    }
+    const roll = severRoll({ crit: b.crit, heavy: b.heavy, skill: b.skill, share: b.share, died: b.died, bloodMoon: this.bloodMoon > 0, boss: !!e.def.boss, hpShare: e.hp / max }, this.rnd);
     if (!roll) return false;
     if (!m.hasClips) {
       if (b.died && !e.def.boss && this.gore.shatter(e, kb, 10)) { this.d.audio.crumble(0.3, 1); return true; }
