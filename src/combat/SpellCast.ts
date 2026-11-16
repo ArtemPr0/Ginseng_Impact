@@ -15,11 +15,14 @@ import type { DebrisSim, Piece } from '../world/Debris';
 import type { BlowKind } from '../world/Breakables';
 import { RuneCircles } from '../render/RuneCircle';
 import { BlackHoleFx, FireTornadoFx } from '../render/VortexFx';
+import { Lightning } from '../render/Lightning';
 import { SPELLS, type SpellDef } from './Spells';
 import type { Element } from './Elements';
 import type { Enemy } from './Enemy';
 
 /** Lights a spell holds or flashes (LightBudget). */
+const _white = new Color(0xffffff);
+
 export interface SpellLights {
   flash(at: Vector3, color: number, intensity: number, distance: number, seconds: number): void;
   hold(color: number, intensity: number, distance: number): { pos: Vector3; intensity: number; done: boolean };
@@ -100,6 +103,7 @@ function soft(): Texture | null {
 
 export class SpellCast {
   readonly runes = new RuneCircles();
+  readonly lightning = new Lightning(6);
   private readonly flights: Flight[] = [];
   private readonly holes: Hole[] = [];
   private readonly tornados: Tornado[] = [];
@@ -114,6 +118,7 @@ export class SpellCast {
 
   constructor(private readonly h: SpellHost) {
     h.scene.add(this.runes.group);
+    h.scene.add(this.lightning.group);
   }
 
   /** Casts `hero`'s spell in `slot` at `aim` (the crosshair's ground point). */
@@ -201,6 +206,7 @@ export class SpellCast {
   update(dt: number): void {
     const h = this.h;
     this.runes.update(dt);
+    this.lightning.update(dt);
     for (const [id, left] of this.frozen) { if (left - dt <= 0) this.frozen.delete(id); else this.frozen.set(id, left - dt); }
     // Shots in flight.
     for (let i = this.flights.length - 1; i >= 0; i--) {
@@ -371,17 +377,13 @@ export class SpellCast {
     }
   }
 
-  /** A jagged lightning line from `a` to `b` in sparks and flashes. */
+  /** A branching lightning bolt from `a` to `b` (render/Lightning), lighting the ground, sparks where it lands. */
   private bolt(a: Vector3, b: Vector3, color: number): void {
     const h = this.h;
-    const n = Math.max(4, Math.round(a.distanceTo(b) / 1.2));
-    for (let i = 0; i <= n; i++) {
-      const k = i / n;
-      _v.lerpVectors(a, b, k);
-      if (i > 0 && i < n) { _v.x += (Math.random() - 0.5) * 0.9; _v.y += (Math.random() - 0.5) * 0.6; _v.z += (Math.random() - 0.5) * 0.9; }
-      h.fx.flash(_v, _c.set(color).lerp(new Color(0xffffff), 0.5), 0.55);
-      h.fx.sparks(_v, UP, 2, 0xffffff, 2, 1.0);
-    }
+    this.lightning.strike(a, b, _c.set(color).lerp(_white, 0.35), a.distanceTo(b) > 8 ? 0.45 : 0.25);
+    h.lights?.flash(b, 0xcfe6ff, 40, 24, 0.3);
+    h.fx.flash(b, 0xffffff, 1.4);
+    h.fx.sparks(b, UP, 14, 0xdff0ff, 5, 1.0);
   }
 
   private earthsplit(at: Vector3): void {
