@@ -329,3 +329,14 @@ describe('SpellCast overgrowth (v12)', () => {
     expect(tears.length).toBe(1);
   });
 });
+
+describe('SpellCast warns the mobs under its rune circles', () => {
+  it('a mob inside the circle is told to dodge, one far off is not', () => {
+    const asked: number[] = [];
+    const near = { ...mob(0, 11), dodge: () => { asked.push(1); return false; } };
+    const far = { ...mob(40, 40), dodge: () => { asked.push(2); return false; } };
+    const { host } = fakeHost({ enemies: [near, far] as never });
+    new SpellCast(host).cast('wizard', 0, new Vector3(0, 0, 12));
+    expect(asked).toEqual([1]);
+  });
+});

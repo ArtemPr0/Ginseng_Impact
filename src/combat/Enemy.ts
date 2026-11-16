@@ -81,6 +81,9 @@ export function turnToward(yaw: number, want: number, step: number): number {
   return Math.atan2(Math.sin(y), Math.cos(y));
 }
 
+/** The share of mobs that jump clear of a rune circle opening over them. */
+const DODGE_CHANCE = 0.35;
+
 /** A body a pack parts (separate): where it stands, its footprint's radius, and a nudge aside. */
 export interface Separable { readonly pos: { x: number; z: number }; readonly radius: number; shove(dx: number, dz: number): void }
 
@@ -834,6 +837,25 @@ export class Enemy {
     // Stuck behind something on the way home: just appear back at the spot.
     if (this.pos.x === before.x && this.pos.z === before.z) { this.pos.x = this.spawn.x; this.pos.z = this.spawn.z; }
     return null;
+  }
+
+  /**
+   * A rune circle `r` metres round opened over (cx, cz): now and then (DODGE_CHANCE) a mob inside jumps clear of it,
+   * out from its middle, before the spell lands. Bosses, flyers, the rooted, and the dazed or downed never do.
+   */
+  dodge(cx: number, cz: number, r: number, rnd: () => number = Math.random): boolean {
+    const d = this.def;
+    if (!this.alive || d.boss || d.flying || d.speed <= 0 || this.seatedNow || this.held || this.thrown || this.downT >= 0 || this.status.stun > 0) return false;
+    if (rnd() >= DODGE_CHANCE) return false;
+    let dx = this.pos.x - cx, dz = this.pos.z - cz;
+    let l = Math.hypot(dx, dz);
+    if (l < 0.05) { const a = rnd() * Math.PI * 2; dx = Math.cos(a); dz = Math.sin(a); l = 1; }
+    // Enough of a shove to carry it past the edge (the knock decays over about half a second).
+    const push = Math.min(16, 6 + (r - Math.min(r, l)) * 3);
+    this.knock.x += (dx / l) * push;
+    this.knock.z += (dz / l) * push;
+    this.leap(0.4, 0.7);
+    return true;
   }
 
   /** On the ground after a heavy blow. */

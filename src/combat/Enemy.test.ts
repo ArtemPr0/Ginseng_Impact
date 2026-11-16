@@ -149,3 +149,22 @@ describe('knockdowns (v12: heavy blows put small mobs on the ground)', () => {
     expect(e.downed).toBe(false);
   });
 });
+
+describe('dodging telegraphed spells (v12: smarter mobs)', () => {
+  it('a mob under a rune circle sometimes jumps clear, away from its middle', async () => {
+    const { Enemy } = await import('./Enemy');
+    const { ENEMY_DEFS } = await import('../data/enemies');
+    const e = new Enemy(ENEMY_DEFS.beast, { x: 0, z: 0 } as never, { heightAt: () => 0 } as never);
+    expect(e.dodge(-1, 0, 4, () => 0.99)).toBe(false);
+    expect(e.dodge(-1, 0, 4, () => 0.01)).toBe(true);
+    for (let i = 0; i < 20; i++) e.update(0.02, [{ x: 30, y: 0, z: 30 }]);
+    expect(e.pos.x).toBeGreaterThan(1);
+  });
+  it('a boss, a dazed or a downed mob does not', async () => {
+    const { Enemy } = await import('./Enemy');
+    const { ENEMY_DEFS } = await import('../data/enemies');
+    const e = new Enemy(ENEMY_DEFS.beast, { x: 0, z: 0 } as never, { heightAt: () => 0 } as never);
+    e.afflict('stun', 2);
+    expect(e.dodge(-1, 0, 4, () => 0)).toBe(false);
+  });
+});

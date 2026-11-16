@@ -149,6 +149,10 @@ export class SpellCast {
     h.fx.flash(hand, _c.set(s.color).multiplyScalar(0.8), 1.6);
     h.fx.sparks(hand, UP, 10, s.color, 4, 0.9);
     this.runes.tip(hand, aim, s.color, 0.35);
+    // The mobs under where it is aimed see the circle open: some jump clear (Enemy.dodge).
+    if (s.aimed && s.radius > 0 && s.id !== 'telekinesis' && s.id !== 'stone-wall') {
+      for (const e of h.enemies) if (e.alive && Math.hypot(e.pos.x - aim.x, e.pos.z - aim.z) < s.radius + 1) e.dodge?.(aim.x, aim.z, s.radius);
+    }
     switch (s.id) {
       case 'moonbomb': case 'fireball': case 'frost-arrow': case 'storm-arrow': {
         const fast = s.id === 'frost-arrow' || s.id === 'storm-arrow' ? 46 : s.id === 'moonbomb' ? 34 : 24;
