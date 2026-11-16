@@ -52,3 +52,15 @@ describe('Explosions.cloud (v12: the storm tornado\'s shelf cloud, built of the 
     expect(x.live).toBe(0);
   });
 });
+
+describe('Explosions near the camera (critic round 2: Earthsplitter whited out the screen)', () => {
+  it('a puff fades out as the camera comes inside it, so a blast round the hero never fills the frame with white', () => {
+    const ex = new Explosions();
+    const mat = ex.mesh.material as unknown as { vertexShader: string; fragmentShader: string };
+    // Faded by the depth of its centre against its own size, in the vertex shader...
+    expect(mat.vertexShader).toMatch(/vNear\s*=\s*smoothstep\(/);
+    // ...and that fade scales everything the puff draws (light and smoke).
+    expect(mat.fragmentShader).toMatch(/vAlpha \* vNear|vNear \* vAlpha/);
+  });
+});
+
