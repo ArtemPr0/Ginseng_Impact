@@ -21,6 +21,8 @@ import { flightPoint } from './Aim';
 export interface ReelKit {
   blast(at: Vector3, r: number, mult: number, knock: number, stop?: number, skip?: Set<Enemy>): Enemy[];
   boom(at: Vector3, color: number, r: number, shake: number): void;
+  /** An earth impact: dust, grit and a shock ring, no flash. */
+  quake(at: Vector3, r: number, shake: number): void;
   spikes(): SpikeField;
   ice(): SpikeField;
   water: WaterFx;
@@ -34,7 +36,9 @@ export interface ReelKit {
 }
 
 const FIRE = 0xff6a1a;
-const DUST = 0xd8c09a;
+/** Earth moves' dust and grit (their bursts are this, never a white-hot fire cloud). */
+export const EARTH_DUST = 0xd8c09a;
+const DUST = EARTH_DUST;
 const UP = new Vector3(0, 1, 0);
 /** Walls and ramps: how long they stand (s). */
 const EARTH_WALL_S = 6, SHIELD_S = 6, ICE_WALL_S = 8, RAMP_S = 8;
@@ -186,7 +190,7 @@ export class ReelMoves {
           if (f < 1) return false;
           rock?.removeFromParent();
           k.blast(to, s.radius, s.mult, 6, 0.12);
-          k.boom(to, s.color, s.radius, 0.6);
+          k.quake(to, s.radius, 0.6);
           h.smash(to.x, to.y + 0.6, to.z, 2.5, 'heavy');
           h.dig(to.x, to.z, 2, 0.6);
           for (const sim of h.debris()) sim.blast(to.x, to.y, to.z, 4, 7);
@@ -250,7 +254,7 @@ export class ReelMoves {
           if (l > s.radius + 0.4 || (l > 0.5 && (dx * way.x + dz * way.z) / l < cos)) continue;
           h.hit(e, s.mult, 9, 0.08, new Vector3(e.pos.x, e.pos.y + 0.8, e.pos.z));
         }
-        for (let i = 1; i <= 3; i++) k.explosions.burst(this.ground(new Vector3(me.x + way.x * i * 1.5, me.y, me.z + way.z * i * 1.5)), 1.2 + i * 0.4, { hot: DUST });
+        for (let i = 1; i <= 3; i++) k.explosions.burst(this.ground(new Vector3(me.x + way.x * i * 1.5, me.y, me.z + way.z * i * 1.5)), 1.2 + i * 0.4, { hot: DUST, heat: 0 });
         h.fx.dust(me, 1.4);
         h.shake(0.35);
         h.audio.spell('whoosh');

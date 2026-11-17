@@ -7,6 +7,11 @@
 const G = 9.81;
 /** Damping: a few swings, then still (a body squirms, it is not a clock pendulum). */
 const DAMP = 1.6;
+/** The grip's speed is smoothed over about this long (s): the fist jolts with every arm swing, the body feels the walk. */
+const SMOOTH = 0.12;
+/** Most the grip's acceleration swings it (m/s²), and the farthest it swings out (of its length; asin 0.7 ≈ 44°). */
+const MAX_ACCEL = 25;
+const MAX_OUT = 0.7;
 
 export class Dangle {
   dx = 0; dz = 0;
@@ -23,18 +28,19 @@ export class Dangle {
   update(dt: number, x: number, z: number): void {
     if (dt <= 0) return;
     if (Number.isNaN(this.gx)) { this.gx = x; this.gz = z; }
-    const vx = (x - this.gx) / dt, vz = (z - this.gz) / dt;
+    const a = Math.min(1, dt / SMOOTH);
+    const vx = this.gvx + ((x - this.gx) / dt - this.gvx) * a, vz = this.gvz + ((z - this.gz) / dt - this.gvz) * a;
     const ax = (vx - this.gvx) / dt, az = (vz - this.gvz) / dt;
     this.gx = x; this.gz = z; this.gvx = vx; this.gvz = vz;
     const L = Math.max(0.3, this.len);
     // Gravity pulls it back under the grip; the grip's acceleration pushes it the other way.
     const k = G / L;
-    this.vx += (-k * this.dx - DAMP * this.vx - Math.max(-60, Math.min(60, ax))) * dt;
-    this.vz += (-k * this.dz - DAMP * this.vz - Math.max(-60, Math.min(60, az))) * dt;
+    this.vx += (-k * this.dx - DAMP * this.vx - Math.max(-MAX_ACCEL, Math.min(MAX_ACCEL, ax))) * dt;
+    this.vz += (-k * this.dz - DAMP * this.vz - Math.max(-MAX_ACCEL, Math.min(MAX_ACCEL, az))) * dt;
     this.dx += this.vx * dt;
     this.dz += this.vz * dt;
-    // Never past horizontal.
-    const r = Math.hypot(this.dx, this.dz), max = L * 0.95;
+    // Never far past where a body hung by the neck would go.
+    const r = Math.hypot(this.dx, this.dz), max = L * MAX_OUT;
     if (r > max) { this.dx *= max / r; this.dz *= max / r; this.vx *= 0.5; this.vz *= 0.5; }
   }
 

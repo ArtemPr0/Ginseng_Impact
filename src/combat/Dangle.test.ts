@@ -30,3 +30,20 @@ describe('Dangle (a held body swings from its grip, playtest 2026-11-17: "realis
     expect(Math.abs(d.tiltZ)).toBeLessThan(Math.PI / 2);
   });
 });
+
+describe('Dangle under a walking fist (headless check: a beast held while he sidestepped tipped 71°, at the limit)', () => {
+  it('a grip jolting with his arm swing as he sidesteps tips it no more than about 45°', () => {
+    for (const dt of [1 / 60, 0.1]) {
+      const d = new Dangle(1.1);
+      let worst = 0;
+      for (let t = 0; t < 2; t += dt) {
+        // 5 m/s to the side, his arm swinging the fist ±0.15 m twice a second.
+        const x = 5 * t + Math.sin(t * Math.PI * 4) * 0.15, z = Math.cos(t * Math.PI * 4) * 0.1;
+        d.update(dt, x, z);
+        worst = Math.max(worst, Math.abs(d.tiltX), Math.abs(d.tiltZ));
+      }
+      expect(worst).toBeLessThan(0.8);
+      expect(worst).toBeGreaterThan(0.1);
+    }
+  });
+});

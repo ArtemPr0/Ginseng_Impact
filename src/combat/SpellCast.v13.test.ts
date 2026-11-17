@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BoxGeometry, Color, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
-import { SpellCast } from './SpellCast';
+import { EARTH_DUST, SpellCast } from './SpellCast';
 import { SPELLS } from './Spells';
 import { fakeHost } from './spellHost.fixture';
 import { bloodSky } from './CombatSystem';
@@ -178,6 +178,28 @@ describe('Stone Wall is an earth wall of jagged rock, not bricks (playtest 2026-
   });
 });
 
+describe('Stone Wall never shows bricks (headless check: worn out, the dry-stone wall stood up again, then fell)', () => {
+  const rockModel = () => { const g = new Group(); g.add(new Mesh(new BoxGeometry(1, 3, 1, 4, 6, 4), new MeshStandardMaterial())); return g; };
+  it('its stones are cut from the rock, so it rises with only the rock model loaded', () => {
+    const rock = rockModel();
+    const { host: h } = fakeHost({ model: (id) => (id === 'pinnacle' ? rock : null), solid: () => () => {} });
+    const sc = new SpellCast(h);
+    expect(sc.wallLoaded()).toBe(true);
+  });
+  it('worn out, the rocks sink and no block shows', () => {
+    const rock = rockModel();
+    const { host: h, scene } = fakeHost({ model: (id) => (id === 'pinnacle' ? rock : null), solid: () => () => {} });
+    const sc = new SpellCast(h);
+    h.controller.yaw = 0;
+    sc.cast('knight', 4, new Vector3(8, 0, 0));
+    for (let i = 0; i < 110; i++) sc.update(0.1);
+    expect(sc.wallUp()).toBe(false);
+    let blocks: Group | null = null;
+    scene.traverse((o) => { if (o.name === 'stone-wall') blocks = o as Group; });
+    expect(blocks === null || (blocks as unknown as Group).visible === false).toBe(true);
+  });
+});
+
 describe('Rock Armor halves what the hero takes while it lasts', () => {
   it('armorShare', async () => {
     const { armorShare } = await import('./CombatSystem');
@@ -215,4 +237,27 @@ describe('Earthsplitter bursts on what it was aimed at (review: a deck above him
     for (let i = 0; i < 10; i++) sc.update(0.1);
     expect(Math.max(...ys)).toBeGreaterThan(4.4);
   });
+});
+
+describe('earth moves burst in dust, not fire (headless check: Earthsplitter\'s end flashed white-hot)', () => {
+  const run = (hero: 'knight', id: string) => {
+    const { host, log } = fakeHost();
+    const sc = new SpellCast(host);
+    const hots: number[] = [];
+    const orig = sc.explosions.burst.bind(sc.explosions);
+    sc.explosions.burst = (at, r, o = {}) => { hots.push(o.hot ?? 0xff7a1a); orig(at, r, o); };
+    host.controller.yaw = Math.PI / 2;
+    sc.cast(hero, SPELLS[hero].findIndex((s) => s.id === id), new Vector3(0, 0, 8));
+    log.length = 0; // (the cast's own small glow in the hand is every spell's; the impact is what is judged)
+    for (let i = 0; i < 30; i++) sc.update(0.1);
+    return { hots, log };
+  };
+  for (const id of ['earthsplitter', 'boulder']) {
+    it(`${id}: no white flash, every cloud is earth-coloured`, () => {
+      const { hots, log } = run('knight', id);
+      expect(hots.length).toBeGreaterThan(0);
+      for (const c of hots) expect(c).toBe(EARTH_DUST);
+      expect(log.filter((k) => k === 'flash').length).toBe(0);
+    });
+  }
 });

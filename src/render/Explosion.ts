@@ -18,6 +18,8 @@ attribute float aHeat;
 attribute float aAlpha;
 attribute float aSeed;
 attribute vec3 aHot;
+attribute vec3 aDeep;
+varying vec3 vDeep;
 varying vec2 vUv;
 varying float vHeat;
 varying float vAlpha;
@@ -28,7 +30,7 @@ varying float vNear;
 void main() {
   vUv = uv;
   vUp = position.y + 0.5;
-  vHeat = aHeat; vAlpha = aAlpha; vSeed = aSeed; vHot = aHot;
+  vHeat = aHeat; vAlpha = aAlpha; vSeed = aSeed; vHot = aHot; vDeep = aDeep;
   vec4 mv = viewMatrix * vec4(aCenter, 1.0);
   // A puff the camera is inside (a blast round the hero it follows) would fill the whole frame: it fades out as its
   // centre comes nearer than about its own size.
@@ -43,6 +45,7 @@ void main() {
 const FRAG = /* glsl */ `
 uniform float uTime;
 varying vec2 vUv;
+varying vec3 vDeep;
 varying float vHeat;
 varying float vAlpha;
 varying float vSeed;
@@ -67,7 +70,7 @@ void main() {
   float h = clamp(vHeat + (n - 0.5) * 0.25, 0.0, 1.0);
   // Heat ramp: white-yellow core, the spell's colour, deep red, then smoke.
   vec3 core = vec3(1.0, 0.95, 0.82);
-  vec3 deep = vHot * vec3(0.55, 0.22, 0.2) + vec3(0.12, 0.02, 0.0);
+  vec3 deep = vDeep;
   vec3 fire = h > 0.7 ? mix(vHot, core, (h - 0.7) / 0.3) : mix(deep, vHot, smoothstep(0.3, 0.7, h));
   float emit = smoothstep(0.22, 0.55, h);
   // Smoke: dark cobalt-grey, lit from above by the moon and shadowed underneath, so each puff reads as a ball.
@@ -93,6 +96,20 @@ interface Puff {
   still?: { cx: number; cz: number };
 }
 
+/**
+ * What a burst of colour `hot` cools through before smoke: fire's deep red for warm colours, a darker shade of its
+ * own for cold ones (an ice burst cooled through pink, 2026-11-17).
+ */
+export function deepOf(hot: Color, out = new Color()): Color {
+  const warm = Math.max(0, Math.min(1, (hot.r - hot.b) * 2 + 0.5));
+  return out.setRGB(
+    (hot.r * 0.55 + 0.12) * warm + hot.r * 0.35 * (1 - warm),
+    (hot.g * 0.22 + 0.02) * warm + hot.g * 0.35 * (1 - warm),
+    hot.b * 0.2 * warm + hot.b * 0.35 * (1 - warm),
+  );
+}
+const _deep = new Color();
+
 export interface BurstOptions {
   /** The fire's colour between white-hot and red (default fire orange). */
   hot?: number;
@@ -100,6 +117,8 @@ export interface BurstOptions {
   density?: number;
   /** How long the smoke lingers (default 1 = about 3-6 s). */
   smoke?: number;
+  /** How hot it starts (default 1, a fireball; 0 is a cold cloud of dust and grit: the earth moves). */
+  heat?: number;
 }
 
 export class Explosions {
@@ -113,6 +132,7 @@ export class Explosions {
   private readonly aAlpha: InstancedBufferAttribute;
   private readonly aSeed: InstancedBufferAttribute;
   private readonly aHot: InstancedBufferAttribute;
+  private readonly aDeep: InstancedBufferAttribute;
   private time = 0;
 
   constructor(private readonly cap = 600) {
@@ -122,10 +142,10 @@ export class Explosions {
     g.setAttribute('position', quad.getAttribute('position'));
     g.setAttribute('uv', quad.getAttribute('uv'));
     const mk = (n: number) => new InstancedBufferAttribute(new Float32Array(cap * n), n);
-    this.aCenter = mk(3); this.aSize = mk(1); this.aHeat = mk(1); this.aAlpha = mk(1); this.aSeed = mk(1); this.aHot = mk(3);
-    for (const a of [this.aCenter, this.aSize, this.aHeat, this.aAlpha, this.aSeed, this.aHot]) a.setUsage(35048 /* DynamicDrawUsage */);
+    this.aCenter = mk(3); this.aSize = mk(1); this.aHeat = mk(1); this.aAlpha = mk(1); this.aSeed = mk(1); this.aHot = mk(3); this.aDeep = mk(3);
+    for (const a of [this.aCenter, this.aSize, this.aHeat, this.aAlpha, this.aSeed, this.aHot, this.aDeep]) a.setUsage(35048 /* DynamicDrawUsage */);
     g.setAttribute('aCenter', this.aCenter); g.setAttribute('aSize', this.aSize); g.setAttribute('aHeat', this.aHeat);
-    g.setAttribute('aAlpha', this.aAlpha); g.setAttribute('aSeed', this.aSeed); g.setAttribute('aHot', this.aHot);
+    g.setAttribute('aAlpha', this.aAlpha); g.setAttribute('aSeed', this.aSeed); g.setAttribute('aHot', this.aHot); g.setAttribute('aDeep', this.aDeep);
     g.instanceCount = 0;
     this.geometry = g;
     this.mat = new ShaderMaterial({
@@ -147,6 +167,7 @@ export class Explosions {
     const hot = new Color(o.hot ?? 0xff7a1a);
     const n = Math.round(Math.max(30, Math.min(90, r * (o.density ?? 14))));
     const smoke = o.smoke ?? 1;
+    const heat0 = o.heat ?? 1;
     const push = (p: Puff) => {
       if (this.puffs.length >= this.cap) {
         // Full: the oldest smoke makes way.
@@ -166,7 +187,7 @@ export class Explosions {
         x: at.x + dx * r * 0.1, y: at.y + 0.5 + dy * r * 0.1, z: at.z + dz * r * 0.1,
         vx: dx * speed, vy: dy * speed, vz: dz * speed,
         size: r * (0.25 + Math.random() * 0.3), grow: r * (0.3 + Math.random() * 0.35),
-        heat: 1, cool: 0.6 + Math.random() * 0.6,
+        heat: heat0, cool: 0.6 + Math.random() * 0.6,
         age: 0, life: (2.6 + Math.random() * 2.4) * smoke,
         seed: Math.random(), hot, dust: false,
       });
@@ -244,6 +265,7 @@ export class Explosions {
     const n = this.puffs.length;
     const C = this.aCenter.array as Float32Array, S = this.aSize.array as Float32Array, H = this.aHeat.array as Float32Array;
     const A = this.aAlpha.array as Float32Array, E = this.aSeed.array as Float32Array, T = this.aHot.array as Float32Array;
+    const D = this.aDeep.array as Float32Array;
     for (let i = 0; i < n; i++) {
       const p = this.puffs[i];
       C[i * 3] = p.x; C[i * 3 + 1] = p.y; C[i * 3 + 2] = p.z;
@@ -255,8 +277,9 @@ export class Explosions {
         : Math.min(1, p.age / 0.05) * (k < 0.55 ? 1 : Math.max(0, 1 - (k - 0.55) / 0.45)) * (p.dust ? 0.55 : 1);
       E[i] = p.seed;
       if (p.dust) { T[i * 3] = 0.3; T[i * 3 + 1] = 0.32; T[i * 3 + 2] = 0.4; } else { T[i * 3] = p.hot.r; T[i * 3 + 1] = p.hot.g; T[i * 3 + 2] = p.hot.b; }
+      deepOf(p.hot, _deep); D[i * 3] = _deep.r; D[i * 3 + 1] = _deep.g; D[i * 3 + 2] = _deep.b;
     }
-    for (const a of [this.aCenter, this.aSize, this.aHeat, this.aAlpha, this.aSeed, this.aHot]) {
+    for (const a of [this.aCenter, this.aSize, this.aHeat, this.aAlpha, this.aSeed, this.aHot, this.aDeep]) {
       a.clearUpdateRanges();
       a.addUpdateRange(0, Math.max(1, n) * a.itemSize);
       a.needsUpdate = true;

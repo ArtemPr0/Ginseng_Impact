@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Vector3 } from 'three';
-import { Explosions } from './Explosion';
+import { Explosions, deepOf } from './Explosion';
+import { Color } from 'three';
 
 describe('Explosions (v12: the reel\'s volumetric fireball)', () => {
   it('a burst is a cloud of dozens of billowing puffs, drawn as one instanced mesh', () => {
@@ -78,3 +79,22 @@ describe('Explosions stay inside the frame\'s light budget (critic round 2: Eart
   });
 });
 
+
+describe('a cold burst (earth moves: dust, not fire)', () => {
+  it('heat 0 throws up a cloud with no fire in it', () => {
+    const x = new Explosions(200);
+    x.burst(new Vector3(0, 0, 0), 3, { heat: 0 });
+    expect(x.live).toBeGreaterThan(20);
+    expect(x.maxHeat()).toBe(0);
+  });
+});
+
+describe('deepOf: what a burst cools through (headless check: Ice Shards and Moonbomb cooled through pink)', () => {
+  it('fire cools through deep red, ice through deep blue', () => {
+    const fire = deepOf(new Color(0xff7a1a));
+    expect(fire.r).toBeGreaterThan(fire.b * 2);
+    const ice = deepOf(new Color(0x2f6fd0));
+    expect(ice.b).toBeGreaterThan(ice.r * 2);
+    expect(ice.b).toBeLessThan(0.6);
+  });
+});

@@ -509,7 +509,9 @@ export function stepController(s: ControllerState, input: ControllerInput, world
       // Refine the climb direction from the surface just ahead (handles slopes and vertical steps).
       let { x: ux, z: uz } = s.climbDir;
       const probe = gradientAt(world, s.pos.x + ux * 0.5, s.pos.z + uz * 0.5, s.pos.y);
-      if (probe.g > 0.5) {
+      // (Only a slope that still faces the way he climbs: past a thin wall the ground falling away behind it reads as a
+      // slope back toward him, and turning round made him climb down, stand, climb in again, on the spot. 2026-11-17.)
+      if (probe.g > 0.5 && (probe.gx * ux + probe.gz * uz) / probe.g > 0.3) {
         ux = probe.gx / probe.g;
         uz = probe.gz / probe.g;
         s.climbDir = { x: ux, z: uz };

@@ -128,7 +128,8 @@ describe('Telekinesis lifts a building whole (playtest 2026-11-17: "he automatic
     expect(log.landed).not.toBeNull();
     expect(Math.hypot(log.landed!.x - 18, log.landed!.z - 4)).toBeLessThan(2);
     expect(breaks.length).toBeGreaterThanOrEqual(1);
-    expect(Math.max(...breaks)).toBeLessThanOrEqual(3);
+    // (Headless check: 2.8 m took half a 6 m house; the corner that struck is what breaks.)
+    expect(Math.max(...breaks)).toBeLessThanOrEqual(2.2);
   });
   it('letting go of right click without throwing sets it down where it hangs', () => {
     const { b, log } = whole();

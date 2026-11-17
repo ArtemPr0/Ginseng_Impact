@@ -8,7 +8,8 @@ import { Color, Group, Mesh, MeshStandardMaterial, OctahedronGeometry, Vector3, 
 import { ChainFx } from '../render/ChainFx';
 import { SpikeField } from '../render/SpikeField';
 import { WaterFx } from '../render/WaterFx';
-import { ReelMoves } from './ReelMoves';
+import { EARTH_DUST, ReelMoves } from './ReelMoves';
+export { EARTH_DUST };
 import type { ControllerState } from '../player/CharacterController';
 import type { CombatFx } from '../render/CombatFx';
 import type { Audio } from '../audio/Audio';
@@ -189,6 +190,7 @@ export class SpellCast {
     this.reel = new ReelMoves(h, {
       blast: (at, r, mult, knock, stop, skip) => this.blast(at, r, mult, knock, stop, skip),
       boom: (at, color, r, shake) => this.boom(at, color, r, shake),
+      quake: (at, r, shake) => this.quake(at, r, shake),
       spikes: () => this.spikes,
       ice: () => this.ice,
       water: this.water,
@@ -462,13 +464,16 @@ export class SpellCast {
         this.iceField?.mesh?.removeFromParent();
         const old = this.iceField;
         this.iceField = new SpikeField(src, own ? undefined : (m) => {
-          m.color.set(0xbfe8ff);
-          m.emissive?.set(0x2a6a9a);
-          m.emissiveIntensity = 0.6;
-          m.roughness = 0.15;
-          m.metalness = 0.1;
-          m.transparent = true;
-          m.opacity = 0.85;
+          // (Opaque and mostly lit, not glowing: see-through, emissive crystals packed in a wall merged into one flat blue
+          // shape, headless check 2026-11-17.)
+          m.color.set(0xcfeeff);
+          m.emissive?.set(0x1d4f86);
+          m.emissiveIntensity = 0.22;
+          m.roughness = 0.3;
+          m.metalness = 0.05;
+          m.emissiveMap = null;
+          m.transparent = false;
+          m.opacity = 1;
         });
         if (old) this.iceField.adopt(old);
         if (this.iceField.mesh) this.h.scene.add(this.iceField.mesh);
@@ -526,6 +531,19 @@ export class SpellCast {
   }
 
   /** The look of a big landing: two flashes, a shock ring, sparks and smoke, the screen shaking. */
+  /** An earth impact (Earthsplitter's end, a boulder): dust and grit thrown up, a shock ring, a dim light; no flash. */
+  private quake(at: Vector3, r: number, shake: number): void {
+    const h = this.h;
+    _v.set(at.x, at.y + 0.6, at.z);
+    h.lights?.flash(_w.set(at.x, at.y + 1.2, at.z), 0x9a7a52, 4 + r * 2, r * 4, 0.4);
+    h.fx.shock(at, EARTH_DUST, r * 1.5, 0.5);
+    h.fx.sparks(_v, UP, 30, 0x7a6a58, 9, 1.0);
+    h.fx.dust(at, r * 0.8);
+    h.fx.dust(_v.set(at.x, at.y + 1.4, at.z), r * 0.5);
+    this.explosions.burst(at, r * 1.1, { hot: EARTH_DUST, smoke: 1.4, heat: 0 });
+    h.shake(shake);
+  }
+
   private boom(at: Vector3, color: number, r: number, shake: number): void {
     const h = this.h;
     _v.set(at.x, at.y + 0.8, at.z);
@@ -633,7 +651,7 @@ export class SpellCast {
     for (const e of this.blast(at, s.radius, s.mult, 3, 0.14, already)) {
       if (e.alive && !e.def.boss && !e.def.flying && e.def.speed > 0) e.leap(0.7, 2.2);
     }
-    this.boom(at, s.color, s.radius, 1.0);
+    this.quake(at, s.radius, 1.0);
     h.smash(at.x, at.y + 0.6, at.z, s.radius, 'burst');
     h.dig(at.x, at.z, 3.6, 1.5);
     h.dig(at.x, at.z, s.radius + 1, 0, 'burnt');
@@ -791,7 +809,9 @@ export class SpellCast {
 
   /** The Meshy dry-stone wall cut into blocks (null while its model loads). */
   private wallStone(): ReturnType<typeof wallSource> {
-    const m = this.h.model?.('stone-wall');
+    // (Cut from the earth's own jagged rock, the spikes' model: kicked, rock flies, never the dry-stone wall's bricks.
+    // Headless check 2026-11-17.)
+    const m = this.h.model?.('spiky-rock') ?? this.h.model?.('pinnacle');
     return m ? wallSource(m) : null;
   }
 
@@ -821,7 +841,7 @@ export class SpellCast {
   private dropWall(): void {
     const w = this.wall;
     if (!w) return;
-    w.batch.group.visible = true;
+    // (Worn out, the rocks sink back into the ground; its stones stay unseen, so no wall of blocks stands up again.)
     this.spikeField?.drop('wall');
     w.crumble(this.wallSim());
     this.rubble.push(w);

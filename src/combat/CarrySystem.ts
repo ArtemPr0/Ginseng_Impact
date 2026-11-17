@@ -342,7 +342,7 @@ export class CarrySystem {
     f.b.land(f.x, g, f.z);
     if (speed < 6) { this.h.fx.dust(_v.set(f.x, g, f.z), f.b.r * 0.6); this.h.sound.land(2); return; }
     const hx = f.x + (f.vx / l) * f.b.r * 0.6, hz = f.z + (f.vz / l) * f.b.r * 0.6;
-    this.h.breakAt(hx, g + 0.8, hz, Math.min(3, 1.4 + speed * 0.06), speed > 14 ? 'skill' : 'heavy');
+    this.h.breakAt(hx, g + 0.8, hz, Math.min(2.2, 1.2 + speed * 0.04), speed > 14 ? 'skill' : 'heavy');
     for (const o of this.h.enemies()) {
       if (!o.alive || o.held || f.hit.has(o.id)) continue;
       if (Math.hypot(o.pos.x - f.x, o.pos.z - f.z) < f.b.r + 1) this.h.hit(o, impactDamage(5, speed), _v.set(o.pos.x, o.pos.y + 0.5, o.pos.z).clone(), true);
