@@ -70,3 +70,43 @@ describe('Blood Moon (playtest: the sky was already red in every fight)', () => 
     expect(bloodSky(false, true, 0)).toBe(true);
   });
 });
+
+describe('the black hole goes where it is put, and eats (playtest 2026-11-17)', () => {
+  const coreY = (scene: Group) => { let y = -Infinity; scene.traverse((o) => { if (o.name === 'core') y = o.getWorldPosition(new Vector3()).y; }); return y; };
+  it('opens at the lift it was aimed with: halfway into the ground', () => {
+    const { host, scene } = fakeHost();
+    const sc = new SpellCast(host);
+    sc.holeLift = 0;
+    sc.cast('wizard', 1, new Vector3(0, 2, 10));
+    sc.update(0.1);
+    scene.updateMatrixWorld(true);
+    expect(Math.abs(coreY(scene) - 2)).toBeLessThan(0.6);
+  });
+  it('a mob dragged into its core is eaten: killed and gone; a boss is not', () => {
+    const e = mob(2, 10);
+    const boss = mob(-2, 10, { def: { height: 3, speed: 2, bodyRadius: 1, boss: true } });
+    const big: Array<{ e: unknown; mult: number }> = [];
+    const { host } = fakeHost({ enemies: [e as never, boss as never], hit: (x, mult) => { big.push({ e: x, mult }); if (mult >= 50) (x as { alive: boolean }).alive = false; } });
+    const sc = new SpellCast(host);
+    sc.holeLift = 0;
+    sc.cast('wizard', 1, new Vector3(0, 0, 10));
+    for (let i = 0; i < 50; i++) sc.update(0.1);
+    expect(e.alive).toBe(false);
+    expect(e.object.visible).toBe(false);
+    expect(boss.alive).toBe(true);
+  });
+});
+
+describe('the fire tornado runs toward the crosshair (its path is what the preview drew)', () => {
+  it('heads for the aim, not just the way he faces', () => {
+    const { host, scene } = fakeHost();
+    const sc = new SpellCast(host);
+    host.controller.yaw = 0; // facing +x
+    sc.cast('wizard', 2, new Vector3(0, 0, 20)); // aimed down +z
+    for (let i = 0; i < 30; i++) sc.update(0.1);
+    let p = new Vector3();
+    scene.traverse((o) => { if (o.name === 'fire-tornado') p = o.position.clone(); });
+    expect(p.z).toBeGreaterThan(5);
+    expect(Math.abs(p.x)).toBeLessThan(4);
+  });
+});

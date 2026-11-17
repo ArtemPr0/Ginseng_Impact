@@ -68,8 +68,9 @@ describe('SpellCast black hole (v12: in the sky, as in the reel)', () => {
     expect(tears.length).toBeGreaterThan(10);
     expect(Math.min(...tears)).toBeGreaterThanOrEqual(6);
   });
-  it('lifts mobs up into it, spiralling, and flings them out when it collapses', () => {
-    const e = mob(3, 10);
+  it('lifts mobs up into it, spiralling, and flings out those it has not eaten when it collapses', () => {
+    // (v13: one that reaches the core is eaten; this one starts far enough out to be spinning still at the end.)
+    const e = mob(8.5, 10);
     const { host } = fakeHost({ enemies: [e as never] });
     const sc = new SpellCast(host);
     sc.cast('wizard', 1, new Vector3(0, 0, 10));

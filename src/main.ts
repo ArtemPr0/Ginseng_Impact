@@ -1,5 +1,6 @@
 import { CameraBob } from './render/CameraBob';
-import { aimPoint, AIM_RANGE, SpellBuffer, spellRange } from './combat/Aim';
+import { aimPoint, AIM_RANGE, SpellBuffer, spellRange, AimHold, aimShape, holeLift } from './combat/Aim';
+import { AimPreview } from './render/AimPreview';
 import { SPELLS } from './combat/Spells';
 import { BAR, barActs, barKey, chargeMove, LmbGesture, SpellBar } from './combat/SpellBar';
 import { LiftGlow } from './render/LiftGlow';
@@ -123,6 +124,11 @@ scene.add(combatFx.group);
 /** Keys 1-7 pick, right click casts (the user's calls of 2026-11-16); a cast while mid-swing waits up to 0.6 s. */
 const spellBar = new SpellBar();
 const spellBuffer = new SpellBuffer();
+/** Hold right click to aim, let go to cast (playtest 2026-11-17), and what the held spell will do, drawn. */
+const aimHold = new AimHold();
+let aimPreview: AimPreview | null = null;
+/** Wheel notches moving a held black hole up or down. */
+let holeWheel = 0;
 const lmb = new LmbGesture();
 /** How far the spell being cast may land (Earthsplitter's leap is shorter): combat's aim clamps to it. */
 let castRange = AIM_RANGE;
@@ -988,7 +994,12 @@ game
       // Right click: a cast (Telekinesis is held instead; so is Sir Aldric's slam while a mob hangs from his fist).
       const holding = combat.carry.hand !== null;
       const mind = input.locked && input.mouseDown(2) && (!!slot.hold || holding);
-      if (input.locked && input.mouseJustPressed(2) && !slot.hold && !holding) spellBuffer.push(picked);
+      // Hold right click to aim (the preview shows what it will do); let go to cast, Esc to cancel.
+      if (!slot.hold && !holding) {
+        const held = aimHold.update(input.locked && input.mouseDown(2), !input.locked || input.justPressed('Escape'), picked);
+        if (held.release) spellBuffer.push(held.slot);
+      } else aimHold.update(false, true, picked);
+      showAim(hero, picked, dt);
       const buffered = spellBuffer.peek(dt);
       // The aim reaches as far as the spell about to be cast (a buffered one), else the picked one: Earthsplitter's
       // leap range must not stick to every aim after it (Telekinesis' grab, the other heroes).
@@ -1346,3 +1357,33 @@ function spellAim(range = AIM_RANGE): { at: Vector3; far: boolean } {
   if (d > range) { far = true; p.x = controller.pos.x + (dx / d) * range; p.z = controller.pos.z + (dz / d) * range; p.y = world.heightAt(p.x, p.z, controller.pos.y + 3); }
   return { at: new Vector3(p.x, p.y, p.z), far: far || d > range - 0.5 };
 }
+
+/** Draws what the spell held on right click will do (AimPreview), or hides it. */
+function showAim(hero: string, picked: number, dt: number): void {
+  if (!aimPreview) { aimPreview = new AimPreview((x, z, y) => world.heightAt(x, z, y)); scene.add(aimPreview.group); }
+  const wheel = input.takeWheel();
+  const act = BAR[hero][picked]?.action;
+  if (!aimHold.aiming || act?.kind !== 'spell') { aimPreview.hide(); holeWheel = 0; return; }
+  const s = SPELLS[hero][act.slot];
+  const { at, far } = spellAim(spellRange(s.id));
+  const c = controller;
+  const dx = at.x - c.pos.x, dz = at.z - c.pos.z, l = Math.hypot(dx, dz) || 1;
+  const dir = { x: dx / l, z: dz / l };
+  const hand = new Vector3(c.pos.x + Math.cos(c.yaw) * 0.6, c.pos.y + 1.5, c.pos.z + Math.sin(c.yaw) * 0.6);
+  const shape = aimShape(s.id, s.radius);
+  // Lanes, cones and tornado paths start at his feet (the fire tornado 2.5 m ahead); shots from his hand.
+  const from = shape.kind === 'arc' ? hand
+    : s.id === 'fire-tornado' ? new Vector3(c.pos.x + dir.x * 2.5, c.pos.y, c.pos.z + dir.z * 2.5)
+    : s.id === 'storm-tornado' ? at.clone() : new Vector3(c.pos.x, c.pos.y, c.pos.z);
+  let lift: number | undefined;
+  if (s.id === 'black-hole') {
+    // Aimed at a building it opens inside it; the wheel takes it up into the sky or down into the ground.
+    holeWheel -= wheel;
+    const onBuilding = world.heightAt(at.x, at.z, at.y + 1) - area.ground.heightAt(at.x, at.z) > 1.5;
+    lift = holeLift(holeWheel, onBuilding);
+    combat.caster.holeLift = lift;
+  }
+  const gale = s.id === 'gale-shot' || s.id === 'wrecking-charge';
+  aimPreview.show({ shape, from, to: at, dir: gale ? { x: Math.cos(c.yaw), z: Math.sin(c.yaw) } : dir, color: s.color, far, lift, yaw: c.yaw }, dt);
+}
+
