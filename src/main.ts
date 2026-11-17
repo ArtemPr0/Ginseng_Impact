@@ -1151,6 +1151,8 @@ game
         dead: combat.dead,
         holding: combat.carry.hand ? Math.min(1, combat.carry.hand.t / 0.2) : 0,
       }, animDt);
+      // Each foot on its own ground across a slope or a step (FootIK).
+      rig.plantFeet((x, z, y) => world.heightAt(x, z, y), animDt);
       lastClimbY = controller.pos.y;
       // Benched party members are hidden: no need to animate them (companions animate in the fixed step, which hit-stop pauses).
       combat.render(animDt);

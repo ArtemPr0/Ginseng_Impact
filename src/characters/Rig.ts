@@ -12,6 +12,7 @@ import type { CharacterDef, WeaponKind } from './roster';
 import { CYCLONE, type BurstKind } from '../combat/Skills';
 import { cutSeconds, cutStrike, heroClipsOf, moveCut, type ClipCut, type HeroClips } from './heroClips';
 import { easeLean, slopeTarget, yawDelta, type Lean } from './SlopeLean';
+import { footPlan, legIK } from './FootIK';
 
 const _lookUp = new Vector3(0, 1, 0);
 /** The bone a look turns: the neck, else the head. */
@@ -162,6 +163,9 @@ const _t = new Vector3();
 const _a = new Vector3();
 const _b = new Vector3();
 const _ax = new Vector3();
+const _fwd = new Vector3();
+/** Foot planting (FootIK), for a 1.8 m body: the hips drop at most `drop`, a foot rises at most `raise`; eased at `rate`/s. */
+const FEET = { drop: 0.3, raise: 0.4, rate: 12 };
 const _mouth = new Vector3();
 const _drink = new Vector3();
 const _q2v = new Vector3();
@@ -300,7 +304,7 @@ export class Rig {
   static sound: { slurp(gain: number): void; rustle?(): void; munch?(): void } | null = null;
   /** Bones turned procedurally this frame, with their clip pose (see turn). */
   private readonly turned: Array<{ bone: Object3D; q: Quaternion }> = [];
-  private bones: Record<'hips' | 'spine0' | 'spine' | 'spine2' | 'neck' | 'head' | 'lArm' | 'rArm' | 'lForeArm' | 'rForeArm' | 'lUpLeg' | 'rUpLeg' | 'lLeg' | 'rLeg', Object3D | null> | null = null;
+  private bones: Record<'hips' | 'spine0' | 'spine' | 'spine2' | 'neck' | 'head' | 'lArm' | 'rArm' | 'lForeArm' | 'rForeArm' | 'lUpLeg' | 'rUpLeg' | 'lLeg' | 'rLeg' | 'lFoot' | 'rFoot', Object3D | null> | null = null;
 
   constructor(readonly def: CharacterDef, modelId: string = def.id) {
     // Marker until the Meshy file arrives.
@@ -362,6 +366,7 @@ export class Rig {
         hips: b(/hips$/i), spine0: b(/spine$/i), spine: b(/spine1$/i), spine2: b(/spine2$/i), neck: b(/neck$/i), head: b(/(^|:|mixamorig)head$/i),
         lArm: b(/leftarm$/i), rArm: b(/rightarm$/i), lForeArm: b(/leftforearm$/i), rForeArm: b(/rightforearm$/i),
         lUpLeg: b(/leftupleg$/i), rUpLeg: b(/rightupleg$/i), lLeg: b(/leftleg$/i), rLeg: b(/rightleg$/i),
+        lFoot: b(/leftfoot$/i), rFoot: b(/rightfoot$/i),
       };
     }
     const ride = RIDE[this.def.weapon];
@@ -1500,17 +1505,71 @@ export class Rig {
     if (r.rotation.order !== 'YXZ') r.rotation.order = 'YXZ';
     const rate = dt > 0 && this.slopeYaw !== null ? yawDelta(this.slopeYaw, yaw) / dt : 0;
     this.slopeYaw = yaw;
-    easeLean(this.lean, gx === null ? null : slopeTarget(gx, gz, yaw, rate, speed, this.leanTarget, scale), dt);
+    // (A hero's feet stand on their own ground (plantFeet): the body stays upright on a slope, leaning only into turns.)
+    const planted = this.feetOn && this.feetPlanted && gx !== null;
+    easeLean(this.lean, gx === null ? null : slopeTarget(planted ? 0 : gx, planted ? 0 : gz, yaw, rate, speed, this.leanTarget, scale), dt);
     r.rotation.x = this.lean.pitch;
     r.rotation.z = this.lean.roll;
   }
 
+
+  /** Feet planted this frame (a hero on foot, alive, not rolling): set by animate, read by slope and plantFeet. */
+  private feetOn = false;
+  /** Last frame's feet reached their ground (FootIK.footPlan): only then does the slope lean step aside. */
+  private feetPlanted = false;
+  private readonly feet = { drop: 0, l: 0, r: 0 };
+
+  /**
+   * Each foot on its own ground (FootIK): the hips drop to the lower foot's ground and the other leg bends up to its
+   * own, eased in and out. Call after animate, with the ground's height at (x, z) under y. Heroes on foot only.
+   */
+  plantFeet(groundAt: (x: number, z: number, y: number) => number, dt: number): void {
+    const m = this.model, bn = this.bones;
+    if (!m || !bn || !this.hero || !bn.lUpLeg || !bn.rUpLeg || !bn.lLeg || !bn.rLeg || !bn.lFoot || !bn.rFoot) { this.feetPlanted = false; return; }
+    let plan = { drop: 0, raiseL: 0, raiseR: 0, planted: true };
+    const rootY = this.root.getWorldPosition(_a).y;
+    if (this.feetOn) {
+      m.root.updateWorldMatrix(true, true);
+      const l = bn.lFoot.getWorldPosition(_b), gl = groundAt(l.x, l.z, rootY + 1);
+      const r = bn.rFoot.getWorldPosition(_b), gr = groundAt(r.x, r.z, rootY + 1);
+      plan = footPlan(rootY, gl, gr, FEET.drop * m.height / 1.8, FEET.raise * m.height / 1.8);
+    }
+    this.feetPlanted = plan.planted;
+    const k = 1 - Math.exp(-FEET.rate * Math.max(0, dt));
+    const f = this.feet;
+    f.drop += (plan.drop - f.drop) * k;
+    f.l += (plan.raiseL - f.l) * k;
+    f.r += (plan.raiseR - f.r) * k;
+    if (Math.abs(f.drop) < 1e-3 && f.l < 1e-3 && f.r < 1e-3) return;
+    m.root.position.y += f.drop;
+    m.root.updateWorldMatrix(true, true);
+    this.root.getWorldDirection(_fwd);
+    if (f.l > 2e-3) this.bendLeg(bn.lUpLeg, bn.lLeg, bn.lFoot, f.l);
+    if (f.r > 2e-3) this.bendLeg(bn.rUpLeg, bn.rLeg, bn.rFoot, f.r);
+  }
+
+  /** One leg bent so its ankle rises `by` metres; the foot keeps its turn in the world. */
+  private bendLeg(upLeg: Object3D, leg: Object3D, foot: Object3D, by: number): void {
+    const hip = upLeg.getWorldPosition(new Vector3()), knee = leg.getWorldPosition(new Vector3()), ankle = foot.getWorldPosition(new Vector3());
+    const side = _fwd.clone().cross(ankle.clone().sub(hip).normalize());
+    const { upper, lower } = legIK(hip, knee, ankle, ankle.clone().setY(ankle.y + by), side);
+    const wUp = upLeg.getWorldQuaternion(new Quaternion()), wLeg = leg.getWorldQuaternion(new Quaternion()), wFoot = foot.getWorldQuaternion(new Quaternion());
+    for (const b of [upLeg, leg, foot]) if (!this.turned.some((t) => t.bone === b)) this.turned.push({ bone: b, q: b.quaternion.clone() });
+    const pUp = upLeg.parent!.getWorldQuaternion(new Quaternion());
+    const nUp = upper.clone().multiply(wUp);
+    upLeg.quaternion.copy(pUp.invert().multiply(nUp));
+    const nLeg = upper.clone().multiply(lower).multiply(wLeg);
+    leg.quaternion.copy(nUp.clone().invert().multiply(nLeg));
+    foot.quaternion.copy(nLeg.invert().multiply(wFoot));
+    upLeg.updateWorldMatrix(false, true);
+  }
 
   private readonly lean: Lean = { pitch: 0, roll: 0 };
   private readonly leanTarget: Lean = { pitch: 0, roll: 0 };
   private slopeYaw: number | null = null;
 
   animate(pose: RigPose, dt: number): void {
+    this.feetOn = pose.mode === 'ground' && !pose.dead && !pose.dodge && !pose.pose;
     for (const t of this.turned) t.bone.quaternion.copy(t.q);
     this.turned.length = 0;
     // (The clip's finger rotations back too: a frozen or constant track would not rewrite them, and the easing would

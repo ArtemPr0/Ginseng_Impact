@@ -66,7 +66,8 @@ void main() {
   float heat = smoothstep(uOut, uIn, r);
   vec3 col = mix(uCold, uMid, smoothstep(0.0, 0.6, heat));
   col = mix(col, uHot, smoothstep(0.6, 1.0, heat));
-  float b = n * (0.35 + 1.8 * heat * heat) * (1.0 + 0.85 * vDop);
+  // Peaks near 2x its colour at the hot, approaching inner edge (more, and its bloom floods the black core).
+  float b = n * (0.3 + 1.0 * heat * heat) * (1.0 + 0.6 * vDop);
   float edge = smoothstep(uIn, uIn + 0.22, r) * smoothstep(uOut, uOut - 1.2, r);
   gl_FragColor = vec4(col * b * uI * edge, 1.0);
 }`;
@@ -86,8 +87,9 @@ void main() {
   float r = length(d);
   float a = atan(d.y, d.x);
   float flick = 0.8 + 0.4 * vnoise(vec2(a * 3.0, uT * 4.0));
-  float ring = exp(-pow((r - 1.035) / 0.028, 2.0)) * 2.6 * flick;
-  float glow = exp(-pow((r - 1.0) / 0.2, 2.0)) * 0.55;
+  // At most about white: brighter, the bloom smears it across the whole core and the black hole turns grey.
+  float ring = exp(-pow((r - 1.035) / 0.022, 2.0)) * 1.0 * flick;
+  float glow = exp(-pow((r - 1.0) / 0.15, 2.0)) * 0.35;
   float halo = r > 1.0 ? exp(-(r - 1.0) * 2.6) * 0.22 : 0.0;
   // The tear opening: a bright ring flash running out.
   float tear = uFlash * exp(-pow((r - (1.0 + (1.0 - uFlash) * 0.5)) / 0.08, 2.0)) * 3.0;
@@ -132,12 +134,12 @@ export class BlackHoleFx {
       uT: { value: 0 }, uI: { value: i }, uIn: { value: inner }, uOut: { value: outer },
       uHot: { value: new Color(1, 0.95, 1.0) }, uMid: { value: violet.clone().multiplyScalar(1.3) }, uCold: { value: new Color(0.55, 0.05, 0.12) },
     });
-    this.discMat = additive(DISC_V, DISC_F, uniforms(1.25, 4.6, 1.1));
+    this.discMat = additive(DISC_V, DISC_F, uniforms(1.25, 4.6, 1.0));
     const disc = new Mesh(new RingGeometry(1.25, 4.6, 160, 10), this.discMat);
     disc.name = 'disc';
     disc.rotation.x = this.tilt;
     disc.renderOrder = 3;
-    this.disc2Mat = additive(DISC_V, DISC_F, uniforms(1.12, 2.7, 0.55));
+    this.disc2Mat = additive(DISC_V, DISC_F, uniforms(1.12, 2.7, 0.45));
     const disc2 = new Mesh(new RingGeometry(1.12, 2.7, 120, 6), this.disc2Mat);
     disc2.name = 'disc2';
     disc2.rotation.set(this.tilt + 0.9, 0.5, 0);
@@ -282,9 +284,10 @@ export class FireTornadoFx {
     };
     const shells: Array<[number, number, number, number, number]> = [
       // radius scale, height scale, heat, brightness, spin
-      [1, 1, 0.95, 0.62, 2.4],
-      [0.72, 0.94, 1.1, 0.68, -3.1],
-      [0.42, 0.85, 1.3, 0.8, 3.8],
+      // (They add up: together about 1.5x the fire's colour, so the column glows without hazing the frame.)
+      [1, 1, 0.95, 0.42, 2.4],
+      [0.72, 0.94, 1.1, 0.48, -3.1],
+      [0.42, 0.85, 1.3, 0.6, 3.8],
     ];
     shells.forEach(([k, hk, heat, i, spin], n) => {
       const m = additive(FIRE_V, FIRE_F, { uT: { value: 0 }, uSeed: { value: n * 1.7 }, uHeat: { value: heat }, uI: { value: i }, uSpin: { value: spin } });

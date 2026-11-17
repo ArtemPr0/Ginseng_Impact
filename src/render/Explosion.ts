@@ -4,7 +4,7 @@
  * they are born white-hot, cool through the spell's colour (orange for fire, ice-blue for a moonbomb) to red and then
  * to dark smoke that keeps swelling and rises for a few seconds, with a ring of dust rolling out along the ground.
  * Every puff is one instance of a camera-facing quad with its own noise seed and heat, drawn in one call with
- * premultiplied blending, so hot puffs add light and cooled smoke darkens what is behind it.
+ * premultiplied blending: hot puffs are opaque glowing fire and cooled smoke darkens what is behind it.
  */
 import {
   Color, CustomBlending, InstancedBufferAttribute, InstancedBufferGeometry, Mesh, OneFactor, OneMinusSrcAlphaFactor,
@@ -24,11 +24,15 @@ varying float vAlpha;
 varying float vSeed;
 varying vec3 vHot;
 varying float vUp;
+varying float vNear;
 void main() {
   vUv = uv;
   vUp = position.y + 0.5;
   vHeat = aHeat; vAlpha = aAlpha; vSeed = aSeed; vHot = aHot;
   vec4 mv = viewMatrix * vec4(aCenter, 1.0);
+  // A puff the camera is inside (a blast round the hero it follows) would fill the whole frame: it fades out as its
+  // centre comes nearer than about its own size.
+  vNear = smoothstep(0.35 * aSize, 1.2 * aSize, -mv.z);
   // Turned by its seed so no two puffs share an outline.
   float a = aSeed * 6.2832;
   vec2 p = mat2(cos(a), -sin(a), sin(a), cos(a)) * position.xy;
@@ -44,6 +48,7 @@ varying float vAlpha;
 varying float vSeed;
 varying vec3 vHot;
 varying float vUp;
+varying float vNear;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float noise(vec2 p) {
   vec2 i = floor(p), f = fract(p);
@@ -52,6 +57,7 @@ float noise(vec2 p) {
 }
 float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
 void main() {
+  if (vNear <= 0.001) discard;
   vec2 c = vUv - 0.5;
   float r = length(c) * 2.0;
   // A billowing ball: a soft disc eaten into by turning noise at its edge.
@@ -67,9 +73,11 @@ void main() {
   // Smoke: dark cobalt-grey, lit from above by the moon and shadowed underneath, so each puff reads as a ball.
   float lit = mix(0.45, 1.35, smoothstep(0.1, 0.95, vUp + (n - 0.5) * 0.5));
   vec3 smoke = vec3(0.035, 0.04, 0.065) * (0.6 + 0.9 * n) * lit;
-  float smokeA = (1.0 - emit) * shape * vAlpha * 0.5 * (0.6 + 0.6 * n);
-  vec3 rgb = fire * emit * shape * vAlpha * (1.0 + 2.2 * h) + smoke * smokeA;
-  gl_FragColor = vec4(rgb, smokeA + emit * shape * vAlpha * 0.12);
+  float smokeA = (1.0 - emit) * shape * (vAlpha * vNear) * 0.5 * (0.6 + 0.6 * n);
+  // Fire is opaque: a hot puff covers what is behind it (alpha 0.7), so a hundred overlapping puffs settle on the
+  // fire's own colour (white-hot core at most ~2.6x) instead of adding up to a white screen.
+  vec3 rgb = fire * emit * shape * (vAlpha * vNear) * (0.6 + 1.2 * h) + smoke * smokeA;
+  gl_FragColor = vec4(rgb, smokeA + emit * shape * (vAlpha * vNear) * 0.7);
 }`;
 
 interface Puff {

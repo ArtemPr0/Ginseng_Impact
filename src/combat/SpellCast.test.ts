@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
-import { SpellCast, type SpellHost } from './SpellCast';
+import { HOLE_BURST, SpellCast, type SpellHost } from './SpellCast';
+import { Color } from 'three';
 import { createControllerState } from '../player/CharacterController';
 import { DebrisSim } from '../world/Debris';
 
@@ -380,3 +381,49 @@ describe('review 2026-11-16 fixes', () => {
     expect(vz / n).toBeLessThan(-8);
   });
 });
+
+describe('the black hole\'s collapse (critic round 2: it burst as a flat white disc)', () => {
+  it('bursts deep violet, not near-white, with a flash that lights the scene without blowing it out', () => {
+    const hsl = new Color(HOLE_BURST.hot).getHSL({ h: 0, s: 0, l: 0 });
+    expect(hsl.s).toBeGreaterThanOrEqual(0.8);
+    expect(hsl.l).toBeLessThanOrEqual(0.7);
+    expect(HOLE_BURST.flash).toBeLessThanOrEqual(70);
+  });
+});
+
+describe('Wrecking Charge leaves a speed wake (critic round 3: the rush showed nothing on screen)', () => {
+  it('feeds a ribbon trail behind him while he rushes, and lets it go when the rush ends', () => {
+    const trails: Array<{ id: string; on: boolean; ay: number; by: number }> = [];
+    const fx = new Proxy({}, { get: (_t, k) => (...a: unknown[]) => {
+      if (k === 'trail') trails.push({ id: a[0] as string, on: a[4] as boolean, ay: (a[1] as Vector3).y, by: (a[2] as Vector3).y });
+    } }) as SpellHost['fx'];
+    const { host } = fakeHost({ fx });
+    const sc = new SpellCast(host);
+    sc.cast('knight', 1, new Vector3(0, 0, 10));
+    for (let i = 0; i < 10; i++) sc.update(0.1);
+    const fed = trails.filter((t) => t.on);
+    expect(fed.length).toBeGreaterThanOrEqual(3);
+    expect(new Set(fed.map((t) => t.id)).size).toBe(1);
+    // A tall ribbon, from about the knees to the shoulders.
+    expect(fed[0].by - fed[0].ay).toBeGreaterThan(0.8);
+    expect(trails[trails.length - 1].on).toBe(false);
+  });
+});
+
+describe('Gale Shot shows its wind (critic round 3: the cone was invisible but for a little dust)', () => {
+  it('sweeps wind fronts across its cone, out to its reach, along her heading', () => {
+    const arcs: Array<{ yaw: number; radius: number; half: number }> = [];
+    const fx = new Proxy({}, { get: (_t, k) => (...a: unknown[]) => {
+      if (k === 'arc') arcs.push({ yaw: a[1] as number, radius: a[3] as number, half: a[5] as number });
+    } }) as SpellHost['fx'];
+    const { host } = fakeHost({ fx });
+    host.controller.yaw = 0.7;
+    const sc = new SpellCast(host);
+    sc.cast('archer', 3, new Vector3(0, 0, 10));
+    for (let i = 0; i < 6; i++) sc.update(0.1);
+    expect(arcs.length).toBeGreaterThanOrEqual(3);
+    for (const a of arcs) { expect(a.yaw).toBeCloseTo(0.7, 5); expect(a.half).toBeCloseTo(0.55, 5); }
+    expect(Math.max(...arcs.map((a) => a.radius))).toBeGreaterThanOrEqual(8);
+  });
+});
+
