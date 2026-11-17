@@ -149,6 +149,8 @@ spellModel('stone-wall');
 // (The spiky rocks of Earthsplitter and Stone Wall: the sea pinnacle's rock spire, until the reel's own is made.)
 spellModel('pinnacle');
 // (Wren's ice, until the reel's own crystal is made; Sir Aldric's thrown boulders and pillars.)
+spellModel('spiky-rock');
+spellModel('ice-crystal');
 spellModel('purple-crystal');
 spellModel('boulder');
 const mindBeam = new MindBeam();

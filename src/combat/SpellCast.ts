@@ -415,10 +415,16 @@ export class SpellCast {
   }
 
   /** The spiky rocks (one instanced draw; the Meshy rock spire, or the sea pinnacle until it is made). */
+  private spikeOwn = false;
+  private iceOwn = false;
+
   get spikes(): SpikeField {
-    if (!this.spikeField || !this.spikeField.mesh) {
-      const src = this.h.model?.('spiky-rock') ?? this.h.model?.('pinnacle') ?? null;
+    // (Rebuilt when its model arrives, and again when the reel's own rock replaces the stand-in, spikes kept.)
+    if (!this.spikeField || !this.spikeField.mesh || (!this.spikeOwn && this.h.model?.('spiky-rock'))) {
+      const own = this.h.model?.('spiky-rock') ?? null;
+      const src = own ?? this.h.model?.('pinnacle') ?? null;
       if (!this.spikeField || src) {
+        this.spikeOwn = !!own;
         this.spikeField?.mesh?.removeFromParent();
         const old = this.spikeField;
         this.spikeField = new SpikeField(src);
@@ -457,10 +463,12 @@ export class SpellCast {
 
   /** Ice crystals (Wren's ramp and wall): the reel's ice crystal, else the purple crystal turned to ice. */
   get ice(): SpikeField {
-    if (!this.iceField || !this.iceField.mesh) {
+    // (As the spikes: the stand-in until the reel's own ice has loaded, then that, the crystals kept.)
+    if (!this.iceField || !this.iceField.mesh || (!this.iceOwn && this.h.model?.('ice-crystal'))) {
       const own = this.h.model?.('ice-crystal') ?? null;
       const src = own ?? this.h.model?.('purple-crystal') ?? null;
       if (!this.iceField || src) {
+        this.iceOwn = !!own;
         this.iceField?.mesh?.removeFromParent();
         const old = this.iceField;
         this.iceField = new SpikeField(src, own ? undefined : (m) => {

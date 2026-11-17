@@ -244,6 +244,9 @@ export const MODELS: Record<string, ModelDef> = {
   'stone-throne': stat('stone-throne.glb', 2.6, 'grey stone throne of the skeleton king (DeOemU1BOZF)'),
   'coin-block': stat('coin-block.glb', 1.2, 'cracked stone block heaped with gold coins (DeOemU1BOZF)'),
   'purple-crystal': stat('purple-crystal.glb', 1.0, 'purple crystal (DeOemU1BOZF, DeaqHWJBBPw)'),
+  // v13 Flowbound spells (the two clips of 2026-11-17): Sir Aldric's earth spikes and Wren's ice.
+  'spiky-rock': stat('spiky-rock.glb', 3, 'jagged earth spike (Flowbound clip 1, t11/t112)'),
+  'ice-crystal': stat('ice-crystal.glb', 2, 'ice shard cluster (Flowbound clip 2, t37/t67)'),
   'gothic-pavilion': stat('gothic-pavilion.glb', 7, 'gothic pavilion with a ribbed dome and round arched windows (DeXn5rSPxR8)'),
   'purple-house': stat('purple-house.glb', 8, 'half-timbered house with a purple roof (DeaqHWJBBPw)'),
   'purple-mushroom': stat('purple-mushroom.glb', 2.2, 'glowing purple mushroom (DeaqHWJBBPw)'),

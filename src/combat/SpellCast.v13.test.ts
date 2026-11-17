@@ -261,3 +261,22 @@ describe('earth moves burst in dust, not fire (headless check: Earthsplitter\'s 
     });
   }
 });
+
+describe('the ice moves to its own model once it loads (headless check: the wall stayed on the violet stand-in)', () => {
+  it('raised on the stand-in, it is drawn with ice-crystal after that loads, every crystal kept', () => {
+    let own = false;
+    const box = () => { const g = new Group(); g.add(new Mesh(new BoxGeometry(1, 3, 1), new MeshStandardMaterial())); return g; };
+    const stand = box(), ice = box();
+    const { host } = fakeHost({ model: (id) => (id === 'purple-crystal' ? stand : id === 'ice-crystal' && own ? ice : null), solid: () => () => {} });
+    const sc = new SpellCast(host);
+    sc.cast('archer', SPELLS.archer.findIndex((s) => s.id === 'ice-wall'), new Vector3(0, 0, 8));
+    sc.update(0.1);
+    const before = sc.ice.count;
+    const first = sc.ice.mesh;
+    expect(first).not.toBeNull();
+    own = true;
+    sc.update(0.1);
+    expect(sc.ice.mesh).not.toBe(first);
+    expect(sc.ice.count).toBe(before);
+  });
+});

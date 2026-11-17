@@ -12,7 +12,7 @@ glb ("All added", "One file") → `node scripts/model-tools.mjs optimize <downlo
 Models should face +X; set `yaw` in the registry if a file faces another way. Clip names match by substring
 with alternatives (`"slam|attack|punch"`).
 
-208 registered, 208 present, 0 files to generate (0 ids).
+211 registered, 211 present, 0 files to generate (0 ids).
 
 | id | file | height (m) | what | status |
 |---|---|---|---|---|
@@ -79,6 +79,8 @@ with alternatives (`"slam|attack|punch"`).
 | `knight-rose` | knight-rose.glb | 1.95 | black knight offering a rose (Sir Corvin) | present |
 | `skeleton` | skeleton.glb | 1.75 | skeletons at the campfire (DdjlyzyOcnK) | present |
 | `archway-shade` | archway-shade.glb | 2.0 | hooded dark figure with an armoured gauntlet in a gothic archway (DdnJDwBMUoj) | present |
+| `necromancer` | archway-shade.glb | 2.0 | grave necromancer: the hooded figure with the armoured gauntlet from the gothic archway, in violet (DdnJDwBMUoj) | present |
+| `grave-witch` | witch.glb | 1.85 | grave witch: the coven witch in a pointed hat (DeWji_1PuKW) | present |
 | `brazier-hermit` | brazier-hermit.glb | 1.9 | brown-robed hooded figure lifting a fire brazier on a ledge (DdyN2PNyIxb) | present |
 | `vale-knight` | vale-knight.glb | 1.9 | red-caped blue-armoured knight on the village street (Dd5Bqt7vQ5T) | present |
 | `grave-skeleton` | skeleton.glb | 1.75 | skeletons rising from the graves (the Alley of Graves) | present |
@@ -120,14 +122,12 @@ with alternatives (`"slam|attack|punch"`).
 | `cobblestone` | cobblestone.glb | 0.14 | cobblestone | present |
 | `cypress` | cypress.glb | 9 | tall slim graveyard cypress (DeDRVZwxJyO) | present |
 | `grave` | grave.glb | 1.1 | arched gothic headstone (shot-011654) | present |
-| `cup-gnome` | cup-gnome.glb | 1.25 | gnome with a gold grill, gold chain and a purple cup (frames/cup-gnome.png) | present |
 | `rift-king` | rift-king.glb | 1.85 | Yung Lean in a white puffer coat with an ice crown (frames/rift-king.png) | present |
 | `styro-ghoul` | styro-ghoul.glb | 1.25 | purple imp in baggy streetwear with a double-cup backpack | present |
 | `lean-chucker` | styro-ghoul.glb | 1.9 | the Lean-Chucker, boss of the Styro-Ghouls | present |
 | `tankard` | tankard.glb | 0.21 | wooden beer tankard with iron bands, full of foam | present |
 | `lean-cup` | lean-cup.glb | 0.17 | double white styrofoam cup of glowing purple lean (frames/lean-cup.png) | present |
 | `lean-cup-island` | lean-cup.glb | 22 | giant double cup of lean, an island of the kingdom | present |
-| `gnome-brother` | gnome-brother.glb | 1.2 |  | present |
 | `croak-bag` | croak-bag.glb | 1.1 | burlap sack with Brother Croak inside | present |
 | `treehouse-door` | treehouse-door.glb | 2.3 | round plank door of the tree house | present |
 | `treehouse-interior` | treehouse-interior.glb | 7 | round room inside the tree house trunk | present |
@@ -137,6 +137,8 @@ with alternatives (`"slam|attack|punch"`).
 | `stone-throne` | stone-throne.glb | 2.6 | grey stone throne of the skeleton king (DeOemU1BOZF) | present |
 | `coin-block` | coin-block.glb | 1.2 | cracked stone block heaped with gold coins (DeOemU1BOZF) | present |
 | `purple-crystal` | purple-crystal.glb | 1.0 | purple crystal (DeOemU1BOZF, DeaqHWJBBPw) | present |
+| `spiky-rock` | spiky-rock.glb | 3 | jagged earth spike (Flowbound clip 1, t11/t112) | present |
+| `ice-crystal` | ice-crystal.glb | 2 | ice shard cluster (Flowbound clip 2, t37/t67) | present |
 | `gothic-pavilion` | gothic-pavilion.glb | 7 | gothic pavilion with a ribbed dome and round arched windows (DeXn5rSPxR8) | present |
 | `purple-house` | purple-house.glb | 8 | half-timbered house with a purple roof (DeaqHWJBBPw) | present |
 | `purple-mushroom` | purple-mushroom.glb | 2.2 | glowing purple mushroom (DeaqHWJBBPw) | present |
@@ -218,6 +220,7 @@ with alternatives (`"slam|attack|punch"`).
 | `diver` | diver.glb | 1.9 | figure in a brass diving helmet with a glowing porthole and a long dark robe (DeVj-Z8POjl) | present |
 | `drowned-house` | drowned-house.glb | 7 | narrow half-timbered house with a slate roof and warm lit windows, under the sea (DeVj-Z8POjl) | present |
 | `blue-fish` | blue-fish.glb | 1.4 | big blue grouper swimming between the houses (DeVj-Z8POjl) | present |
+| `octopus` | octopus.glb | 3.9 | Big Gerald, the massive octopus round the drowned church (asked for in the playtest of 2026-11-14) | present |
 | `jelly-lantern` | jelly-lantern.glb | 4.2 | iron post with a hanging cage lantern holding a glowing jellyfish (DeVj-Z8POjl) | present |
 | `bottle-shelf` | bottle-shelf.glb | 2.6 | wooden shelves of glowing orange bottles (DeVj-Z8POjl) | present |
 | `orb-lamp` | orb-lamp.glb | 2.2 | iron lamp stand with glowing red glass orbs (DeVj-Z8POjl) | present |
