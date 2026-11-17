@@ -442,3 +442,15 @@ describe('the attack lunge and leap (cartoon combat)', () => {
     expect(s.flungGravity).toBe(1);
   });
 });
+
+describe('walking on rubble (playtest 2026-11-17: "the game bugs out")', () => {
+  it('standing on a block of rubble 0.3 m up, next to the ground, does not slide off', () => {
+    // A 1 m block, 0.3 m high, built (onDeck), round the origin.
+    const block = (x: number, z: number) => (Math.abs(x) < 0.5 && Math.abs(z) < 0.5 ? 0.3 : 0);
+    const w: WorldQuery = { heightAt: (x, z) => block(x, z), onDeck: (x, z) => block(x, z) > 0 };
+    const s = createControllerState({ x: 0.3, y: 0.3, z: 0 });
+    run(idle(), 60, w, s);
+    expect(s.pos.x).toBeCloseTo(0.3, 2);
+    expect(s.pos.y).toBeCloseTo(0.3, 2);
+  });
+});

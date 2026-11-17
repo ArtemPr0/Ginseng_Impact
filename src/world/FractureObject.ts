@@ -142,6 +142,19 @@ export function cutJob(j: Pick<MeshJob, 'position' | 'normal' | 'uv' | 'index' |
   return r;
 }
 
+/** Boxes this close count as touching (m). */
+const CONTACT = 0.05;
+
+/** A chunk's world-aligned box: [minX, minY, minZ, maxX, maxY, maxZ]. */
+function worldBox(c: { pivot: Vector3; q: Quaternion; half: { x: number; y: number; z: number } }): number[] {
+  const e = new Vector3(), v = new Vector3();
+  for (const ax of [[c.half.x, 0, 0], [0, c.half.y, 0], [0, 0, c.half.z]]) {
+    v.set(ax[0], ax[1], ax[2]).applyQuaternion(c.q);
+    e.x += Math.abs(v.x); e.y += Math.abs(v.y); e.z += Math.abs(v.z);
+  }
+  return [c.pivot.x - e.x, c.pivot.y - e.y, c.pivot.z - e.z, c.pivot.x + e.x, c.pivot.y + e.y, c.pivot.z + e.z];
+}
+
 /** Joins the meshes' results into one fracture: indices offset, and chunks of different meshes that meet linked. */
 export function assemble(parts: Array<{ chunks: SolidChunk[]; adjacent: number[][]; material: Material }>): ObjectFracture {
   const chunks: ObjectChunk[] = [];
@@ -152,10 +165,19 @@ export function assemble(parts: Array<{ chunks: SolidChunk[]; adjacent: number[]
     p.chunks.forEach((c, i) => { chunks.push({ ...c, material: p.material }); adjacent.push(p.adjacent[i].map((j) => j + off)); meshOf.push(m); });
   });
   if (parts.length > 1) {
-    for (let i = 0; i < chunks.length; i++) for (let j = i + 1; j < chunks.length; j++) {
-      if (meshOf[i] === meshOf[j]) continue;
-      const a = chunks[i], b = chunks[j];
-      if (a.pivot.distanceTo(b.pivot) < (a.radius + b.radius) * 0.75) { adjacent[i].push(j); adjacent[j].push(i); }
+    // Chunks of different meshes that really touch (their boxes within CONTACT of each other), not ones whose middles
+    // happen to be near: a guess by distance joined pieces across gaps and missed a long roof on its wall. Swept along x.
+    const box = chunks.map(worldBox);
+    const order = chunks.map((_, i) => i).sort((p, q) => box[p][0] - box[q][0]);
+    for (let a = 0; a < order.length; a++) {
+      const i = order[a], A = box[i];
+      for (let b = a + 1; b < order.length; b++) {
+        const j = order[b], B = box[j];
+        if (B[0] > A[3] + CONTACT) break;
+        if (meshOf[i] === meshOf[j]) continue;
+        if (B[1] > A[4] + CONTACT || A[1] > B[4] + CONTACT || B[2] > A[5] + CONTACT || A[2] > B[5] + CONTACT) continue;
+        adjacent[i].push(j); adjacent[j].push(i);
+      }
     }
   }
   let floor = Infinity;

@@ -195,3 +195,26 @@ describe('a resting piece and its own rubble collider (review 2026-11-16)', () =
     expect(woke).toEqual([p]);
   });
 });
+
+describe('nothing floats (playtest 2026-11-17: blocks hanging in the air over a collapse)', () => {
+  it('over the cap, a piece that touched something once and is falling again is not frozen in the air', () => {
+    const sim = new DebrisSim(() => 0, 1);
+    const p = sim.add({ x: 0, y: 3, z: 0, r: 0.35, box: { x: 0.3, y: 0.2, z: 0.3 }, vy: -3 });
+    // (It glanced off another piece a moment ago: the sim remembers it as grounded.)
+    p.grounded = true;
+    for (let i = 0; i < 4; i++) sim.add({ x: 10 + i * 2, y: 4, z: 0, r: 0.3 });
+    for (let i = 0; i < 240; i++) sim.step(1 / 60);
+    expect(p.y).toBeLessThan(0.6);
+  });
+  it('a resting piece whose ground went away under one end, not its middle, still falls', () => {
+    let wallTop = 2;
+    // A ledge 2 m high for x < 0.2; the piece rests on it with most of its length out over the drop.
+    const ground = (x: number) => (x < 0.2 ? wallTop : 0);
+    const sim = new DebrisSim((x) => ground(x));
+    const p = sim.add({ x: 0, y: 2.1, z: 0, r: 0.6, box: { x: 0.5, y: 0.1, z: 0.2 } });
+    for (let i = 0; i < 120; i++) sim.step(1 / 60);
+    wallTop = 0;
+    for (let i = 0; i < 180; i++) sim.step(1 / 60);
+    expect(p.y).toBeLessThan(0.5);
+  });
+});
