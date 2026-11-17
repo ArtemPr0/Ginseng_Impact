@@ -116,6 +116,9 @@ const SKILL_IMPACT = {
  * The black hole's collapse: a deep violet blast (a pale violet let the white-hot core take over, and it burst as a
  * flat white disc) and a flash that lights the scene round it without blowing it out.
  */
+/** Gale Shot's cone: ±0.55 rad (about 32°) off her heading. */
+const GALE_HALF = 0.55;
+
 /** The trail id Wrecking Charge's speed wake owns. */
 const CHARGE_TRAIL = 'wrecking-charge';
 
@@ -538,7 +541,7 @@ export class SpellCast {
     for (const e of h.enemies.slice()) {
       if (!e.alive) continue;
       const dx = e.pos.x - c.pos.x, dz = e.pos.z - c.pos.z, d = Math.hypot(dx, dz);
-      if (d > s.radius || d < 0.01 || (dx * fx + dz * fz) / d < Math.cos(0.55)) continue;
+      if (d > s.radius || d < 0.01 || (dx * fx + dz * fz) / d < Math.cos(GALE_HALF)) continue;
       h.hit(e, s.mult, 10, 0.05);
       if (!e.def.boss && !e.def.flying && e.def.speed > 0) e.leap(0.8, 2.4);
     }
@@ -551,6 +554,8 @@ export class SpellCast {
       h.fx.sparks(_v.set(x, c.pos.y + 1, z), _w.set(fx, 0.15, fz), 10, s.color, 12, 0.35);
     }
     for (const sim of h.debris()) sim.push(c.pos.x + fx * 5, c.pos.z + fz * 5, 6, (p) => { p.vx += fx * 14; p.vz += fz * 14; p.vy += 4; sim.wake(p); });
+    // The wind itself: pale crescents sweeping out across the cone to its reach, at the knees, the waist and the chest.
+    [0.5, 1.1, 1.7].forEach((y, k) => h.fx.arc(_v.set(c.pos.x, c.pos.y + y, c.pos.z), c.yaw, (k - 1) * 0.12, s.radius * (0.7 + k * 0.15), s.color, GALE_HALF));
     h.shake(0.35);
     h.audio.spell('wind');
   }

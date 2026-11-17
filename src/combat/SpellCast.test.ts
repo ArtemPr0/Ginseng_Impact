@@ -410,3 +410,20 @@ describe('Wrecking Charge leaves a speed wake (critic round 3: the rush showed n
   });
 });
 
+describe('Gale Shot shows its wind (critic round 3: the cone was invisible but for a little dust)', () => {
+  it('sweeps wind fronts across its cone, out to its reach, along her heading', () => {
+    const arcs: Array<{ yaw: number; radius: number; half: number }> = [];
+    const fx = new Proxy({}, { get: (_t, k) => (...a: unknown[]) => {
+      if (k === 'arc') arcs.push({ yaw: a[1] as number, radius: a[3] as number, half: a[5] as number });
+    } }) as SpellHost['fx'];
+    const { host } = fakeHost({ fx });
+    host.controller.yaw = 0.7;
+    const sc = new SpellCast(host);
+    sc.cast('archer', 3, new Vector3(0, 0, 10));
+    for (let i = 0; i < 6; i++) sc.update(0.1);
+    expect(arcs.length).toBeGreaterThanOrEqual(3);
+    for (const a of arcs) { expect(a.yaw).toBeCloseTo(0.7, 5); expect(a.half).toBeCloseTo(0.55, 5); }
+    expect(Math.max(...arcs.map((a) => a.radius))).toBeGreaterThanOrEqual(8);
+  });
+});
+
