@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
-import { Breakables, breakHp, canBreak, collapseDelay, POWER, rebuildDue, trimGrid, unheld, type BreakTarget } from './Breakables';
+import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Quaternion, Vector3 } from 'three';
+import { Breakables, breakHp, canBreak, collapseDelay, POWER, rebuildDue, standingReach, trimGrid, unheld, type BreakTarget } from './Breakables';
 import { HeightWorld, type GridFootprint } from './Colliders';
 import { blockCount, chunkCount } from './Fracture';
 
@@ -495,5 +495,16 @@ describe('takeWhole: while held', () => {
     expect(h.added.length).toBe(0);
     held.land(10, 0, 10);
     expect(b.near(10, 10, 3).length).toBe(1);
+  });
+});
+
+describe('standingReach (review: trimmed colliders sank 0.7 m under a tall thin wall block)', () => {
+  it('a tall thin block keeps its full height, and reaches as far as its long side', () => {
+    const r = standingReach({ half: { x: 0.5, y: 1.5, z: 0.15 }, q: new Quaternion() });
+    expect(r.top).toBeCloseTo(1.5, 5);
+    expect(r.r).toBeCloseTo(0.5, 5);
+    const g = trimGrid(grid(), [{ x: 0, y: 1.5, z: 0, r: r.r, top: r.top }]);
+    const i = Math.floor((0 - g.minX) / g.cell), k = Math.floor((0 - g.minZ) / g.cell);
+    expect(g.base + g.data[(k * g.nx + i) * 3 + 2] * g.unit).toBeGreaterThan(2.9);
   });
 });

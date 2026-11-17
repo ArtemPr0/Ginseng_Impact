@@ -7,7 +7,7 @@
  */
 import { BufferGeometry, InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, Object3D, Quaternion, Vector3, Euler, Box3, type Material } from 'three';
 
-const MAX = 160;
+const MAX = 320;
 /** Seconds a spike takes to burst up, and to sink at the end. */
 const UP = 0.16;
 const DOWN = 0.4;
@@ -54,12 +54,23 @@ export class SpikeField {
     this.mesh.count = 0;
   }
 
+  /** Takes over another field's spikes (it was drawing nothing: its model had not loaded yet). */
+  adopt(old: SpikeField): void { this.spikes.push(...old.spikes); }
+
+  /** Spikes with `tag` (tests). */
+  tagged(tag: string): number { return this.spikes.filter((s) => s.o.tag === tag).length; }
+
   /** Spikes standing or waiting. */
   get count(): number { return this.spikes.length; }
 
   /** A spike at `at` (on the ground there). */
   raise(at: Vector3, o: SpikeOpts): void {
-    if (this.spikes.length >= MAX) this.spikes.shift();
+    // Full: the oldest loose one goes (never a tagged one: a wall's rocks stand over its collider), else this one.
+    if (this.spikes.length >= MAX) {
+      const i = this.spikes.findIndex((p) => !p.o.tag);
+      if (i < 0) return;
+      this.spikes.splice(i, 1);
+    }
     this.spikes.push({ at: at.clone(), o: { lean: { x: 0, z: 0 }, yaw: Math.random() * Math.PI * 2, tag: '', ...o }, t: 0 });
   }
 

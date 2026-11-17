@@ -38,6 +38,8 @@ const DUST = 0xd8c09a;
 const UP = new Vector3(0, 1, 0);
 /** Walls and ramps: how long they stand (s). */
 const EARTH_WALL_S = 6, SHIELD_S = 6, ICE_WALL_S = 8, RAMP_S = 8;
+/** Water Whip's reach (m): its aim preview's lane is as long. */
+export const WHIP_REACH = 14;
 
 type Task = (dt: number) => boolean;
 
@@ -425,8 +427,10 @@ export class ReelMoves {
       }
       case 'water-whip': {
         // A whip of water lashes out along her aim, catches the first one on it and drags it to her.
-        const e = k.lineTarget(me, aim);
-        const end = e ? new Vector3(e.pos.x, e.pos.y + 1, e.pos.z) : new Vector3(me.x + way.x * 12, me.y + 1, me.z + way.z * 12);
+        // (As far as its preview lane reaches: Aim's 'water-whip' lane, WHIP_REACH.)
+        const found = k.lineTarget(me, aim);
+        const e = found && Math.hypot(found.pos.x - me.x, found.pos.z - me.z) <= WHIP_REACH ? found : null;
+        const end = e ? new Vector3(e.pos.x, e.pos.y + 1, e.pos.z) : new Vector3(me.x + way.x * WHIP_REACH, me.y + 1, me.z + way.z * WHIP_REACH);
         const mid = new Vector3().lerpVectors(hand, end, 0.5).setY(Math.max(hand.y, end.y) + 1.2);
         k.water.ribbon([hand.clone(), mid, end], { width: 0.35, life: 0.7, grow: 0.3, color: s.color });
         if (!e) { h.tip?.('No target'); break; }

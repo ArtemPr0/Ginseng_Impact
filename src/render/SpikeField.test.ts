@@ -47,3 +47,16 @@ describe('SpikeField.drop (a wall of spikes kicked apart sinks at once)', () => 
     expect(f.count).toBe(1);
   });
 });
+
+describe('SpikeField cap (review: a full field dropped a standing wall\'s rocks, leaving its collider invisible)', () => {
+  it('when full, it drops the oldest loose spike, never a tagged one', () => {
+    const f = new SpikeField(rock());
+    for (let i = 0; i < 30; i++) f.raise(new Vector3(i, 0, 0), { height: 2, width: 0.6, delay: 0, life: 10, tag: 'wall' });
+    f.update(0.3);
+    for (let i = 0; i < 400; i++) f.raise(new Vector3(0, 0, i), { height: 2, width: 0.6, delay: 0, life: 1 });
+    f.drop('wall');
+    f.update(0.01);
+    // All 30 wall spikes were still there to be dropped (sinking now, not gone yet).
+    expect(f.tagged('wall')).toBe(30);
+  });
+});

@@ -74,7 +74,22 @@ export function collapseDelay(d: number, size: number, jitter: number): number {
  * A copy of grid footprint `f` cut down to `standing` (balls in the grid's local metres, y above its base): cells with
  * nothing over them are cleared, the rest lowered to the top of what stands. The shared baked grid is never touched.
  */
-export function trimGrid(f: GridFootprint, standing: Array<{ x: number; y: number; z: number; r: number }>): GridFootprint {
+/**
+ * How a standing chunk holds its collider up: its top over its middle (its box's vertical reach) and how far across it
+ * reaches (its box's longer flat side). Review 2026-11-17: half its radius for both sank tall thin blocks' tops.
+ */
+export function standingReach(c: { half: { x: number; y: number; z: number }; q: Quaternion }): { r: number; top: number } {
+  let ex = 0, ey = 0, ez = 0;
+  const v = new Vector3();
+  for (const a of [[c.half.x, 0, 0], [0, c.half.y, 0], [0, 0, c.half.z]]) {
+    v.set(a[0], a[1], a[2]).applyQuaternion(c.q);
+    ex += Math.abs(v.x); ey += Math.abs(v.y); ez += Math.abs(v.z);
+  }
+  return { r: Math.max(ex, ez), top: ey };
+}
+
+/** `top`: how far above `y` the chunk stands (default its `r`). */
+export function trimGrid(f: GridFootprint, standing: Array<{ x: number; y: number; z: number; r: number; top?: number }>): GridFootprint {
   const data = new Uint8Array(f.data);
   for (let k = 0; k < f.nz; k++) for (let i = 0; i < f.nx; i++) {
     const o = (k * f.nx + i) * 3;
@@ -82,7 +97,7 @@ export function trimGrid(f: GridFootprint, standing: Array<{ x: number; y: numbe
     const lx = f.minX + (i + 0.5) * f.cell, lz = f.minZ + (k + 0.5) * f.cell;
     let top = -1;
     for (const b of standing) {
-      if (Math.hypot(b.x - lx, b.z - lz) <= b.r + f.cell * 0.5) top = Math.max(top, b.y + b.r);
+      if (Math.hypot(b.x - lx, b.z - lz) <= b.r + f.cell * 0.5) top = Math.max(top, b.y + (b.top ?? b.r));
     }
     if (top < 0) { data[o] = 0; data[o + 1] = 255; data[o + 2] = 0; continue; }
     const bins = Math.max(1, Math.ceil(top / f.unit));
@@ -608,7 +623,8 @@ export class Breakables {
       const c = Math.cos(f.rotY), s = Math.sin(f.rotY);
       const local = standing.map((ch) => {
         const dx = ch.x - f.x, dz = ch.z - f.z;
-        return { x: dx * c - dz * s, z: dx * s + dz * c, y: ch.y - f.base, r: ch.r * 0.5 };
+        const k = standingReach(ch);
+        return { x: dx * c - dz * s, z: dx * s + dz * c, y: ch.y - f.base, r: k.r, top: k.top };
       });
       next.push(trimGrid(f, local));
     }
@@ -697,10 +713,11 @@ export function gridOf(f: Exclude<Footprint, GridFootprint>, chunks: Array<{ y: 
 }
 
 /** The grid and the standing chunks in its local frame (trimGrid's input). */
-function gridLocal(g: GridFootprint, standing: Array<{ x: number; y: number; z: number; r: number }>): [GridFootprint, Array<{ x: number; y: number; z: number; r: number }>] {
+function gridLocal(g: GridFootprint, standing: Array<{ x: number; y: number; z: number; half: { x: number; y: number; z: number }; q: Quaternion }>): [GridFootprint, Array<{ x: number; y: number; z: number; r: number; top: number }>] {
   const c = Math.cos(g.rotY), s = Math.sin(g.rotY);
   return [g, standing.map((ch) => {
     const dx = ch.x - g.x, dz = ch.z - g.z;
-    return { x: dx * c - dz * s, z: dx * s + dz * c, y: ch.y - g.base, r: ch.r * 0.5 };
+    const k = standingReach(ch);
+    return { x: dx * c - dz * s, z: dx * s + dz * c, y: ch.y - g.base, r: k.r, top: k.top };
   })];
 }

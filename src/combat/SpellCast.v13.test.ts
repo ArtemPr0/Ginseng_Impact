@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { BoxGeometry, Color, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import { SpellCast } from './SpellCast';
+import { SPELLS } from './Spells';
 import { fakeHost } from './spellHost.fixture';
 import { bloodSky } from './CombatSystem';
 
 function mob(x: number, z: number, o: Record<string, unknown> = {}) {
   return {
-    id: Math.random(), alive: true, pos: new Vector3(x, 0, z), def: { height: 1.8, speed: 3, bodyRadius: 0.4 }, held: false, thrown: null as unknown,
+    id: Math.random(), alive: true, swallow: -1, pos: new Vector3(x, 0, z), def: { height: 1.8, speed: 3, bodyRadius: 0.4 }, held: false, thrown: null as unknown,
     object: new Group(), shove() {}, afflict() {}, leap() {}, ...o,
   };
 }
@@ -93,6 +94,10 @@ describe('the black hole goes where it is put, and eats (playtest 2026-11-17)', 
     for (let i = 0; i < 50; i++) sc.update(0.1);
     expect(e.alive).toBe(false);
     expect(e.object.visible).toBe(false);
+    // (Review: it was set back to full size, and the death fade showed it again. It stays swallowed: the body keeps
+    // it hidden, Enemy's own death path included.)
+    expect((e as unknown as { swallow: number }).swallow).toBeLessThan(0.06);
+    expect(e.object.scale.x).toBeLessThan(0.06);
     expect(boss.alive).toBe(true);
   });
 });
@@ -178,5 +183,36 @@ describe('Rock Armor halves what the hero takes while it lasts', () => {
     const { armorShare } = await import('./CombatSystem');
     expect(armorShare(0)).toBe(1);
     expect(armorShare(3)).toBe(0.5);
+  });
+});
+
+describe('ice raised before its model loaded shows once it has (review: an invisible ice wall with a solid collider)', () => {
+  it('the ice wall keeps its crystals when the field is rebuilt with the model', () => {
+    let loaded = false;
+    const rock = () => { const g = new Group(); g.add(new Mesh(new BoxGeometry(1, 3, 1), new MeshStandardMaterial())); return g; };
+    const { host } = fakeHost({ model: (id) => (loaded && id === 'purple-crystal' ? rock() : null), solid: () => () => {} });
+    const sc = new SpellCast(host);
+    const slot = SPELLS.archer.findIndex((s) => s.id === 'ice-wall');
+    sc.cast('archer', slot, new Vector3(0, 0, 8));
+    sc.update(0.1);
+    const before = sc.ice.count;
+    expect(before).toBeGreaterThan(5);
+    loaded = true;
+    sc.update(0.1);
+    expect(sc.ice.mesh).not.toBeNull();
+    expect(sc.ice.count).toBe(before);
+  });
+});
+
+describe('Earthsplitter bursts on what it was aimed at (review: a deck above him burst on the ground under it)', () => {
+  it('aimed at a deck 4 m up, the end burst is on the deck', () => {
+    const ys: number[] = [];
+    // (A deck 4 m up over x 0, z 6-10: what stands on it, or comes from above, is on it.)
+    const { host } = fakeHost({ smash: (_x, y) => { ys.push(y); }, heightAt: (_x, z, y) => (z > 6 && z < 10 && (y ?? 0) > 4 ? 4 : 0) });
+    const sc = new SpellCast(host);
+    host.controller.yaw = Math.PI / 2;
+    sc.cast('knight', 0, new Vector3(0, 4, 8));
+    for (let i = 0; i < 10; i++) sc.update(0.1);
+    expect(Math.max(...ys)).toBeGreaterThan(4.4);
   });
 });

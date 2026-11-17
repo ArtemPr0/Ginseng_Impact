@@ -148,6 +148,9 @@ function spellModel(id: string): Object3D | null {
 spellModel('stone-wall');
 // (The spiky rocks of Earthsplitter and Stone Wall: the sea pinnacle's rock spire, until the reel's own is made.)
 spellModel('pinnacle');
+// (Wren's ice, until the reel's own crystal is made; Sir Aldric's thrown boulders and pillars.)
+spellModel('purple-crystal');
+spellModel('boulder');
 const mindBeam = new MindBeam();
 scene.add(mindBeam.group);
 const handAt = new Vector3();
@@ -1041,7 +1044,7 @@ game
       if (!slot.hold && !holding) {
         const held = aimHold.update(input.locked && input.mouseDown(2), !input.locked || input.justPressed('Escape'), picked);
         if (held.release) spellBuffer.push(held.slot);
-      } else aimHold.update(false, true, picked);
+      } else aimHold.update(input.locked && input.mouseDown(2), true, picked);
       showAim(hero, picked, dt);
       const buffered = spellBuffer.peek(dt);
       // The aim reaches as far as the spell about to be cast (a buffered one), else the picked one: Earthsplitter's

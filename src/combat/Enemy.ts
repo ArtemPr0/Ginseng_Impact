@@ -197,6 +197,8 @@ export class Enemy {
   lostArms = 0;
   /** Held up by a hero (Carry): its AI waits and whoever holds it sets `pos`. */
   held = false;
+  /** Eaten by a black hole: how much of it is left to see (1 to 0), or -1; once dead it stays that small, hidden. */
+  swallow = -1;
   /** While held: its tilt from swinging on its grip (Dangle), radians about world x and z; null: none. */
   swing: { x: number; z: number } | null = null;
   /** Thrown alive (Carry): flying until it lands. */
@@ -1022,6 +1024,8 @@ export class Enemy {
       if (m && !m.hasClips) this.driveStatic(m, st, dt, yawRate);
       if (m) this.flapWings(m, dt);
       if (!far && !this.heap) m?.update(dt);
+      // Swallowed by a black hole: what the hole left of it, and nothing once it is gone (review: the burn showed it).
+      if (this.swallow >= 0) { this.object.scale.setScalar(this.swallow * (this.def.scale ?? 1)); this.object.visible = this.swallow > 0.05; }
       return;
     }
     this.object.rotation.y = yawToRotation(this.yaw);
@@ -1046,11 +1050,7 @@ export class Enemy {
     }
     // Hanging from a fist it kicks and squirms; in the air it tumbles end over end.
     // (The swing from its grip, plus a kick and a squirm of its own.)
-    if (this.held) {
-      this.object.rotation.order = 'XYZ';
-      this.object.rotation.x = (this.swing?.x ?? 0) + Math.sin(this.time * 9) * 0.12;
-      this.object.rotation.z = (this.swing?.z ?? 0) + Math.sin(this.time * 6.5) * 0.08;
-    }
+    if (this.held) applyHeldTilt(this.object.rotation, (this.swing?.x ?? 0) + Math.sin(this.time * 9) * 0.12, (this.swing?.z ?? 0) + Math.sin(this.time * 6.5) * 0.08);
     else if (this.thrown) this.object.rotation.x = this.thrown.angle;
     else if (this.downT >= 0) {
       // Knocked down: over about its feet along the blow, lying, back up (Knockdown.ts).
@@ -1547,4 +1547,14 @@ export function litWood(materials: readonly MeshStandardMaterial[], intensity = 
     m.emissiveMap = m.map;
     m.emissiveIntensity = intensity;
   }
+}
+
+/**
+ * A held body's tilt about the world's x and z (its swing on its grip, Dangle), whatever way it faces: Euler order
+ * 'ZXY' turns it by its yaw first, then tips it about world x and z.
+ */
+export function applyHeldTilt(r: { order: string; x: number; z: number }, tiltX: number, tiltZ: number): void {
+  r.order = 'ZXY';
+  r.x = tiltX;
+  r.z = tiltZ;
 }

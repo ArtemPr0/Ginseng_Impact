@@ -101,3 +101,15 @@ describe('aimShape: the second page shows what each move will do', () => {
     expect(aimShape('fire-ring').kind).toBe('ring');
   });
 });
+
+describe('AimHold needs a fresh press (review: a held RMB carried from the knight\'s slam into a cast)', () => {
+  it('right click held through a blocked frame (a slam) and let go casts nothing', () => {
+    const a = new AimHold();
+    a.update(true, true, 2); // the slam's frame: RMB down, aiming blocked
+    expect(a.update(true, false, 2).release).toBe(false);
+    expect(a.aiming).toBe(false);
+    expect(a.update(false, false, 2).release).toBe(false);
+    a.update(true, false, 2);
+    expect(a.aiming).toBe(true);
+  });
+});

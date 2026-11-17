@@ -160,7 +160,7 @@ export class SpellCast {
   private wall: StoneWall | null = null;
   private readonly rubble: StoneWall[] = [];
   /** Earthsplitter's fissure running to its end: where it is along its line, who it has tossed. */
-  private fissure: { from: Vector3; dir: { x: number; z: number }; len: number; d: number; next: number; hit: Set<Enemy> } | null = null;
+  private fissure: { from: Vector3; end: Vector3; dir: { x: number; z: number }; len: number; d: number; next: number; hit: Set<Enemy> } | null = null;
   private spikeField: SpikeField | null = null;
   private iceField: SpikeField | null = null;
   private readonly water = new WaterFx();
@@ -230,9 +230,10 @@ export class SpellCast {
         const dx = aim.x - c.pos.x, dz = aim.z - c.pos.z, l = Math.hypot(dx, dz) || 1;
         const len = Math.max(3, Math.min(LEAP_RANGE, l));
         const dir = { x: dx / l, z: dz / l };
-        this.fissure = { from: new Vector3(c.pos.x, c.pos.y, c.pos.z), dir, len, d: 0.8, next: 0.8, hit: new Set() };
+        // (Its end on what was aimed at: a deck or a roof he aims at is where it bursts, not the land under it.)
         const end = new Vector3(c.pos.x + dir.x * len, l <= LEAP_RANGE ? aim.y : c.pos.y, c.pos.z + dir.z * len);
         ground(end, h);
+        this.fissure = { from: new Vector3(c.pos.x, c.pos.y, c.pos.z), end, dir, len, d: 0.8, next: 0.8, hit: new Set() };
         this.runes.cast(end, s.color, { radius: s.radius, hold: len / FISSURE_SPEED, ...RUNE_STACK[s.id] });
         h.fx.dust(_v.set(c.pos.x + dir.x * 0.8, c.pos.y, c.pos.z + dir.z * 0.8), 1.4);
         h.shake(0.45);
@@ -376,8 +377,9 @@ export class SpellCast {
     if (this.slam && (this.slam.t -= dt) <= 0) { const at = this.slam.at; this.slam = null; this.earthsplit(at); }
     if (this.fissure) this.runFissure(dt);
     this.reel.update(dt);
-    this.spikeField?.update(dt);
-    this.iceField?.update(dt);
+    // (Through the getters: a field drawing nothing picks up its model once it has loaded.)
+    if (this.spikeField) this.spikes.update(dt);
+    if (this.iceField) this.ice.update(dt);
     this.water.update(dt);
     if (this.charge) this.charging(dt);
     for (let i = this.holes.length - 1; i >= 0; i--) if (this.hole(this.holes[i], dt)) this.holes.splice(i, 1);
@@ -416,7 +418,9 @@ export class SpellCast {
       const src = this.h.model?.('spiky-rock') ?? this.h.model?.('pinnacle') ?? null;
       if (!this.spikeField || src) {
         this.spikeField?.mesh?.removeFromParent();
+        const old = this.spikeField;
         this.spikeField = new SpikeField(src);
+        if (old) this.spikeField.adopt(old);
         if (this.spikeField.mesh) this.h.scene.add(this.spikeField.mesh);
       }
     }
@@ -456,6 +460,7 @@ export class SpellCast {
       const src = own ?? this.h.model?.('purple-crystal') ?? null;
       if (!this.iceField || src) {
         this.iceField?.mesh?.removeFromParent();
+        const old = this.iceField;
         this.iceField = new SpikeField(src, own ? undefined : (m) => {
           m.color.set(0xbfe8ff);
           m.emissive?.set(0x2a6a9a);
@@ -465,6 +470,7 @@ export class SpellCast {
           m.transparent = true;
           m.opacity = 0.85;
         });
+        if (old) this.iceField.adopt(old);
         if (this.iceField.mesh) this.h.scene.add(this.iceField.mesh);
       }
     }
@@ -504,7 +510,7 @@ export class SpellCast {
     }
     if (f.d >= f.len) {
       this.fissure = null;
-      this.earthsplit(new Vector3(f.from.x + f.dir.x * f.len, h.heightAt(f.from.x + f.dir.x * f.len, f.from.z + f.dir.z * f.len, f.from.y + 2), f.from.z + f.dir.z * f.len), f.hit);
+      this.earthsplit(f.end, f.hit);
     }
   }
 
@@ -856,6 +862,7 @@ export class SpellCast {
     const h = this.h;
     h.hit(e, 999, 0, 0.05, _v.set(e.pos.x, e.pos.y + 1, e.pos.z).clone());
     e.held = false;
+    e.swallow = 1;
     o.eaten.add(e);
     h.fx.sparks(_v, UP, 18, 0xe8d8ff, -4, 0.6);
     h.fx.flash(_v, _c.set(0x8a3dff), 1.5);
@@ -901,10 +908,11 @@ export class SpellCast {
     }
     // Bodies shrinking away into it.
     for (const e of o.eaten) {
-      const sc = e.object.scale.x * Math.exp(-6 * dt);
-      e.object.scale.setScalar(sc);
+      // (Enemy keeps a swallowed body this small and hidden once it is; its death fade never shows it again.)
+      e.swallow *= Math.exp(-6 * dt);
+      e.object.scale.setScalar(e.swallow * (e.def.scale ?? 1));
       e.pos.x += (cx - e.pos.x) * Math.min(1, 6 * dt); e.pos.z += (cz - e.pos.z) * Math.min(1, 6 * dt);
-      if (sc < 0.05) { e.object.visible = false; e.object.scale.setScalar(1); o.eaten.delete(e); }
+      if (e.swallow < 0.05) { e.swallow = 0; e.object.visible = false; o.eaten.delete(e); }
     }
     // Pieces spiral up into it and are ground away to nothing in the core.
     for (const sim of h.debris()) {
@@ -943,7 +951,7 @@ export class SpellCast {
     h.lights?.flash(top, 0xc8a8ff, HOLE_BURST.flash, 60, 0.7);
     this.explosions.burst(top, 6, { hot: HOLE_BURST.hot, smoke: 0.6 });
     h.fx.shock(o.at, 0xe8d8ff, 14, 0.8);
-    for (const e of o.eaten) { e.object.visible = false; e.object.scale.setScalar(1); }
+    for (const e of o.eaten) { e.swallow = 0; e.object.visible = false; e.object.scale.setScalar(0); }
     o.eaten.clear();
     for (const [e] of o.lifted) {
       e.held = false;

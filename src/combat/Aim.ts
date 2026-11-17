@@ -58,17 +58,21 @@ export class AimHold {
   aiming = false;
   private slot = -1;
   private cancelled = false;
+  private was = false;
 
   /** `down`: right mouse held; `cancel`: Esc (or the pointer lost); `picked`: the bar's selected slot. */
   update(down: boolean, cancel: boolean, picked: number): { release: boolean; slot: number } {
-    if (this.aiming && (cancel || picked !== this.slot)) { this.aiming = false; this.cancelled = true; }
+    // (Aiming starts only on a fresh press: a button already held from something else, a slam or a lift, never casts.)
+    const fresh = down && !this.was;
+    this.was = down;
+    if (cancel || (this.aiming && picked !== this.slot)) { this.aiming = false; if (down) this.cancelled = true; }
     if (!down) {
       const release = this.aiming;
       this.aiming = false;
       this.cancelled = false;
       return { release, slot: this.slot };
     }
-    if (!this.aiming && !this.cancelled) { this.aiming = true; this.slot = picked; }
+    if (fresh && !this.cancelled && !cancel) { this.aiming = true; this.slot = picked; }
     return { release: false, slot: this.slot };
   }
 }
@@ -111,7 +115,7 @@ export function aimShape(id: string, radius = 3): AimShape {
     case 'fire-wave': return { kind: 'lane', length: 12, width: 5 };
     case 'fire-dash': return { kind: 'lane', length: 10, width: 3.2 };
     case 'wave-surf': return { kind: 'lane', length: 12, width: 3.6 };
-    case 'water-whip': return { kind: 'lane', length: 14, width: 2 };
+    case 'water-whip': return { kind: 'lane', length: 14, width: 2 }; // (ReelMoves.WHIP_REACH)
     case 'ice-ramp': return { kind: 'lane', length: 10.8, width: 1.6 };
     case 'pillars': return { kind: 'lane', length: 16, width: 5 };
     case 'dust-kick': return { kind: 'cone', radius: 5, angle: 0.9 };

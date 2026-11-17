@@ -154,6 +154,12 @@ describe('Wren, water and ice', () => {
     expect(r.hits.get(a)).toBeGreaterThan(0);
     expect(Math.hypot(a.pos.x, a.pos.z)).toBeLessThan(6);
   });
+  it('Water Whip reaches as far as its preview lane (14 m), no further', () => {
+    const a = mob(0.5, 18);
+    const r = run('archer', 'water-whip', new Vector3(0, 0, 20), [a]);
+    expect(r.hits.has(a)).toBe(false);
+    expect(a.pos.z).toBe(18);
+  });
   it('Wave Surf: she rides a wave forward and knocks them aside', () => {
     const a = mob(0.6, 5);
     const r = run('archer', 'wave-surf', new Vector3(0, 0, 12), [a]);
