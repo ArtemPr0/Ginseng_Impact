@@ -5,7 +5,7 @@ import { SPELLS } from './combat/Spells';
 import { BAR, barActs, barKey, chargeMove, LmbGesture, SpellBar } from './combat/SpellBar';
 import { LiftGlow } from './render/LiftGlow';
 import { MindBeam } from './render/MindBeam';
-import { Color, DirectionalLight, FogExp2, Frustum, HemisphereLight, Matrix4, type Object3D, PerspectiveCamera, Scene, Sphere, Vector3 } from 'three';
+import { Box3, Color, DirectionalLight, FogExp2, Frustum, HemisphereLight, Matrix4, type Object3D, PerspectiveCamera, Scene, Sphere, Vector3 } from 'three';
 import { HarvestLedger, harvestOf } from './world/Harvest';
 import { Ejecta } from './render/Ejecta';
 import { Billow } from './render/Billow';
@@ -32,6 +32,7 @@ import { Inventory } from './items/Inventory';
 import { riverAt, WORLD } from './world/Terrain';
 import { ITEMS } from './items/Items';
 import { CONTROLLER, createControllerState, haltController, startDash, stepController } from './player/CharacterController';
+import { MushroomRise, RISE, type Shroom } from './player/MushroomRise';
 import { Party } from './player/Party';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera';
 import { Atmosphere } from './render/Atmosphere';
@@ -150,6 +151,43 @@ scene.add(mindBeam.group);
 const handAt = new Vector3();
 /** Clods of earth thrown out of fresh craters (Ejecta). */
 const ejecta = new Ejecta((x, z, y) => world.heightAt(x, z, y));
+/** Wren's mushroom rise (hold Space): the mushrooms, their colliders, their models. */
+const shroomRise = new MushroomRise();
+shroomRise.onAdd = (f) => world.add(f);
+shroomRise.onRemove = (f) => world.remove(f);
+const shroomMeshes = new Map<Shroom, Object3D>();
+let shroomBox: Vector3 | null = null;
+spellModel('giant-mushroom');
+/** Grows Wren's mushrooms while Space is held (before the step: she stands on what grew). */
+function growShrooms(dt: number): void {
+  const p = controller.pos;
+  const can = party.active.id === 'archer' && input.locked && !combat.busy && (controller.mode === 'ground' || controller.mode === 'air');
+  // (The ground under the mushrooms: the terrain, not her own caps.)
+  shroomRise.update(dt, can && input.isDown('Space'), p, (x, z) => area.ground.heightAt(x, z));
+  const src = spellModel('giant-mushroom');
+  if (src && !shroomBox) shroomBox = new Box3().setFromObject(src).getSize(new Vector3());
+  for (const sh of shroomRise.shrooms) {
+    let m = shroomMeshes.get(sh);
+    if (!m && src && shroomBox) { m = src.clone(true); m.name = 'wren-mushroom'; scene.add(m); shroomMeshes.set(sh, m); }
+    if (!m || !shroomBox) continue;
+    const k = Math.max(0.001, shroomRise.scale(sh));
+    const wide = (RISE.r * 2.3) / Math.max(0.01, shroomBox.x, shroomBox.z);
+    m.scale.set(wide * (0.6 + 0.4 * k), (sh.height * k) / Math.max(0.01, shroomBox.y), wide * (0.6 + 0.4 * k));
+    m.position.set(sh.x, sh.ground, sh.z);
+  }
+  for (const [sh, m] of shroomMeshes) if (!shroomRise.shrooms.includes(sh)) { m.removeFromParent(); shroomMeshes.delete(sh); }
+}
+/** A cap that grew past her feet lifts her onto it (after the step). */
+function standOnShrooms(): void {
+  const p = controller.pos, v = controller.vel;
+  for (const sh of shroomRise.shrooms) {
+    const top = sh.collider.top;
+    if (Math.hypot(p.x - sh.x, p.z - sh.z) > RISE.r || p.y >= top || p.y < top - 1.6) continue;
+    p.y = top;
+    if (v.y < 0) v.y = 0;
+    if (controller.mode === 'air' && v.y <= 0) controller.mode = 'ground';
+  }
+}
 scene.add(ejecta.group);
 /** Billowing dust and smoke that lingers (collapses, blasts). */
 const billow = new Billow(260);
@@ -1052,7 +1090,9 @@ game
       }
       // In a giant's fist: no moving until thrown.
       else if (combat.held) { /* the combat system carries the hero */ }
-      else stepController(controller, {
+      else {
+      growShrooms(dt);
+      stepController(controller, {
         move,
         sprint: input.isDown('ShiftLeft') || input.isDown('ShiftRight'),
         jump: space && !combat.busy,
@@ -1064,6 +1104,8 @@ game
         stopFly: input.locked && input.justPressed('KeyX'),
         hold: combat.busy || combat.charging > 0,
       }, world, dt);
+      standOnShrooms();
+      }
       // Bodies on foot stand their ground (CombatSystem.blockHero), after the step so no frame shows the hero inside one.
       if (!adventures.riding && !CARRIAGE.driving) combat.blockHero();
       // Off the edge of the world: nothing stops you walking off a cliff; the fog sets you back where you last stood.
