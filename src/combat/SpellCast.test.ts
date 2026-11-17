@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Group, Mesh, Vector3 } from 'three';
+import { BoxGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, Quaternion, Vector3 } from 'three';
 import { HOLE_BURST, SpellCast, type SpellHost } from './SpellCast';
 import { Color } from 'three';
 
@@ -191,28 +191,36 @@ describe('SpellCast Stone Wall before its model has loaded', () => {
   });
 });
 
-describe('SpellCast Earthsplitter (v12: slabs of stone burst up round where he lands)', () => {
-  it('a ring of tilted stone slabs juts out of the ground round the crater, then breaks up into rubble', () => {
-    const { host, scene, sim } = fakeHost();
+describe('SpellCast Earthsplitter (v13: a ring of spiky rocks bursts up where the fissure ends)', () => {
+  it('the rocks round the end lean out of it, then sink back into the ground', () => {
+    const rock = new Group();
+    rock.add(new Mesh(new BoxGeometry(1, 3, 1), new MeshStandardMaterial()));
+    const { host, scene } = fakeHost({ model: (id) => (id === 'pinnacle' ? rock : null) });
     host.controller.yaw = Math.PI / 2;
     const sc = new SpellCast(host);
     sc.cast('knight', 0, new Vector3(0, 0, 6));
-    for (let i = 0; i < 10; i++) sc.update(0.1);
-    let g: Group | null = null;
-    scene.traverse((o) => { if (o.name === 'stone-slabs') g = o as Group; });
-    expect(g).toBeTruthy();
-    const slabs = (g as unknown as Group).children.filter((c) => c.name === 'chunk');
-    expect(slabs.length).toBeGreaterThanOrEqual(10);
-    const mid = new Vector3();
-    for (const b of slabs) mid.add(b.position);
-    mid.divideScalar(slabs.length);
-    for (const b of slabs) {
-      const out = new Vector3(b.position.x - mid.x, 0, b.position.z - mid.z).normalize();
-      const up = new Vector3(0, 1, 0).applyQuaternion(b.quaternion);
-      expect(up.dot(out)).toBeGreaterThan(0.2);
+    for (let i = 0; i < 5; i++) sc.update(0.1);
+    let spikes: InstancedMesh | null = null;
+    scene.traverse((o) => { if (o.name === 'spikes') spikes = o as InstancedMesh; });
+    expect(spikes).toBeTruthy();
+    const m = spikes! as InstancedMesh;
+    const end = new Vector3(0, 0, 6);
+    let out = 0, ring = 0;
+    const mat = new Matrix4(), p = new Vector3(), q = new Quaternion(), sc3 = new Vector3();
+    for (let i = 0; i < m.count; i++) {
+      m.getMatrixAt(i, mat);
+      mat.decompose(p, q, sc3);
+      const d = Math.hypot(p.x - end.x, p.z - end.z);
+      // (Not the fissure's own spikes, running up the line to it along x = 0.)
+      if (d < 1.5 || d > 5 || (Math.abs(p.x) < 1.2 && p.z < 6)) continue;
+      ring++;
+      const away = new Vector3(p.x - end.x, 0, p.z - end.z).normalize();
+      if (new Vector3(0, 1, 0).applyQuaternion(q).dot(away) > 0.15) out++;
     }
-    for (let i = 0; i < 40; i++) sc.update(0.1);
-    expect(sim.pieces.length).toBeGreaterThanOrEqual(10);
+    expect(ring).toBeGreaterThanOrEqual(8);
+    expect(out / ring).toBeGreaterThan(0.7);
+    for (let i = 0; i < 50; i++) sc.update(0.1);
+    expect(sc.spikes.count).toBe(0);
   });
 });
 

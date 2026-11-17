@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Color, Group, Vector3 } from 'three';
+import { BoxGeometry, Color, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import { SpellCast } from './SpellCast';
 import { fakeHost } from './spellHost.fixture';
 import { bloodSky } from './CombatSystem';
@@ -108,5 +108,67 @@ describe('the fire tornado runs toward the crosshair (its path is what the previ
     scene.traverse((o) => { if (o.name === 'fire-tornado') p = o.position.clone(); });
     expect(p.z).toBeGreaterThan(5);
     expect(Math.abs(p.x)).toBeLessThan(4);
+  });
+});
+
+describe('Earthsplitter: he kneels and a fissure of spiky rocks runs to the crosshair (playtest 2026-11-17: no leap)', () => {
+  const rockModel = () => { const g = new Group(); g.add(new Mesh(new BoxGeometry(1, 3, 1), new MeshStandardMaterial())); return g; };
+  it('he stays where he is; mobs along the line are hit and tossed, ones off it are not', () => {
+    const near = mob(0.8, 6), off = mob(5, 5);
+    const hit = new Set<unknown>();
+    const leaps: unknown[] = [];
+    (near as { leap: () => void }).leap = () => { leaps.push(near); };
+    const { host } = fakeHost({
+      enemies: [near as never, off as never],
+      reachable: (e, r, at) => Math.hypot(e.pos.x - at.x, e.pos.z - at.z) <= r,
+      hit: (e) => { hit.add(e); },
+      model: (id) => (id === 'pinnacle' || id === 'spiky-rock' ? rockModel() : null),
+    });
+    const sc = new SpellCast(host);
+    host.controller.yaw = Math.PI / 2;
+    sc.cast('knight', 0, new Vector3(0, 0, 10));
+    let most = 0;
+    for (let i = 0; i < 20; i++) { sc.update(0.1); most = Math.max(most, sc.spikes.count); }
+    expect(Math.hypot(host.controller.pos.x, host.controller.pos.z)).toBeLessThan(1e-6);
+    expect(hit.has(near)).toBe(true);
+    expect(leaps.length).toBeGreaterThan(0);
+    expect(hit.has(off)).toBe(false);
+    expect(most).toBeGreaterThan(12);
+  });
+});
+
+describe('Stone Wall is an earth wall of jagged rock, not bricks (playtest 2026-11-17)', () => {
+  const rockModel = () => { const g = new Group(); g.add(new Mesh(new BoxGeometry(1, 3, 1), new MeshStandardMaterial())); return g; };
+  const host = () => {
+    const wallModel = new Group();
+    const wm = new Mesh(new BoxGeometry(2.6, 1.2, 0.5, 8, 4, 2), new MeshStandardMaterial());
+    wm.position.y = 0.6;
+    wallModel.add(wm);
+    return fakeHost({ model: (id) => (id === 'pinnacle' ? rockModel() : id === 'stone-wall' ? wallModel : null), solid: () => () => {} });
+  };
+  it('jagged rocks burst up along it; its blocks are not shown while it stands', () => {
+    const { host: h, scene } = host();
+    const sc = new SpellCast(h);
+    h.controller.yaw = 0;
+    sc.cast('knight', 4, new Vector3(8, 0, 0));
+    for (let i = 0; i < 5; i++) sc.update(0.1);
+    expect(sc.spikes.count).toBeGreaterThanOrEqual(10);
+    let blocks: Group | null = null;
+    scene.traverse((o) => { if (o.name === 'stone-wall') blocks = o as Group; });
+    expect(blocks).toBeTruthy();
+    expect((blocks as unknown as Group).visible).toBe(false);
+  });
+  it('kicked, the rocks sink and its stones fly', () => {
+    const { host: h, scene } = host();
+    const sc = new SpellCast(h);
+    h.controller.yaw = 0;
+    sc.cast('knight', 4, new Vector3(8, 0, 0));
+    for (let i = 0; i < 5; i++) sc.update(0.1);
+    sc.kickWall();
+    for (let i = 0; i < 8; i++) sc.update(0.1);
+    expect(sc.spikes.count).toBe(0);
+    let blocks: Group | null = null;
+    scene.traverse((o) => { if (o.name === 'stone-wall') blocks = o as Group; });
+    expect((blocks as unknown as Group).visible).toBe(true);
   });
 });

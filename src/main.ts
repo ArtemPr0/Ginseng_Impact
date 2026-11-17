@@ -146,6 +146,8 @@ function spellModel(id: string): Object3D | null {
   return spellModels.get(id) ?? null;
 }
 spellModel('stone-wall');
+// (The spiky rocks of Earthsplitter and Stone Wall: the sea pinnacle's rock spire, until the reel's own is made.)
+spellModel('pinnacle');
 const mindBeam = new MindBeam();
 scene.add(mindBeam.group);
 const handAt = new Vector3();
