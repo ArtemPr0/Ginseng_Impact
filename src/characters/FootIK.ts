@@ -44,14 +44,17 @@ export function legIK(hip: Vector3, knee: Vector3, ankle: Vector3, target: Vecto
 /**
  * How far the hips drop (≤ 0) and each foot rises (≥ 0) for feet whose ground is `groundL`, `groundR` with the body
  * standing at `rootY`: the hips go down to the lower foot's ground (at most `maxDrop`), each foot up to its own. A foot
- * whose ground is more than `maxRaise` above that (a wall, a ledge) or below the drop (a hole) is left as the clip has it.
+ * whose ground is more than `maxRaise` above that (a wall, a ledge) or below the drop (a hole) is left as the clip has it;
+ * `planted` is false then (or when the drop hit its limit): the feet could not reach, so the body keeps its slope lean.
  */
-export function footPlan(rootY: number, groundL: number, groundR: number, maxDrop: number, maxRaise: number): { drop: number; raiseL: number; raiseR: number } {
+export function footPlan(rootY: number, groundL: number, groundR: number, maxDrop: number, maxRaise: number): { drop: number; raiseL: number; raiseR: number; planted: boolean } {
   const offL = groundL - rootY, offR = groundR - rootY;
-  const drop = Math.max(-maxDrop, Math.min(0, offL, offR));
+  const want = Math.min(0, offL, offR);
+  const drop = Math.max(-maxDrop, want);
   const raise = (off: number): number => {
     const r = off - drop;
     return r > 0 && r <= maxRaise ? r : 0;
   };
-  return { drop: drop === 0 ? 0 : drop, raiseL: raise(offL), raiseR: raise(offR) };
+  const reach = (off: number): boolean => off - drop <= maxRaise;
+  return { drop: drop === 0 ? 0 : drop, raiseL: raise(offL), raiseR: raise(offR), planted: want >= -maxDrop && reach(offL) && reach(offR) };
 }

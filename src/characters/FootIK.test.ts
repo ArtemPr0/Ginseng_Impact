@@ -48,7 +48,7 @@ describe('legIK (two bones: thigh and shin)', () => {
 
 describe('footPlan (how far the hips drop and each foot rises)', () => {
   it('flat ground: nothing moves', () => {
-    expect(footPlan(0, 0, 0, 0.4, 0.5)).toEqual({ drop: 0, raiseL: 0, raiseR: 0 });
+    expect(footPlan(0, 0, 0, 0.4, 0.5)).toEqual({ drop: 0, raiseL: 0, raiseR: 0, planted: true });
   });
 
   it('across a slope: the hips drop to the low foot, the high foot rises by the step between', () => {
@@ -72,3 +72,14 @@ describe('footPlan (how far the hips drop and each foot rises)', () => {
     expect(p.raiseR).toBeCloseTo(0.08, 6);
   });
 });
+
+describe('footPlan says when the ground is out of the feet\'s reach (review: a steep slope stood the body upright with a foot sunk)', () => {
+  it('reachable ground: planted', () => {
+    expect(footPlan(0, 0.12, -0.1, 0.4, 0.5).planted).toBe(true);
+  });
+  it('a drop past its limit, or a foot left where the clip has it: not planted (the body keeps its slope lean)', () => {
+    expect(footPlan(0, 0.9, -2, 0.4, 0.5).planted).toBe(false);
+    expect(footPlan(0, 0.9, 0, 0.4, 0.5).planted).toBe(false);
+  });
+});
+

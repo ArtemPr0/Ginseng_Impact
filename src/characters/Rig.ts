@@ -1506,7 +1506,7 @@ export class Rig {
     const rate = dt > 0 && this.slopeYaw !== null ? yawDelta(this.slopeYaw, yaw) / dt : 0;
     this.slopeYaw = yaw;
     // (A hero's feet stand on their own ground (plantFeet): the body stays upright on a slope, leaning only into turns.)
-    const planted = this.feetOn && gx !== null;
+    const planted = this.feetOn && this.feetPlanted && gx !== null;
     easeLean(this.lean, gx === null ? null : slopeTarget(planted ? 0 : gx, planted ? 0 : gz, yaw, rate, speed, this.leanTarget, scale), dt);
     r.rotation.x = this.lean.pitch;
     r.rotation.z = this.lean.roll;
@@ -1515,6 +1515,8 @@ export class Rig {
 
   /** Feet planted this frame (a hero on foot, alive, not rolling): set by animate, read by slope and plantFeet. */
   private feetOn = false;
+  /** Last frame's feet reached their ground (FootIK.footPlan): only then does the slope lean step aside. */
+  private feetPlanted = false;
   private readonly feet = { drop: 0, l: 0, r: 0 };
 
   /**
@@ -1523,8 +1525,8 @@ export class Rig {
    */
   plantFeet(groundAt: (x: number, z: number, y: number) => number, dt: number): void {
     const m = this.model, bn = this.bones;
-    if (!m || !bn || !this.hero || !bn.lUpLeg || !bn.rUpLeg || !bn.lLeg || !bn.rLeg || !bn.lFoot || !bn.rFoot) return;
-    let plan = { drop: 0, raiseL: 0, raiseR: 0 };
+    if (!m || !bn || !this.hero || !bn.lUpLeg || !bn.rUpLeg || !bn.lLeg || !bn.rLeg || !bn.lFoot || !bn.rFoot) { this.feetPlanted = false; return; }
+    let plan = { drop: 0, raiseL: 0, raiseR: 0, planted: true };
     const rootY = this.root.getWorldPosition(_a).y;
     if (this.feetOn) {
       m.root.updateWorldMatrix(true, true);
@@ -1532,6 +1534,7 @@ export class Rig {
       const r = bn.rFoot.getWorldPosition(_b), gr = groundAt(r.x, r.z, rootY + 1);
       plan = footPlan(rootY, gl, gr, FEET.drop * m.height / 1.8, FEET.raise * m.height / 1.8);
     }
+    this.feetPlanted = plan.planted;
     const k = 1 - Math.exp(-FEET.rate * Math.max(0, dt));
     const f = this.feet;
     f.drop += (plan.drop - f.drop) * k;
