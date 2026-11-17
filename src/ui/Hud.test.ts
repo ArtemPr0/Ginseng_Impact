@@ -487,6 +487,18 @@ describe('Hud spell bar (1-7, 2026-11-16)', () => {
     expect(html).toMatch(/picked[^>]*title="Telekinesis"/);
     expect(html).toContain('height:50%');
   });
+  it('the second page (Shift+1-7): shown when a slot on it is picked, its keys marked with Shift', () => {
+    const root = stubContainer();
+    const hud = new Hud(root as unknown as HTMLElement);
+    const all = <T,>(v: T): T[] => Array<T>(14).fill(v);
+    hud.setBar('knight', 8, all(0), all(true), 0);
+    const html = root.querySelector('#hud-spells').innerHTML;
+    expect(html.match(/<svg/g)?.length).toBe(7);
+    expect(html).toContain('Stone Ring');
+    expect(html).not.toContain('Earthsplitter');
+    expect(html).toContain('>⇧1<');
+    expect(html).toMatch(/picked[^>]*title="Spike Row"/);
+  });
   it('swaps to the next hero\'s bar on a switch', () => {
     const root = stubContainer();
     const hud = new Hud(root as unknown as HTMLElement);

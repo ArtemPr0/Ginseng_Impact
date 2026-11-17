@@ -7,6 +7,8 @@
 import { Color, Group, Mesh, MeshStandardMaterial, OctahedronGeometry, Vector3, type Object3D } from 'three';
 import { ChainFx } from '../render/ChainFx';
 import { SpikeField } from '../render/SpikeField';
+import { WaterFx } from '../render/WaterFx';
+import { ReelMoves } from './ReelMoves';
 import type { ControllerState } from '../player/CharacterController';
 import type { CombatFx } from '../render/CombatFx';
 import type { Audio } from '../audio/Audio';
@@ -54,6 +56,8 @@ export interface SpellHost {
   debris(): DebrisSim[];
   /** Blood Moon on for `seconds` (red sky, every blow severs, kills heal). */
   bloodMoon(seconds: number): void;
+  /** Rock Armor: the hero takes half damage for `seconds`. */
+  armor?(seconds: number): void;
   announce(text: string): void;
   /** A short line under the crosshair ("No target"). */
   tip?(text: string): void;
@@ -158,6 +162,10 @@ export class SpellCast {
   /** Earthsplitter's fissure running to its end: where it is along its line, who it has tossed. */
   private fissure: { from: Vector3; dir: { x: number; z: number }; len: number; d: number; next: number; hit: Set<Enemy> } | null = null;
   private spikeField: SpikeField | null = null;
+  private iceField: SpikeField | null = null;
+  private readonly water = new WaterFx();
+  /** The second page's moves (Shift+1-7). */
+  readonly reel: ReelMoves;
   private readonly flights: Flight[] = [];
   private readonly holes: Hole[] = [];
   private readonly tornados: Tornado[] = [];
@@ -177,6 +185,19 @@ export class SpellCast {
     h.scene.add(this.explosions.mesh, this.fires.mesh);
     h.scene.add(this.lightning.group);
     h.scene.add(this.chain.mesh);
+    h.scene.add(this.water.mesh);
+    this.reel = new ReelMoves(h, {
+      blast: (at, r, mult, knock, stop, skip) => this.blast(at, r, mult, knock, stop, skip),
+      boom: (at, color, r, shake) => this.boom(at, color, r, shake),
+      spikes: () => this.spikes,
+      ice: () => this.ice,
+      water: this.water,
+      explosions: this.explosions,
+      fires: this.fires,
+      iceBurst: (at, s) => this.iceBurst(at, s),
+      shot: (s, from, to, T, arc) => this.fly(s, from, to, T, arc),
+      lineTarget: (from, aim) => hookTarget(this.h.enemies.filter((e) => e.alive && !e.held), from, aim),
+    });
   }
 
   /** Casts `hero`'s spell in `slot` at `aim` (the crosshair's ground point). */
@@ -312,6 +333,7 @@ export class SpellCast {
         h.audio.spell('rumble');
         break;
       }
+      default: this.reel.cast(s, hand, aim);
     }
     return s;
   }
@@ -353,7 +375,10 @@ export class SpellCast {
     }
     if (this.slam && (this.slam.t -= dt) <= 0) { const at = this.slam.at; this.slam = null; this.earthsplit(at); }
     if (this.fissure) this.runFissure(dt);
+    this.reel.update(dt);
     this.spikeField?.update(dt);
+    this.iceField?.update(dt);
+    this.water.update(dt);
     if (this.charge) this.charging(dt);
     for (let i = this.holes.length - 1; i >= 0; i--) if (this.hole(this.holes[i], dt)) this.holes.splice(i, 1);
     for (let i = this.tornados.length - 1; i >= 0; i--) if (this.tornado(this.tornados[i], dt)) this.tornados.splice(i, 1);
@@ -422,6 +447,28 @@ export class SpellCast {
       }
       if (Math.random() < 0.5) h.dig(at.x + side.x * s, at.z + side.z * s, 0.8, 0.15, 'burnt');
     }
+  }
+
+  /** Ice crystals (Wren's ramp and wall): the reel's ice crystal, else the purple crystal turned to ice. */
+  get ice(): SpikeField {
+    if (!this.iceField || !this.iceField.mesh) {
+      const own = this.h.model?.('ice-crystal') ?? null;
+      const src = own ?? this.h.model?.('purple-crystal') ?? null;
+      if (!this.iceField || src) {
+        this.iceField?.mesh?.removeFromParent();
+        this.iceField = new SpikeField(src, own ? undefined : (m) => {
+          m.color.set(0xbfe8ff);
+          m.emissive?.set(0x2a6a9a);
+          m.emissiveIntensity = 0.6;
+          m.roughness = 0.15;
+          m.metalness = 0.1;
+          m.transparent = true;
+          m.opacity = 0.85;
+        });
+        if (this.iceField.mesh) this.h.scene.add(this.iceField.mesh);
+      }
+    }
+    return this.iceField!;
   }
 
   /** The fissure runs on: spikes burst up along it, each tossing the mobs on its spot; at the end, the burst. */
@@ -561,6 +608,7 @@ export class SpellCast {
         h.audio.spell('zap');
         break;
       }
+      default: this.reel.land(s, at);
     }
   }
 

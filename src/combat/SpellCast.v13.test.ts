@@ -172,3 +172,11 @@ describe('Stone Wall is an earth wall of jagged rock, not bricks (playtest 2026-
     expect((blocks as unknown as Group).visible).toBe(true);
   });
 });
+
+describe('Rock Armor halves what the hero takes while it lasts', () => {
+  it('armorShare', async () => {
+    const { armorShare } = await import('./CombatSystem');
+    expect(armorShare(0)).toBe(1);
+    expect(armorShare(3)).toBe(0.5);
+  });
+});

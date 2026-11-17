@@ -32,6 +32,7 @@ const BURST_LOOK: Record<string, { color: number; icon: string }> = {
   wizard: { color: 0x9a8cff, icon: '<path d="M4 16 Q2 12 6 11 Q6 6 11 7 Q14 3 18 7 Q22 8 20 12 Q22 16 17 16 Z"/><path d="M8 20 H16"/>' },
 };
 
+/** Page 1 is slots 0-6 (keys 1-7), page 2 slots 7-13 (Shift+1-7): the reel moves (Spells.PAGE2). */
 function bar(hero: string): BarSlot[] {
   const spells = SPELLS[hero] ?? [];
   return [
@@ -43,11 +44,14 @@ function bar(hero: string): BarSlot[] {
 
 export const BAR: Record<string, BarSlot[]> = { knight: bar('knight'), archer: bar('archer'), wizard: bar('wizard') };
 
-/** The slot a number key picks (Digit1-7 → 0-6), or null. */
-export function barKey(code: string): number | null {
+/** The slot a number key picks (Digit1-7 → 0-6; with Shift, the second page's 7-13), or null. */
+export function barKey(code: string, shift = false): number | null {
   const m = /^Digit([1-7])$/.exec(code);
-  return m ? Number(m[1]) - 1 : null;
+  return m ? Number(m[1]) - 1 + (shift ? BAR_SIZE : 0) : null;
 }
+
+/** Which page of the bar slot `slot` is on (0: keys 1-7, 1: Shift+1-7). */
+export function barPage(slot: number): number { return slot >= BAR_SIZE ? 1 : 0; }
 
 /** The hero F1-F3 switch to (0-2), or null. */
 export function heroKey(code: string): number | null {

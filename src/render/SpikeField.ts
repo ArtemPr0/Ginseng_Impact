@@ -27,7 +27,8 @@ export class SpikeField {
   readonly mesh: InstancedMesh | null = null;
   private readonly spikes: Spike[] = [];
 
-  constructor(src: Object3D | null) {
+  /** `tint`: restyles its (cloned) material, e.g. rock spires turned to ice. */
+  constructor(src: Object3D | null, tint?: (m: MeshStandardMaterial) => void) {
     if (!src) return;
     let geo: BufferGeometry | null = null, mat: Material | null = null;
     src.updateMatrixWorld(true);
@@ -45,6 +46,7 @@ export class SpikeField {
     g.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2);
     g.scale(1 / Math.max(1e-3, Math.max(size.x, size.z)), 1 / Math.max(1e-3, size.y), 1 / Math.max(1e-3, Math.max(size.x, size.z)));
     const m = ((mat as Material | null) as MeshStandardMaterial | null)?.clone?.() ?? new MeshStandardMaterial();
+    tint?.(m);
     this.mesh = new InstancedMesh(g, m, MAX);
     this.mesh.name = 'spikes';
     this.mesh.frustumCulled = false;

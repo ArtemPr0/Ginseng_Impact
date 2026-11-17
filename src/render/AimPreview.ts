@@ -64,7 +64,7 @@ export class AimPreview {
     const { from, to, dir } = v;
     switch (shape.kind) {
       case 'ring':
-        this.landing(to, shape.radius);
+        this.landing(shape.self ? from : to, shape.radius);
         break;
       case 'arc': {
         // The flight: dashes along the very arc it flies, running toward the target.
@@ -119,7 +119,9 @@ export class AimPreview {
         break;
       }
       case 'wall': {
-        const yaw = v.yaw ?? Math.atan2(dir.z, dir.x);
+        // (A wall raised before him faces the way he aims; one at the crosshair stands across his facing.)
+        const yaw = shape.ahead !== undefined ? Math.atan2(dir.z, dir.x) : v.yaw ?? Math.atan2(dir.z, dir.x);
+        const to = shape.ahead !== undefined ? _b.set(from.x + dir.x * shape.ahead, from.y, from.z + dir.z * shape.ahead).clone() : v.to;
         const sx = -Math.sin(yaw), sz = Math.cos(yaw), w = shape.width / 2;
         const fx = Math.cos(yaw) * 0.5, fz = Math.sin(yaw) * 0.5;
         this.line([[to.x - sx * w - fx, to.z - sz * w - fz], [to.x + sx * w - fx, to.z + sz * w - fz], [to.x + sx * w + fx, to.z + sz * w + fz], [to.x - sx * w + fx, to.z - sz * w + fz], [to.x - sx * w - fx, to.z - sz * w - fz]], to.y, 0.1);

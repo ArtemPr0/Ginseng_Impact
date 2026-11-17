@@ -473,6 +473,8 @@ export class CombatSystem {
   barSlot = 2;
   /** Bar casts so far, skill and burst included (main's SpellBuffer lets go of a buffered cast once this moves). */
   spellsCast = 0;
+  /** Seconds of Rock Armor left (half damage). */
+  armorLeft = 0;
   /** Wren's arrows left in the bodies they hit (StuckArrows). */
   readonly stuck = new StuckArrows();
   private readonly bonesOf = new Map<number, Object3D[]>();
@@ -553,6 +555,7 @@ export class CombatSystem {
       heightAt: (x, z, y) => d.world.heightAt(x, z, y),
       debris: () => [self.gore.sim, ...(d.debris?.() ?? [])],
       bloodMoon: (seconds) => { self.bloodMoon = seconds; },
+      armor: (seconds) => { self.armorLeft = Math.max(self.armorLeft, seconds); },
       announce: (text) => d.hud.announce(text),
       tip: (text) => d.hud.announce(text, { seconds: 1.2 }),
       sprout: d.sprout, solid: d.solid, lights: d.lights, smoke: d.smoke, model: d.model,
@@ -902,6 +905,7 @@ export class CombatSystem {
       input = { ...input, attack: false, heavyHeld: false, heavyRelease: false, skill: false, burst: false };
     }
     this.iframes = Math.max(0, this.iframes - dt);
+    this.armorLeft = Math.max(0, this.armorLeft - dt);
     this.dodgeCd = Math.max(0, this.dodgeCd - dt);
     this.frenzyLeft = Math.max(0, this.frenzyLeft - dt);
     // What the body is shown: the hit and the dodge age out; a fallen hero lies there, then the party moves on. The
@@ -3522,7 +3526,7 @@ export class CombatSystem {
 
   private damagePlayer(atk: number, _element: Element | null, by = 'hazard'): void {
     if (this.iframes > 0 || this.downed) return;
-    atk *= this.plus;
+    atk *= this.plus * armorShare(this.armorLeft);
     const me = this.active;
     const dmg = computeDamage({ atk, multiplier: 1, defense: PLAYER_DEF });
     const hp = Math.max(0, this.hp.get(me.id)! - dmg);
@@ -3669,6 +3673,9 @@ function webDisc(r: number, opacity: number): Group {
  * Whether the sky is the blood moon's (playtest 2026-11-17: it went red whenever a mob was aggro, so casting Blood Moon
  * showed nothing new): only for Blood Moon itself or a burst being cast.
  */
+/** Rock Armor: the share of a blow the hero takes while it lasts. */
+export function armorShare(armorLeft: number): number { return armorLeft > 0 ? 0.5 : 1; }
+
 export function bloodSky(_anyAggro: boolean, bursting: boolean, bloodMoon: number): boolean {
   return bursting || bloodMoon > 0;
 }

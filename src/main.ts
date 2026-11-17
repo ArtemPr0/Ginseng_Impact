@@ -1023,7 +1023,8 @@ game
       // F1-F3 switch hero; 1-7 pick a slot on the bar; right click casts it at the crosshair, left click is the weapon.
       if (input.locked) for (let i = 0; i < ROSTER.length; i++) if (input.justPressed(`F${i + 1}`)) switchTo(i);
       if (input.locked) for (let k = 1; k <= 7; k++) {
-        if (input.justPressed(`Digit${k}`)) spellBar.select(party.active.id, barKey(`Digit${k}`)!);
+        // (Shift+1-7: the second page, the reel moves.)
+        if (input.justPressed(`Digit${k}`)) spellBar.select(party.active.id, barKey(`Digit${k}`, input.isDown('ShiftLeft') || input.isDown('ShiftRight'))!);
       }
       if (input.locked && input.justPressed('KeyF')) pressF();
       if (input.locked && input.justPressed('KeyE')) pressF();

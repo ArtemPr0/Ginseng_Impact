@@ -8,7 +8,7 @@ export const LEAP_RANGE = 12;
 
 /** How far from the hero a spell may land (the aim ring clamps to it, so it shows where the spell really lands). */
 export function spellRange(id: string): number {
-  return id === 'earthsplitter' ? LEAP_RANGE : AIM_RANGE;
+  return id === 'earthsplitter' ? LEAP_RANGE : id === 'spike-row' ? 18 : AIM_RANGE;
 }
 
 interface P { x: number; y: number; z: number }
@@ -75,16 +75,18 @@ export class AimHold {
 
 export type AimShape =
   | { kind: 'none' }
-  | { kind: 'ring'; radius: number }
+  /** `self`: round the hero, not at the crosshair (Stone Ring). */
+  | { kind: 'ring'; radius: number; self?: boolean }
   | { kind: 'lane'; length: number; width: number }
   | { kind: 'cone'; radius: number; angle: number }
   | { kind: 'arc'; arc: number; radius: number }
   | { kind: 'path'; run: number; life: number; radius: number }
-  | { kind: 'wall'; width: number }
+  /** `ahead`: stands this far before the hero (Earth Wall, Water Shield), not at the crosshair. */
+  | { kind: 'wall'; width: number; ahead?: number }
   | { kind: 'marker'; radius: number };
 
 /** How high each shot arcs over its flight (metres at the middle). */
-const ARCS: Record<string, number> = { fireball: 2.5, moonbomb: 1.5, 'frost-arrow': 0.3, 'storm-arrow': 0.3 };
+const ARCS: Record<string, number> = { fireball: 2.5, moonbomb: 1.5, 'frost-arrow': 0.3, 'storm-arrow': 0.3, boulder: 3, 'fire-fist': 0.3 };
 export function shotArc(id: string): number { return ARCS[id] ?? 0.3; }
 
 /** Fire tornado: 18 m in 7 s; storm tornado: 6 m in 6 s. */
@@ -104,6 +106,22 @@ export function aimShape(id: string, radius = 3): AimShape {
     case 'black-hole': return { kind: 'marker', radius };
     case 'telekinesis': case 'blood-moon': return { kind: 'none' };
     case 'chain-hook': return { kind: 'lane', length: 20, width: 5 };
+    // The second page (ReelMoves.ts).
+    case 'spike-row': return { kind: 'lane', length: 18, width: 3 };
+    case 'fire-wave': return { kind: 'lane', length: 12, width: 5 };
+    case 'fire-dash': return { kind: 'lane', length: 10, width: 3.2 };
+    case 'wave-surf': return { kind: 'lane', length: 12, width: 3.6 };
+    case 'water-whip': return { kind: 'lane', length: 14, width: 2 };
+    case 'ice-ramp': return { kind: 'lane', length: 10.8, width: 1.6 };
+    case 'pillars': return { kind: 'lane', length: 16, width: 5 };
+    case 'dust-kick': return { kind: 'cone', radius: 5, angle: 0.9 };
+    case 'ice-discs': return { kind: 'cone', radius: 16, angle: 0.25 };
+    case 'stone-ring': return { kind: 'ring', radius, self: true };
+    case 'earth-wall': return { kind: 'wall', width: 4, ahead: 2.4 };
+    case 'water-shield': return { kind: 'wall', width: 4.6, ahead: 2.6 };
+    case 'ice-wall': return { kind: 'wall', width: 6 };
+    case 'boulder': case 'fire-fist': return { kind: 'arc', arc: shotArc(id), radius };
+    case 'rock-armor': case 'fire-jets': case 'flame-body': return { kind: 'none' };
     default: return { kind: 'ring', radius };
   }
 }

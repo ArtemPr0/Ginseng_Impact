@@ -79,3 +79,25 @@ describe('the black hole goes where it is put (playtest: in the ground halfway, 
     expect(holeLift(0, true)).toBe(HOLE_LIFT.inside);
   });
 });
+
+describe('aimShape: the second page shows what each move will do', () => {
+  it('lines, cones, rings round the hero, walls before him, arcs; nothing for a buff', () => {
+    expect(aimShape('spike-row')).toMatchObject({ kind: 'lane', length: 18 });
+    expect(aimShape('fire-wave')).toMatchObject({ kind: 'lane', length: 12, width: 5 });
+    expect(aimShape('fire-dash').kind).toBe('lane');
+    expect(aimShape('wave-surf').kind).toBe('lane');
+    expect(aimShape('water-whip').kind).toBe('lane');
+    expect(aimShape('ice-ramp').kind).toBe('lane');
+    expect(aimShape('pillars').kind).toBe('lane');
+    expect(aimShape('dust-kick').kind).toBe('cone');
+    expect(aimShape('ice-discs').kind).toBe('cone');
+    expect(aimShape('stone-ring', 4.5)).toEqual({ kind: 'ring', radius: 4.5, self: true });
+    expect(aimShape('earth-wall')).toEqual({ kind: 'wall', width: 4, ahead: 2.4 });
+    expect(aimShape('water-shield')).toEqual({ kind: 'wall', width: 4.6, ahead: 2.6 });
+    expect(aimShape('ice-wall')).toEqual({ kind: 'wall', width: 6 });
+    expect(aimShape('boulder')).toMatchObject({ kind: 'arc', arc: 3 });
+    expect(aimShape('fire-fist').kind).toBe('arc');
+    for (const id of ['rock-armor', 'fire-jets', 'flame-body']) expect(aimShape(id).kind).toBe('none');
+    expect(aimShape('fire-ring').kind).toBe('ring');
+  });
+});
