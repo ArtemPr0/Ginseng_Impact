@@ -474,6 +474,8 @@ export class CombatSystem {
   private readonly bonesOf = new Map<number, Object3D[]>();
   /** Seconds of Blood Moon left: every blow tears something off. */
   bloodMoon = 0;
+  /** Seconds before another "Not ready" may show. */
+  private refusedTip = 0;
   /** Every hero's spell cooldowns (bar slots 3-7), and the spells in the world. */
   readonly spells = new SpellBook();
   readonly caster: SpellCast;
@@ -548,6 +550,7 @@ export class CombatSystem {
       debris: () => [self.gore.sim, ...(d.debris?.() ?? [])],
       bloodMoon: (seconds) => { self.bloodMoon = seconds; },
       announce: (text) => d.hud.announce(text),
+      tip: (text) => d.hud.announce(text, { seconds: 1.2 }),
       sprout: d.sprout, solid: d.solid, lights: d.lights, smoke: d.smoke, model: d.model,
     });
     this.carry = new CarrySystem({
@@ -1101,6 +1104,18 @@ export class CombatSystem {
     if (this.bloodMoon > 0) this.bloodMoon = Math.max(0, this.bloodMoon - dt);
     const slot = input.spell ?? null;
     const press = slot === null ? 'none' : spellPress(SPELLS[me.id]?.[slot]?.id ?? '', this.spells.ready(me.id, slot), this.caster.wallUp(), this.caster.wallLoaded());
+    // A press that cannot cast says so (playtest 2026-11-17: a spell cooling or a hero mid-swing just did nothing).
+    this.refusedTip = Math.max(0, this.refusedTip - dt);
+    if (slot !== null && this.refusedTip === 0 && press === 'none') {
+      this.refusedTip = 0.8;
+      d.hud.announce('Not ready', { seconds: 0.8 });
+    }
+    // Blood Moon: a crimson aura round Sir Aldric while it lasts.
+    if (this.bloodMoon > 0 && Math.random() < dt * 20) {
+      const p = this.d.controller.pos;
+      const a = Math.random() * Math.PI * 2;
+      this.fx.sparks(new Vector3(p.x + Math.cos(a) * 0.6, p.y + 0.3 + Math.random() * 1.6, p.z + Math.sin(a) * 0.6), new Vector3(0, 1, 0), 2, 0xd0102a, 1.5, 0.8);
+    }
     if (press === 'kick' && !this.busy) {
       // Sir Aldric kicks his standing Stone Wall apart.
       this.caster.kickWall();
@@ -1261,7 +1276,7 @@ export class CombatSystem {
       const e = this.enemies[i];
       if (!e.alive && e.noRespawn && !e.object.visible) this.despawn(e);
     }
-    d.sky.setBloodMoon(anyAggro || this.burstCast !== null || this.bloodMoon > 0);
+    d.sky.setBloodMoon(bloodSky(anyAggro, this.burstCast !== null, this.bloodMoon));
     if (bossNear) d.hud.setBoss(bossNear.def.name, bossNear.def.title ?? '', bossNear.hp / bossNear.def.maxHp, true);
     else d.hud.setBoss('', '', 0, false);
     // The score's boss layer: on while a boss has the hero in its sights (or brawls in the smoke), off once it falls or
@@ -3636,4 +3651,12 @@ function webDisc(r: number, opacity: number): Group {
   geo.setAttribute('position', new Float32BufferAttribute(pts, 3));
   g.add(new LineSegments(geo, new LineBasicMaterial({ color: PALETTE.moon, transparent: true, opacity, depthWrite: false, toneMapped: false })));
   return g;
+}
+
+/**
+ * Whether the sky is the blood moon's (playtest 2026-11-17: it went red whenever a mob was aggro, so casting Blood Moon
+ * showed nothing new): only for Blood Moon itself or a burst being cast.
+ */
+export function bloodSky(_anyAggro: boolean, bursting: boolean, bloodMoon: number): boolean {
+  return bursting || bloodMoon > 0;
 }

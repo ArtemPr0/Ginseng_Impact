@@ -4,7 +4,8 @@
  * added: smashing what stands (Breakables), digging and scorching the ground (Craters), tearing limbs (Blood Moon), and
  * a rune circle where it is aimed. A shot flies from the hero's hand to the aim point and lands there.
  */
-import { Color, Group, Vector3, type Object3D } from 'three';
+import { Color, Group, Mesh, MeshStandardMaterial, OctahedronGeometry, Vector3, type Object3D } from 'three';
+import { ChainFx } from '../render/ChainFx';
 import { startLeap, type ControllerState } from '../player/CharacterController';
 import type { CombatFx } from '../render/CombatFx';
 import type { Audio } from '../audio/Audio';
@@ -53,6 +54,8 @@ export interface SpellHost {
   /** Blood Moon on for `seconds` (red sky, every blow severs, kills heal). */
   bloodMoon(seconds: number): void;
   announce(text: string): void;
+  /** A short line under the crosshair ("No target"). */
+  tip?(text: string): void;
   /** A fresh copy of a reel flora model (Overgrowth), or null before it loads. */
   sprout?(ids: string[]): { object: Group; scale: number } | null;
   /** A loaded Meshy model by id (the Stone Wall's stone), or null while it loads (asking starts the load). */
@@ -124,6 +127,19 @@ const CHARGE_TRAIL = 'wrecking-charge';
 
 export const HOLE_BURST = { hot: 0x7a3cff, flash: 60 } as const;
 
+/**
+ * Moonbomb's landing (playtest 2026-11-17: "it blinds the screen"): a cold blue burst, not the old ice-white cloud
+ * that bloomed to white, a light that stays modest, and the reel's ice shards (Flowbound, video 2 t37) flying out.
+ */
+export const MOON_BURST = { hot: 0x2f6fd0, light: 18, size: 0.8, shards: 16 } as const;
+/** Chain Hook: how far down the crosshair's line it reaches, and how far off that line it still catches. */
+export const HOOK = { reach: 20, side: 2.5 } as const;
+
+const SHARD_LIFE = 4;
+let shardGeo: OctahedronGeometry | null = null;
+let shardMat: MeshStandardMaterial | null = null;
+interface Shard { mesh: Mesh; p: Piece; t: number; sim: DebrisSim }
+
 export class SpellCast {
   readonly runes = new RuneCircles();
   readonly lightning = new Lightning(6);
@@ -143,6 +159,8 @@ export class SpellCast {
   private readonly rooted: Rooted[] = [];
   private slam: Slam | null = null;
   private charge: Charge | null = null;
+  private readonly shards: Shard[] = [];
+  readonly chain = new ChainFx();
   /** Seconds each frozen body has left, by enemy id (killed while frozen, it shatters into ice). */
   readonly frozen = new Map<number, number>();
 
@@ -150,6 +168,7 @@ export class SpellCast {
     h.scene.add(this.runes.group);
     h.scene.add(this.explosions.mesh, this.fires.mesh);
     h.scene.add(this.lightning.group);
+    h.scene.add(this.chain.mesh);
   }
 
   /** Casts `hero`'s spell in `slot` at `aim` (the crosshair's ground point). */
@@ -284,6 +303,15 @@ export class SpellCast {
     this.explosions.update(dt);
     this.fires.update(dt);
     this.walls(dt);
+    const c0 = h.controller;
+    this.chain.update(dt, _v.set(c0.pos.x + Math.cos(c0.yaw) * 0.6, c0.pos.y + 1.5, c0.pos.z + Math.sin(c0.yaw) * 0.6));
+    for (let i = this.shards.length - 1; i >= 0; i--) {
+      const sh = this.shards[i];
+      sh.t += dt;
+      const end = Math.min(1, (SHARD_LIFE - sh.t) / 0.8);
+      if (end < 1) sh.mesh.scale.setScalar(Math.max(0.01, end));
+      if (sh.t >= SHARD_LIFE) { sh.sim.remove(sh.p); sh.mesh.removeFromParent(); this.shards.splice(i, 1); }
+    }
     // Mobs standing in the fires burn, a little every half second.
     this.burnTick -= dt;
     if (this.burnTick <= 0 && this.fires.live) {
@@ -391,10 +419,11 @@ export class SpellCast {
         break;
       case 'moonbomb':
         this.blast(at, s.radius, s.mult, 6, 0.1);
-        this.boom(at, s.color, s.radius, 0.85);
+        this.iceBurst(at, s);
         h.smash(at.x, at.y + 0.8, at.z, s.radius * 0.8, 'spell');
-        h.dig(at.x, at.z, s.radius * 0.55, 1.2, 'burnt');
+        h.dig(at.x, at.z, s.radius * 0.55, 0.8, 'frozen');
         h.audio.spell('whoomph');
+        h.audio.spell('frost');
         break;
       case 'frost-arrow': {
         for (const e of this.blast(at, s.radius, s.mult, 0, 0.05)) {
@@ -504,16 +533,12 @@ export class SpellCast {
   private hook(s: SpellDef, hand: Vector3, aim: Vector3): void {
     const h = this.h;
     const c = h.controller;
-    let best: Enemy | null = null, bd = 3;
-    for (const e of h.enemies) {
-      if (!e.alive) continue;
-      const d = Math.hypot(e.pos.x - aim.x, e.pos.z - aim.z);
-      if (d < bd) { bd = d; best = e; }
-    }
-    const end = best ? new Vector3(best.pos.x, best.pos.y + 1.2, best.pos.z) : aim.clone().setY(aim.y + 1);
-    // The chain: a line of steel glints out to where it caught.
-    const n = Math.max(4, Math.round(hand.distanceTo(end) / 0.6));
-    for (let i = 0; i <= n; i++) h.fx.sparks(_v.lerpVectors(hand, end, i / n), UP, 1, 0xdfe3f0, 0.6, 1.0);
+    const best = hookTarget(h.enemies, c.pos, aim);
+    const end = best ? new Vector3(best.pos.x, best.pos.y + 1.2, best.pos.z)
+      : _w.set(aim.x - c.pos.x, 0, aim.z - c.pos.z).setLength(Math.min(HOOK.reach, Math.hypot(aim.x - c.pos.x, aim.z - c.pos.z))).add(c.pos).setY(aim.y + 1).clone();
+    // The chain: real links shoot out to where it caught and reel back in.
+    this.chain.fire(hand, end);
+    h.fx.sparks(end, UP, 10, 0xdfe3f0, 3, 0.8);
     h.audio.spell('chain');
     if (best && !best.def.boss && best.def.speed > 0) {
       // Yanked to his feet (a small one); a big one only staggers.
@@ -526,11 +551,49 @@ export class SpellCast {
       }
       best.afflict('stun', 1.2);
       h.hit(best, s.mult, 0, 0.1, end);
-    } else if (best) h.hit(best, s.mult, 0, 0.1, end);
-    else {
-      // Caught on a wall: it comes down (the chain pulls a chunk of what stands there).
-      h.smash(aim.x, aim.y + 1.5, aim.z, s.radius + 0.6, 'burst');
       h.shake(0.3);
+    } else if (best) { h.hit(best, s.mult, 0, 0.1, end); h.shake(0.3); }
+    else {
+      h.tip?.('No target');
+      // Caught on a wall: it pulls a chunk of what stands there.
+      h.smash(end.x, end.y + 0.5, end.z, s.radius, 'heavy');
+    }
+  }
+
+  /** Moonbomb's landing: a cold blue burst and ice shards flying out (MOON_BURST). */
+  private iceBurst(at: Vector3, s: SpellDef): void {
+    const h = this.h;
+    _v.set(at.x, at.y + 0.8, at.z);
+    h.fx.flash(_v, _c.set(MOON_BURST.hot), s.radius * 0.7);
+    h.lights?.flash(_w.set(at.x, at.y + 1.5, at.z), MOON_BURST.hot, MOON_BURST.light, s.radius * 4, 0.45);
+    h.fx.shock(at, s.color, s.radius * 1.3, 0.5);
+    h.fx.sparks(_v, UP, 24, 0xbfe8ff, 9, 1.0);
+    h.fx.dust(at, s.radius * 0.5);
+    h.shake(0.6);
+    this.explosions.burst(at, s.radius * MOON_BURST.size, { hot: MOON_BURST.hot, smoke: 0.35 });
+    if (!shardGeo) {
+      shardGeo = new OctahedronGeometry(1, 0);
+      shardGeo.scale(0.5, 1.4, 0.5);
+      shardMat = new MeshStandardMaterial({ color: 0xa8dcff, emissive: 0x1d4f86, emissiveIntensity: 0.6, roughness: 0.12, metalness: 0.1, transparent: true, opacity: 0.85 });
+    }
+    const sim = this.wallSim();
+    if (!sim) return;
+    for (let i = 0; i < MOON_BURST.shards; i++) {
+      const a = (i / MOON_BURST.shards) * Math.PI * 2 + Math.random() * 0.4;
+      const size = 0.12 + Math.random() * 0.16;
+      const mesh = new Mesh(shardGeo, shardMat!);
+      mesh.name = 'ice-shard';
+      mesh.scale.set(size, size, size);
+      h.scene.add(mesh);
+      const sp = 6 + Math.random() * 7;
+      const p = sim.add({
+        x: at.x + Math.cos(a) * 0.5, y: at.y + 0.8, z: at.z + Math.sin(a) * 0.5, r: size * 1.4,
+        box: { x: size * 0.5, y: size * 1.4, z: size * 0.5 },
+        vx: Math.cos(a) * sp, vy: 4 + Math.random() * 6, vz: Math.sin(a) * sp,
+        wx: (Math.random() - 0.5) * 14, wy: (Math.random() - 0.5) * 14, wz: (Math.random() - 0.5) * 14,
+        density: 900, obj: mesh,
+      });
+      this.shards.push({ mesh, p, t: 0, sim });
     }
   }
 
@@ -867,4 +930,23 @@ export class SpellCast {
     h.fx.flash(_v.set(at.x, at.y + 0.5, at.z), _c.set(s.color), 3);
     h.fx.sparks(_v, UP, 30, s.color, 4, 0.8);
   }
+}
+
+/** Chain Hook's catch: the nearest live mob down the line from the hero to the crosshair (HOOK.reach), at most HOOK.side off it. */
+export function hookTarget<E extends { alive: boolean; pos: { x: number; z: number } }>(enemies: readonly E[], from: { x: number; z: number }, aim: { x: number; z: number }): E | null {
+  let dx = aim.x - from.x, dz = aim.z - from.z;
+  const l = Math.hypot(dx, dz) || 1;
+  dx /= l; dz /= l;
+  let best: E | null = null, bd = Infinity;
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    const ex = e.pos.x - from.x, ez = e.pos.z - from.z;
+    const along = ex * dx + ez * dz;
+    if (along < 0.5 || along > HOOK.reach) continue;
+    const side = Math.abs(ex * dz - ez * dx);
+    // Near the line counts most: a mob just off it beats one far down it.
+    const score = side * 3 + along * 0.2;
+    if (side <= HOOK.side && score < bd) { bd = score; best = e; }
+  }
+  return best;
 }
