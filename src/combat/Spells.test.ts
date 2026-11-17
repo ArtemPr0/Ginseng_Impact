@@ -3,18 +3,18 @@ import { SPELLS, SpellBook } from './Spells';
 import { aimPoint, AIM_RANGE } from './Aim';
 
 describe('SPELLS', () => {
-  it('every hero has five spells, each with a name, an icon and its own colour', () => {
+  it('every hero has five spells and seven reel moves on page 2, each with a name, an icon and a colour', () => {
     for (const hero of ['knight', 'archer', 'wizard']) {
       const book = SPELLS[hero];
-      expect(book).toHaveLength(5);
+      expect(book).toHaveLength(12);
       for (const s of book) {
         expect(s.name.length).toBeGreaterThan(2);
-        expect(s.icon).toMatch(/<(path|circle|polygon|polyline|line|ellipse)/);
+        expect(s.icon).toMatch(/<(path|circle|polygon|polyline|line|ellipse|rect)/);
         expect(s.cooldown).toBeGreaterThan(s.id === 'telekinesis' ? 1 : 3);
       }
     }
     const all = Object.values(SPELLS).flat();
-    expect(new Set(all.map((s) => s.id)).size).toBe(15);
+    expect(new Set(all.map((s) => s.id)).size).toBe(36);
   });
 });
 

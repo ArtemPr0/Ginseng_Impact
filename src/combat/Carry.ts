@@ -81,3 +81,13 @@ export function impactDamage(mass: number, speed: number): number {
   if (speed < 4) return 0;
   return (speed - 4) * 0.22 * Math.sqrt(mass);
 }
+
+/**
+ * A throw from `from` that lands on `to` under gravity `g`, flying at about `speed` m/s across the ground (at least a
+ * third of a second in the air): the crosshair's throw (playtest 2026-11-17).
+ */
+export function aimedVelocity(from: P, to: P, g: number, speed: number): P {
+  const dx = to.x - from.x, dy = to.y - from.y, dz = to.z - from.z;
+  const T = Math.max(0.35, Math.hypot(dx, dz) / speed);
+  return { x: dx / T, y: (dy + 0.5 * g * T * T) / T, z: dz / T };
+}

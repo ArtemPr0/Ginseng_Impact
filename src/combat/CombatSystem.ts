@@ -52,9 +52,9 @@ import { blowKindOf, breaksThings, coneSmash } from './Smash';
 import { Gore } from './Gore';
 import type { DebrisSim } from '../world/Debris';
 import type { SpellLights } from './SpellCast';
-import { maimMult, pickPart, severRoll, wearCrossed, wearPart } from './Sever';
+import { maimMult, pickPart, boneSnap, severRoll, wearCrossed, wearPart } from './Sever';
 import { StuckArrows, entryPoint } from './StuckArrows';
-import { CarrySystem } from './CarrySystem';
+import { CarrySystem, type CarryHost } from './CarrySystem';
 import { SpellBook, SPELLS } from './Spells';
 import { spellPress } from './SpellBar';
 import { SpellCast } from './SpellCast';
@@ -240,6 +240,10 @@ export interface CombatDeps {
   debris?: () => DebrisSim[];
   /** A small standing building at (x, z) that Orlan can tear up (CarrySystem), with its middle and reach. */
   building?: (x: number, z: number) => { x: number; y: number; z: number; r: number } | null;
+  /** Lifts that building whole for Telekinesis (Breakables.takeWhole). */
+  takeBuilding?: CarryHost['takeBuilding'];
+  /** Where the active hero's sword hand is (Rig.fistAt): the knight holds a mob in it. */
+  fist?: (out: Vector3) => boolean;
   /** Lights that spells and blasts hold for a moment (LightBudget's pool). */
   lights?: SpellLights;
   /** Billowing smoke or dust (render/Billow). */
@@ -469,11 +473,15 @@ export class CombatSystem {
   barSlot = 2;
   /** Bar casts so far, skill and burst included (main's SpellBuffer lets go of a buffered cast once this moves). */
   spellsCast = 0;
+  /** Seconds of Rock Armor left (half damage). */
+  armorLeft = 0;
   /** Wren's arrows left in the bodies they hit (StuckArrows). */
   readonly stuck = new StuckArrows();
   private readonly bonesOf = new Map<number, Object3D[]>();
   /** Seconds of Blood Moon left: every blow tears something off. */
   bloodMoon = 0;
+  /** Seconds before another "Not ready" may show. */
+  private refusedTip = 0;
   /** Every hero's spell cooldowns (bar slots 3-7), and the spells in the world. */
   readonly spells = new SpellBook();
   readonly caster: SpellCast;
@@ -547,7 +555,9 @@ export class CombatSystem {
       heightAt: (x, z, y) => d.world.heightAt(x, z, y),
       debris: () => [self.gore.sim, ...(d.debris?.() ?? [])],
       bloodMoon: (seconds) => { self.bloodMoon = seconds; },
+      armor: (seconds) => { self.armorLeft = Math.max(self.armorLeft, seconds); },
       announce: (text) => d.hud.announce(text),
+      tip: (text) => d.hud.announce(text, { seconds: 1.2 }),
       sprout: d.sprout, solid: d.solid, lights: d.lights, smoke: d.smoke, model: d.model,
     });
     this.carry = new CarrySystem({
@@ -561,6 +571,8 @@ export class CombatSystem {
       debris: () => [self.gore.sim, ...(d.debris?.() ?? [])],
       breakAt: (x, y, z, r, kind) => self.smash(x, y, z, r, kind),
       building: (x, z) => d.building?.(x, z) ?? null,
+      takeBuilding: d.takeBuilding,
+      fist: d.fist,
       hit: (e, share, at, heavy) => self.hitEnemy(e, self.atkOf(self.active), share, null, heavy ? 3 : 1.2, heavy ? 0.08 : 0.03, { blow: 'skill', heavy, at }),
       groundAt: (x, z, y) => d.world.heightAt(x, z, y),
       fx: this.fx,
@@ -893,6 +905,7 @@ export class CombatSystem {
       input = { ...input, attack: false, heavyHeld: false, heavyRelease: false, skill: false, burst: false };
     }
     this.iframes = Math.max(0, this.iframes - dt);
+    this.armorLeft = Math.max(0, this.armorLeft - dt);
     this.dodgeCd = Math.max(0, this.dodgeCd - dt);
     this.frenzyLeft = Math.max(0, this.frenzyLeft - dt);
     // What the body is shown: the hit and the dodge age out; a fallen hero lies there, then the party moves on. The
@@ -1101,6 +1114,18 @@ export class CombatSystem {
     if (this.bloodMoon > 0) this.bloodMoon = Math.max(0, this.bloodMoon - dt);
     const slot = input.spell ?? null;
     const press = slot === null ? 'none' : spellPress(SPELLS[me.id]?.[slot]?.id ?? '', this.spells.ready(me.id, slot), this.caster.wallUp(), this.caster.wallLoaded());
+    // A press that cannot cast says so (playtest 2026-11-17: a spell cooling or a hero mid-swing just did nothing).
+    this.refusedTip = Math.max(0, this.refusedTip - dt);
+    if (slot !== null && this.refusedTip === 0 && press === 'none') {
+      this.refusedTip = 0.8;
+      d.hud.announce('Not ready', { seconds: 0.8 });
+    }
+    // Blood Moon: a crimson aura round Sir Aldric while it lasts.
+    if (this.bloodMoon > 0 && Math.random() < dt * 20) {
+      const p = this.d.controller.pos;
+      const a = Math.random() * Math.PI * 2;
+      this.fx.sparks(new Vector3(p.x + Math.cos(a) * 0.6, p.y + 0.3 + Math.random() * 1.6, p.z + Math.sin(a) * 0.6), new Vector3(0, 1, 0), 2, 0xd0102a, 1.5, 0.8);
+    }
     if (press === 'kick' && !this.busy) {
       // Sir Aldric kicks his standing Stone Wall apart.
       this.caster.kickWall();
@@ -1261,7 +1286,7 @@ export class CombatSystem {
       const e = this.enemies[i];
       if (!e.alive && e.noRespawn && !e.object.visible) this.despawn(e);
     }
-    d.sky.setBloodMoon(anyAggro || this.burstCast !== null || this.bloodMoon > 0);
+    d.sky.setBloodMoon(bloodSky(anyAggro, this.burstCast !== null, this.bloodMoon));
     if (bossNear) d.hud.setBoss(bossNear.def.name, bossNear.def.title ?? '', bossNear.hp / bossNear.def.maxHp, true);
     else d.hud.setBoss('', '', 0, false);
     // The score's boss layer: on while a boss has the hero in its sights (or brawls in the smoke), off once it falls or
@@ -2879,6 +2904,12 @@ export class CombatSystem {
       if (this.gore.burstBones(e, kb, strength)) { this.d.audio.clatter(); return true; }
       return false;
     }
+    // A living skeleton loses bones to solid blows: a hand, an arm, its skull (it fights on without it). Playtest
+    // 2026-11-17: they only ever fell apart on death.
+    if (!b.died && e.def.collapse && m.hasClips && boneSnap(b, this.rnd)) {
+      const part = pickPart(this.gore.partsOf(e), hitAt, true);
+      if (part && this.gore.sever(e, part, kb, strength)) { this.d.audio.clatter(); return false; }
+    }
     const max = e.def.maxHp * e.hpScale;
     // Worn down: a hand at 70 %, an arm at 45 % (bosses 50 / 25), on the side the blow came from (Sever.wearCrossed).
     if (!b.died && m.hasClips) {
@@ -3495,7 +3526,7 @@ export class CombatSystem {
 
   private damagePlayer(atk: number, _element: Element | null, by = 'hazard'): void {
     if (this.iframes > 0 || this.downed) return;
-    atk *= this.plus;
+    atk *= this.plus * armorShare(this.armorLeft);
     const me = this.active;
     const dmg = computeDamage({ atk, multiplier: 1, defense: PLAYER_DEF });
     const hp = Math.max(0, this.hp.get(me.id)! - dmg);
@@ -3636,4 +3667,15 @@ function webDisc(r: number, opacity: number): Group {
   geo.setAttribute('position', new Float32BufferAttribute(pts, 3));
   g.add(new LineSegments(geo, new LineBasicMaterial({ color: PALETTE.moon, transparent: true, opacity, depthWrite: false, toneMapped: false })));
   return g;
+}
+
+/**
+ * Whether the sky is the blood moon's (playtest 2026-11-17: it went red whenever a mob was aggro, so casting Blood Moon
+ * showed nothing new): only for Blood Moon itself or a burst being cast.
+ */
+/** Rock Armor: the share of a blow the hero takes while it lasts. */
+export function armorShare(armorLeft: number): number { return armorLeft > 0 ? 0.5 : 1; }
+
+export function bloodSky(_anyAggro: boolean, bursting: boolean, bloodMoon: number): boolean {
+  return bursting || bloodMoon > 0;
 }

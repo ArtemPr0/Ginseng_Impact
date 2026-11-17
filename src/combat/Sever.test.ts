@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { Bone, BoxGeometry, Float32BufferAttribute, Group, MeshStandardMaterial, Skeleton, SkinnedMesh, Uint16BufferAttribute, Vector3 } from 'three';
-import { bakeTriangles, woundOf, maimMult, partTriangles, pickPart, severRoll, subtreeIndices } from './Sever';
+import { Bone, BoxGeometry, BufferGeometry, CylinderGeometry, Float32BufferAttribute, Group, MeshStandardMaterial, Skeleton, SkinnedMesh, Uint16BufferAttribute, Vector3 } from 'three';
+import { bakeTriangles, capCut, woundOf, maimMult, partTriangles, pickPart, severRoll, subtreeIndices } from './Sever';
 
 /** A 2 m tall box skinned to hips → spine → head (top 0.5 m) and spine → leftArm (x > 0.3). */
 function body() {
@@ -92,6 +92,13 @@ describe('pickPart', () => {
     expect(pickPart(parts, new Vector3(0, 2.1, 0), true)).toBe('head');
     expect(pickPart([], new Vector3(), true)).toBeNull();
   });
+  it('hands come off too (playtest 2026-11-17: "the hand actually falls off")', () => {
+    const parts = [
+      { part: 'rightArm' as const, at: new Vector3(-0.5, 1.4, 0) },
+      { part: 'rightHand' as const, at: new Vector3(-0.8, 1.0, 0) },
+    ];
+    expect(pickPart(parts, new Vector3(-0.85, 0.95, 0), false)).toBe('rightHand');
+  });
 });
 
 describe('maimMult', () => {
@@ -103,19 +110,45 @@ describe('maimMult', () => {
 });
 
 describe('woundOf', () => {
-  it("no blood anywhere (the user's call of 2026-11-16): flesh and ghosts puff their element, bone and stone their dust", () => {
-    expect(woundOf('flesh', 0x37f5ff)).toEqual({ glow: true, color: 0x37f5ff });
-    expect(woundOf('ghost', 0x37f5ff)).toEqual({ glow: true, color: 0x37f5ff });
+  it("red blood for flesh (the user's call of 2026-11-17, overturning 11-16's no blood); ghosts their glow, bone and stone their dust", () => {
+    const f = woundOf('flesh', 0x37f5ff);
+    expect(f.blood).toBe(true);
+    const r = (f.color >> 16) & 255, g = (f.color >> 8) & 255, b = f.color & 255;
+    expect(r > g * 1.8 && r > b * 1.8).toBe(true);
+    expect(woundOf('ghost', 0x37f5ff)).toEqual({ blood: false, glow: true, color: 0x37f5ff });
     expect(woundOf('bone', 0x37f5ff).glow).toBe(false);
-    expect(woundOf('stone', 0x37f5ff).glow).toBe(false);
-    for (const [m, el] of [['flesh', 0x37f5ff], ['ghost', 0x37f5ff], ['bone', 0x37f5ff], ['stone', 0x37f5ff], ['flesh', 0xd0102a], ['ghost', 0xd0102a]] as const) {
-      const c = woundOf(m, el).color;
-      const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
-      // Never a blood red: red well above both other channels.
-      expect(r > g * 1.8 && r > b * 1.8).toBe(false);
-    }
+    expect(woundOf('bone', 0x37f5ff).blood).toBe(false);
+    expect(woundOf('stone', 0x37f5ff).blood).toBe(false);
   });
 });
+
+describe('capCut (the severed piece is closed where it was cut, red inside)', () => {
+  it('fills every open edge loop of a cut piece, as a second group', () => {
+    // An open tube: a cylinder with no ends, non-indexed like a baked piece.
+    const tube = new CylinderGeometry(0.1, 0.1, 0.5, 12, 1, true).toNonIndexed();
+    const capped = capCut(tube);
+    expect(openEdges(tube)).toBeGreaterThan(0);
+    expect(openEdges(capped)).toBe(0);
+    expect(capped.groups.length).toBe(2);
+    expect(capped.groups[1].materialIndex).toBe(1);
+  });
+});
+
+/** Edges used by just one triangle (positions welded). */
+function openEdges(g: BufferGeometry): number {
+  const p = g.attributes.position;
+  const r = (v: number) => Math.round(v * 1e4) + 0;
+  const key = (i: number) => `${r(p.getX(i))},${r(p.getY(i))},${r(p.getZ(i))}`;
+  const n = new Map<string, number>();
+  for (let t = 0; t < p.count; t += 3) for (let k = 0; k < 3; k++) {
+    const a = key(t + k), b = key(t + ((k + 1) % 3));
+    const e = a < b ? a + '|' + b : b + '|' + a;
+    n.set(e, (n.get(e) ?? 0) + 1);
+  }
+  let open = 0;
+  for (const c of n.values()) if (c === 1) open++;
+  return open;
+}
 
 describe('wear (mobs coming apart as their health drops, 2026-11-16)', () => {
   it('a blow crossing 70 % takes a hand, 45 % an arm; under 30 % nothing more but it is weakened', async () => {
@@ -148,5 +181,15 @@ describe('wear (mobs coming apart as their health drops, 2026-11-16)', () => {
     expect(w.pace).toBeGreaterThan(0.6);
     expect(w2.hunch).toBeGreaterThan(w.hunch);
     expect(w2.hunch).toBeLessThan(0.6);
+  });
+});
+
+describe('boneSnap (playtest 2026-11-17: skeletons should lose bones when hit, not only on death)', () => {
+  it('a solid blow on a living skeleton snaps a bone off more often than not; a graze never does', async () => {
+    const { boneSnap } = await import('./Sever');
+    expect(boneSnap({ crit: false, heavy: true, skill: false, share: 0.05 }, () => 0.5)).toBe(true);
+    expect(boneSnap({ crit: false, heavy: false, skill: false, share: 0.2 }, () => 0.5)).toBe(true);
+    expect(boneSnap({ crit: false, heavy: false, skill: false, share: 0.05 }, () => 0)).toBe(false);
+    expect(boneSnap({ crit: true, heavy: false, skill: false, share: 0.05 }, () => 0.9)).toBe(false);
   });
 });

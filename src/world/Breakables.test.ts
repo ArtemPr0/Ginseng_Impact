@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { BoxGeometry, Group, Mesh, MeshStandardMaterial } from 'three';
-import { Breakables, breakHp, canBreak, collapseDelay, POWER, rebuildDue, trimGrid, unheld, type BreakTarget } from './Breakables';
-import type { GridFootprint } from './Colliders';
+import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Quaternion, Vector3 } from 'three';
+import { Breakables, breakHp, canBreak, collapseDelay, POWER, rebuildDue, standingReach, trimGrid, unheld, type BreakTarget } from './Breakables';
+import { HeightWorld, type GridFootprint } from './Colliders';
 import { blockCount, chunkCount } from './Fracture';
 
 function grid(): GridFootprint {
@@ -113,21 +113,19 @@ describe('Breakables', () => {
     expect(h.added.length).toBe(1);
   });
 
-  it('comes down when its hit points run out: the collider goes at once, the walls fall one after another', () => {
+  it('comes down when a blow takes nearly all of it: the collider goes at once, the rest falls one after another', () => {
     const h = world();
     const b = new Breakables(h);
     const { target } = house();
     h.add(...target.footprints);
     b.register(target);
-    b.damageAt(10, 1, 12, 1.5, 'burst');
     const before = b.sim.pieces.length;
-    b.damageAt(10, 1, 12, 1.5, 'burst');
+    // (v13: hit points no longer bring a building down; a blow reaching 92 % of its blocks leaves too little standing.)
+    b.damageAt(10, 2.4, 10, 3.2, 'burst');
     expect(b.entries[0].state).toBe('rubble');
     expect(h.added.length).toBe(0);
-    const right = b.sim.pieces.length;
-    expect(right).toBeLessThan(b.entries[0].chunks.length);
+    // (What the blow left with nothing under it falls at once; anything still standing gives way in the wave.)
     for (let t = 0; t < 2; t += 0.05) b.update(0.05, { x: 0, z: 0 });
-    expect(b.sim.pieces.length).toBeGreaterThan(right);
     expect(b.entries[0].chunks.every((c) => !c.standing)).toBe(true);
     void before;
   });
@@ -151,7 +149,8 @@ describe('Breakables', () => {
     const { target } = house();
     h.add(...target.footprints);
     b.register(target);
-    for (let i = 0; i < 3; i++) b.damageAt(10, 1, 12, 2, 'burst');
+    // (v13: buildings only lose what a blow reaches; one that reaches it all brings it down.)
+    for (let i = 0; i < 3; i++) b.damageAt(10, 3, 10, 6, 'burst');
     for (let t = 0; t < 12; t += 0.05) b.update(0.05, { x: 0, z: 0 });
     const boxes = h.added.filter((f) => (f as { kind: string }).kind === 'box') as Array<{ top: number; x: number; z: number }>;
     expect(boxes.length).toBeGreaterThan(0);
@@ -178,7 +177,8 @@ describe('Breakables', () => {
     const { target, root } = house();
     h.add(...target.footprints);
     b.register(target);
-    for (let i = 0; i < 3; i++) b.damageAt(10, 1, 12, 2, 'burst');
+    // (v13: buildings only lose what a blow reaches; one that reaches it all brings it down.)
+    for (let i = 0; i < 3; i++) b.damageAt(10, 3, 10, 6, 'burst');
     for (let t = 0; t < 200; t += 0.5) b.update(0.5, { x: 300, z: 300 }, () => false);
     expect(b.entries[0].state).toBe('intact');
     expect(root.visible).toBe(true);
@@ -193,7 +193,8 @@ describe('Breakables', () => {
     let fell = 0;
     b.onCollapse = () => { fell++; };
     b.register({ ...target, quick: true });
-    for (let i = 0; i < 3; i++) b.damageAt(10, 1, 12, 2, 'burst');
+    // (v13: buildings only lose what a blow reaches; one that reaches it all brings it down.)
+    for (let i = 0; i < 3; i++) b.damageAt(10, 3, 10, 6, 'burst');
     expect(fell).toBe(1);
   });
 
@@ -208,7 +209,7 @@ describe('Breakables', () => {
     let fell = 0;
     b.onCollapse = () => { fell++; };
     b.register({ ...target, quick: true });
-    for (let i = 0; i < 4; i++) b.damageAt(10, 1, 12, 2, 'burst');
+    for (let i = 0; i < 4; i++) b.damageAt(10, 3, 10, 6, 'burst');
     expect(fell).toBe(0);
     ready = true;
     b.update(0.016, { x: 0, z: 0 });
@@ -282,7 +283,8 @@ describe('rebuild and the zone (review 2026-11-16)', () => {
     b.shownNow = () => false;
     const { target } = house();
     b.register({ ...target, quick: true });
-    for (let i = 0; i < 3; i++) b.damageAt(10, 1, 12, 2, 'burst');
+    // (v13: buildings only lose what a blow reaches; one that reaches it all brings it down.)
+    for (let i = 0; i < 3; i++) b.damageAt(10, 3, 10, 6, 'burst');
     expect(target.object.visible).toBe(false);
     for (let t = 0; t < 400; t += 1) b.update(1, { x: 500, z: 500 }, () => false);
     expect(b.entries[0].state).toBe('intact');
@@ -369,5 +371,140 @@ describe('Breakables: what things are made of', () => {
     for (let i = 0; i < 3; i++) b.damageAt(10, 1, 12, 3, 'burst');
     for (let t = 0; t < 12; t += 0.1) b.update(0.1, { x: 0, z: 0 });
     expect(b.sim.pieces.length).toBeGreaterThan(5);
+  });
+});
+
+describe('local breaking (playtest 2026-11-17: "only the part that was hit breaks")', () => {
+  it('blow after blow on one corner knocks out blocks there; the house still stands', () => {
+    const h = world();
+    const b = new Breakables(h);
+    const { target } = house();
+    h.add(...target.footprints);
+    b.register(target);
+    for (let i = 0; i < 8; i++) b.damageAt(11.8, 4.5, 11.8, 1, 'heavy');
+    const e = b.entries[0];
+    expect(e.state).toBe('broken');
+    const standing = e.chunks.filter((c) => c.standing).length;
+    expect(standing).toBeGreaterThan(e.chunks.length * 0.6);
+  });
+  it('a blow that takes out nearly everything brings the rest down', () => {
+    const h = world();
+    const b = new Breakables(h);
+    const { target } = house();
+    h.add(...target.footprints);
+    b.register(target);
+    b.damageAt(10, 3, 10, 6, 'burst');
+    expect(b.entries[0].state).toBe('rubble');
+  });
+});
+
+describe('rubbleFootprint (walkable rubble, nothing floating on a too-big box)', () => {
+  it('a level block: its top is the block\'s top', async () => {
+    const { rubbleFootprint } = await import('./Breakables');
+    const f = rubbleFootprint({ x: 0, y: 0.2, z: 0, r: 0.5, qx: 0, qy: 0, qz: 0, qw: 1, hx: 0.4, hy: 0.2, hz: 0.3 } as never);
+    expect(f.top).toBeGreaterThan(0.37);
+    expect(f.top).toBeLessThanOrEqual(0.4);
+  });
+  it('a plank leaning at 45°: the box over it is no higher than the plank at its middle', async () => {
+    const { rubbleFootprint } = await import('./Breakables');
+    const s = Math.sin(Math.PI / 8), c = Math.cos(Math.PI / 8);
+    const f = rubbleFootprint({ x: 0, y: 0.5, z: 0, r: 0.6, qx: 0, qy: 0, qz: s, qw: c, hx: 0.5, hy: 0.1, hz: 0.2 } as never);
+    // Straight up through its middle it is 0.1/cos45 ≈ 0.14 thick.
+    expect(f.top).toBeLessThan(0.5 + 0.16);
+  });
+});
+
+describe('a broken building keeps no invisible collider where it is gone (pieces rested on thin air)', () => {
+  it('a box-collider house broken at one end: the collider there comes down, the standing end stays solid', () => {
+    const h = new HeightWorld({ heightAt: () => 0 });
+    const b = new Breakables(h);
+    const { target } = house();
+    target.footprints = [{ kind: 'box', x: 10, z: 10, hw: 2, hd: 2, top: 6 }];
+    h.add(...target.footprints);
+    b.register(target);
+    b.damageAt(11.6, 3, 11.6, 3, 'skill');
+    const top = (x: number, z: number) => h.heightAt(x, z, 20);
+    expect(b.entries[0].state).toBe('broken');
+    expect(top(11.7, 11.7)).toBeLessThan(1);
+    expect(top(8.3, 8.3)).toBeGreaterThan(4);
+  });
+});
+
+describe('rubble colliders do not flicker (walking over rubble "bugged out")', () => {
+  it('a piece gets its collider only after it has rested a moment, and keeps it while it rests', () => {
+    const h = world();
+    const b = new Breakables(h);
+    const { target } = house();
+    h.add(...target.footprints);
+    b.register(target);
+    b.damageAt(10, 3, 10, 6, 'burst');
+    let adds = 0;
+    const add = h.add;
+    h.add = (...f: unknown[]) => { adds += f.length; add(...f); };
+    for (let t = 0; t < 12; t += 0.05) b.update(0.05, { x: 0, z: 0 });
+    const boxes = h.added.filter((f) => (f as { kind: string }).kind === 'box').length;
+    // Each resting piece added once (a flicker adds it again and again).
+    expect(adds).toBeLessThanOrEqual(boxes * 1.5 + 5); // (a piece knocked awake again may add once more; a flicker was 30x)
+  });
+});
+
+describe('takeWhole (Telekinesis lifts a building in one piece, playtest 2026-11-17)', () => {
+  it('its colliders leave while it is held; set down elsewhere, it stands there, solid, and nothing broke', () => {
+    const h = world();
+    const b = new Breakables(h);
+    const { target, root } = house();
+    h.add(...target.footprints);
+    b.register(target);
+    const held = b.takeWhole(10, 10)!;
+    expect(held).toBeTruthy();
+    expect(h.added.length).toBe(0);
+    held.move(14, 3, 12, 0.1, 0);
+    root.updateMatrixWorld(true);
+    expect(root.getWorldPosition(new Vector3()).distanceTo(new Vector3(14, 3, 12))).toBeLessThan(1e-6);
+    held.land(30, 0, 25);
+    expect(root.getWorldPosition(new Vector3()).distanceTo(new Vector3(30, 0, 25))).toBeLessThan(1e-6);
+    expect(root.rotation.x).toBe(0);
+    expect(h.added.length).toBe(1);
+    const f = h.added[0] as { x: number; z: number };
+    expect(f.x).toBeCloseTo(30);
+    expect(f.z).toBeCloseTo(25);
+    expect(b.entries[0].state).toBe('intact');
+    expect(Math.hypot(b.entries[0].x - 30, b.entries[0].z - 25)).toBeLessThan(1e-6);
+    // A blow at its new place reaches it.
+    expect(b.near(30, 25, 1).length).toBe(1);
+  });
+  it('nothing to lift: a broken one, a castle, a flower', () => {
+    const h = world();
+    const b = new Breakables(h);
+    const { target } = house();
+    b.register(target);
+    expect(b.takeWhole(40, 40)).toBeNull();
+  });
+});
+
+describe('takeWhole: while held', () => {
+  it('no blow reaches it and it is not rebuilt where it stood', () => {
+    const h = world();
+    const b = new Breakables(h);
+    const { target } = house();
+    h.add(...target.footprints);
+    b.register(target);
+    const held = b.takeWhole(10, 10)!;
+    expect(b.near(10, 10, 3).length).toBe(0);
+    for (let t = 0; t < 120; t += 1) b.update(1, { x: 500, z: 500 }, () => false);
+    expect(h.added.length).toBe(0);
+    held.land(10, 0, 10);
+    expect(b.near(10, 10, 3).length).toBe(1);
+  });
+});
+
+describe('standingReach (review: trimmed colliders sank 0.7 m under a tall thin wall block)', () => {
+  it('a tall thin block keeps its full height, and reaches as far as its long side', () => {
+    const r = standingReach({ half: { x: 0.5, y: 1.5, z: 0.15 }, q: new Quaternion() });
+    expect(r.top).toBeCloseTo(1.5, 5);
+    expect(r.r).toBeCloseTo(0.5, 5);
+    const g = trimGrid(grid(), [{ x: 0, y: 1.5, z: 0, r: r.r, top: r.top }]);
+    const i = Math.floor((0 - g.minX) / g.cell), k = Math.floor((0 - g.minZ) / g.cell);
+    expect(g.base + g.data[(k * g.nx + i) * 3 + 2] * g.unit).toBeGreaterThan(2.9);
   });
 });

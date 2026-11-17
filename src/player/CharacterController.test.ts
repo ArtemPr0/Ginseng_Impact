@@ -442,3 +442,30 @@ describe('the attack lunge and leap (cartoon combat)', () => {
     expect(s.flungGravity).toBe(1);
   });
 });
+
+describe('walking on rubble (playtest 2026-11-17: "the game bugs out")', () => {
+  it('standing on a block of rubble 0.3 m up, next to the ground, does not slide off', () => {
+    // A 1 m block, 0.3 m high, built (onDeck), round the origin.
+    const block = (x: number, z: number) => (Math.abs(x) < 0.5 && Math.abs(z) < 0.5 ? 0.3 : 0);
+    const w: WorldQuery = { heightAt: (x, z) => block(x, z), onDeck: (x, z) => block(x, z) > 0 };
+    const s = createControllerState({ x: 0.3, y: 0.3, z: 0 });
+    run(idle(), 60, w, s);
+    expect(s.pos.x).toBeCloseTo(0.3, 2);
+    expect(s.pos.y).toBeCloseTo(0.3, 2);
+  });
+});
+
+describe('stepController — a thin broken wall over a drop (headless check 2026-11-17: stuck, ground and climb in turns)', () => {
+  /** He stands on a 0.8 m ledge (x < 3); a 0.3 m thick wall 8 m high; the ground falls away behind it. */
+  const lip: WorldQuery = { heightAt: (x) => (x >= 3 && x <= 3.3 ? 8 : x < 3 ? 0.8 : 0) };
+  it('walked into, it is climbed: no flipping between walking and climbing on the spot', () => {
+    const s = createControllerState({ x: 2, y: 0.8, z: 0 });
+    let flips = 0, last = s.mode;
+    for (let i = 0; i < 60 * 3; i++) {
+      stepController(s, { ...idle(), move: { x: 1, z: 0 } }, lip, 1 / 60);
+      if (s.mode !== last) { flips++; last = s.mode; }
+    }
+    expect(flips).toBeLessThanOrEqual(2);
+    expect(s.pos.y).toBeGreaterThan(2);
+  });
+});

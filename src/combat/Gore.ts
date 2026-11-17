@@ -1,16 +1,18 @@
 /**
  * Mobs coming apart in the game (Sever.ts holds the pure parts): a limb or the head baked off the body as it stands and
- * thrown as debris, a dark charred stump where it was and a puff of the mob's element (no blood: the user's call of
- * 2026-11-16); a skeleton bursting into its bones; a body without a rig (robes, statues) or a frozen one shattering into
+ * thrown as debris, closed red where it was cut; a red wound at the stump and an artery pumping blood out of it in beats
+ * that stain the ground (the user's call of 2026-11-17, overturning 11-16's no blood); ghosts puff their glow, bone
+ * snaps off in dust; a skeleton bursting into its bones; a body without a rig (robes, statues) or a frozen one shattering into
  * chunks. Pieces bounce, rest a while and shrink away.
  */
 import { Euler, Group, Mesh, MeshStandardMaterial, Quaternion, SphereGeometry, Vector3, type Material, type Object3D, type SkinnedMesh } from 'three';
 import { DebrisSim, type Piece } from '../world/Debris';
 import { fractureObject, fractureGeometry } from '../world/Fracture';
 import { Spray } from '../render/Spray';
+import { Blood } from '../render/Blood';
 import { hitMaterial } from '../audio/CombatSfx';
 import { ELEMENT_COLOR } from './Elements';
-import { armsLost, bakeTriangles, partTriangles, subtreeIndices, woundOf, type Part } from './Sever';
+import { armsLost, bakeTriangles, capCut, partTriangles, subtreeIndices, woundOf, BLOOD_RED, type Part } from './Sever';
 import type { Enemy } from './Enemy';
 
 /** Seconds a piece lies about before it shrinks away. */
@@ -18,7 +20,8 @@ const PIECE_LIFE = 12;
 
 /** The bone a part comes off at, tried in order. */
 const PART_BONES: Record<Part, RegExp[]> = {
-  head: [/neck$/i, /head$/i],
+  // At the head, not the neck: the neck stays on the body (cut at the neck it pinched to a point).
+  head: [/head$/i, /neck$/i],
   leftArm: [/leftforearm$/i, /leftarm$/i],
   rightArm: [/rightforearm$/i, /rightarm$/i],
   leftHand: [/lefthand$/i],
@@ -39,6 +42,7 @@ interface Bit { mesh: Mesh; piece: Piece; life: number; scale: number; own: bool
 
 const _v = new Vector3();
 const _d = new Vector3();
+const _p = new Vector3();
 
 function skinnedOf(root: Object3D): SkinnedMesh[] {
   const out: SkinnedMesh[] = [];
@@ -63,7 +67,13 @@ export class Gore {
   readonly sim: DebrisSim;
   readonly spray: Spray;
   private readonly bits: Bit[] = [];
-  private readonly drips: Array<{ at: Object3D; left: number; glow: boolean; color: number; every: number }> = [];
+  private readonly drips: Array<{ at: Object3D; left: number; glow: boolean; color: number; every: number; blood: boolean; life: number }> = [];
+  /** Severed parts still bleeding as they fly. */
+  private readonly bleeding: Array<{ obj: Object3D; left: number; every: number }> = [];
+  readonly blood: Blood;
+  /** Inside a cut: raw red; the stump's wound. */
+  private readonly wound = new MeshStandardMaterial({ color: 0x5a0610, emissive: 0x1a0204, roughness: 0.35, metalness: 0 });
+  private readonly boneCap = new MeshStandardMaterial({ color: 0xcfc6ae, roughness: 0.9 });
   private readonly stumpGeo = new SphereGeometry(1, 10, 8);
   /** Ice, for a frozen body shattering. */
   readonly ice = new MeshStandardMaterial({ color: 0xbfefff, emissive: 0x3a8aa8, emissiveIntensity: 0.6, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.85 });
@@ -73,7 +83,8 @@ export class Gore {
   constructor(groundAt: (x: number, z: number, y: number) => number, private readonly hooks: GoreHooks = {}) {
     this.sim = new DebrisSim(groundAt, 160);
     this.spray = new Spray(groundAt);
-    this.group.add(this.spray.group);
+    this.blood = new Blood(groundAt);
+    this.group.add(this.spray.group, this.blood.group);
   }
 
   /** Parts `e` still has, with where their joints are now. */
@@ -98,32 +109,40 @@ export class Gore {
       const tris = partTriangles(mesh, subtreeIndices(mesh, bone));
       if (tris.length < 4) continue;
       const b = bakeTriangles(mesh, tris);
+      // Closed where it was cut: red inside for flesh, bone for bone.
+      const capMat = look.blood ? this.wound : look.glow ? (mesh.material as Material) : this.boneCap;
+      const geo = capCut(b.geometry);
+      b.geometry.dispose();
+      const obj = this.throwPiece(geo, [mesh.material as Material, capMat], b.pivot, b.radius, kb, (part === 'head' ? 6 : part.endsWith('Hand') ? 3.5 : 4.5) * strength, true);
+      if (look.blood) this.bleeding.push({ obj, left: 0.9, every: 0 });
       radius = Math.max(radius, b.radius);
-      this.throwPiece(b.geometry, mesh.material as Material, b.pivot, b.radius, kb, (part === 'head' ? 6 : part.endsWith('Hand') ? 3.5 : 4.5) * strength, true);
       made++;
     }
     if (!made) return false;
     e.lost.add(part);
     e.lostArms = armsLost(e.lost);
     e.severed.push(bone);
-    // The stump: a dark cap at the joint, riding the parent bone (in its own scale: rigs are often 0.01-scaled).
+    // The stump: a wound at the joint, riding the parent bone (in its own scale: rigs are often 0.01-scaled).
     const at = bone.getWorldPosition(new Vector3());
     const parent = bone.parent;
     if (parent) {
-      // Flesh and ghosts: charred dark with a faint rim of their element; stone or bone: its own broken grey.
-      const mat = look.glow ? new MeshStandardMaterial({ color: 0x14121a, emissive: look.color, emissiveIntensity: 0.35, roughness: 0.95 })
+      const mat = look.blood ? this.wound : look.glow ? new MeshStandardMaterial({ color: 0x14121a, emissive: look.color, emissiveIntensity: 0.35, roughness: 0.95 })
         : new MeshStandardMaterial({ color: look.color, roughness: 0.9 });
       const stump = new Mesh(this.stumpGeo, mat);
       stump.position.copy(bone.position);
+      // Flat across the limb (the bone runs along its own y), a disc of wound, not a ball.
+      stump.quaternion.copy(bone.quaternion);
       const ps = parent.getWorldScale(_v).x || 1;
-      stump.scale.setScalar(Math.min(0.16, Math.max(0.05, radius * 0.3)) / ps);
+      const r = Math.min(0.14, Math.max(0.04, radius * 0.28)) / ps;
+      stump.scale.set(r, r * 0.35, r);
       stump.name = 'gore:stump';
       parent.add(stump);
       e.stumps.push(stump);
-      this.drips.push({ at: stump, left: 1.4, glow: look.glow, color: look.color, every: 0 });
+      this.drips.push({ at: stump, left: look.blood ? 1.6 : 1.4, life: look.blood ? 1.6 : 1.4, glow: look.glow, color: look.color, every: 0, blood: look.blood });
     }
     _d.set(kb.x, 0.8, kb.z).normalize();
-    this.spray.spurt(at, _d, 30, 5, look.glow, look.color);
+    if (look.blood) this.blood.pulse(at, _d, 1.2);
+    else this.spray.spurt(at, _d, 30, 5, look.glow, look.color);
     return true;
   }
 
@@ -204,13 +223,29 @@ export class Gore {
     this.clock += dt;
     this.sim.step(dt);
     this.spray.update(dt);
+    this.blood.update(dt);
     for (const d of this.drips) {
       d.left -= dt;
       d.every -= dt;
       if (d.every > 0 || !d.at.parent) continue;
-      d.every = 0.08;
       d.at.getWorldPosition(_v);
-      this.spray.spurt(_v, _d.set((Math.random() - 0.5) * 0.4, 0.5, (Math.random() - 0.5) * 0.4), 2, 2.2 * Math.max(0.3, d.left), d.glow, d.color);
+      if (d.blood) {
+        // An artery: beats of blood out of the stump along the limb's line, each weaker than the last.
+        d.every = 0.3;
+        d.at.parent.getWorldPosition(_p);
+        _d.subVectors(_v, _p).normalize();
+        _d.y += 0.35;
+        this.blood.pulse(_v, _d.normalize(), Math.max(0.15, d.left / d.life));
+      } else {
+        d.every = 0.08;
+        this.spray.spurt(_v, _d.set((Math.random() - 0.5) * 0.4, 0.5, (Math.random() - 0.5) * 0.4), 2, 2.2 * Math.max(0.3, d.left), d.glow, d.color);
+      }
+    }
+    for (let i = this.bleeding.length - 1; i >= 0; i--) {
+      const b = this.bleeding[i];
+      b.left -= dt; b.every -= dt;
+      if (b.every <= 0 && b.obj.parent) { b.every = 0.07; this.blood.spurt(b.obj.position, _d.set(0, 0.2, 0), 2, 1.2, false, BLOOD_RED); }
+      if (b.left <= 0 || !b.obj.parent) this.bleeding.splice(i, 1);
     }
     for (let i = this.drips.length - 1; i >= 0; i--) if (this.drips[i].left <= 0) this.drips.splice(i, 1);
     for (let i = this.bits.length - 1; i >= 0; i--) {
@@ -226,7 +261,7 @@ export class Gore {
     }
   }
 
-  private throwPiece(geometry: Mesh['geometry'], material: Material, at: Vector3, r: number, kb: { x: number; z: number }, speed: number, own: boolean, bone = false, scale = 1, rot?: Euler): void {
+  private throwPiece(geometry: Mesh['geometry'], material: Material | Material[], at: Vector3, r: number, kb: { x: number; z: number }, speed: number, own: boolean, bone = false, scale = 1, rot?: Euler): Mesh {
     const mesh = new Mesh(geometry, material);
     mesh.scale.setScalar(scale);
     mesh.castShadow = true;
@@ -246,5 +281,6 @@ export class Gore {
       },
     });
     this.bits.push({ mesh, piece, life: PIECE_LIFE + Math.random() * 3, scale, own });
+    return mesh;
   }
 }

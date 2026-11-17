@@ -244,12 +244,12 @@ export class HeightWorld implements WorldQuery {
    * Height of the surface under (x, z). With `y` (the feet of whoever asks) overhead shapes they fit under are
    * ignored: a character walks under an arch or a bridge, and stands on it once up there.
    */
-  heightAt(x: number, z: number, y?: number): number {
+  heightAt(x: number, z: number, y?: number, skip?: Footprint | GridFootprint): number {
     let h = this.terrain.heightAt(x, z);
     const list = this.grid.get(HeightWorld.key(Math.floor(x / HeightWorld.CELL), Math.floor(z / HeightWorld.CELL)));
     if (list) for (let i = 0; i < list.length; i++) {
       const f = list[i];
-      if (f.top <= h) continue;
+      if (f.top <= h || f === skip) continue;
       const s = surfaceOf(f, x, z, y);
       if (s > h) h = s;
     }

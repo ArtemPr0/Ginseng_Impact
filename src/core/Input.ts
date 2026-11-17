@@ -10,6 +10,8 @@ export class Input {
   /** When true, a click does not take the pointer (the title screen's first click only starts its music). */
   hold = false;
   mouseDX = 0;
+  /** Wheel notches since the last takeWheel (down positive). */
+  private wheel = 0;
   mouseDY = 0;
   locked = false;
   /** Playing without pointer lock, the browser having refused it. */
@@ -39,6 +41,8 @@ export class Input {
       this.mousePressed.add(e.button);
     });
     window.addEventListener('mouseup', (e) => { if (this.mouseDownSet.has(e.button)) this.mouseReleased.add(e.button); this.mouseDownSet.delete(e.button); });
+    // The wheel: a held black hole's height (main.ts); the page must not scroll under it.
+    canvas.addEventListener('wheel', (e) => { if (this.locked) { this.wheel += Math.sign(e.deltaY); e.preventDefault(); } }, { passive: false });
     window.addEventListener('mousemove', (e) => {
       if (!this.locked) return;
       this.mouseDX += e.movementX;
@@ -108,6 +112,9 @@ export class Input {
   }
 
   /** Returns and clears accumulated mouse motion. */
+  /** Wheel notches since last asked (down positive). */
+  takeWheel(): number { const w = this.wheel; this.wheel = 0; return w; }
+
   takeMouseDelta(): { dx: number; dy: number } {
     const d = { dx: this.mouseDX, dy: this.mouseDY };
     this.mouseDX = 0;

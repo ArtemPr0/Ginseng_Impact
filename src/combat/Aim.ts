@@ -8,7 +8,7 @@ export const LEAP_RANGE = 12;
 
 /** How far from the hero a spell may land (the aim ring clamps to it, so it shows where the spell really lands). */
 export function spellRange(id: string): number {
-  return id === 'earthsplitter' ? LEAP_RANGE : AIM_RANGE;
+  return id === 'earthsplitter' ? LEAP_RANGE : id === 'spike-row' ? 18 : AIM_RANGE;
 }
 
 interface P { x: number; y: number; z: number }
@@ -46,4 +46,118 @@ export class SpellBuffer {
 
   /** Combat cast it. */
   done(): void { this.slot = null; }
+}
+
+// ------------------------------------------------------------------------------------------- hold to aim (v13)
+
+/**
+ * Hold right click to aim, let go to cast (playtest 2026-11-17): while held the spell's path or landing shows
+ * (AimPreview); Esc, losing the pointer or picking another slot cancels, and the release then casts nothing.
+ */
+export class AimHold {
+  aiming = false;
+  private slot = -1;
+  private cancelled = false;
+  private was = false;
+
+  /** `down`: right mouse held; `cancel`: Esc (or the pointer lost); `picked`: the bar's selected slot. */
+  update(down: boolean, cancel: boolean, picked: number): { release: boolean; slot: number } {
+    // (Aiming starts only on a fresh press: a button already held from something else, a slam or a lift, never casts.)
+    const fresh = down && !this.was;
+    this.was = down;
+    if (cancel || (this.aiming && picked !== this.slot)) { this.aiming = false; if (down) this.cancelled = true; }
+    if (!down) {
+      const release = this.aiming;
+      this.aiming = false;
+      this.cancelled = false;
+      return { release, slot: this.slot };
+    }
+    if (fresh && !this.cancelled && !cancel) { this.aiming = true; this.slot = picked; }
+    return { release: false, slot: this.slot };
+  }
+}
+
+export type AimShape =
+  | { kind: 'none' }
+  /** `self`: round the hero, not at the crosshair (Stone Ring). */
+  | { kind: 'ring'; radius: number; self?: boolean }
+  | { kind: 'lane'; length: number; width: number }
+  | { kind: 'cone'; radius: number; angle: number }
+  | { kind: 'arc'; arc: number; radius: number }
+  | { kind: 'path'; run: number; life: number; radius: number }
+  /** `ahead`: stands this far before the hero (Earth Wall, Water Shield), not at the crosshair. */
+  | { kind: 'wall'; width: number; ahead?: number }
+  | { kind: 'marker'; radius: number };
+
+/** How high each shot arcs over its flight (metres at the middle). */
+const ARCS: Record<string, number> = { fireball: 2.5, moonbomb: 1.5, 'frost-arrow': 0.3, 'storm-arrow': 0.3, boulder: 3, 'fire-fist': 0.3 };
+export function shotArc(id: string): number { return ARCS[id] ?? 0.3; }
+
+/** Fire tornado: 18 m in 7 s; storm tornado: 6 m in 6 s. */
+export const TORNADO_RUNS: Record<string, { run: number; life: number }> = { 'fire-tornado': { run: 18, life: 7 }, 'storm-tornado': { run: 6, life: 6 } };
+
+/** What the preview draws for spell `id` (its blast `radius` where it has one). */
+export function aimShape(id: string, radius = 3): AimShape {
+  switch (id) {
+    case 'fireball': case 'moonbomb': case 'frost-arrow': case 'storm-arrow':
+      return { kind: 'arc', arc: shotArc(id), radius };
+    case 'fire-tornado': case 'storm-tornado':
+      return { kind: 'path', ...TORNADO_RUNS[id], radius };
+    case 'gale-shot': return { kind: 'cone', radius, angle: 0.55 };
+    case 'wrecking-charge': return { kind: 'lane', length: 12, width: 2 * radius };
+    case 'earthsplitter': return { kind: 'lane', length: LEAP_RANGE, width: 3 };
+    case 'stone-wall': return { kind: 'wall', width: 6 };
+    case 'black-hole': return { kind: 'marker', radius };
+    case 'telekinesis': case 'blood-moon': return { kind: 'none' };
+    case 'chain-hook': return { kind: 'lane', length: 20, width: 5 };
+    // The second page (ReelMoves.ts).
+    case 'spike-row': return { kind: 'lane', length: 18, width: 3 };
+    case 'fire-wave': return { kind: 'lane', length: 12, width: 5 };
+    case 'fire-dash': return { kind: 'lane', length: 10, width: 3.2 };
+    case 'wave-surf': return { kind: 'lane', length: 12, width: 3.6 };
+    case 'water-whip': return { kind: 'lane', length: 14, width: 2 }; // (ReelMoves.WHIP_REACH)
+    case 'ice-ramp': return { kind: 'lane', length: 10.8, width: 1.6 };
+    case 'pillars': return { kind: 'lane', length: 16, width: 5 };
+    case 'dust-kick': return { kind: 'cone', radius: 5, angle: 0.9 };
+    case 'ice-discs': return { kind: 'cone', radius: 16, angle: 0.25 };
+    case 'stone-ring': return { kind: 'ring', radius, self: true };
+    case 'earth-wall': return { kind: 'wall', width: 4, ahead: 2.4 };
+    case 'water-shield': return { kind: 'wall', width: 4.6, ahead: 2.6 };
+    case 'ice-wall': return { kind: 'wall', width: 6 };
+    case 'boulder': case 'fire-fist': return { kind: 'arc', arc: shotArc(id), radius };
+    case 'rock-armor': case 'fire-jets': case 'flame-body': return { kind: 'none' };
+    default: return { kind: 'ring', radius };
+  }
+}
+
+interface V3 { x: number; y: number; z: number; set(x: number, y: number, z: number): V3 }
+
+/** Where a shot flying from `a` to `b` with `arc` is at `k` (0-1) of its flight (SpellCast flies them so). */
+export function flightPoint<T extends V3>(a: V3, b: V3, k: number, arc: number, out: T): T {
+  out.set(a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k + Math.sin(k * Math.PI) * arc, a.z + (b.z - a.z) * k);
+  return out;
+}
+
+/** A tornado's move over `dt` at age `t`: along `dir` at run/life m/s, weaving off its line (the reel's). */
+export function tornadoStep(t: number, dt: number, dir: { x: number; z: number }, run: number, life: number): { x: number; z: number } {
+  const step = (run / life) * dt;
+  const weave = Math.sin(t * 1.3) * 1.6 + Math.sin(t * 2.9 + 1) * 0.6;
+  return { x: dir.x * step + weave * dt * -dir.z, z: dir.z * step + weave * dt * dir.x };
+}
+
+/** The whole path a tornado started at `from` will take (points every `dt`), for the preview. */
+export function tornadoPath(from: { x: number; z: number }, dir: { x: number; z: number }, run: number, life: number, dt = 0.1): Array<{ x: number; z: number }> {
+  const out = [{ x: from.x, z: from.z }];
+  let x = from.x, z = from.z;
+  for (let t = dt; t <= life + 1e-9; t += dt) { const s = tornadoStep(t, dt, dir, run, life); x += s.x; z += s.z; out.push({ x, z }); }
+  return out;
+}
+
+/** How high over the crosshair's point the black hole opens: in the sky over open ground, inside what it is aimed at. */
+export const HOLE_LIFT = { sky: 10, inside: 0, min: -2, max: 10 } as const;
+
+/** The black hole's height off its aim point: the default for where it is aimed, moved by the wheel, clamped. */
+export function holeLift(wheel: number, onBuilding: boolean): number {
+  const base = onBuilding ? HOLE_LIFT.inside : HOLE_LIFT.sky;
+  return Math.max(HOLE_LIFT.min, Math.min(HOLE_LIFT.max, base + wheel));
 }

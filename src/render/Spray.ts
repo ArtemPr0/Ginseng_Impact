@@ -1,5 +1,5 @@
 /**
- * The spray where a mob loses a part (the user's call of 2026-11-16: no blood): glowing motes of its element (additive),
+ * The spray where a mob loses a part and does not bleed (ghosts, bone, stone; flesh bleeds red, render/Blood): glowing motes of its element (additive),
  * or grit and dust for bone and stone (lit, per-instance colour). Short-lived, no stains. Pooled.
  */
 import {

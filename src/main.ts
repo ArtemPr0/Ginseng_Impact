@@ -1,10 +1,11 @@
 import { CameraBob } from './render/CameraBob';
-import { aimPoint, AIM_RANGE, SpellBuffer, spellRange } from './combat/Aim';
+import { aimPoint, AIM_RANGE, SpellBuffer, spellRange, AimHold, aimShape, holeLift } from './combat/Aim';
+import { AimPreview } from './render/AimPreview';
 import { SPELLS } from './combat/Spells';
 import { BAR, barActs, barKey, chargeMove, LmbGesture, SpellBar } from './combat/SpellBar';
 import { LiftGlow } from './render/LiftGlow';
 import { MindBeam } from './render/MindBeam';
-import { Color, DirectionalLight, FogExp2, Frustum, HemisphereLight, Matrix4, type Object3D, PerspectiveCamera, Scene, Sphere, Vector3 } from 'three';
+import { Box3, Color, DirectionalLight, FogExp2, Frustum, HemisphereLight, Matrix4, type Object3D, PerspectiveCamera, Scene, Sphere, Vector3 } from 'three';
 import { HarvestLedger, harvestOf } from './world/Harvest';
 import { Ejecta } from './render/Ejecta';
 import { Billow } from './render/Billow';
@@ -31,6 +32,7 @@ import { Inventory } from './items/Inventory';
 import { riverAt, WORLD } from './world/Terrain';
 import { ITEMS } from './items/Items';
 import { CONTROLLER, createControllerState, haltController, startDash, stepController } from './player/CharacterController';
+import { MushroomRise, RISE, type Shroom } from './player/MushroomRise';
 import { Party } from './player/Party';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera';
 import { Atmosphere } from './render/Atmosphere';
@@ -123,6 +125,11 @@ scene.add(combatFx.group);
 /** Keys 1-7 pick, right click casts (the user's calls of 2026-11-16); a cast while mid-swing waits up to 0.6 s. */
 const spellBar = new SpellBar();
 const spellBuffer = new SpellBuffer();
+/** Hold right click to aim, let go to cast (playtest 2026-11-17), and what the held spell will do, drawn. */
+const aimHold = new AimHold();
+let aimPreview: AimPreview | null = null;
+/** Wheel notches moving a held black hole up or down. */
+let holeWheel = 0;
 const lmb = new LmbGesture();
 /** How far the spell being cast may land (Earthsplitter's leap is shorter): combat's aim clamps to it. */
 let castRange = AIM_RANGE;
@@ -139,11 +146,55 @@ function spellModel(id: string): Object3D | null {
   return spellModels.get(id) ?? null;
 }
 spellModel('stone-wall');
+// (The spiky rocks of Earthsplitter and Stone Wall: the sea pinnacle's rock spire, until the reel's own is made.)
+spellModel('pinnacle');
+// (Wren's ice, until the reel's own crystal is made; Sir Aldric's thrown boulders and pillars.)
+spellModel('spiky-rock');
+spellModel('ice-crystal');
+spellModel('purple-crystal');
+spellModel('boulder');
 const mindBeam = new MindBeam();
 scene.add(mindBeam.group);
 const handAt = new Vector3();
 /** Clods of earth thrown out of fresh craters (Ejecta). */
 const ejecta = new Ejecta((x, z, y) => world.heightAt(x, z, y));
+/** Wren's mushroom rise (hold Space): the mushrooms, their colliders, their models. */
+const shroomRise = new MushroomRise();
+shroomRise.onAdd = (f) => world.add(f);
+shroomRise.onRemove = (f) => world.remove(f);
+const shroomMeshes = new Map<Shroom, Object3D>();
+let shroomBox: Vector3 | null = null;
+spellModel('giant-mushroom');
+/** Grows Wren's mushrooms while Space is held (before the step: she stands on what grew). */
+function growShrooms(dt: number): void {
+  const p = controller.pos;
+  const can = party.active.id === 'archer' && input.locked && !combat.busy && (controller.mode === 'ground' || controller.mode === 'air');
+  // (The ground under the mushrooms: the terrain, not her own caps.)
+  shroomRise.update(dt, can && input.isDown('Space'), p, (x, z) => area.ground.heightAt(x, z));
+  const src = spellModel('giant-mushroom');
+  if (src && !shroomBox) shroomBox = new Box3().setFromObject(src).getSize(new Vector3());
+  for (const sh of shroomRise.shrooms) {
+    let m = shroomMeshes.get(sh);
+    if (!m && src && shroomBox) { m = src.clone(true); m.name = 'wren-mushroom'; scene.add(m); shroomMeshes.set(sh, m); }
+    if (!m || !shroomBox) continue;
+    const k = Math.max(0.001, shroomRise.scale(sh));
+    const wide = (RISE.r * 2.3) / Math.max(0.01, shroomBox.x, shroomBox.z);
+    m.scale.set(wide * (0.6 + 0.4 * k), (sh.height * k) / Math.max(0.01, shroomBox.y), wide * (0.6 + 0.4 * k));
+    m.position.set(sh.x, sh.ground, sh.z);
+  }
+  for (const [sh, m] of shroomMeshes) if (!shroomRise.shrooms.includes(sh)) { m.removeFromParent(); shroomMeshes.delete(sh); }
+}
+/** A cap that grew past her feet lifts her onto it (after the step). */
+function standOnShrooms(): void {
+  const p = controller.pos, v = controller.vel;
+  for (const sh of shroomRise.shrooms) {
+    const top = sh.collider.top;
+    if (Math.hypot(p.x - sh.x, p.z - sh.z) > RISE.r || p.y >= top || p.y < top - 1.6) continue;
+    p.y = top;
+    if (v.y < 0) v.y = 0;
+    if (controller.mode === 'air' && v.y <= 0) controller.mode = 'ground';
+  }
+}
 scene.add(ejecta.group);
 /** Billowing dust and smoke that lingers (collapses, blasts). */
 const billow = new Billow(260);
@@ -374,6 +425,8 @@ const combat = new CombatSystem({
   onPunch: (delta, seconds) => tpc.punchFov(delta, seconds),
   onPulse: (strength) => renderer.pulse(strength),
   weaponTips: (guard, tip) => rigs[party.activeIndex].weaponTips(guard, tip),
+  fist: (out) => rigs[party.activeIndex].fistAt(out),
+  takeBuilding: (x, z) => area.breakables.takeWhole(x, z),
   onTrip: (strength, seconds) => renderer.trip(strength, seconds),
   onInk: () => inkSplat.splash(),
   breakAt: (x, y, z, radius, kind) => area.breakables.damageAt(x, y, z, radius, kind),
@@ -975,7 +1028,8 @@ game
       // F1-F3 switch hero; 1-7 pick a slot on the bar; right click casts it at the crosshair, left click is the weapon.
       if (input.locked) for (let i = 0; i < ROSTER.length; i++) if (input.justPressed(`F${i + 1}`)) switchTo(i);
       if (input.locked) for (let k = 1; k <= 7; k++) {
-        if (input.justPressed(`Digit${k}`)) spellBar.select(party.active.id, barKey(`Digit${k}`)!);
+        // (Shift+1-7: the second page, the reel moves.)
+        if (input.justPressed(`Digit${k}`)) spellBar.select(party.active.id, barKey(`Digit${k}`, input.isDown('ShiftLeft') || input.isDown('ShiftRight'))!);
       }
       if (input.locked && input.justPressed('KeyF')) pressF();
       if (input.locked && input.justPressed('KeyE')) pressF();
@@ -988,7 +1042,12 @@ game
       // Right click: a cast (Telekinesis is held instead; so is Sir Aldric's slam while a mob hangs from his fist).
       const holding = combat.carry.hand !== null;
       const mind = input.locked && input.mouseDown(2) && (!!slot.hold || holding);
-      if (input.locked && input.mouseJustPressed(2) && !slot.hold && !holding) spellBuffer.push(picked);
+      // Hold right click to aim (the preview shows what it will do); let go to cast, Esc to cancel.
+      if (!slot.hold && !holding) {
+        const held = aimHold.update(input.locked && input.mouseDown(2), !input.locked || input.justPressed('Escape'), picked);
+        if (held.release) spellBuffer.push(held.slot);
+      } else aimHold.update(input.locked && input.mouseDown(2), true, picked);
+      showAim(hero, picked, dt);
       const buffered = spellBuffer.peek(dt);
       // The aim reaches as far as the spell about to be cast (a buffered one), else the picked one: Earthsplitter's
       // leap range must not stick to every aim after it (Telekinesis' grab, the other heroes).
@@ -1039,7 +1098,9 @@ game
       }
       // In a giant's fist: no moving until thrown.
       else if (combat.held) { /* the combat system carries the hero */ }
-      else stepController(controller, {
+      else {
+      growShrooms(dt);
+      stepController(controller, {
         move,
         sprint: input.isDown('ShiftLeft') || input.isDown('ShiftRight'),
         jump: space && !combat.busy,
@@ -1051,6 +1112,8 @@ game
         stopFly: input.locked && input.justPressed('KeyX'),
         hold: combat.busy || combat.charging > 0,
       }, world, dt);
+      standOnShrooms();
+      }
       // Bodies on foot stand their ground (CombatSystem.blockHero), after the step so no frame shows the hero inside one.
       if (!adventures.riding && !CARRIAGE.driving) combat.blockHero();
       // Off the edge of the world: nothing stops you walking off a cliff; the fog sets you back where you last stood.
@@ -1346,3 +1409,39 @@ function spellAim(range = AIM_RANGE): { at: Vector3; far: boolean } {
   if (d > range) { far = true; p.x = controller.pos.x + (dx / d) * range; p.z = controller.pos.z + (dz / d) * range; p.y = world.heightAt(p.x, p.z, controller.pos.y + 3); }
   return { at: new Vector3(p.x, p.y, p.z), far: far || d > range - 0.5 };
 }
+
+/** Draws what the spell held on right click will do (AimPreview), or hides it. */
+function showAim(hero: string, picked: number, dt: number): void {
+  if (!aimPreview) { aimPreview = new AimPreview((x, z, y) => world.heightAt(x, z, y)); scene.add(aimPreview.group); }
+  const wheel = input.takeWheel();
+  // Something held (a mob in his fist, a building or a mob in Orlan's mind): the arc it will fly to the crosshair.
+  const toss = combat.carry.throwPreview();
+  if (toss) {
+    aimPreview.show({ shape: { kind: 'arc', arc: toss.arc, radius: toss.r }, from: toss.from, to: toss.to, dir: { x: 0, z: 1 }, color: 0x9a7aff, far: false }, dt);
+    return;
+  }
+  const act = BAR[hero][picked]?.action;
+  if (!aimHold.aiming || act?.kind !== 'spell') { aimPreview.hide(); holeWheel = 0; return; }
+  const s = SPELLS[hero][act.slot];
+  const { at, far } = spellAim(spellRange(s.id));
+  const c = controller;
+  const dx = at.x - c.pos.x, dz = at.z - c.pos.z, l = Math.hypot(dx, dz) || 1;
+  const dir = { x: dx / l, z: dz / l };
+  const hand = new Vector3(c.pos.x + Math.cos(c.yaw) * 0.6, c.pos.y + 1.5, c.pos.z + Math.sin(c.yaw) * 0.6);
+  const shape = aimShape(s.id, s.radius);
+  // Lanes, cones and tornado paths start at his feet (the fire tornado 2.5 m ahead); shots from his hand.
+  const from = shape.kind === 'arc' ? hand
+    : s.id === 'fire-tornado' ? new Vector3(c.pos.x + dir.x * 2.5, c.pos.y, c.pos.z + dir.z * 2.5)
+    : s.id === 'storm-tornado' ? at.clone() : new Vector3(c.pos.x, c.pos.y, c.pos.z);
+  let lift: number | undefined;
+  if (s.id === 'black-hole') {
+    // Aimed at a building it opens inside it; the wheel takes it up into the sky or down into the ground.
+    holeWheel -= wheel;
+    const onBuilding = world.heightAt(at.x, at.z, at.y + 1) - area.ground.heightAt(at.x, at.z) > 1.5;
+    lift = holeLift(holeWheel, onBuilding);
+    combat.caster.holeLift = lift;
+  }
+  const gale = s.id === 'gale-shot' || s.id === 'wrecking-charge';
+  aimPreview.show({ shape, from, to: at, dir: gale ? { x: Math.cos(c.yaw), z: Math.sin(c.yaw) } : dir, color: s.color, far, lift, yaw: c.yaw }, dt);
+}
+

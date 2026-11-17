@@ -4,8 +4,13 @@
  * added: smashing what stands (Breakables), digging and scorching the ground (Craters), tearing limbs (Blood Moon), and
  * a rune circle where it is aimed. A shot flies from the hero's hand to the aim point and lands there.
  */
-import { Color, Group, Vector3, type Object3D } from 'three';
-import { startLeap, type ControllerState } from '../player/CharacterController';
+import { Color, Group, Mesh, MeshStandardMaterial, OctahedronGeometry, Vector3, type Object3D } from 'three';
+import { ChainFx } from '../render/ChainFx';
+import { SpikeField } from '../render/SpikeField';
+import { WaterFx } from '../render/WaterFx';
+import { EARTH_DUST, ReelMoves } from './ReelMoves';
+export { EARTH_DUST };
+import type { ControllerState } from '../player/CharacterController';
 import type { CombatFx } from '../render/CombatFx';
 import type { Audio } from '../audio/Audio';
 import type { DebrisSim, Piece } from '../world/Debris';
@@ -14,7 +19,7 @@ import { RuneCircles } from '../render/RuneCircle';
 import { Explosions } from '../render/Explosion';
 import { GroundFires } from '../render/GroundFire';
 import { BlackHoleFx, FireTornadoFx, StormTornadoFx } from '../render/VortexFx';
-import { LEAP_RANGE } from './Aim';
+import { LEAP_RANGE, flightPoint, shotArc, tornadoStep, HOLE_LIFT } from './Aim';
 import { StoneWall, STAND, wallSource } from './StoneWall';
 import { Lightning } from '../render/Lightning';
 import { spellMissile, type SpellMissile } from '../render/SpellMissile';
@@ -52,7 +57,11 @@ export interface SpellHost {
   debris(): DebrisSim[];
   /** Blood Moon on for `seconds` (red sky, every blow severs, kills heal). */
   bloodMoon(seconds: number): void;
+  /** Rock Armor: the hero takes half damage for `seconds`. */
+  armor?(seconds: number): void;
   announce(text: string): void;
+  /** A short line under the crosshair ("No target"). */
+  tip?(text: string): void;
   /** A fresh copy of a reel flora model (Overgrowth), or null before it loads. */
   sprout?(ids: string[]): { object: Group; scale: number } | null;
   /** A loaded Meshy model by id (the Stone Wall's stone), or null while it loads (asking starts the load). */
@@ -65,7 +74,7 @@ export interface SpellHost {
 }
 
 interface Flight { mesh: Object3D; missile: SpellMissile; from: Vector3; to: Vector3; t: number; T: number; arc: number; spell: SpellDef; color: number }
-interface Hole { at: Vector3; t: number; tick: number; tearAt: number; fx: BlackHoleFx; light?: { pos: Vector3; intensity: number; done: boolean }; lifted: Map<Enemy, { a: number; r: number }> }
+interface Hole { at: Vector3; cy: number; t: number; tick: number; tearAt: number; fx: BlackHoleFx; light?: { pos: Vector3; intensity: number; done: boolean }; lifted: Map<Enemy, { a: number; r: number }>; eaten: Set<Enemy> }
 interface Tornado {
   kind: 'fire' | 'storm';
   at: Vector3; dir: { x: number; z: number }; t: number; tick: number; scorch: number; tearAt: number; boltAt: number;
@@ -79,6 +88,8 @@ interface Slam { at: Vector3; t: number }
 interface Charge { left: number; dir: { x: number; z: number }; hit: Set<number>; tear?: number }
 
 /** The reel's stacked circles: how many over each spell's target, and how high the top one stands. */
+/** Earthsplitter's fissure: how fast it runs (m/s), a burst of spikes every FISSURE_STEP m, each reaching this far. */
+const FISSURE_SPEED = 26, FISSURE_STEP = 0.75, FISSURE_REACH = 1.5;
 const RUNE_STACK: Partial<Record<string, { stack: number; height: number }>> = {
   fireball: { stack: 3, height: 7 }, moonbomb: { stack: 3, height: 6 }, 'storm-arrow': { stack: 2, height: 9 },
   'frost-arrow': { stack: 2, height: 3 }, earthsplitter: { stack: 2, height: 3 }, 'black-hole': { stack: 4, height: 10 },
@@ -91,6 +102,8 @@ const HOLE_S = 5.5;
 const HOLE_UP = 10;
 /** How big its disc is drawn, over BlackHoleFx's own size (in the sky it must read from the ground). */
 const HOLE_SIZE = 2.4;
+/** A body this close to the core is eaten. */
+const HOLE_EAT = 1.6;
 const TORNADO_S = 7;
 const TORNADO_RUN = 18;
 const STORM_S = 6;
@@ -124,6 +137,19 @@ const CHARGE_TRAIL = 'wrecking-charge';
 
 export const HOLE_BURST = { hot: 0x7a3cff, flash: 60 } as const;
 
+/**
+ * Moonbomb's landing (playtest 2026-11-17: "it blinds the screen"): a cold blue burst, not the old ice-white cloud
+ * that bloomed to white, a light that stays modest, and the reel's ice shards (Flowbound, video 2 t37) flying out.
+ */
+export const MOON_BURST = { hot: 0x2f6fd0, light: 18, size: 0.8, shards: 16 } as const;
+/** Chain Hook: how far down the crosshair's line it reaches, and how far off that line it still catches. */
+export const HOOK = { reach: 20, side: 2.5 } as const;
+
+const SHARD_LIFE = 4;
+let shardGeo: OctahedronGeometry | null = null;
+let shardMat: MeshStandardMaterial | null = null;
+interface Shard { mesh: Mesh; p: Piece; t: number; sim: DebrisSim }
+
 export class SpellCast {
   readonly runes = new RuneCircles();
   readonly lightning = new Lightning(6);
@@ -134,8 +160,13 @@ export class SpellCast {
   /** Sir Aldric's Stone Wall: the one standing, and those kicked or crumbled whose rubble still lies about. */
   private wall: StoneWall | null = null;
   private readonly rubble: StoneWall[] = [];
-  /** Earthsplitter's slabs standing, and how long they stand yet. */
-  private readonly slabs: Array<{ w: StoneWall; left: number }> = [];
+  /** Earthsplitter's fissure running to its end: where it is along its line, who it has tossed. */
+  private fissure: { from: Vector3; end: Vector3; dir: { x: number; z: number }; len: number; d: number; next: number; hit: Set<Enemy> } | null = null;
+  private spikeField: SpikeField | null = null;
+  private iceField: SpikeField | null = null;
+  private readonly water = new WaterFx();
+  /** The second page's moves (Shift+1-7). */
+  readonly reel: ReelMoves;
   private readonly flights: Flight[] = [];
   private readonly holes: Hole[] = [];
   private readonly tornados: Tornado[] = [];
@@ -143,13 +174,32 @@ export class SpellCast {
   private readonly rooted: Rooted[] = [];
   private slam: Slam | null = null;
   private charge: Charge | null = null;
+  private readonly shards: Shard[] = [];
+  readonly chain = new ChainFx();
   /** Seconds each frozen body has left, by enemy id (killed while frozen, it shatters into ice). */
   readonly frozen = new Map<number, number>();
+  /** How high over its aim point the next black hole opens (set while it is aimed; Aim.holeLift). */
+  holeLift: number = HOLE_LIFT.sky;
 
   constructor(private readonly h: SpellHost) {
     h.scene.add(this.runes.group);
     h.scene.add(this.explosions.mesh, this.fires.mesh);
     h.scene.add(this.lightning.group);
+    h.scene.add(this.chain.mesh);
+    h.scene.add(this.water.mesh);
+    this.reel = new ReelMoves(h, {
+      blast: (at, r, mult, knock, stop, skip) => this.blast(at, r, mult, knock, stop, skip),
+      boom: (at, color, r, shake) => this.boom(at, color, r, shake),
+      quake: (at, r, shake) => this.quake(at, r, shake),
+      spikes: () => this.spikes,
+      ice: () => this.ice,
+      water: this.water,
+      explosions: this.explosions,
+      fires: this.fires,
+      iceBurst: (at, s) => this.iceBurst(at, s),
+      shot: (s, from, to, T, arc) => this.fly(s, from, to, T, arc),
+      lineTarget: (from, aim) => hookTarget(this.h.enemies.filter((e) => e.alive && !e.held), from, aim),
+    });
   }
 
   /** Casts `hero`'s spell in `slot` at `aim` (the crosshair's ground point). */
@@ -172,20 +222,24 @@ export class SpellCast {
         const fast = s.id === 'frost-arrow' || s.id === 'storm-arrow' ? 46 : s.id === 'moonbomb' ? 34 : 24;
         const T = Math.max(0.15, hand.distanceTo(aim) / fast);
         this.runes.cast(aim, s.color, { radius: s.radius, hold: T, ...RUNE_STACK[s.id] });
-        this.fly(s, hand, aim, T, s.id === 'fireball' ? 2.5 : s.id === 'moonbomb' ? 1.5 : 0.3);
+        this.fly(s, hand, aim, T, shotArc(s.id));
         h.audio.spell('whoosh');
         break;
       }
       case 'earthsplitter': {
-        // Up and over to the aim point (at most 12 m), down on it 0.7 s later: the slam lands as he does.
-        const dx = aim.x - c.pos.x, dz = aim.z - c.pos.z;
-        const d = Math.min(LEAP_RANGE, Math.hypot(dx, dz));
-        // (Its height from the aim, so a bridge or a deck he lands on is the ground, not the land under it.)
-        this.slam = { at: new Vector3(c.pos.x + (dx / (Math.hypot(dx, dz) || 1)) * d, Math.hypot(dx, dz) <= LEAP_RANGE ? aim.y : c.pos.y, c.pos.z + (dz / (Math.hypot(dx, dz) || 1)) * d), t: 0.7 };
-        ground(this.slam.at, h);
-        this.runes.cast(this.slam.at, s.color, { radius: s.radius, hold: 0.7, ...RUNE_STACK[s.id] });
-        this.leap(dx, dz, 0.7, d);
-        h.audio.spell('charge');
+        // (Playtest 2026-11-17: no leap.) He kneels and strikes the ground; a fissure of spiky rocks races from him to
+        // the aim point (at most 12 m), tossing what stands on its line, and bursts there in a ring of spikes.
+        const dx = aim.x - c.pos.x, dz = aim.z - c.pos.z, l = Math.hypot(dx, dz) || 1;
+        const len = Math.max(3, Math.min(LEAP_RANGE, l));
+        const dir = { x: dx / l, z: dz / l };
+        // (Its end on what was aimed at: a deck or a roof he aims at is where it bursts, not the land under it.)
+        const end = new Vector3(c.pos.x + dir.x * len, l <= LEAP_RANGE ? aim.y : c.pos.y, c.pos.z + dir.z * len);
+        ground(end, h);
+        this.fissure = { from: new Vector3(c.pos.x, c.pos.y, c.pos.z), end, dir, len, d: 0.8, next: 0.8, hit: new Set() };
+        this.runes.cast(end, s.color, { radius: s.radius, hold: len / FISSURE_SPEED, ...RUNE_STACK[s.id] });
+        h.fx.dust(_v.set(c.pos.x + dir.x * 0.8, c.pos.y, c.pos.z + dir.z * 0.8), 1.4);
+        h.shake(0.45);
+        h.audio.spell('rumble');
         break;
       }
       case 'wrecking-charge': {
@@ -211,11 +265,13 @@ export class SpellCast {
         // The reel: the circles stack up off the ground to where it opens, high in the sky.
         this.runes.cast(aim, s.color, { radius: 3.5, hold: HOLE_S, ...RUNE_STACK[s.id] });
         const fx = new BlackHoleFx(s.color, HOLE_S);
-        fx.group.position.set(aim.x, aim.y + HOLE_UP, aim.z);
+        const cy = aim.y + this.holeLift;
+        this.holeLift = HOLE_UP;
+        fx.group.position.set(aim.x, cy, aim.z);
         h.scene.add(fx.group);
         const light = h.lights?.hold(s.color, 0, 34);
         light?.pos.copy(fx.group.position);
-        this.holes.push({ at: aim.clone(), t: 0, tick: 0, tearAt: 0.6, fx, light, lifted: new Map() });
+        this.holes.push({ at: aim.clone(), cy, eaten: new Set(), t: 0, tick: 0, tearAt: 0.6, fx, light, lifted: new Map() });
         // Space tears open: a flash and a ring, dust sucked toward it.
         h.lights?.flash(fx.group.position, 0xe8d8ff, 80, 40, 0.4);
         h.fx.shock(aim, s.color, 9, 0.6);
@@ -225,9 +281,12 @@ export class SpellCast {
         break;
       }
       case 'fire-tornado': {
-        const dir = { x: Math.cos(c.yaw), z: Math.sin(c.yaw) };
+        // Toward the crosshair (the path the preview drew), else the way he faces.
+        const ax = aim.x - c.pos.x, az = aim.z - c.pos.z, al = Math.hypot(ax, az);
+        const dir = al > 0.5 ? { x: ax / al, z: az / al } : { x: Math.cos(c.yaw), z: Math.sin(c.yaw) };
         const at = ground(new Vector3(c.pos.x + dir.x * 2.5, c.pos.y, c.pos.z + dir.z * 2.5), h);
         const fx = new FireTornadoFx(s.color);
+        fx.group.name = 'fire-tornado';
         fx.group.position.copy(at);
         fx.group.scale.setScalar(0.01);
         h.scene.add(fx.group);
@@ -264,8 +323,12 @@ export class SpellCast {
         const src = this.wallStone();
         if (src) {
           this.wall = new StoneWall(src, at, c.yaw, (x, z) => h.heightAt(x, z, at.y + 3), h.solid);
+          // (Its stones stay hidden while it stands: what shows is the earth itself rising, below. Kicked or
+          // crumbled, they are what flies and lies about.)
+          this.wall.batch.group.visible = false;
           h.scene.add(this.wall.batch.group);
         }
+        this.earthWall(at, c.yaw);
         h.fx.shock(at, s.color, 4, 0.5);
         for (let k = -2; k <= 2; k++) h.fx.dust(_v.set(at.x - Math.sin(c.yaw) * k * 1.4, at.y + 0.2, at.z + Math.cos(c.yaw) * k * 1.4), 1.3);
         h.smoke?.(at, 2.5, 0x3a3f52, 2.5);
@@ -273,6 +336,7 @@ export class SpellCast {
         h.audio.spell('rumble');
         break;
       }
+      default: this.reel.cast(s, hand, aim);
     }
     return s;
   }
@@ -284,6 +348,15 @@ export class SpellCast {
     this.explosions.update(dt);
     this.fires.update(dt);
     this.walls(dt);
+    const c0 = h.controller;
+    this.chain.update(dt, _v.set(c0.pos.x + Math.cos(c0.yaw) * 0.6, c0.pos.y + 1.5, c0.pos.z + Math.sin(c0.yaw) * 0.6));
+    for (let i = this.shards.length - 1; i >= 0; i--) {
+      const sh = this.shards[i];
+      sh.t += dt;
+      const end = Math.min(1, (SHARD_LIFE - sh.t) / 0.8);
+      if (end < 1) sh.mesh.scale.setScalar(Math.max(0.01, end));
+      if (sh.t >= SHARD_LIFE) { sh.sim.remove(sh.p); sh.mesh.removeFromParent(); this.shards.splice(i, 1); }
+    }
     // Mobs standing in the fires burn, a little every half second.
     this.burnTick -= dt;
     if (this.burnTick <= 0 && this.fires.live) {
@@ -297,14 +370,19 @@ export class SpellCast {
       f.t += dt;
       const k = Math.min(1, f.t / f.T);
       _w.copy(f.mesh.position);
-      f.mesh.position.lerpVectors(f.from, f.to, k);
-      f.mesh.position.y += Math.sin(k * Math.PI) * f.arc;
+      flightPoint(f.from, f.to, k, f.arc, f.mesh.position);
       f.missile.update(dt, _w.subVectors(f.mesh.position, _w));
       // Embers (a fireball) or a faint glittering wake (an arrow) left behind.
       h.fx.sparks(f.mesh.position, _w.set(0, 0.3, 0), f.spell.id === 'fireball' ? 3 : 1, f.color, 1.2, 1.0);
       if (k >= 1) { f.mesh.removeFromParent(); f.missile.dispose(); this.flights.splice(i, 1); this.land(f.spell, f.to); }
     }
     if (this.slam && (this.slam.t -= dt) <= 0) { const at = this.slam.at; this.slam = null; this.earthsplit(at); }
+    if (this.fissure) this.runFissure(dt);
+    this.reel.update(dt);
+    // (Through the getters: a field drawing nothing picks up its model once it has loaded.)
+    if (this.spikeField) this.spikes.update(dt);
+    if (this.iceField) this.ice.update(dt);
+    this.water.update(dt);
     if (this.charge) this.charging(dt);
     for (let i = this.holes.length - 1; i >= 0; i--) if (this.hole(this.holes[i], dt)) this.holes.splice(i, 1);
     for (let i = this.tornados.length - 1; i >= 0; i--) if (this.tornado(this.tornados[i], dt)) this.tornados.splice(i, 1);
@@ -336,17 +414,124 @@ export class SpellCast {
     this.flights.push({ mesh, missile, from: from.clone(), to: to.clone(), t: 0, T, arc, spell: s, color: s.color });
   }
 
-  private leap(dx: number, dz: number, air: number, dist: number): void {
-    const c = this.h.controller;
-    // (The controller's own leap: up and over, unsteered, down on time.)
-    startLeap(c, { x: dx, z: dz }, air, dist);
+  /** The spiky rocks (one instanced draw; the Meshy rock spire, or the sea pinnacle until it is made). */
+  private spikeOwn = false;
+  private iceOwn = false;
+
+  get spikes(): SpikeField {
+    // (Rebuilt when its model arrives, and again when the reel's own rock replaces the stand-in, spikes kept.)
+    if (!this.spikeField || !this.spikeField.mesh || (!this.spikeOwn && this.h.model?.('spiky-rock'))) {
+      const own = this.h.model?.('spiky-rock') ?? null;
+      const src = own ?? this.h.model?.('pinnacle') ?? null;
+      if (!this.spikeField || src) {
+        this.spikeOwn = !!own;
+        this.spikeField?.mesh?.removeFromParent();
+        const old = this.spikeField;
+        this.spikeField = new SpikeField(src);
+        if (old) this.spikeField.adopt(old);
+        if (this.spikeField.mesh) this.h.scene.add(this.spikeField.mesh);
+      }
+    }
+    return this.spikeField!;
+  }
+
+  /**
+   * Stone Wall's look (playtest 2026-11-17: "an elemental earth wall, not bricks"): a packed row of jagged rocks bursting
+   * up out of cracked ground across his line of sight, from the middle out, tall and leaning every which way, a lower
+   * row before and behind it. They stand as long as the wall and sink when it goes.
+   */
+  private earthWall(at: Vector3, yaw: number): void {
+    const h = this.h;
+    const side = { x: -Math.sin(yaw), z: Math.cos(yaw) }, fwd = { x: Math.cos(yaw), z: Math.sin(yaw) };
+    for (let s = -3; s <= 3.001; s += 0.42) {
+      for (const [off, tall] of [[0, 2.3], [-0.45, 1.2], [0.45, 1.2]] as const) {
+        if (off !== 0 && Math.random() < 0.35) continue;
+        const j = (Math.random() - 0.5) * 0.25;
+        const p = new Vector3(at.x + side.x * (s + j) + fwd.x * off, 0, at.z + side.z * (s + j) + fwd.z * off);
+        p.y = Math.min(h.heightAt(p.x, p.z, at.y + 3), at.y + 0.25);
+        // Tallest in the middle, ragged along the top.
+        const k = 1 - Math.abs(s) / 3.6;
+        this.spikes.raise(p, {
+          height: tall * (0.75 + 0.35 * k) + Math.random() * 0.7, width: 0.55 + Math.random() * 0.35,
+          delay: Math.abs(s) * 0.05, life: STAND, tag: 'wall',
+          lean: { x: (Math.random() - 0.5) * 0.35 + fwd.z * off * 0.5, z: (Math.random() - 0.5) * 0.35 - fwd.x * off * 0.5 },
+        });
+      }
+      if (Math.random() < 0.5) h.dig(at.x + side.x * s, at.z + side.z * s, 0.8, 0.15, 'burnt');
+    }
+  }
+
+  /** Ice crystals (Wren's ramp and wall): the reel's ice crystal, else the purple crystal turned to ice. */
+  get ice(): SpikeField {
+    // (As the spikes: the stand-in until the reel's own ice has loaded, then that, the crystals kept.)
+    if (!this.iceField || !this.iceField.mesh || (!this.iceOwn && this.h.model?.('ice-crystal'))) {
+      const own = this.h.model?.('ice-crystal') ?? null;
+      const src = own ?? this.h.model?.('purple-crystal') ?? null;
+      if (!this.iceField || src) {
+        this.iceOwn = !!own;
+        this.iceField?.mesh?.removeFromParent();
+        const old = this.iceField;
+        this.iceField = new SpikeField(src, own ? undefined : (m) => {
+          // (Opaque and mostly lit, not glowing: see-through, emissive crystals packed in a wall merged into one flat blue
+          // shape, headless check 2026-11-17.)
+          m.color.set(0xcfeeff);
+          m.emissive?.set(0x1d4f86);
+          m.emissiveIntensity = 0.22;
+          m.roughness = 0.3;
+          m.metalness = 0.05;
+          m.emissiveMap = null;
+          m.transparent = false;
+          m.opacity = 1;
+        });
+        if (old) this.iceField.adopt(old);
+        if (this.iceField.mesh) this.h.scene.add(this.iceField.mesh);
+      }
+    }
+    return this.iceField!;
+  }
+
+  /** The fissure runs on: spikes burst up along it, each tossing the mobs on its spot; at the end, the burst. */
+  private runFissure(dt: number): void {
+    const f = this.fissure!;
+    const h = this.h;
+    const s = SPELLS.knight[0];
+    f.d = Math.min(f.len, f.d + FISSURE_SPEED * dt);
+    while (f.next <= f.d) {
+      const side = { x: -f.dir.z, z: f.dir.x };
+      const at = new Vector3(f.from.x + f.dir.x * f.next, 0, f.from.z + f.dir.z * f.next);
+      at.y = h.heightAt(at.x, at.z, f.from.y + 2);
+      // Two or three spikes a step, jagged either side of the line, leaning out of it and forward.
+      const n = 2 + (Math.random() < 0.4 ? 1 : 0);
+      for (let i = 0; i < n; i++) {
+        const o = (i - (n - 1) / 2) * 0.55 + (Math.random() - 0.5) * 0.3;
+        const p = new Vector3(at.x + side.x * o, at.y, at.z + side.z * o);
+        const tall = 1.1 + Math.random() * 1.1 + (f.next / f.len) * 0.6;
+        this.spikes.raise(p, { height: tall, width: 0.5 + Math.random() * 0.35, delay: 0, life: 1.6 + Math.random() * 0.4,
+          lean: { x: f.dir.x * o * 0.35 + (Math.random() - 0.5) * 0.2, z: f.dir.z * o * 0.35 + (Math.random() - 0.5) * 0.2 } });
+      }
+      h.fx.dust(at, 0.8);
+      for (const e of h.enemies.slice()) {
+        if (!e.alive || f.hit.has(e) || !h.reachable(e, FISSURE_REACH, at)) continue;
+        f.hit.add(e);
+        h.hit(e, s.mult * 0.45, 2.5, 0.1, _w.set(e.pos.x, e.pos.y + 0.6, e.pos.z).clone());
+        if (e.alive && !e.def.boss && !e.def.flying && e.def.speed > 0) e.leap(0.5, 1.8);
+      }
+      // (It breaks only what it runs under.)
+      h.smash(at.x, at.y + 0.4, at.z, 1.1, 'skill');
+      h.dig(at.x, at.z, 0.9, 0.25, 'burnt');
+      f.next += FISSURE_STEP;
+    }
+    if (f.d >= f.len) {
+      this.fissure = null;
+      this.earthsplit(f.end, f.hit);
+    }
   }
 
   /** Everything in `r` of `at` takes `mult`, thrown off `knock`; returns who was hit. */
-  private blast(at: Vector3, r: number, mult: number, knock: number, stop = 0.08): Enemy[] {
+  private blast(at: Vector3, r: number, mult: number, knock: number, stop = 0.08, skip?: Set<Enemy>): Enemy[] {
     const out: Enemy[] = [];
     for (const e of this.h.enemies.slice()) {
-      if (!e.alive || !this.h.reachable(e, r, at)) continue;
+      if (!e.alive || skip?.has(e) || !this.h.reachable(e, r, at)) continue;
       this.h.hit(e, mult, knock, stop, _w.set(e.pos.x, e.pos.y + 1, e.pos.z).clone());
       out.push(e);
     }
@@ -354,6 +539,19 @@ export class SpellCast {
   }
 
   /** The look of a big landing: two flashes, a shock ring, sparks and smoke, the screen shaking. */
+  /** An earth impact (Earthsplitter's end, a boulder): dust and grit thrown up, a shock ring, a dim light; no flash. */
+  private quake(at: Vector3, r: number, shake: number): void {
+    const h = this.h;
+    _v.set(at.x, at.y + 0.6, at.z);
+    h.lights?.flash(_w.set(at.x, at.y + 1.2, at.z), 0x9a7a52, 4 + r * 2, r * 4, 0.4);
+    h.fx.shock(at, EARTH_DUST, r * 1.5, 0.5);
+    h.fx.sparks(_v, UP, 30, 0x7a6a58, 9, 1.0);
+    h.fx.dust(at, r * 0.8);
+    h.fx.dust(_v.set(at.x, at.y + 1.4, at.z), r * 0.5);
+    this.explosions.burst(at, r * 1.1, { hot: EARTH_DUST, smoke: 1.4, heat: 0 });
+    h.shake(shake);
+  }
+
   private boom(at: Vector3, color: number, r: number, shake: number): void {
     const h = this.h;
     _v.set(at.x, at.y + 0.8, at.z);
@@ -391,10 +589,11 @@ export class SpellCast {
         break;
       case 'moonbomb':
         this.blast(at, s.radius, s.mult, 6, 0.1);
-        this.boom(at, s.color, s.radius, 0.85);
+        this.iceBurst(at, s);
         h.smash(at.x, at.y + 0.8, at.z, s.radius * 0.8, 'spell');
-        h.dig(at.x, at.z, s.radius * 0.55, 1.2, 'burnt');
+        h.dig(at.x, at.z, s.radius * 0.55, 0.8, 'frozen');
         h.audio.spell('whoomph');
+        h.audio.spell('frost');
         break;
       case 'frost-arrow': {
         for (const e of this.blast(at, s.radius, s.mult, 0, 0.05)) {
@@ -441,6 +640,7 @@ export class SpellCast {
         h.audio.spell('zap');
         break;
       }
+      default: this.reel.land(s, at);
     }
   }
 
@@ -453,26 +653,30 @@ export class SpellCast {
     h.fx.sparks(b, UP, 14, 0xdff0ff, 5, 1.0);
   }
 
-  private earthsplit(at: Vector3): void {
+  private earthsplit(at: Vector3, already?: Set<Enemy>): void {
     const s = SPELLS.knight[0];
     const h = this.h;
-    for (const e of this.blast(at, s.radius, s.mult, 3, 0.14)) {
+    for (const e of this.blast(at, s.radius, s.mult, 3, 0.14, already)) {
       if (e.alive && !e.def.boss && !e.def.flying && e.def.speed > 0) e.leap(0.7, 2.2);
     }
-    this.boom(at, s.color, s.radius, 1.0);
+    this.quake(at, s.radius, 1.0);
     h.smash(at.x, at.y + 0.6, at.z, s.radius, 'burst');
     h.dig(at.x, at.z, 3.6, 1.5);
     h.dig(at.x, at.z, s.radius + 1, 0, 'burnt');
     // Rocks thrown up out of the crater.
     for (const sim of h.debris()) sim.blast(at.x, at.y, at.z, s.radius + 2, 9);
     h.tear?.(at.x, at.z, s.radius + 1.5, 24);
-    // Slabs of stone burst up round it, leaning out, and break up a few seconds later.
-    const src = this.wallStone();
-    if (src) {
-      const slabs = new StoneWall(src, at, 0, (x, z) => h.heightAt(x, z, at.y + 3), undefined, { r: s.radius * 0.8, count: 14 });
-      h.scene.add(slabs.batch.group);
-      this.slabs.push({ w: slabs, left: 2.6 });
+    // Spiky rocks burst up in a ring round it, leaning out, and a cluster in the middle (the reel's earth spikes).
+    const ring = 14;
+    for (let i = 0; i < ring; i++) {
+      const a = (i / ring) * Math.PI * 2 + Math.random() * 0.3;
+      const r = s.radius * (0.55 + Math.random() * 0.35);
+      const p = new Vector3(at.x + Math.cos(a) * r, 0, at.z + Math.sin(a) * r);
+      p.y = h.heightAt(p.x, p.z, at.y + 3);
+      this.spikes.raise(p, { height: 1.8 + Math.random() * 1.4, width: 0.6 + Math.random() * 0.4, delay: (r / s.radius) * 0.12, life: 2.4,
+        lean: { x: Math.sin(a) * 0.45, z: -Math.cos(a) * 0.45 } });
     }
+    for (let i = 0; i < 4; i++) this.spikes.raise(new Vector3(at.x + (Math.random() - 0.5) * 1.2, at.y, at.z + (Math.random() - 0.5) * 1.2), { height: 2.6 + Math.random() * 1.2, width: 0.8, delay: 0.05, life: 2.4 });
     h.audio.spell('rumble');
   }
 
@@ -504,16 +708,12 @@ export class SpellCast {
   private hook(s: SpellDef, hand: Vector3, aim: Vector3): void {
     const h = this.h;
     const c = h.controller;
-    let best: Enemy | null = null, bd = 3;
-    for (const e of h.enemies) {
-      if (!e.alive) continue;
-      const d = Math.hypot(e.pos.x - aim.x, e.pos.z - aim.z);
-      if (d < bd) { bd = d; best = e; }
-    }
-    const end = best ? new Vector3(best.pos.x, best.pos.y + 1.2, best.pos.z) : aim.clone().setY(aim.y + 1);
-    // The chain: a line of steel glints out to where it caught.
-    const n = Math.max(4, Math.round(hand.distanceTo(end) / 0.6));
-    for (let i = 0; i <= n; i++) h.fx.sparks(_v.lerpVectors(hand, end, i / n), UP, 1, 0xdfe3f0, 0.6, 1.0);
+    const best = hookTarget(h.enemies, c.pos, aim);
+    const end = best ? new Vector3(best.pos.x, best.pos.y + 1.2, best.pos.z)
+      : _w.set(aim.x - c.pos.x, 0, aim.z - c.pos.z).setLength(Math.min(HOOK.reach, Math.hypot(aim.x - c.pos.x, aim.z - c.pos.z))).add(c.pos).setY(aim.y + 1).clone();
+    // The chain: real links shoot out to where it caught and reel back in.
+    this.chain.fire(hand, end);
+    h.fx.sparks(end, UP, 10, 0xdfe3f0, 3, 0.8);
     h.audio.spell('chain');
     if (best && !best.def.boss && best.def.speed > 0) {
       // Yanked to his feet (a small one); a big one only staggers.
@@ -526,11 +726,49 @@ export class SpellCast {
       }
       best.afflict('stun', 1.2);
       h.hit(best, s.mult, 0, 0.1, end);
-    } else if (best) h.hit(best, s.mult, 0, 0.1, end);
-    else {
-      // Caught on a wall: it comes down (the chain pulls a chunk of what stands there).
-      h.smash(aim.x, aim.y + 1.5, aim.z, s.radius + 0.6, 'burst');
       h.shake(0.3);
+    } else if (best) { h.hit(best, s.mult, 0, 0.1, end); h.shake(0.3); }
+    else {
+      h.tip?.('No target');
+      // Caught on a wall: it pulls a chunk of what stands there.
+      h.smash(end.x, end.y + 0.5, end.z, s.radius, 'heavy');
+    }
+  }
+
+  /** Moonbomb's landing: a cold blue burst and ice shards flying out (MOON_BURST). */
+  private iceBurst(at: Vector3, s: SpellDef): void {
+    const h = this.h;
+    _v.set(at.x, at.y + 0.8, at.z);
+    h.fx.flash(_v, _c.set(MOON_BURST.hot), s.radius * 0.7);
+    h.lights?.flash(_w.set(at.x, at.y + 1.5, at.z), MOON_BURST.hot, MOON_BURST.light, s.radius * 4, 0.45);
+    h.fx.shock(at, s.color, s.radius * 1.3, 0.5);
+    h.fx.sparks(_v, UP, 24, 0xbfe8ff, 9, 1.0);
+    h.fx.dust(at, s.radius * 0.5);
+    h.shake(0.6);
+    this.explosions.burst(at, s.radius * MOON_BURST.size, { hot: MOON_BURST.hot, smoke: 0.35 });
+    if (!shardGeo) {
+      shardGeo = new OctahedronGeometry(1, 0);
+      shardGeo.scale(0.5, 1.4, 0.5);
+      shardMat = new MeshStandardMaterial({ color: 0xa8dcff, emissive: 0x1d4f86, emissiveIntensity: 0.6, roughness: 0.12, metalness: 0.1, transparent: true, opacity: 0.85 });
+    }
+    const sim = this.wallSim();
+    if (!sim) return;
+    for (let i = 0; i < MOON_BURST.shards; i++) {
+      const a = (i / MOON_BURST.shards) * Math.PI * 2 + Math.random() * 0.4;
+      const size = 0.12 + Math.random() * 0.16;
+      const mesh = new Mesh(shardGeo, shardMat!);
+      mesh.name = 'ice-shard';
+      mesh.scale.set(size, size, size);
+      h.scene.add(mesh);
+      const sp = 6 + Math.random() * 7;
+      const p = sim.add({
+        x: at.x + Math.cos(a) * 0.5, y: at.y + 0.8, z: at.z + Math.sin(a) * 0.5, r: size * 1.4,
+        box: { x: size * 0.5, y: size * 1.4, z: size * 0.5 },
+        vx: Math.cos(a) * sp, vy: 4 + Math.random() * 6, vz: Math.sin(a) * sp,
+        wx: (Math.random() - 0.5) * 14, wy: (Math.random() - 0.5) * 14, wz: (Math.random() - 0.5) * 14,
+        density: 900, obj: mesh,
+      });
+      this.shards.push({ mesh, p, t: 0, sim });
     }
   }
 
@@ -579,7 +817,9 @@ export class SpellCast {
 
   /** The Meshy dry-stone wall cut into blocks (null while its model loads). */
   private wallStone(): ReturnType<typeof wallSource> {
-    const m = this.h.model?.('stone-wall');
+    // (Cut from the earth's own jagged rock, the spikes' model: kicked, rock flies, never the dry-stone wall's bricks.
+    // Headless check 2026-11-17.)
+    const m = this.h.model?.('spiky-rock') ?? this.h.model?.('pinnacle');
     return m ? wallSource(m) : null;
   }
 
@@ -595,6 +835,8 @@ export class SpellCast {
     if (!w?.up) return;
     const h = this.h;
     // Along the way he faces as he kicks (he may have walked round it since he raised it).
+    w.batch.group.visible = true;
+    this.spikeField?.drop('wall');
     w.kick(this.wallSim(), 16, h.controller.yaw);
     this.rubble.push(w);
     this.wall = null;
@@ -607,6 +849,8 @@ export class SpellCast {
   private dropWall(): void {
     const w = this.wall;
     if (!w) return;
+    // (Worn out, the rocks sink back into the ground; its stones stay unseen, so no wall of blocks stands up again.)
+    this.spikeField?.drop('wall');
     w.crumble(this.wallSim());
     this.rubble.push(w);
     this.wall = null;
@@ -624,11 +868,6 @@ export class SpellCast {
       this.wall.update(dt);
       if (this.wall.t > STAND) this.dropWall();
     }
-    for (let i = this.slabs.length - 1; i >= 0; i--) {
-      const sl = this.slabs[i];
-      sl.w.update(dt);
-      if ((sl.left -= dt) <= 0) { sl.w.crumble(this.wallSim()); this.rubble.push(sl.w); this.slabs.splice(i, 1); }
-    }
     const s = SPELLS.knight[4];
     for (let i = this.rubble.length - 1; i >= 0; i--) {
       const w = this.rubble[i];
@@ -645,6 +884,19 @@ export class SpellCast {
     }
   }
 
+  /** A mob reaches the black hole's core: killed, and its body shrinks away into it. */
+  private eat(o: Hole, e: Enemy): void {
+    o.lifted.delete(e);
+    const h = this.h;
+    h.hit(e, 999, 0, 0.05, _v.set(e.pos.x, e.pos.y + 1, e.pos.z).clone());
+    e.held = false;
+    e.swallow = 1;
+    o.eaten.add(e);
+    h.fx.sparks(_v, UP, 18, 0xe8d8ff, -4, 0.6);
+    h.fx.flash(_v, _c.set(0x8a3dff), 1.5);
+    h.shake(0.2);
+  }
+
   /** Returns true when the black hole is done. */
   private hole(o: Hole, dt: number): boolean {
     const h = this.h;
@@ -653,7 +905,7 @@ export class SpellCast {
     o.tick -= dt;
     o.fx.update(o.t, dt);
     o.fx.group.scale.multiplyScalar(HOLE_SIZE);
-    const cx = o.at.x, cz = o.at.z, cy = o.at.y + HOLE_UP;
+    const cx = o.at.x, cz = o.at.z, cy = o.cy;
     const R = s.radius;
     const pull = Math.min(1, o.t / 0.8);
     if (o.light) o.light.intensity = o.fx.group.scale.x * (10 + Math.sin(o.t * 5) * 3);
@@ -672,12 +924,23 @@ export class SpellCast {
     }
     for (const [e, m] of o.lifted) {
       if (!e.alive) { e.held = false; o.lifted.delete(e); continue; }
-      m.r = Math.max(2.2, m.r - 0.9 * dt);
-      m.a += (1.6 + 5 / m.r) * dt;
-      const ty = cy - 1.5 - m.r * 0.6;
+      // Round and round, nearer and faster, until the core takes it.
+      m.r = Math.max(0, m.r - 0.9 * dt);
+      m.a += (1.6 + 5 / Math.max(0.6, m.r)) * dt;
+      const ty = cy - 0.4 - m.r * 0.6;
       e.pos.x = cx + Math.cos(m.a) * m.r;
       e.pos.z = cz + Math.sin(m.a) * m.r;
       e.pos.y += (ty - e.pos.y) * Math.min(1, 1.4 * dt * pull);
+      // Into the core: eaten (playtest 2026-11-17: "it should actually eat objects and mobs").
+      if (Math.hypot(e.pos.x - cx, e.pos.y + 0.6 - cy, e.pos.z - cz) < HOLE_EAT) this.eat(o, e);
+    }
+    // Bodies shrinking away into it.
+    for (const e of o.eaten) {
+      // (Enemy keeps a swallowed body this small and hidden once it is; its death fade never shows it again.)
+      e.swallow *= Math.exp(-6 * dt);
+      e.object.scale.setScalar(e.swallow * (e.def.scale ?? 1));
+      e.pos.x += (cx - e.pos.x) * Math.min(1, 6 * dt); e.pos.z += (cz - e.pos.z) * Math.min(1, 6 * dt);
+      if (e.swallow < 0.05) { e.swallow = 0; e.object.visible = false; o.eaten.delete(e); }
     }
     // Pieces spiral up into it and are ground away to nothing in the core.
     for (const sim of h.debris()) {
@@ -716,6 +979,8 @@ export class SpellCast {
     h.lights?.flash(top, 0xc8a8ff, HOLE_BURST.flash, 60, 0.7);
     this.explosions.burst(top, 6, { hot: HOLE_BURST.hot, smoke: 0.6 });
     h.fx.shock(o.at, 0xe8d8ff, 14, 0.8);
+    for (const e of o.eaten) { e.swallow = 0; e.object.visible = false; e.object.scale.setScalar(0); }
+    o.eaten.clear();
     for (const [e] of o.lifted) {
       e.held = false;
       const dx = e.pos.x - cx, dz = e.pos.z - cz, l = Math.hypot(dx, dz) || 1;
@@ -738,11 +1003,11 @@ export class SpellCast {
     const s = storm ? SPELLS.archer[4] : SPELLS.wizard[2];
     const life = storm ? STORM_S : TORNADO_S;
     o.t += dt;
-    const step = ((storm ? STORM_RUN : TORNADO_RUN) / life) * dt;
-    o.at.x += o.dir.x * step; o.at.z += o.dir.z * step;
-    // It wanders off its line as it runs (the reel's tornado weaves).
-    const weave = Math.sin(o.t * 1.3) * 1.6 + Math.sin(o.t * 2.9 + 1) * 0.6;
-    o.at.x += weave * dt * -o.dir.z; o.at.z += weave * dt * o.dir.x;
+    const run = storm ? STORM_RUN : TORNADO_RUN;
+    const step = (run / life) * dt;
+    // Along its line, weaving off it as it runs (the reel's tornado): Aim.tornadoStep, the path its preview drew.
+    const mv = tornadoStep(o.t, dt, o.dir, run, life);
+    o.at.x += mv.x; o.at.z += mv.z;
     ground(o.at, h);
     o.fx.group.position.copy(o.at);
     const fade = Math.min(1, o.t / 0.45, (life - o.t) / 0.5);
@@ -867,4 +1132,23 @@ export class SpellCast {
     h.fx.flash(_v.set(at.x, at.y + 0.5, at.z), _c.set(s.color), 3);
     h.fx.sparks(_v, UP, 30, s.color, 4, 0.8);
   }
+}
+
+/** Chain Hook's catch: the nearest live mob down the line from the hero to the crosshair (HOOK.reach), at most HOOK.side off it. */
+export function hookTarget<E extends { alive: boolean; pos: { x: number; z: number } }>(enemies: readonly E[], from: { x: number; z: number }, aim: { x: number; z: number }): E | null {
+  let dx = aim.x - from.x, dz = aim.z - from.z;
+  const l = Math.hypot(dx, dz) || 1;
+  dx /= l; dz /= l;
+  let best: E | null = null, bd = Infinity;
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    const ex = e.pos.x - from.x, ez = e.pos.z - from.z;
+    const along = ex * dx + ez * dz;
+    if (along < 0.5 || along > HOOK.reach) continue;
+    const side = Math.abs(ex * dz - ez * dx);
+    // Near the line counts most: a mob just off it beats one far down it.
+    const score = side * 3 + along * 0.2;
+    if (side <= HOOK.side && score < bd) { bd = score; best = e; }
+  }
+  return best;
 }

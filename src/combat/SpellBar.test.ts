@@ -1,26 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { AIM_WALK, BAR, barActs, chargeMove, barKey, heroKey, LmbGesture, SpellBar, spellPress } from './SpellBar';
+import { AIM_WALK, BAR, barActs, barPage, chargeMove, barKey, heroKey, LmbGesture, SpellBar, spellPress } from './SpellBar';
 import { SPELLS } from './Spells';
 
 describe('BAR (the user calls of 2026-11-16: keys 1-7 pick, right click casts)', () => {
   it('every hero has seven slots in the order the user approved', () => {
-    expect(BAR.knight.map((s) => s.name)).toEqual(['Crimson Cleave', 'Lean Cyclone', 'Earthsplitter', 'Wrecking Charge', 'Chain Hook', 'Blood Moon', 'Stone Wall']);
-    expect(BAR.archer.map((s) => s.name)).toEqual(['Moon Volley', 'Trip Volley', 'Moonbomb Arrow', 'Frost Arrow', 'Storm Arrow', 'Gale Shot', 'Storm Tornado']);
-    expect(BAR.wizard.map((s) => s.name)).toEqual(['Starfall', 'Pipe Dream', 'Fireball', 'Black Hole', 'Fire Tornado', 'Overgrowth', 'Telekinesis']);
+    expect(BAR.knight.slice(0, 7).map((s) => s.name)).toEqual(['Crimson Cleave', 'Lean Cyclone', 'Earthsplitter', 'Wrecking Charge', 'Chain Hook', 'Blood Moon', 'Stone Wall']);
+    expect(BAR.archer.slice(0, 7).map((s) => s.name)).toEqual(['Moon Volley', 'Trip Volley', 'Moonbomb Arrow', 'Frost Arrow', 'Storm Arrow', 'Gale Shot', 'Storm Tornado']);
+    expect(BAR.wizard.slice(0, 7).map((s) => s.name)).toEqual(['Starfall', 'Pipe Dream', 'Fireball', 'Black Hole', 'Fire Tornado', 'Overgrowth', 'Telekinesis']);
   });
   it('slot 1 is the skill, slot 2 the burst, the rest the spell book in order', () => {
     for (const hero of ['knight', 'archer', 'wizard']) {
       expect(BAR[hero][0].action).toEqual({ kind: 'skill' });
       expect(BAR[hero][1].action).toEqual({ kind: 'burst' });
       for (let i = 2; i < 7; i++) expect(BAR[hero][i].action).toEqual({ kind: 'spell', slot: i - 2 });
-      expect(SPELLS[hero]).toHaveLength(5);
+      // Page 2 (Shift+1-7): the reel moves, slots 7-13.
+      expect(BAR[hero]).toHaveLength(14);
+      for (let k = 0; k < 7; k++) expect(BAR[hero][7 + k].action).toEqual({ kind: 'spell', slot: 5 + k });
+      expect(SPELLS[hero]).toHaveLength(12);
     }
   });
   it('only telekinesis is held; every slot has an icon and a colour', () => {
     const held = Object.values(BAR).flat().filter((s) => s.hold).map((s) => s.name);
     expect(held).toEqual(['Telekinesis']);
     for (const s of Object.values(BAR).flat()) {
-      expect(s.icon).toMatch(/<(path|circle|polygon|polyline|line|ellipse)/);
+      expect(s.icon).toMatch(/<(path|circle|polygon|polyline|line|ellipse|rect)/);
       expect(s.color).toBeGreaterThan(0);
     }
   });
@@ -28,9 +31,15 @@ describe('BAR (the user calls of 2026-11-16: keys 1-7 pick, right click casts)',
 
 describe('keys', () => {
   it('Digit1-7 pick slots 0-6, nothing else does', () => {
-    expect(['Digit1', 'Digit4', 'Digit7'].map(barKey)).toEqual([0, 3, 6]);
+    expect(['Digit1', 'Digit4', 'Digit7'].map((c) => barKey(c))).toEqual([0, 3, 6]);
     expect(barKey('Digit8')).toBeNull();
     expect(barKey('KeyZ')).toBeNull();
+  });
+  it('Shift+1-7 pick the second page (slots 7-13); page() tells which page a slot is on', () => {
+    expect(['Digit1', 'Digit7'].map((c) => barKey(c, true))).toEqual([7, 13]);
+    expect(barKey('Digit3', false)).toBe(2);
+    expect(barPage(3)).toBe(0);
+    expect(barPage(9)).toBe(1);
   });
   it('F1-F3 switch hero', () => {
     expect(['F1', 'F2', 'F3'].map(heroKey)).toEqual([0, 1, 2]);
@@ -51,7 +60,7 @@ describe('SpellBar', () => {
   });
   it('ignores slots off the bar', () => {
     const b = new SpellBar();
-    b.select('archer', 9);
+    b.select('archer', 14);
     expect(b.selected('archer')).toBe(2);
   });
 });

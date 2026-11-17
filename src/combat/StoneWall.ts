@@ -4,9 +4,9 @@
  * while it stands and he kicks it apart: every block flies off along his facing as a heavy projectile. Left alone it
  * crumbles after STAND seconds. Earthsplitter uses the same blocks as a ring of slabs jutting up round its crater.
  *
- * The blocks are cut (world/SolidFracture's block mode) from the Meshy dry-stone wall model, so they carry its stone
- * and moss (the world is Meshy-only): the wall is copies of that model stacked three high and two wide, each cut into
- * blocks once and reused. Drawn in one batch (render/ChunkBatch), handed to the debris sim once they move.
+ * The blocks are cut (world/SolidFracture's block mode) from the earth spikes' Meshy rock (v13: never the dry-stone
+ * wall's bricks): copies of it stacked three high and two wide, each cut into blocks once and reused. Drawn in one batch
+ * (render/ChunkBatch), hidden while it stands (the spikes show), handed to the debris sim and shown only when kicked.
  */
 import { Color, Quaternion, Vector3, type Material, type Object3D } from 'three';
 import { ChunkBatch } from '../render/ChunkBatch';

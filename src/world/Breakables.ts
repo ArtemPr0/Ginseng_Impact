@@ -16,6 +16,9 @@ import { DebrisSim, type Piece } from './Debris';
 import type { Footprint, GridFootprint } from './Colliders';
 import { breakMaterial, type BreakKind } from '../render/BreakMaterial';
 
+/** A building with less than this share of its blocks standing comes down (it used to be 35 %: whole walls went). */
+export const LAST_STANDING = 0.1;
+
 /** How hard a blow breaks things, by its kind. */
 export const POWER = { light: 0.5, heavy: 1, skill: 3, spell: 3, burst: 6, stomp: 2 } as const;
 export type BlowKind = keyof typeof POWER;
@@ -71,7 +74,22 @@ export function collapseDelay(d: number, size: number, jitter: number): number {
  * A copy of grid footprint `f` cut down to `standing` (balls in the grid's local metres, y above its base): cells with
  * nothing over them are cleared, the rest lowered to the top of what stands. The shared baked grid is never touched.
  */
-export function trimGrid(f: GridFootprint, standing: Array<{ x: number; y: number; z: number; r: number }>): GridFootprint {
+/**
+ * How a standing chunk holds its collider up: its top over its middle (its box's vertical reach) and how far across it
+ * reaches (its box's longer flat side). Review 2026-11-17: half its radius for both sank tall thin blocks' tops.
+ */
+export function standingReach(c: { half: { x: number; y: number; z: number }; q: Quaternion }): { r: number; top: number } {
+  let ex = 0, ey = 0, ez = 0;
+  const v = new Vector3();
+  for (const a of [[c.half.x, 0, 0], [0, c.half.y, 0], [0, 0, c.half.z]]) {
+    v.set(a[0], a[1], a[2]).applyQuaternion(c.q);
+    ex += Math.abs(v.x); ey += Math.abs(v.y); ez += Math.abs(v.z);
+  }
+  return { r: Math.max(ex, ez), top: ey };
+}
+
+/** `top`: how far above `y` the chunk stands (default its `r`). */
+export function trimGrid(f: GridFootprint, standing: Array<{ x: number; y: number; z: number; r: number; top?: number }>): GridFootprint {
   const data = new Uint8Array(f.data);
   for (let k = 0; k < f.nz; k++) for (let i = 0; i < f.nx; i++) {
     const o = (k * f.nx + i) * 3;
@@ -79,7 +97,7 @@ export function trimGrid(f: GridFootprint, standing: Array<{ x: number; y: numbe
     const lx = f.minX + (i + 0.5) * f.cell, lz = f.minZ + (k + 0.5) * f.cell;
     let top = -1;
     for (const b of standing) {
-      if (Math.hypot(b.x - lx, b.z - lz) <= b.r + f.cell * 0.5) top = Math.max(top, b.y + b.r);
+      if (Math.hypot(b.x - lx, b.z - lz) <= b.r + f.cell * 0.5) top = Math.max(top, b.y + (b.top ?? b.r));
     }
     if (top < 0) { data[o] = 0; data[o + 1] = 255; data[o + 2] = 0; continue; }
     const bins = Math.max(1, Math.ceil(top / f.unit));
@@ -159,7 +177,8 @@ export interface Breakable {
 export interface HeightsLike {
   add(...f: Footprint[]): void;
   remove(...f: Footprint[]): void;
-  heightAt(x: number, z: number, y?: number): number;
+  /** `skip`: a collider to leave out (a resting piece asking for the ground under its own). */
+  heightAt(x: number, z: number, y?: number, skip?: Footprint): number;
 }
 
 const outers = new Map<Material, Material>();
@@ -198,6 +217,8 @@ export class Breakables {
   /** Things registered only when a blow reaches them (each flora set's instances): (x, z, radius) → targets there. */
   readonly providers: Array<(x: number, z: number, radius: number) => BreakTarget[]> = [];
   private readonly byKey = new Map<unknown, Breakable>();
+  /** Buildings Telekinesis holds whole (takeWhole): no blow reaches them, they are not rebuilt. */
+  private readonly lifted = new Set<Breakable>();
   /** A building came down (evacuate the people of `quick` ones, play the rumble). */
   onCollapse?: (b: Breakable) => void;
   /** Chunks broke off (crack and crumble sounds, dust). */
@@ -227,11 +248,7 @@ export class Breakables {
     // A resting piece's own rubble collider is not its ground (it would hold itself up after the wall under it broke).
     this.sim = new DebrisSim((x, z, y, p) => {
       const foot = p && this.owner.get(p)?.b.rubble.get(p);
-      if (!foot) return heights.heightAt(x, z, y);
-      heights.remove(foot);
-      const g = heights.heightAt(x, z, y);
-      heights.add(foot);
-      return g;
+      return heights.heightAt(x, z, y, foot || undefined);
     });
     // A piece knocked awake lets go of its collider before it moves (no pop up off itself).
     this.sim.onWake = (p) => {
@@ -254,10 +271,59 @@ export class Breakables {
     return b;
   }
 
+  /**
+   * Lifts the intact building nearest (x, z) (within 1.5 m of its edge; 1 to 12 m across, not a flower or an instanced
+   * thing) whole off its footing, for Telekinesis: its colliders leave the world while it is held. `move` puts its
+   * base at a point, tilted; `land` sets it down upright there, its colliders moved with it. Null: nothing to lift.
+   */
+  takeWhole(x: number, z: number): { x: number; y: number; z: number; r: number; height: number; move(x: number, y: number, z: number, tx: number, tz: number): void; land(x: number, y: number, z: number): void } | null {
+    let b: Breakable | null = null, bd = 1.5;
+    for (const e of this.near(x, z, 8)) {
+      const t = e.target;
+      if (e.state !== 'intact' || e.pending.length || t.brief || t.hide || t.size < 1 || t.size >= 12 || !t.object.parent) continue;
+      const d = Math.hypot(e.x - x, e.z - z) - e.r;
+      if (d < bd) { bd = d; b = e; }
+    }
+    if (!b) return null;
+    const it = b, o = it.target.object, parent = o.parent!;
+    o.updateMatrixWorld(true);
+    const start = o.getWorldPosition(new Vector3());
+    const rx = o.rotation.x, rz = o.rotation.z;
+    this.heights.remove(...it.live);
+    it.live = [];
+    // (Held: no blow breaks it until it is down.)
+    this.lifted.add(it);
+    const put = (px: number, py: number, pz: number) => {
+      const l = parent.worldToLocal(new Vector3(px, py, pz));
+      o.position.copy(l);
+      o.updateMatrixWorld(true);
+    };
+    return {
+      x: start.x, y: start.y, z: start.z, r: it.r, height: it.target.size,
+      move: (px, py, pz, tx, tz) => { put(px, py, pz); o.rotation.x = rx + tx; o.rotation.z = rz + tz; o.updateMatrixWorld(true); },
+      land: (px, py, pz) => {
+        o.rotation.x = rx; o.rotation.z = rz;
+        put(px, py, pz);
+        const dx = px - start.x, dy = py - start.y, dz = pz - start.z;
+        for (const f of it.target.footprints) {
+          f.x += dx; f.z += dz; f.top += dy;
+          if (f.kind === 'grid') f.base += dy;
+          else if (f.bottom !== undefined) f.bottom += dy;
+        }
+        it.x = px; it.z = pz;
+        it.live = it.target.footprints.slice();
+        this.heights.add(...it.live);
+        this.lifted.delete(it);
+        // Its cut was made where it stood: cut again here.
+        this.cut.delete(it);
+      },
+    };
+  }
+
   /** Breakables a blow at (x, z) of `radius` reaches. */
   near(x: number, z: number, radius: number): Breakable[] {
     for (const p of this.providers) for (const t of p(x, z, radius)) if (!this.byKey.has(t.key)) this.register(t);
-    return this.entries.filter((b) => b.state !== 'rubble' && Math.hypot(b.x - x, b.z - z) <= b.r + radius);
+    return this.entries.filter((b) => b.state !== 'rubble' && !this.lifted.has(b) && Math.hypot(b.x - x, b.z - z) <= b.r + radius);
   }
 
   /** A blow of `kind` at (x, y, z) reaching `radius` metres: breaks what it reaches. Returns how many things it hit. */
@@ -299,7 +365,7 @@ export class Breakables {
       }
       if (!up.length) continue;
       const left = b.chunks.filter((c) => c.standing).length;
-      if (left < b.chunks.length * 0.35) { this.collapse(b, x, b.chunks[0].y, z, radius, 1); continue; }
+      if (left < b.chunks.length * LAST_STANDING) { this.collapse(b, x, b.chunks[0].y, z, radius, 1); continue; }
       this.dropUnheld(b);
       this.trim(b);
     }
@@ -309,7 +375,9 @@ export class Breakables {
   private strike(b: Breakable, x: number, y: number, z: number, radius: number, kind: BlowKind): void {
     b.hp -= POWER[kind];
     const speed = THROW[kind];
-    if (b.hp <= 0) { this.collapse(b, x, y, z, radius, speed); return; }
+    // A prop goes in one blow; a building only loses what the blow reaches (playtest 2026-11-17: "only the part that
+    // was hit breaks, not the whole building").
+    if (b.hp <= 0 && b.target.size < 2.5) { this.collapse(b, x, y, z, radius, speed); return; }
     // Knock out what the blow reaches (at least the chunk nearest it).
     let n = 0;
     let nearest: ChunkState | null = null, nd = Infinity;
@@ -323,7 +391,7 @@ export class Breakables {
     // What is no longer held up falls under its own weight.
     this.dropUnheld(b);
     const left = b.chunks.filter((c) => c.standing).length;
-    if (left < b.chunks.length * 0.35) { this.collapse(b, x, y, z, radius, 1); return; }
+    if (left < b.chunks.length * LAST_STANDING) { this.collapse(b, x, y, z, radius, 1); return; }
     this.onBreak?.(b, x, y, z, n);
     this.trim(b);
   }
@@ -383,7 +451,7 @@ export class Breakables {
     }
     for (const [p, o] of this.owner) if (p.dead) { o.c.mesh.visible = false; this.owner.delete(p); this.restSince.delete(p); }
     for (const b of this.entries) {
-      if (b.state === 'intact') continue;
+      if (b.state === 'intact' || this.lifted.has(b)) continue;
       const d = Math.hypot(b.x - hero.x, b.z - hero.z);
       if (rebuildDue({ brokeAt: b.brokeAt, quick: !!b.target.quick }, this.now, d, inView(b.x, b.z, b.r))) this.rebuild(b);
     }
@@ -550,11 +618,13 @@ export class Breakables {
     const next: Footprint[] = [];
     const standing = b.chunks.filter((c) => c.standing);
     for (const f of t.footprints) {
-      if (f.kind !== 'grid') { if (standing.length) next.push(f); continue; }
+      // A box or a cylinder: cut as a grid too, so where the building is gone nothing invisible stays standing.
+      if (f.kind !== 'grid') { if (standing.length) next.push(trimGrid(...gridLocal(gridOf(f, b.chunks), standing))); continue; }
       const c = Math.cos(f.rotY), s = Math.sin(f.rotY);
       const local = standing.map((ch) => {
         const dx = ch.x - f.x, dz = ch.z - f.z;
-        return { x: dx * c - dz * s, z: dx * s + dz * c, y: ch.y - f.base, r: ch.r * 0.8 };
+        const k = standingReach(ch);
+        return { x: dx * c - dz * s, z: dx * s + dz * c, y: ch.y - f.base, r: k.r, top: k.top };
       });
       next.push(trimGrid(f, local));
     }
@@ -610,5 +680,44 @@ export function rubbleFootprint(p: Piece): Footprint {
   const along = (d: Vector3) => axes.reduce((s, a, i) => s + Math.abs(a.dot(d)) * h[i], 0);
   const up = axes.reduce((s, a, i) => s + Math.abs(a.y) * h[i], 0);
   // (Local x runs along (cos rotY, sin rotY): Colliders' box convention.)
-  return { kind: 'box', x: p.x, z: p.z, hw: along(u) * 0.9, hd: along(v) * 0.9, top: p.y + Math.min(up, p.r) * 0.92, rotY: Math.atan2(u.z, u.x), bottom: p.y - up };
+  // Its top is where a line straight up through its middle leaves it (a leaning plank is thin there), not its highest
+  // corner: a level box at its corner height stood over thin air beside a tilted piece.
+  let thick = Infinity;
+  axes.forEach((a, i) => { thick = Math.min(thick, h[i] / Math.max(1e-3, Math.abs(a.y))); });
+  // How level it lies: a tilted piece's box covers less than its whole shadow.
+  const level = Math.max(...axes.map((a) => Math.abs(a.y)));
+  const k = 0.55 + 0.35 * level;
+  return { kind: 'box', x: p.x, z: p.z, hw: along(u) * k, hd: along(v) * k, top: p.y + Math.min(thick, up) * 0.95, rotY: Math.atan2(u.z, u.x), bottom: p.y - up };
+}
+
+/** A box or cylinder collider as a grid of 0.5 m cells over the same ground, standing from its building's floor. */
+export function gridOf(f: Exclude<Footprint, GridFootprint>, chunks: Array<{ y: number; r: number }>): GridFootprint {
+  let base = f.bottom ?? Infinity;
+  if (!Number.isFinite(base)) for (const c of chunks) base = Math.min(base, c.y - c.r);
+  if (!Number.isFinite(base)) base = 0;
+  const hw = f.kind === 'box' ? f.hw : f.r, hd = f.kind === 'box' ? f.hd : f.r;
+  const cell = 0.5;
+  const nx = Math.max(1, Math.ceil((hw * 2) / cell)), nz = Math.max(1, Math.ceil((hd * 2) / cell));
+  const unit = Math.max(0.1, (f.top - base) / 250);
+  const bins = Math.max(1, Math.ceil((f.top - base) / unit));
+  const data = new Uint8Array(nx * nz * 3);
+  for (let k = 0; k < nz; k++) for (let i = 0; i < nx; i++) {
+    const o = (k * nx + i) * 3;
+    const lx = -hw + (i + 0.5) * cell, lz = -hd + (k + 0.5) * cell;
+    const inside = f.kind === 'box' ? true : Math.hypot(lx, lz) <= f.r;
+    data[o] = 0; data[o + 1] = 255; data[o + 2] = inside ? bins : 0;
+  }
+  // (Grids turn the other way from boxes: a box's local x runs along (cos rotY, sin rotY).)
+  const rotY = f.kind === 'box' ? -(f.rotY ?? 0) : 0;
+  return { kind: 'grid', id: 'trimmed', x: f.x, z: f.z, rotY, base, minX: -hw, minZ: -hd, cell, nx, nz, unit, data, r: Math.hypot(hw, hd), top: f.top };
+}
+
+/** The grid and the standing chunks in its local frame (trimGrid's input). */
+function gridLocal(g: GridFootprint, standing: Array<{ x: number; y: number; z: number; half: { x: number; y: number; z: number }; q: Quaternion }>): [GridFootprint, Array<{ x: number; y: number; z: number; r: number; top: number }>] {
+  const c = Math.cos(g.rotY), s = Math.sin(g.rotY);
+  return [g, standing.map((ch) => {
+    const dx = ch.x - g.x, dz = ch.z - g.z;
+    const k = standingReach(ch);
+    return { x: dx * c - dz * s, z: dx * s + dz * c, y: ch.y - g.base, r: k.r, top: k.top };
+  })];
 }

@@ -485,7 +485,8 @@ export class DebrisSim {
     if (over <= 0) return;
     for (const p of this.pieces) {
       if (over <= 0) break;
-      if (p.awake && !p.cheap && p.grounded) { p.awake = false; p.vx = p.vy = p.vz = 0; p.wx = p.wy = p.wz = 0; over--; }
+      // (Only one that is nearly still: a piece that touched something once and is falling again stays awake, cheap.)
+      if (p.awake && !p.cheap && p.grounded && Math.hypot(p.vx, p.vy, p.vz) < 1) { p.awake = false; p.vx = p.vy = p.vz = 0; p.wx = p.wy = p.wz = 0; over--; }
     }
     for (const p of this.pieces) {
       if (over <= 0) break;
