@@ -197,6 +197,8 @@ export class Enemy {
   lostArms = 0;
   /** Held up by a hero (Carry): its AI waits and whoever holds it sets `pos`. */
   held = false;
+  /** While held: its tilt from swinging on its grip (Dangle), radians about world x and z; null: none. */
+  swing: { x: number; z: number } | null = null;
   /** Thrown alive (Carry): flying until it lands. */
   thrown: Flight | null = null;
   /** It landed from a throw at `speed` m/s (the combat system hurts it and what it lands on). */
@@ -1043,7 +1045,12 @@ export class Enemy {
       this.object.rotation.z = this.lean.roll;
     }
     // Hanging from a fist it kicks and squirms; in the air it tumbles end over end.
-    if (this.held) { this.object.rotation.x = Math.sin(this.time * 9) * 0.18; this.object.rotation.z = Math.sin(this.time * 6.5) * 0.12; }
+    // (The swing from its grip, plus a kick and a squirm of its own.)
+    if (this.held) {
+      this.object.rotation.order = 'XYZ';
+      this.object.rotation.x = (this.swing?.x ?? 0) + Math.sin(this.time * 9) * 0.12;
+      this.object.rotation.z = (this.swing?.z ?? 0) + Math.sin(this.time * 6.5) * 0.08;
+    }
     else if (this.thrown) this.object.rotation.x = this.thrown.angle;
     else if (this.downT >= 0) {
       // Knocked down: over about its feet along the blow, lying, back up (Knockdown.ts).

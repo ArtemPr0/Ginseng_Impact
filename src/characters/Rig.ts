@@ -1104,7 +1104,8 @@ export class Rig {
    */
   private animateProp(pose: RigPose, dt: number): void {
     if (!this.prop) return;
-    const stowed = pose.mode === 'climb' || pose.mode === 'swim';
+    // (Put away while his sword hand holds a mob.)
+    const stowed = pose.mode === 'climb' || pose.mode === 'swim' || (pose.holding ?? 0) > 0;
     const want = stowed ? 0 : this.hero || pose.attack !== undefined ? 1 : 0;
     this.propShown += (want - this.propShown) * Math.min(1, dt * (want ? 14 : 6));
     const s = this.propBase * Math.max(0.001, this.propShown);
@@ -1594,13 +1595,23 @@ export class Rig {
     this.animateProp(pose, dt);
   }
 
-  /** One arm raised, the fist out in front at head height: a mob held up by the neck (the sword stays in the other). */
+  /**
+   * His sword arm raised, the fist out in front at head height: a mob held up by the neck in his sword hand (playtest
+   * 2026-11-17; the sword is put away while he holds it: animateProp).
+   */
   private animateHold(pose: RigPose): void {
     const w = pose.holding ?? 0;
     const bn = this.bones;
     if (w <= 0 || !bn) return;
-    this.aim(bn.lArm, bn.lForeArm, _t.set(0.22, 1.72, 0.38), w);
-    this.aim(bn.lForeArm, this.offHand, _t.set(0.08, 2.02, 0.82), w);
+    this.aim(bn.rArm, bn.rForeArm, _t.set(-0.22, 1.72, 0.38), w);
+    this.aim(bn.rForeArm, this.hand, _t.set(-0.08, 2.02, 0.82), w);
+  }
+
+  /** Where his sword hand is now (world); false with no rig. */
+  fistAt(out: Vector3): boolean {
+    if (!this.hand) return false;
+    this.hand.getWorldPosition(out);
+    return true;
   }
 
   /** The held weapon's glow: the wielded item's colour, or none. */

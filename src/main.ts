@@ -380,6 +380,8 @@ const combat = new CombatSystem({
   onPunch: (delta, seconds) => tpc.punchFov(delta, seconds),
   onPulse: (strength) => renderer.pulse(strength),
   weaponTips: (guard, tip) => rigs[party.activeIndex].weaponTips(guard, tip),
+  fist: (out) => rigs[party.activeIndex].fistAt(out),
+  takeBuilding: (x, z) => area.breakables.takeWhole(x, z),
   onTrip: (strength, seconds) => renderer.trip(strength, seconds),
   onInk: () => inkSplat.splash(),
   breakAt: (x, y, z, radius, kind) => area.breakables.damageAt(x, y, z, radius, kind),
@@ -1362,6 +1364,12 @@ function spellAim(range = AIM_RANGE): { at: Vector3; far: boolean } {
 function showAim(hero: string, picked: number, dt: number): void {
   if (!aimPreview) { aimPreview = new AimPreview((x, z, y) => world.heightAt(x, z, y)); scene.add(aimPreview.group); }
   const wheel = input.takeWheel();
+  // Something held (a mob in his fist, a building or a mob in Orlan's mind): the arc it will fly to the crosshair.
+  const toss = combat.carry.throwPreview();
+  if (toss) {
+    aimPreview.show({ shape: { kind: 'arc', arc: toss.arc, radius: toss.r }, from: toss.from, to: toss.to, dir: { x: 0, z: 1 }, color: 0x9a7aff, far: false }, dt);
+    return;
+  }
   const act = BAR[hero][picked]?.action;
   if (!aimHold.aiming || act?.kind !== 'spell') { aimPreview.hide(); holeWheel = 0; return; }
   const s = SPELLS[hero][act.slot];

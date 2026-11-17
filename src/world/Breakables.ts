@@ -202,6 +202,8 @@ export class Breakables {
   /** Things registered only when a blow reaches them (each flora set's instances): (x, z, radius) → targets there. */
   readonly providers: Array<(x: number, z: number, radius: number) => BreakTarget[]> = [];
   private readonly byKey = new Map<unknown, Breakable>();
+  /** Buildings Telekinesis holds whole (takeWhole): no blow reaches them, they are not rebuilt. */
+  private readonly lifted = new Set<Breakable>();
   /** A building came down (evacuate the people of `quick` ones, play the rumble). */
   onCollapse?: (b: Breakable) => void;
   /** Chunks broke off (crack and crumble sounds, dust). */
@@ -254,10 +256,59 @@ export class Breakables {
     return b;
   }
 
+  /**
+   * Lifts the intact building nearest (x, z) (within 1.5 m of its edge; 1 to 12 m across, not a flower or an instanced
+   * thing) whole off its footing, for Telekinesis: its colliders leave the world while it is held. `move` puts its
+   * base at a point, tilted; `land` sets it down upright there, its colliders moved with it. Null: nothing to lift.
+   */
+  takeWhole(x: number, z: number): { x: number; y: number; z: number; r: number; height: number; move(x: number, y: number, z: number, tx: number, tz: number): void; land(x: number, y: number, z: number): void } | null {
+    let b: Breakable | null = null, bd = 1.5;
+    for (const e of this.near(x, z, 8)) {
+      const t = e.target;
+      if (e.state !== 'intact' || e.pending.length || t.brief || t.hide || t.size < 1 || t.size >= 12 || !t.object.parent) continue;
+      const d = Math.hypot(e.x - x, e.z - z) - e.r;
+      if (d < bd) { bd = d; b = e; }
+    }
+    if (!b) return null;
+    const it = b, o = it.target.object, parent = o.parent!;
+    o.updateMatrixWorld(true);
+    const start = o.getWorldPosition(new Vector3());
+    const rx = o.rotation.x, rz = o.rotation.z;
+    this.heights.remove(...it.live);
+    it.live = [];
+    // (Held: no blow breaks it until it is down.)
+    this.lifted.add(it);
+    const put = (px: number, py: number, pz: number) => {
+      const l = parent.worldToLocal(new Vector3(px, py, pz));
+      o.position.copy(l);
+      o.updateMatrixWorld(true);
+    };
+    return {
+      x: start.x, y: start.y, z: start.z, r: it.r, height: it.target.size,
+      move: (px, py, pz, tx, tz) => { put(px, py, pz); o.rotation.x = rx + tx; o.rotation.z = rz + tz; o.updateMatrixWorld(true); },
+      land: (px, py, pz) => {
+        o.rotation.x = rx; o.rotation.z = rz;
+        put(px, py, pz);
+        const dx = px - start.x, dy = py - start.y, dz = pz - start.z;
+        for (const f of it.target.footprints) {
+          f.x += dx; f.z += dz; f.top += dy;
+          if (f.kind === 'grid') f.base += dy;
+          else if (f.bottom !== undefined) f.bottom += dy;
+        }
+        it.x = px; it.z = pz;
+        it.live = it.target.footprints.slice();
+        this.heights.add(...it.live);
+        this.lifted.delete(it);
+        // Its cut was made where it stood: cut again here.
+        this.cut.delete(it);
+      },
+    };
+  }
+
   /** Breakables a blow at (x, z) of `radius` reaches. */
   near(x: number, z: number, radius: number): Breakable[] {
     for (const p of this.providers) for (const t of p(x, z, radius)) if (!this.byKey.has(t.key)) this.register(t);
-    return this.entries.filter((b) => b.state !== 'rubble' && Math.hypot(b.x - x, b.z - z) <= b.r + radius);
+    return this.entries.filter((b) => b.state !== 'rubble' && !this.lifted.has(b) && Math.hypot(b.x - x, b.z - z) <= b.r + radius);
   }
 
   /** A blow of `kind` at (x, y, z) reaching `radius` metres: breaks what it reaches. Returns how many things it hit. */
@@ -385,7 +436,7 @@ export class Breakables {
     }
     for (const [p, o] of this.owner) if (p.dead) { o.c.mesh.visible = false; this.owner.delete(p); this.restSince.delete(p); }
     for (const b of this.entries) {
-      if (b.state === 'intact') continue;
+      if (b.state === 'intact' || this.lifted.has(b)) continue;
       const d = Math.hypot(b.x - hero.x, b.z - hero.z);
       if (rebuildDue({ brokeAt: b.brokeAt, quick: !!b.target.quick }, this.now, d, inView(b.x, b.z, b.r))) this.rebuild(b);
     }

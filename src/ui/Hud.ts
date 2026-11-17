@@ -236,7 +236,7 @@ export class Hud {
     this.root = container;
     container.innerHTML = `
       <div class="hud-prompt" id="hud-prompt"><div class="hud-subtitle">A SILENT KINGDOM BEYOND THE FOG</div><div class="hud-wordmark">GINSENG IMPACT</div><div class="hud-press" id="hud-press">CLICK TO ENTER THE FOG</div><button type="button" class="hud-new-game" id="hud-new-game" style="display:none">NEW GAME</button><button type="button" class="hud-new-game hud-quality" id="hud-quality">QUALITY: AUTO</button>
-        <div class="hud-controls">WASD move · SHIFT sprint · SPACE jump, again to fly (hold to rise) · C dive · X land · LMB attack (hold to charge a heavy) · 1-7 pick a spell · RMB cast it at the crosshair · Orlan's Telekinesis (7): hold RMB on something glowing to lift it, release to hurl · G (Sir Aldric) grab a mob, LMB throw it · R dodge · TAB lock on · E / F talk / loot · I inventory · F1 F2 F3 switch hero · ESC pause</div></div>
+        <div class="hud-controls">WASD move · SHIFT sprint · SPACE jump, again to fly (hold to rise) · C dive · X land · LMB attack (hold to charge a heavy) · 1-7 pick a spell · hold RMB to aim it (release casts, ESC cancels) · Orlan's Telekinesis (7): hold RMB on something glowing to lift it (a house too, whole), LMB throws it at the crosshair, release sets it down · G (Sir Aldric) grab a mob in his sword hand, LMB swing it, G throw it · R dodge · TAB lock on · E / F talk / loot · I inventory · F1 F2 F3 switch hero · ESC pause</div></div>
       <div class="hud-boss panel" id="hud-boss"><div class="hud-boss-name" id="hud-boss-name"></div><div class="hud-boss-title" id="hud-boss-title"></div><div class="hud-boss-bar"><div class="hud-boss-fill" id="hud-boss-fill"></div></div></div>
       <div class="hud-shards panel" id="hud-shards"><span class="hud-shard-glyph hud-coin">●</span><span id="hud-shards-n">0</span><span class="hud-shards-pop" id="hud-shards-pop"></span></div>
       <div class="hud-active panel"><div class="hud-name" id="hud-name"></div><div class="hud-title" id="hud-title"></div>
@@ -257,7 +257,7 @@ export class Hud {
       <div class="hud-xp" id="hud-xp"><div class="hud-xp-fill" id="hud-xp-fill"></div><span class="hud-xp-pop" id="hud-xp-pop"></span></div>
       <div class="hud-banner" id="hud-banner"></div>
       <div class="hud-curtain" id="hud-curtain"></div>
-      <div class="hud-hint">LMB attack (hold: heavy) · 1-7 spell · RMB cast · G grab · R dodge · TAB lock · E/F interact · I bag · F1-F3 hero</div>
+      <div class="hud-hint">LMB attack (hold: heavy) · 1-7 spell · hold RMB aim, release cast · G grab · R dodge · TAB lock · E/F interact · I bag · F1-F3 hero</div>
       <div class="hud-quests" id="hud-quests"></div>
       <div class="hud-timer panel" id="hud-timer"><div class="hud-timer-label" id="hud-timer-label"></div><div class="hud-timer-time" id="hud-timer-time"></div></div>
       <div class="hud-panel panel" id="hud-dialog"></div>`;

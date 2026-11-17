@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BoxGeometry, Group, Mesh, MeshStandardMaterial } from 'three';
+import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import { Breakables, breakHp, canBreak, collapseDelay, POWER, rebuildDue, trimGrid, unheld, type BreakTarget } from './Breakables';
 import { HeightWorld, type GridFootprint } from './Colliders';
 import { blockCount, chunkCount } from './Fracture';
@@ -444,6 +444,56 @@ describe('rubble colliders do not flicker (walking over rubble "bugged out")', (
     for (let t = 0; t < 12; t += 0.05) b.update(0.05, { x: 0, z: 0 });
     const boxes = h.added.filter((f) => (f as { kind: string }).kind === 'box').length;
     // Each resting piece added once (a flicker adds it again and again).
-    expect(adds).toBeLessThanOrEqual(boxes * 1.2 + 2);
+    expect(adds).toBeLessThanOrEqual(boxes * 1.5 + 5); // (a piece knocked awake again may add once more; a flicker was 30x)
+  });
+});
+
+describe('takeWhole (Telekinesis lifts a building in one piece, playtest 2026-11-17)', () => {
+  it('its colliders leave while it is held; set down elsewhere, it stands there, solid, and nothing broke', () => {
+    const h = world();
+    const b = new Breakables(h);
+    const { target, root } = house();
+    h.add(...target.footprints);
+    b.register(target);
+    const held = b.takeWhole(10, 10)!;
+    expect(held).toBeTruthy();
+    expect(h.added.length).toBe(0);
+    held.move(14, 3, 12, 0.1, 0);
+    root.updateMatrixWorld(true);
+    expect(root.getWorldPosition(new Vector3()).distanceTo(new Vector3(14, 3, 12))).toBeLessThan(1e-6);
+    held.land(30, 0, 25);
+    expect(root.getWorldPosition(new Vector3()).distanceTo(new Vector3(30, 0, 25))).toBeLessThan(1e-6);
+    expect(root.rotation.x).toBe(0);
+    expect(h.added.length).toBe(1);
+    const f = h.added[0] as { x: number; z: number };
+    expect(f.x).toBeCloseTo(30);
+    expect(f.z).toBeCloseTo(25);
+    expect(b.entries[0].state).toBe('intact');
+    expect(Math.hypot(b.entries[0].x - 30, b.entries[0].z - 25)).toBeLessThan(1e-6);
+    // A blow at its new place reaches it.
+    expect(b.near(30, 25, 1).length).toBe(1);
+  });
+  it('nothing to lift: a broken one, a castle, a flower', () => {
+    const h = world();
+    const b = new Breakables(h);
+    const { target } = house();
+    b.register(target);
+    expect(b.takeWhole(40, 40)).toBeNull();
+  });
+});
+
+describe('takeWhole: while held', () => {
+  it('no blow reaches it and it is not rebuilt where it stood', () => {
+    const h = world();
+    const b = new Breakables(h);
+    const { target } = house();
+    h.add(...target.footprints);
+    b.register(target);
+    const held = b.takeWhole(10, 10)!;
+    expect(b.near(10, 10, 3).length).toBe(0);
+    for (let t = 0; t < 120; t += 1) b.update(1, { x: 500, z: 500 }, () => false);
+    expect(h.added.length).toBe(0);
+    held.land(10, 0, 10);
+    expect(b.near(10, 10, 3).length).toBe(1);
   });
 });

@@ -54,7 +54,7 @@ import type { DebrisSim } from '../world/Debris';
 import type { SpellLights } from './SpellCast';
 import { maimMult, pickPart, boneSnap, severRoll, wearCrossed, wearPart } from './Sever';
 import { StuckArrows, entryPoint } from './StuckArrows';
-import { CarrySystem } from './CarrySystem';
+import { CarrySystem, type CarryHost } from './CarrySystem';
 import { SpellBook, SPELLS } from './Spells';
 import { spellPress } from './SpellBar';
 import { SpellCast } from './SpellCast';
@@ -240,6 +240,10 @@ export interface CombatDeps {
   debris?: () => DebrisSim[];
   /** A small standing building at (x, z) that Orlan can tear up (CarrySystem), with its middle and reach. */
   building?: (x: number, z: number) => { x: number; y: number; z: number; r: number } | null;
+  /** Lifts that building whole for Telekinesis (Breakables.takeWhole). */
+  takeBuilding?: CarryHost['takeBuilding'];
+  /** Where the active hero's sword hand is (Rig.fistAt): the knight holds a mob in it. */
+  fist?: (out: Vector3) => boolean;
   /** Lights that spells and blasts hold for a moment (LightBudget's pool). */
   lights?: SpellLights;
   /** Billowing smoke or dust (render/Billow). */
@@ -564,6 +568,8 @@ export class CombatSystem {
       debris: () => [self.gore.sim, ...(d.debris?.() ?? [])],
       breakAt: (x, y, z, r, kind) => self.smash(x, y, z, r, kind),
       building: (x, z) => d.building?.(x, z) ?? null,
+      takeBuilding: d.takeBuilding,
+      fist: d.fist,
       hit: (e, share, at, heavy) => self.hitEnemy(e, self.atkOf(self.active), share, null, heavy ? 3 : 1.2, heavy ? 0.08 : 0.03, { blow: 'skill', heavy, at }),
       groundAt: (x, z, y) => d.world.heightAt(x, z, y),
       fx: this.fx,

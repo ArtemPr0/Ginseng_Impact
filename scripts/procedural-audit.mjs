@@ -27,7 +27,7 @@ function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
     if (statSync(p).isDirectory()) walk(p, out);
-    else if (p.endsWith('.ts') && !p.endsWith('.test.ts')) out.push(p);
+    else if (p.endsWith('.ts') && !p.endsWith('.test.ts') && !p.endsWith('.fixture.ts')) out.push(p);
   }
   return out;
 }
