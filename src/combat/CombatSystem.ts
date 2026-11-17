@@ -52,7 +52,7 @@ import { blowKindOf, breaksThings, coneSmash } from './Smash';
 import { Gore } from './Gore';
 import type { DebrisSim } from '../world/Debris';
 import type { SpellLights } from './SpellCast';
-import { maimMult, pickPart, severRoll, wearCrossed, wearPart } from './Sever';
+import { maimMult, pickPart, boneSnap, severRoll, wearCrossed, wearPart } from './Sever';
 import { StuckArrows, entryPoint } from './StuckArrows';
 import { CarrySystem } from './CarrySystem';
 import { SpellBook, SPELLS } from './Spells';
@@ -2893,6 +2893,12 @@ export class CombatSystem {
     if (b.died && e.def.collapse) {
       if (this.gore.burstBones(e, kb, strength)) { this.d.audio.clatter(); return true; }
       return false;
+    }
+    // A living skeleton loses bones to solid blows: a hand, an arm, its skull (it fights on without it). Playtest
+    // 2026-11-17: they only ever fell apart on death.
+    if (!b.died && e.def.collapse && m.hasClips && boneSnap(b, this.rnd)) {
+      const part = pickPart(this.gore.partsOf(e), hitAt, true);
+      if (part && this.gore.sever(e, part, kb, strength)) { this.d.audio.clatter(); return false; }
     }
     const max = e.def.maxHp * e.hpScale;
     // Worn down: a hand at 70 %, an arm at 45 % (bosses 50 / 25), on the side the blow came from (Sever.wearCrossed).

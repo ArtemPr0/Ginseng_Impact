@@ -111,12 +111,11 @@ export function severRoll(b: SeverBlow, rnd: () => number = Math.random): boolea
   return strong && rnd() < SEVER_CHANCE;
 }
 
-/** The part nearest the blow; the head comes off only on a kill. */
+/** The part nearest the blow (hands too, since 2026-11-17); the head comes off only on a kill. */
 export function pickPart(parts: Array<{ part: Part; at: Vector3 }>, hit: Vector3, died: boolean): Part | null {
   let best: Part | null = null, bd = Infinity;
   for (const p of parts) {
     if (p.part === 'head' && !died) continue;
-    if (p.part === 'leftHand' || p.part === 'rightHand') continue;
     const d = p.at.distanceTo(hit);
     if (d < bd) { bd = d; best = p.part; }
   }
@@ -128,22 +127,77 @@ export function maimMult(lostArms: number): number {
   return lostArms <= 0 ? 1 : lostArms === 1 ? 0.65 : 0.4;
 }
 
-/** A blood-red element colour (the Blood element) puffs ember gold instead: no blood anywhere (2026-11-16). */
-const EMBER = 0xffb070;
+/** The red of blood (drops, stains, the wound inside a cut). */
+export const BLOOD_RED = 0x6a0a10;
 
-function notRed(c: number): number {
-  const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
-  return r > g * 1.8 && r > b * 1.8 ? EMBER : c;
+/**
+ * What comes out where a part comes off. Since 2026-11-17 (the user's call, overturning 11-16's "no blood"): flesh
+ * bleeds red; ghosts puff their element's glow; bone its dust, stone its grit.
+ */
+export function woundOf(material: HitMaterial, element: number): { blood: boolean; glow: boolean; color: number } {
+  if (material === 'bone') return { blood: false, glow: false, color: 0xd9d2bf };
+  if (material === 'stone') return { blood: false, glow: false, color: 0x8a8fa6 };
+  if (material === 'ghost') return { blood: false, glow: true, color: element };
+  return { blood: true, glow: false, color: BLOOD_RED };
 }
 
 /**
- * What puffs out where a part comes off (the user's call of 2026-11-16: no blood, "they lose a part of the body"):
- * flesh and ghosts a puff of their element's glow, bone its dust, stone its grit.
+ * Closes a cut piece (a non-indexed baked part): every loop of edges that only one triangle uses is fanned shut round
+ * its middle. The caps are a second group (material index 1: the wound), so the piece shows red inside where it was
+ * cut instead of a hollow shell.
  */
-export function woundOf(material: HitMaterial, element: number): { glow: boolean; color: number } {
-  if (material === 'bone') return { glow: false, color: 0xd9d2bf };
-  if (material === 'stone') return { glow: false, color: 0x8a8fa6 };
-  return { glow: true, color: notRed(element) };
+export function capCut(g: BufferGeometry): BufferGeometry {
+  const p = g.attributes.position;
+  const uv = g.attributes.uv;
+  const key = (i: number) => `${Math.round(p.getX(i) * 1e4)},${Math.round(p.getY(i) * 1e4)},${Math.round(p.getZ(i) * 1e4)}`;
+  const at = new Map<string, number>();
+  const count = new Map<string, number>();
+  const dirE = new Map<string, [string, string]>();
+  for (let t = 0; t + 2 < p.count; t += 3) {
+    for (let k = 0; k < 3; k++) {
+      const ia = t + k, ib = t + ((k + 1) % 3);
+      const a = key(ia), b = key(ib);
+      at.set(a, ia); at.set(b, ib);
+      const e = a < b ? a + '|' + b : b + '|' + a;
+      count.set(e, (count.get(e) ?? 0) + 1);
+      dirE.set(e, [a, b]);
+    }
+  }
+  // Open edges, walked into loops (b → a reversed, so the cap faces out of the cut).
+  const next = new Map<string, string>();
+  for (const [e, n] of count) if (n === 1) { const [a, b] = dirE.get(e)!; next.set(b, a); }
+  const caps: number[] = [];
+  const seen = new Set<string>();
+  for (const start of next.keys()) {
+    if (seen.has(start)) continue;
+    const loop: string[] = [];
+    let cur: string | undefined = start;
+    while (cur !== undefined && !seen.has(cur)) { seen.add(cur); loop.push(cur); cur = next.get(cur); }
+    if (loop.length < 3) continue;
+    let cx = 0, cy = 0, cz = 0;
+    for (const k of loop) { const i = at.get(k)!; cx += p.getX(i); cy += p.getY(i); cz += p.getZ(i); }
+    cx /= loop.length; cy /= loop.length; cz /= loop.length;
+    for (let i = 0; i < loop.length; i++) {
+      const a = at.get(loop[i])!, b = at.get(loop[(i + 1) % loop.length])!;
+      caps.push(p.getX(a), p.getY(a), p.getZ(a), p.getX(b), p.getY(b), p.getZ(b), cx, cy, cz);
+    }
+  }
+  const n0 = p.count;
+  const pos = new Float32Array(n0 * 3 + caps.length);
+  pos.set(p.array as Float32Array, 0);
+  pos.set(caps, n0 * 3);
+  const out = new BufferGeometry();
+  out.setAttribute('position', new BufferAttribute(pos, 3));
+  if (uv) {
+    const u = new Float32Array((n0 + caps.length / 3) * 2);
+    u.set(uv.array as Float32Array, 0);
+    out.setAttribute('uv', new BufferAttribute(u, 2));
+  }
+  out.addGroup(0, n0, 0);
+  out.addGroup(n0, caps.length / 3, 1);
+  out.computeVertexNormals();
+  out.computeBoundingSphere();
+  return out;
 }
 
 /**
@@ -181,4 +235,16 @@ export function weakness(hpShare: number): { pace: number; hunch: number } {
 /** Sides of the body that have lost a hand or an arm (for maimMult). */
 export function armsLost(lost: Set<string>): number {
   return (['left', 'right'] as const).filter((s) => lost.has(`${s}Arm`) || lost.has(`${s}Hand`)).length;
+}
+
+/** Chance a solid blow snaps a bone off a living skeleton (its skull too: it fights on without it). */
+export const BONE_SNAP = 0.65;
+
+/**
+ * Does this blow snap a bone off a living skeleton? (Playtest 2026-11-17: they only ever fell apart on death.) A crit, a
+ * heavy, or anything taking a tenth of its health or more; a graze never.
+ */
+export function boneSnap(b: { crit: boolean; heavy: boolean; skill: boolean; share: number }, rnd: () => number = Math.random): boolean {
+  const solid = b.crit || b.heavy || b.share >= 0.1;
+  return solid && rnd() < BONE_SNAP;
 }
