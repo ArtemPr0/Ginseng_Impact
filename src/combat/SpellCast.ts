@@ -116,6 +116,9 @@ const SKILL_IMPACT = {
  * The black hole's collapse: a deep violet blast (a pale violet let the white-hot core take over, and it burst as a
  * flat white disc) and a flash that lights the scene round it without blowing it out.
  */
+/** The trail id Wrecking Charge's speed wake owns. */
+const CHARGE_TRAIL = 'wrecking-charge';
+
 export const HOLE_BURST = { hot: 0x7a3cff, flash: 60 } as const;
 
 export class SpellCast {
@@ -484,6 +487,8 @@ export class SpellCast {
     if (ch.tear <= 0) { ch.tear = 0.1; h.tear?.(ax, az, s.radius + 0.5, 6); }
     h.fx.dust(_v.set(c.pos.x, c.pos.y, c.pos.z), 0.8);
     h.fx.sparks(_v.set(c.pos.x, c.pos.y + 1, c.pos.z), _w.set(-ch.dir.x, 0.3, -ch.dir.z), 4, s.color, 5, 0.5);
+    // A crimson speed wake streaming off him, knees to shoulders (released when the rush ends, it fades out).
+    h.fx.trail(CHARGE_TRAIL, _v.set(c.pos.x, c.pos.y + 0.35, c.pos.z), _w.set(c.pos.x, c.pos.y + 1.55, c.pos.z), s.color, ch.left > 0);
     for (const e of h.enemies.slice()) {
       if (!e.alive || ch.hit.has(e.id) || Math.hypot(e.pos.x - ax, e.pos.z - az) > s.radius + e.def.bodyRadius * (e.def.scale ?? 1)) continue;
       ch.hit.add(e.id);

@@ -391,3 +391,22 @@ describe('the black hole\'s collapse (critic round 2: it burst as a flat white d
   });
 });
 
+describe('Wrecking Charge leaves a speed wake (critic round 3: the rush showed nothing on screen)', () => {
+  it('feeds a ribbon trail behind him while he rushes, and lets it go when the rush ends', () => {
+    const trails: Array<{ id: string; on: boolean; ay: number; by: number }> = [];
+    const fx = new Proxy({}, { get: (_t, k) => (...a: unknown[]) => {
+      if (k === 'trail') trails.push({ id: a[0] as string, on: a[4] as boolean, ay: (a[1] as Vector3).y, by: (a[2] as Vector3).y });
+    } }) as SpellHost['fx'];
+    const { host } = fakeHost({ fx });
+    const sc = new SpellCast(host);
+    sc.cast('knight', 1, new Vector3(0, 0, 10));
+    for (let i = 0; i < 10; i++) sc.update(0.1);
+    const fed = trails.filter((t) => t.on);
+    expect(fed.length).toBeGreaterThanOrEqual(3);
+    expect(new Set(fed.map((t) => t.id)).size).toBe(1);
+    // A tall ribbon, from about the knees to the shoulders.
+    expect(fed[0].by - fed[0].ay).toBeGreaterThan(0.8);
+    expect(trails[trails.length - 1].on).toBe(false);
+  });
+});
+
